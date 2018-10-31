@@ -20,14 +20,14 @@ package main
 import "fmt"
 import "../client"
 
-func ConsumeMessage(msg client.MessageExt) (client.ConsumeStatus) {
-	fmt.Println("ConsumeMessage")
+func SampleConsumeMessage(msg client.MessageExt) (client.ConsumeStatus) {
+	fmt.Println("ConsumeMessageInSample")
 	fmt.Println("Message topic",client.GetMessageTopic(msg))
 	fmt.Println("MessageId",client.GetMessageId(msg))
 	return client.ConsumeSuccess
 }
 
-func ExamplePushConsumeMessage() {
+func SamplePushConsumeMessage() {
 	fmt.Println("Start Send Message..")
 	namesvr := "172.17.0.5:9876"
 	topic := "T_TestTopic"
@@ -41,7 +41,7 @@ func ExamplePushConsumeMessage() {
 	client.Subscribe(consumer, topic, expression)
 	fmt.Println("Set Push Consumer Subscribe,Topic:", topic," Exp:", expression)
 
-	client.RegisterMessageCallback(consumer,ConsumeMessage)
+	client.RegisterMessageCallback(consumer,SampleConsumeMessage)
 	client.StartPushConsumer(consumer)
 	fmt.Println("Start Push Consumer")
 	fmt.Scan()

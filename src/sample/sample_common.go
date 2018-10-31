@@ -20,6 +20,6 @@ package main
 import "fmt"
 import "../client"
 
-func ExampleVersion() {
+func SampleVersion() {
 	fmt.Println("Version :", client.GetVersion())
 }

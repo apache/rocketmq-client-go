@@ -21,8 +21,8 @@ import "fmt"
 
 func main() {
     fmt.Println("Start Sample Main Function......")
-    ExampleVersion()
-    ExampleSendMessage()
-    ExamplePushConsumeMessage()
+    SampleVersion()
+    SampleSendMessage()
+    SamplePushConsumeMessage()
     fmt.Scan()
 }

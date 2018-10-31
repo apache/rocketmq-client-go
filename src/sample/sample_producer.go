@@ -20,7 +20,7 @@ package main
 import "fmt"
 import "../client"
 
-func ExampleSendMessage() {
+func SampleSendMessage() {
 	fmt.Println("Start Send Message..")
 	namesvr := "172.17.0.5:9876"
 	topic := "T_TestTopic"
