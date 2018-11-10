@@ -18,8 +18,6 @@ package client
 
 //#cgo CFLAGS: -I/usr/local/include/rocketmq
 //#cgo LDFLAGS: -L/usr/local/lib -lrocketmq
-//typedef struct CMessageExt CMessageExt;
-//typedef struct CPushConsumer CPushConsumer;
 //#include "CMessageExt.h"
 //#include "CPushConsumer.h"
 //extern int ConsumeMessageCallback(CPushConsumer *consumer,CMessageExt *msg);

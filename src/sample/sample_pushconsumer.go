@@ -29,7 +29,7 @@ func SampleConsumeMessage(msg client.MessageExt) (client.ConsumeStatus) {
 
 func SamplePushConsumeMessage() {
 	fmt.Println("Start Send Message..")
-	namesvr := "172.17.0.5:9876"
+	namesvr := "172.17.0.2:9876"
 	topic := "T_TestTopic"
 	expression := "*"
 	//Create Producer

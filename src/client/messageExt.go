@@ -18,7 +18,6 @@ package client
 
 //#cgo CFLAGS: -I/usr/local/include/rocketmq
 //#cgo LDFLAGS: -L/usr/local/lib -lrocketmq
-//typedef struct CMessageExt CMessageExt;
 //#include "CMessageExt.h"
 import "C"
 
