@@ -14,15 +14,30 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client
 
-//#cgo CFLAGS: -I/usr/local/include/rocketmq
-//#cgo LDFLAGS: -L/usr/local/lib -lrocketmq
-//#include "CMessageExt.h"
-//#include "CPushConsumer.h"
-import "C"
+package main
 
-//export ConsumeMessageCallback
-func ConsumeMessageCallback(consumer *C.struct_CPushConsumer,msg *C.struct_CMessageExt) (C.int) {
-	return C.int(ConsumeMessageInner(consumer,msg))
+import (
+	"fmt"
+	"github.com/apache/rocketmq-client-go/core"
+	"time"
+)
+
+func main() {
+	SendMessage()
+}
+
+func SendMessage() {
+	producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
+	producer.Start()
+	defer producer.Shutdown()
+
+	fmt.Printf("Producer: %s started... \n", producer)
+	for i := 0; i < 100; i++ {
+		msg := fmt.Sprintf("Hello RocketMQ-%d", i)
+		result := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
+		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
+	}
+	time.Sleep(10 * time.Second)
+	producer.Shutdown()
 }

@@ -14,9 +14,16 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client
+package rocketmq
 
-var GO_CLIENT_VERSION  = "Go Client V1.0.0, BuildTime:2018.10.30"
-func GetVersion() (version string){
-    return GO_CLIENT_VERSION
+import (
+	"fmt"
+	"testing"
+)
+
+func TestVersion(test *testing.T) {
+	fmt.Println("-----TestGetVersion Start----")
+	version := Version()
+	fmt.Println(version)
+	fmt.Println("-----TestGetVersion Finish----")
 }
