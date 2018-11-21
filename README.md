@@ -1,8 +1,7 @@
 ## RocketMQ Client Go [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
-* RocketMQ Go client is developed on top of [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), which has been proven robust and widely adopted within Alibaba Group by many business units for more than three years.
+* RocketMQ Go client is usoing cgo to call [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), which has been proven robust and widely adopted within Alibaba Group by many business units for more than three years.
 
-* NOTE: This project is in developed stage, all API or data struct maybe changed in the future, so production not recommend, but you can use it free on test.
 
 ----------
 ## Features
