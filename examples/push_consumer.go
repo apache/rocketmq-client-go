@@ -14,15 +14,32 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client_test
 
-import "fmt"
-import "testing"
-import "../client"
+package main
 
-func TestCreatePushConsumer(test *testing.T){
-    fmt.Println("-----TestCreateProducer Start----")
-    consumer := client.CreatePushConsumer("testGroupId")
-    client.DestroyPushConsumer(consumer)
-    fmt.Println("-----TestCreateProducer Finish----")
+import (
+	"fmt"
+	"github.com/apache/rocketmq-client-go/core"
+	"time"
+)
+
+func main() {
+	PushConsumeMessage()
+}
+
+func PushConsumeMessage() {
+	fmt.Println("Start Receiving Messages...")
+	consumer, _ := rocketmq.NewPushConsumer(&rocketmq.ConsumerConfig{GroupID: "testGroupId", NameServer: "localhost:9876",
+		ConsumerThreadCount: 2, MessageBatchMaxSize: 16})
+
+	// MUST subscribe topic before consumer started.
+	consumer.Subscribe("test", "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
+		fmt.Printf("A message received: \"%s\" \n", msg.Body)
+		return rocketmq.ConsumeSuccess
+	})
+
+	consumer.Start()
+	defer consumer.Shutdown()
+	fmt.Printf("consumer: %s started...\n", consumer)
+	time.Sleep(10 * time.Minute)
 }

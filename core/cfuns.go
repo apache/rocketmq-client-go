@@ -14,21 +14,31 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client
+package rocketmq
 
-type ConsumeStatus int
-
-const (
-    ConsumeSuccess ConsumeStatus = iota // value --> 0
-    ReConsumeLater              // value --> 1
+/*
+#cgo LDFLAGS: -L/usr/local/lib -lrocketmq
+#include "rocketmq/CMessageExt.h"
+#include "rocketmq/CPushConsumer.h"
+*/
+import "C"
+import (
+	"sync"
 )
-func (status ConsumeStatus) String() string {
-    switch status {
-    case ConsumeSuccess:
-        return "ConsumeSuccess"
-    case ReConsumeLater:
-        return "ReConsumeLater"
-    default:
-        return "Unknown"
-    }
+
+var pushConsumerMap sync.Map
+
+//export consumeMessageCallback
+func consumeMessageCallback(cconsumer *C.CPushConsumer, msg *C.CMessageExt) C.int {
+	consumer, exist := pushConsumerMap.Load(cconsumer)
+	if !exist {
+		return C.int(ReConsumeLater)
+	}
+
+	msgExt := cmsgExtToGo(msg)
+	cfunc, exist := consumer.(*defaultPushConsumer).funcsMap.Load(msgExt.Topic)
+	if !exist {
+		return C.int(ReConsumeLater)
+	}
+	return C.int(cfunc.(func(msg *MessageExt) ConsumeStatus)(msgExt))
 }
