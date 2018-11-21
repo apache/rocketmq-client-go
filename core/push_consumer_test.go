@@ -14,17 +14,15 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client_test
+package rocketmq
 
-import (
-    "fmt"
-    "testing"
-    "../client"
-)
-
-func TestVersion(test *testing.T){
-    fmt.Println("-----TestGetVersion Start----")
-    version := client.Version();
-    fmt.Println(version)
-    fmt.Println("-----TestGetVersion Finish----")
-}
+//import "fmt"
+//import "testing"
+//import "../client"
+//
+//func TestCreatePushConsumer(test *testing.T){
+//    fmt.Println("-----TestCreateProducer Start----")
+//    consumer := rocketmq.CreatePushConsumer("testGroupId")
+//    rocketmq.DestroyPushConsumer(consumer)
+//    fmt.Println("-----TestCreateProducer Finish----")
+//}

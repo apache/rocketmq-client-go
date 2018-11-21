@@ -14,32 +14,15 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client
+package rocketmq
 
-type SendStatus int
-
-const (
-    SendOK SendStatus = iota // value --> 0
-    SendFlushDiskTimeout              // value --> 1
-    SendFlushSlaveTimeout            // value --> 2
-    SendSlaveNotAvailable          // value --> 3
+import (
+	"testing"
 )
-func (status SendStatus) String() string {
-    switch status {
-    case SendOK:
-        return "SendOK"
-    case SendFlushDiskTimeout:
-        return "SendFlushDiskTimeout"
-    case SendFlushSlaveTimeout:
-        return "SendFlushSlaveTimeout"
-    case SendSlaveNotAvailable:
-        return "SendSlaveNotAvailable"
-    default:
-        return "Unknown"
-    }
-}
-type SendResult struct {
-    Status SendStatus
-    MsgId string
-    Offset int64
+
+func TestGetMessageTopic(test *testing.T) {
+	//fmt.Println("-----TestGetMessageTopic Start----")
+	//msg := rocketmq.CreateMessage("testTopic")
+	//rocketmq.DestroyMessage(msg)
+	//fmt.Println("-----TestGetMessageTopic Finish----")
 }

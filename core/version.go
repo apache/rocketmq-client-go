@@ -14,12 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+package rocketmq
 
-package main
+var GO_CLIENT_VERSION = "Go Client V1.0.0, BuildTime:2018.10.30"
 
-import "fmt"
-import "../client"
-
-func SampleVersion() {
-	fmt.Println("Version :", client.GetVersion())
+func GetVersion() (version string) {
+	return GO_CLIENT_VERSION
 }

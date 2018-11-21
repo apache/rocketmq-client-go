@@ -14,17 +14,17 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package client_test
+package rocketmq
 
-import (
-    "fmt"
-    "testing"
-    "../client"
-)
-
-func TestGetVersion(test *testing.T){
-    fmt.Println("-----TestGetVersion Start----")
-    version := client.GetVersion();
-    fmt.Println(version)
-    fmt.Println("-----TestGetVersion Finish----")
-}
+//import (
+//    "fmt"
+//    "testing"
+//    "../client"
+//)
+//
+//func TestGetVersion(test *testing.T){
+//    fmt.Println("-----TestGetVersion Start----")
+//    version := rocketmq.GetVersion();
+//    fmt.Println(version)
+//    fmt.Println("-----TestGetVersion Finish----")
+//}
