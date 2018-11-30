@@ -29,7 +29,7 @@ func NewProduer(config *ProducerConfig) Producer {
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	GroupID		string
+	GroupID     string
 	NameServer  string
 	Credentials *SessionCredentials
 }
@@ -43,6 +43,9 @@ type Producer interface {
 	baseAPI
 	// SendMessageSync send a message with sync
 	SendMessageSync(msg *Message) SendResult
+
+	// SendMessageOrderly send the message orderly
+	SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult
 
 	// SendMessageAsync send a message with async
 	SendMessageAsync(msg *Message)

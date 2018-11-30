@@ -16,12 +16,24 @@
  */
 package rocketmq
 
-//#cgo LDFLAGS: -L/usr/local/lib/ -lrocketmq
-//#include "rocketmq/CMessage.h"
-//#include "rocketmq/CProducer.h"
-//#include "rocketmq/CSendResult.h"
+/*
+#cgo LDFLAGS: -L/usr/local/lib/ -lrocketmq
+
+#include <stdio.h>
+#include "rocketmq/CMessage.h"
+#include "rocketmq/CProducer.h"
+#include "rocketmq/CSendResult.h"
+
+int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
+	int queueSelectorCallback(int, void*);
+	return queueSelectorCallback(size, selectorKey);
+}
+*/
 import "C"
-import "fmt"
+import (
+	"fmt"
+	"unsafe"
+)
 
 type SendStatus int
 
@@ -77,7 +89,7 @@ func (p *defaultProducer) String() string {
 func (p *defaultProducer) Start() error {
 	err := int(C.StartProducer(p.cproduer))
 	// TODO How to process err code.
-	fmt.Printf("result: %v \n", err)
+	fmt.Printf("producer start result: %v \n", err)
 	return nil
 }
 
@@ -87,7 +99,7 @@ func (p *defaultProducer) Shutdown() error {
 	err := C.ShutdownProducer(p.cproduer)
 
 	// TODO How to process err code.
-	fmt.Printf("result: %v \n", err)
+	fmt.Printf("shutdown result: %v \n", err)
 	return nil
 }
 
@@ -103,6 +115,28 @@ func (p *defaultProducer) SendMessageSync(msg *Message) SendResult {
 	result.MsgId = C.GoString(&sr.msgId[0])
 	result.Offset = int64(sr.offset)
 	return result
+}
+
+func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult {
+	cmsg := goMsgToC(msg)
+	key := selectors.put(&messageQueueSelectorWrapper{selector: selector, m: msg, arg: arg})
+
+	var sr C.struct__SendResult_
+	C.SendMessageOrderly(
+		p.cproduer,
+		cmsg,
+		(C.QueueSelectorCallback)(unsafe.Pointer(C.queueSelectorCallback_cgo)),
+		unsafe.Pointer(&key),
+		C.int(autoRetryTimes),
+		&sr,
+	)
+	C.DestroyMessage(cmsg)
+
+	return SendResult{
+		Status: SendStatus(sr.sendStatus),
+		MsgId:  C.GoString(&sr.msgId[0]),
+		Offset: int64(sr.offset),
+	}
 }
 
 func (p *defaultProducer) SendMessageAsync(msg *Message) {
