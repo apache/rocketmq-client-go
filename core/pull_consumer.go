@@ -14,6 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
 /*
@@ -27,18 +28,37 @@ package rocketmq
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
 )
 
+// PullStatus pull status
+type PullStatus int
+
+// predefined pull status
+const (
+	PullFound         = PullStatus(C.E_FOUND)
+	PullNoNewMsg      = PullStatus(C.E_NO_NEW_MSG)
+	PullNoMatchedMsg  = PullStatus(C.E_NO_MATCHED_MSG)
+	PullOffsetIllegal = PullStatus(C.E_OFFSET_ILLEGAL)
+	PullBrokerTimeout = PullStatus(C.E_BROKER_TIMEOUT)
+)
+
+// PullConsumerConfig the configuration for the pull consumer
+type PullConsumerConfig struct {
+	GroupID     string
+	NameServer  string
+	Credentials *SessionCredentials
+	Log         *LogConfig
+}
+
 // DefaultPullConsumer default consumer pulling the message
 type DefaultPullConsumer struct {
-	config    *ConsumerConfig
+	PullConsumerConfig
 	cconsumer *C.struct_CPullConsumer
 	funcsMap  sync.Map
-
-	resources []*C.char
 }
 
 func (c *DefaultPullConsumer) String() string {
@@ -47,48 +67,141 @@ func (c *DefaultPullConsumer) String() string {
 		topics += key.(string) + ", "
 		return true
 	})
-	return fmt.Sprintf("[%s, subcribed topics: [%s]]", c.config, topics)
+	return fmt.Sprintf("[%+v, subcribed topics: [%s]]", c.PullConsumerConfig, topics)
+}
+
+// NewPullConsumer creates one pull consumer
+func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
+	cs := C.CString(conf.GroupID)
+	cconsumer := C.CreatePullConsumer(cs)
+	C.free(unsafe.Pointer(cs))
+
+	cs = C.CString(conf.NameServer)
+	C.SetPullConsumerNameServerAddress(cconsumer, cs)
+	C.free(unsafe.Pointer(cs))
+
+	log := conf.Log
+	if log != nil {
+		cs = C.CString(log.Path)
+		if C.SetPullConsumerLogPath(cconsumer, cs) != 0 {
+			return nil, errors.New("new pull consumer error:set log path failed")
+		}
+		C.free(unsafe.Pointer(cs))
+
+		if C.SetPullConsumerLogFileNumAndSize(cconsumer, C.int(log.FileNum), C.long(log.FileSize)) != 0 {
+			return nil, errors.New("new pull consumer error:set log file num and size failed")
+		}
+		if C.SetPullConsumerLogLevel(cconsumer, C.CLogLevel(log.Level)) != 0 {
+			return nil, errors.New("new pull consumer error:set log level failed")
+		}
+	}
+
+	if conf.Credentials != nil {
+		ak := C.CString(conf.Credentials.AccessKey)
+		sk := C.CString(conf.Credentials.SecretKey)
+		ch := C.CString(conf.Credentials.Channel)
+		C.SetPullConsumerSessionCredentials(cconsumer, ak, sk, ch)
+
+		C.free(unsafe.Pointer(ak))
+		C.free(unsafe.Pointer(sk))
+		C.free(unsafe.Pointer(ch))
+	}
+
+	return &DefaultPullConsumer{PullConsumerConfig: *conf, cconsumer: cconsumer}, nil
 }
 
 // Start starts the pulling conumser
 func (c *DefaultPullConsumer) Start() error {
-	C.StartPullConsumer(c.cconsumer)
+	r := C.StartPullConsumer(c.cconsumer)
+	if r != 0 {
+		return fmt.Errorf("start failed, code:%d", r)
+	}
 	return nil
 }
 
 // Shutdown shutdown the pulling conumser
 func (c *DefaultPullConsumer) Shutdown() error {
-	C.ShutdownPullConsumer(c.cconsumer)
-	C.DestroyPullConsumer(c.cconsumer)
-	for _, r := range c.resources {
-		C.free(unsafe.Pointer(r))
+	r := C.ShutdownPullConsumer(c.cconsumer)
+	if r != 0 {
+		return fmt.Errorf("shutdown failed, code:%d", r)
+	}
+
+	r = C.DestroyPullConsumer(c.cconsumer)
+	if r != 0 {
+		return fmt.Errorf("destory failed, code:%d", r)
 	}
 	return nil
 }
 
+// FetchSubscriptionMessageQueues fetchs the topic's subcripted message queues
 func (c *DefaultPullConsumer) FetchSubscriptionMessageQueues(topic string) []MessageQueue {
+	var (
+		q    *C.struct__CMessageQueue_
+		size C.int
+	)
 
+	ctopic := C.CString(topic)
+	C.FetchSubscriptionMessageQueues(c.cconsumer, ctopic, &q, &size)
+	C.free(unsafe.Pointer(ctopic))
+	if size == 0 {
+		return nil
+	}
+
+	qs := make([]MessageQueue, size)
+	for i := range qs {
+		cq := (*C.struct__CMessageQueue_)(
+			unsafe.Pointer(uintptr(unsafe.Pointer(q)) + uintptr(i)*unsafe.Sizeof(*q)),
+		)
+		qs[i].ID, qs[i].Broker, qs[i].Topic = int(cq.queueId), C.GoString(&cq.brokerName[0]), topic
+	}
+	C.ReleaseSubscriptionMessageQueue(q)
+
+	return qs
 }
 
-/*
+// PullResult the pull result
+type PullResult struct {
+	NextBeginOffset int64
+	MinOffset       int64
+	MaxOffset       int64
+	Status          PullStatus
+	Messages        []*MessageExt
+}
 
-CPullConsumer *CreatePullConsumer(const char *groupId);
-int DestroyPullConsumer(CPullConsumer *consumer);
-int StartPullConsumer(CPullConsumer *consumer);
-int ShutdownPullConsumer(CPullConsumer *consumer);
-int SetPullConsumerGroupID(CPullConsumer *consumer, const char *groupId);
-const char *GetPullConsumerGroupID(CPullConsumer *consumer);
-int SetPullConsumerNameServerAddress(CPullConsumer *consumer, const char *namesrv);
-int SetPullConsumerSessionCredentials(CPullConsumer *consumer, const char *accessKey, const char *secretKey,
-                                     const char *channel);
-int SetPullConsumerLogPath(CPullConsumer *consumer, const char *logPath);
-int SetPullConsumerLogFileNumAndSize(CPullConsumer *consumer, int fileNum, long fileSize);
-int SetPullConsumerLogLevel(CPullConsumer *consumer, CLogLevel level);
+// Pull pulling the message from the specified message queue
+func (c *DefaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult {
+	cmq := C.struct__CMessageQueue_{
+		queueId: C.int(mq.ID),
+	}
 
-int FetchSubscriptionMessageQueues(CPullConsumer *consumer, const char *topic, CMessageQueue **mqs , int* size);
-int ReleaseSubscriptionMessageQueue(CMessageQueue *mqs);
+	copy(cmq.topic[:], *(*[]C.char)(unsafe.Pointer(&mq.Topic)))
+	copy(cmq.brokerName[:], *(*[]C.char)(unsafe.Pointer(&mq.Broker)))
+	fmt.Printf("%+v\n", []byte(mq.Topic))
+	fmt.Printf("%+v\n", cmq.topic)
+	fmt.Printf("%+v\n", []byte(mq.Broker))
+	fmt.Printf("%+v\n", cmq.brokerName)
 
-CPullResult Pull(CPullConsumer *consumer,const CMessageQueue *mq, const char *subExpression, long long offset, int maxNums);
-int ReleasePullResult(CPullResult pullResult);
+	csubExpr := C.CString(subExpression)
+	cpullResult := C.Pull(c.cconsumer, &cmq, csubExpr, C.longlong(offset), C.int(maxNums))
 
-*/
+	pullResult := PullResult{
+		NextBeginOffset: int64(cpullResult.nextBeginOffset),
+		MinOffset:       int64(cpullResult.minOffset),
+		MaxOffset:       int64(cpullResult.maxOffset),
+		Status:          PullStatus(cpullResult.pullStatus),
+	}
+	if cpullResult.size > 0 {
+		msgs := make([]*MessageExt, cpullResult.size)
+		for i := range msgs {
+			msgs[i] = cmsgExtToGo((*C.struct_CMessageExt)(
+				unsafe.Pointer(
+					uintptr(unsafe.Pointer(cpullResult.msgFoundList)) + uintptr(i)*unsafe.Sizeof(*cpullResult.msgFoundList),
+				),
+			))
+		}
+	}
+
+	C.free(unsafe.Pointer(csubExpr))
+	C.ReleasePullResult(cpullResult)
+	return pullResult
+}
