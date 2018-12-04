@@ -2,7 +2,7 @@
 ## RocketMQ Client Go
 
 ### 1. Go Version
-* go1.11.1 darwin/amd64
+* go1.10.5 darwin/amd64
 
 ### 2. Dependency
 * [librocketmq](https://github.com/apache/rocketmq-client-cpp)	
@@ -20,7 +20,7 @@
 
     2. Get go client package
     ```
-    go get github.com/gaufung/rocketmq-client-go
+    go get github.com/apache/rocketmq-client-go
     ```
     3. [librocketmq](https://github.com/apache/rocketmq-client-cpp)
         - `git clone https://github.com/apache/rocketmq-client-cpp`
