@@ -4,6 +4,7 @@
 ### 1. Go Version
 * go1.10.5 darwin/amd64
 
+
 ### 2. Dependency
 * [librocketmq](https://github.com/apache/rocketmq-client-cpp)	
 
@@ -12,8 +13,8 @@
 * Install Compile tools (homebrew package manager)
     ```
     1. xcode-select --install
-    3. brew install cmake
-    4. brew install automake
+    2. brew install cmake
+    3. brew install automake
     ```
 * Install dependencies
     1. [Go official download](https://golang.org/dl/)
@@ -32,8 +33,11 @@
 
 #### Linux
 
+*coming soon*
 
 #### Windows
+
+*coming soone*
 
 ----------
 ## How to use
