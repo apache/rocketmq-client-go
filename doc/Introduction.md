@@ -37,7 +37,7 @@
 
 #### Windows
 
-*coming soone*
+*coming soon*
 
 ----------
 ## How to use
