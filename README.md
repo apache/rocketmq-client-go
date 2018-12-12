@@ -11,7 +11,7 @@ At present, this SDK supports
 
 ----------
 ## How to use
-* Step-by-step instruction are provided in [RocketMQ Go Client Introduction](https://github.com/apache/rocketmq-client-go/doc/Introduction.md)
+* Step-by-step instruction are provided in [RocketMQ Go Client Introduction](./doc/Introduction.md)
 * Consult [RocketMQ Quick Start](https://rocketmq.apache.org/docs/quick-start/) to setup rocketmq broker and nameserver.
 
 ----------
