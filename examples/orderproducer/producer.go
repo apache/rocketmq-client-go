@@ -81,7 +81,7 @@ func main() {
 		return
 	}
 
-	producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{
+	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{
 		GroupID:    "testGroup",
 		NameServer: "10.200.20.25:9988",
 	})
