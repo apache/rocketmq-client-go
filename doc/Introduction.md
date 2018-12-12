@@ -29,7 +29,7 @@
         - `sudo sh build.sh` 
         - `cp bin/librocketmq.dylib /usr/local/lib`
         - `sudo mkdir /usr/local/include/rocketmq`
-        - `sudo cp incldue/* /usr/local/incldue/rocketmq/`
+        - `sudo cp include/* /usr/local/include/rocketmq/`
 
 #### Linux
 
