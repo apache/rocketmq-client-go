@@ -21,6 +21,7 @@ package rocketmq
 #include "rocketmq/CCommon.h"
 */
 import "C"
+import "fmt"
 
 // LogLevel the log level
 type LogLevel int
@@ -42,4 +43,8 @@ type LogConfig struct {
 	FileNum  int
 	FileSize int64
 	Level    LogLevel
+}
+
+func (lc *LogConfig) String() string {
+	return fmt.Sprintf("%+v", *lc)
 }

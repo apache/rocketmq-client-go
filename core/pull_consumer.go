@@ -46,6 +46,23 @@ const (
 	PullBrokerTimeout = PullStatus(C.E_BROKER_TIMEOUT)
 )
 
+func (ps PullStatus) String() string {
+	switch ps {
+	case PullFound:
+		return "Found"
+	case PullNoNewMsg:
+		return "NoNewMsg"
+	case PullNoMatchedMsg:
+		return "NoMatchedMsg"
+	case PullOffsetIllegal:
+		return "OffsetIllegal"
+	case PullBrokerTimeout:
+		return "BrokerTimeout"
+	default:
+		return "Unknown status"
+	}
+}
+
 // PullConsumerConfig the configuration for the pull consumer
 type PullConsumerConfig struct {
 	GroupID     string
@@ -133,7 +150,7 @@ func (c *DefaultPullConsumer) Shutdown() error {
 	return nil
 }
 
-// FetchSubscriptionMessageQueues fetchs the topic's subcripted message queues
+// FetchSubscriptionMessageQueues returns the topic's consume queue
 func (c *DefaultPullConsumer) FetchSubscriptionMessageQueues(topic string) []MessageQueue {
 	var (
 		q    *C.struct__CMessageQueue_
@@ -168,6 +185,10 @@ type PullResult struct {
 	Messages        []*MessageExt
 }
 
+func (pr *PullResult) String() string {
+	return fmt.Sprintf("%+v", *pr)
+}
+
 // Pull pulling the message from the specified message queue
 func (c *DefaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult {
 	cmq := C.struct__CMessageQueue_{
@@ -176,15 +197,11 @@ func (c *DefaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset
 
 	copy(cmq.topic[:], *(*[]C.char)(unsafe.Pointer(&mq.Topic)))
 	copy(cmq.brokerName[:], *(*[]C.char)(unsafe.Pointer(&mq.Broker)))
-	fmt.Printf("%+v\n", []byte(mq.Topic))
-	fmt.Printf("%+v\n", cmq.topic)
-	fmt.Printf("%+v\n", []byte(mq.Broker))
-	fmt.Printf("%+v\n", cmq.brokerName)
 
 	csubExpr := C.CString(subExpression)
 	cpullResult := C.Pull(c.cconsumer, &cmq, csubExpr, C.longlong(offset), C.int(maxNums))
 
-	pullResult := PullResult{
+	pr := PullResult{
 		NextBeginOffset: int64(cpullResult.nextBeginOffset),
 		MinOffset:       int64(cpullResult.minOffset),
 		MaxOffset:       int64(cpullResult.maxOffset),
@@ -193,15 +210,16 @@ func (c *DefaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset
 	if cpullResult.size > 0 {
 		msgs := make([]*MessageExt, cpullResult.size)
 		for i := range msgs {
-			msgs[i] = cmsgExtToGo((*C.struct_CMessageExt)(
+			msgs[i] = cmsgExtToGo(*(**C.struct_CMessageExt)(
 				unsafe.Pointer(
 					uintptr(unsafe.Pointer(cpullResult.msgFoundList)) + uintptr(i)*unsafe.Sizeof(*cpullResult.msgFoundList),
 				),
 			))
 		}
+		pr.Messages = msgs
 	}
 
 	C.free(unsafe.Pointer(csubExpr))
 	C.ReleasePullResult(cpullResult)
-	return pullResult
+	return pr
 }

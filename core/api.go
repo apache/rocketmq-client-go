@@ -29,7 +29,7 @@ func NewProduer(config *ProducerConfig) Producer {
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	GroupID		string
+	GroupID     string
 	NameServer  string
 	Credentials *SessionCredentials
 }
@@ -72,6 +72,15 @@ type PushConsumer interface {
 	baseAPI
 	// Subscribe a new topic with specify filter expression and consume function.
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
+}
+
+// PullConsumer consumer pulling the message
+type PullConsumer interface {
+	baseAPI
+	// Pull returns the messages from the consume queue by specify the offset and the max number
+	Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult
+	// FetchSubscriptionMessageQueues returns the consume queue of the topic
+	FetchSubscriptionMessageQueues(topic string) []MessageQueue
 }
 
 type SessionCredentials struct {
