@@ -49,7 +49,7 @@ func (w *worker) run() {
 }
 
 // example:
-// ./producer -n "localhost:9988" -t local_test -g local_test -d data -m 100 -w 10
+// ./producer -n "localhost:9876" -t local_test -g local_test -d data -m 100 -w 10
 func main() {
 	flag.Parse()
 
