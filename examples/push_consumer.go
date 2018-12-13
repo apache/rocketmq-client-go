@@ -24,13 +24,9 @@ import (
 )
 
 func main() {
-	PushConsumeMessage()
-}
-
-func PushConsumeMessage() {
 	fmt.Println("Start Receiving Messages...")
-	consumer, _ := rocketmq.NewPushConsumer(&rocketmq.ConsumerConfig{GroupID: "testGroupId", NameServer: "localhost:9876",
-		ConsumerThreadCount: 2, MessageBatchMaxSize: 16})
+	consumer, _ := rocketmq.NewPushConsumer(&rocketmq.PushConsumerConfig{GroupID: "testGroupId", NameServer: "localhost:9876",
+		ThreadCount: 2, MessageBatchMaxSize: 16})
 
 	// MUST subscribe topic before consumer started.
 	consumer.Subscribe("test", "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {

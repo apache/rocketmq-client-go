@@ -31,7 +31,8 @@ int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
 */
 import "C"
 import (
-	"fmt"
+	"errors"
+	log "github.com/sirupsen/logrus"
 	"unsafe"
 )
 
@@ -59,21 +60,85 @@ func (status SendStatus) String() string {
 	}
 }
 
-func newDefaultProducer(config *ProducerConfig) *defaultProducer {
+func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
+	if config.GroupID == "" {
+		return nil, errors.New("GroupId is empty.")
+	}
+
+	if config.NameServer == "" && config.NameServerDomain == "" {
+		return nil, errors.New("NameServer and NameServerDomain is empty.")
+	}
+
+
 	producer := &defaultProducer{config: config}
-	producer.cproduer = C.CreateProducer(C.CString(config.GroupID))
-	code := int(C.SetProducerNameServerAddress(producer.cproduer, C.CString(producer.config.NameServer)))
+	cproduer := C.CreateProducer(C.CString(config.GroupID))
+	
+	if cproduer == nil {
+		log.Fatal("Create Producer failed, please check cpp logs for details.")
+	}
+
+	var code int
+	if config.NameServer != "" {
+		code = int(C.SetProducerNameServerAddress(cproduer, C.CString(config.NameServer)))
+		if code != 0 {
+			log.Fatalf("Producer Set NameServerAddress error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
+	}
+
+	if config.NameServerDomain != "" {
+		code = int(C.SetProducerNameServerDomain(cproduer, C.CString(config.NameServerDomain)))
+		if code != 0 {
+			log.Fatalf("Producer Set NameServerDomain error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
+	}
+
+	if config.InstanceName != "" {
+		code = int(C.SetProducerInstanceName(cproduer, C.CString(config.InstanceName)))
+		if code != 0 {
+			log.Fatalf("Producer Set InstanceName error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
+	}
+
 	if config.Credentials != nil {
-		ret := C.SetProducerSessionCredentials(producer.cproduer,
+		code = int(C.SetProducerSessionCredentials(cproduer,
 			C.CString(config.Credentials.AccessKey),
 			C.CString(config.Credentials.SecretKey),
-			C.CString(config.Credentials.Channel))
-		code = int(ret)
+			C.CString(config.Credentials.Channel)))
+		if code != 0 {
+			log.Fatalf("Producer Set Credentials error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
 	}
-	switch code {
 
+	if config.SendMsgTimeout > 0 {
+		code = int(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
+		if code != 0 {
+			log.Fatalf("Producer Set SendMsgTimeout error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
 	}
-	return producer
+
+	if config.CompressLevel > 0 {
+		code = int(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
+		if code != 0 {
+			log.Fatalf("Producer Set CompressLevel error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
+	}
+
+	if config.MaxMessageSize > 0 {
+		code = int(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
+		if code != 0 {
+			log.Fatalf("Producer Set MaxMessageSize error, code is: %d, " +
+				"please check cpp logs for details", code)
+		}
+	}
+
+	producer.cproduer = cproduer
+	return producer, nil
 }
 
 type defaultProducer struct {
@@ -87,19 +152,26 @@ func (p *defaultProducer) String() string {
 
 // Start the producer.
 func (p *defaultProducer) Start() error {
-	err := int(C.StartProducer(p.cproduer))
-	// TODO How to process err code.
-	fmt.Printf("producer start result: %v \n", err)
+	code := int(C.StartProducer(p.cproduer))
+	if code != 0 {
+		 log.Fatalf("start producer error, error code is: %d", code)
+	}
 	return nil
 }
 
 // Shutdown the producer.
 func (p *defaultProducer) Shutdown() error {
-	defer C.DestroyProducer(p.cproduer)
-	err := C.ShutdownProducer(p.cproduer)
+	code := int(C.ShutdownProducer(p.cproduer))
 
-	// TODO How to process err code.
-	fmt.Printf("shutdown result: %v \n", err)
+	if code != 0 {
+		log.Warnf("shutdown producer error, error code is: %d", code)
+	}
+
+	code = int(int(C.DestroyProducer(p.cproduer)))
+	if code != 0 {
+		log.Warnf("destroy producer error, error code is: %d", code)
+	}
+
 	return nil
 }
 
@@ -108,7 +180,11 @@ func (p *defaultProducer) SendMessageSync(msg *Message) SendResult {
 	defer C.DestroyMessage(cmsg)
 
 	var sr C.struct__SendResult_
-	C.SendMessageSync(p.cproduer, cmsg, &sr)
+	code := int(C.SendMessageSync(p.cproduer, cmsg, &sr))
+
+	if code != 0 {
+		log.Warnf("send message error, error code is: %d", code)
+	}
 
 	result := SendResult{}
 	result.Status = SendStatus(sr.sendStatus)

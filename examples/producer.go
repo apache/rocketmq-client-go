@@ -24,10 +24,6 @@ import (
 )
 
 func main() {
-	SendMessage()
-}
-
-func SendMessage() {
 	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
 	producer.Start()
 	defer producer.Shutdown()
@@ -35,9 +31,9 @@ func SendMessage() {
 	fmt.Printf("Producer: %s started... \n", producer)
 	for i := 0; i < 100; i++ {
 		msg := fmt.Sprintf("Hello RocketMQ-%d", i)
-		result := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
+		result := producer.SendMessageSync(&rocketmq.Message{Topic: "wwf1", Body: msg})
 		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
 	}
 	time.Sleep(10 * time.Second)
-	producer.Shutdown()
 }
+
