@@ -40,7 +40,7 @@ func init() {
 	flag.StringVar(&groupID, "g", "", "group")
 }
 
-// ./consumer -n "localhost:9988" -t test -g local_test
+// ./consumer -n "localhost:9876" -t test -g local_test
 func main() {
 	flag.Parse()
 
