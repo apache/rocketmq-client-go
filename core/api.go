@@ -22,8 +22,8 @@ func Version() (version string) {
 	return GetVersion()
 }
 
-// NewProduer create a new producer with config
-func NewProduer(config *ProducerConfig) Producer {
+// NewProducer create a new producer with config
+func NewProducer(config *ProducerConfig) Producer {
 	return newDefaultProducer(config)
 }
 
@@ -56,7 +56,7 @@ func NewPushConsumer(config *ConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
 }
 
-// ConsumerConfig define a new conusmer.
+// ConsumerConfig define a new consumer.
 type ConsumerConfig struct {
 	GroupID             string
 	NameServer          string

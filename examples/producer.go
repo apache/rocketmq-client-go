@@ -28,7 +28,7 @@ func main() {
 }
 
 func SendMessage() {
-	producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
+	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
 	producer.Start()
 	defer producer.Shutdown()
 

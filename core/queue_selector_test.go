@@ -19,7 +19,7 @@ func (m *mockMessageQueueSelector) Select(size int, msg *Message, arg interface{
 	return m.selectRet
 }
 
-func TestWraper(t *testing.T) {
+func TestWrapper(t *testing.T) {
 	s := &mockMessageQueueSelector{selectRet: 2}
 	w := &messageQueueSelectorWrapper{selector: s, m: &Message{}, arg: 3}
 

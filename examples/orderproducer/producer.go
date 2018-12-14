@@ -83,10 +83,11 @@ func main() {
 		return
 	}
 
-	producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{
+	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{
 		GroupID:    groupID,
 		NameServer: namesrvAddrs,
 	})
+  
 	producer.Start()
 	defer producer.Shutdown()
 

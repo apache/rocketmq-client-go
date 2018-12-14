@@ -29,7 +29,7 @@
         - `sudo sh build.sh` 
         - `cp bin/librocketmq.dylib /usr/local/lib`
         - `sudo mkdir /usr/local/include/rocketmq`
-        - `sudo cp incldue/* /usr/local/incldue/rocketmq/`
+        - `sudo cp include/* /usr/local/include/rocketmq/`
 
 #### Linux
 
@@ -49,7 +49,7 @@
 - Send message
     ```go
     func SendMessagge(){
-        producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
+        producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
         producer.Start()
         defer producer.Shutdown()
         fmt.Printf("Producer: %s started... \n", producer)
