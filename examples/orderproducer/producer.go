@@ -48,6 +48,8 @@ func (w *worker) run() {
 	}
 }
 
+// example:
+// ./producer -n "localhost:9876" -t local_test -g local_test -d data -m 100 -w 10
 func main() {
 	flag.Parse()
 
@@ -82,9 +84,10 @@ func main() {
 	}
 
 	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{
-		GroupID:    "testGroup",
-		NameServer: "10.200.20.25:9988",
+		GroupID:    groupID,
+		NameServer: namesrvAddrs,
 	})
+  
 	producer.Start()
 	defer producer.Shutdown()
 
