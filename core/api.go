@@ -77,6 +77,15 @@ type PushConsumer interface {
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
 }
 
+// PullConsumer consumer pulling the message
+type PullConsumer interface {
+	baseAPI
+	// Pull returns the messages from the consume queue by specify the offset and the max number
+	Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult
+	// FetchSubscriptionMessageQueues returns the consume queue of the topic
+	FetchSubscriptionMessageQueues(topic string) []MessageQueue
+}
+
 type SessionCredentials struct {
 	AccessKey string
 	SecretKey string
