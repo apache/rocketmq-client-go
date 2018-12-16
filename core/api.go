@@ -22,6 +22,16 @@ func Version() (version string) {
 	return GetVersion()
 }
 
+type clientConfig struct {
+	GroupID          string
+	NameServer       string
+	NameServerDomain string
+	GroupName        string
+	InstanceName     string
+	Credentials      *SessionCredentials
+	LogC             *LogConfig
+}
+
 // NewProducer create a new producer with config
 func NewProducer(config *ProducerConfig) (Producer, error) {
 	return newDefaultProducer(config)
@@ -29,14 +39,7 @@ func NewProducer(config *ProducerConfig) (Producer, error) {
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	GroupID          string
-	NameServer       string
-	NameServerDomain string
-	GroupName        string
-	InstanceName     string
-	Credentials      *SessionCredentials
-
-	logC *LogConfig
+	clientConfig
 	SendMsgTimeout int
 	CompressLevel  int
 	MaxMessageSize int
@@ -67,15 +70,9 @@ func NewPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
 }
 
-// ConsumerConfig define a new conusmer.
+// PushConsumerConfig define a new consumer.
 type PushConsumerConfig struct {
-	GroupID          string
-	NameServer       string
-	NameServerDomain string
-	InstanceName     string
-	Credentials      *SessionCredentials
-
-	logC *LogConfig
+	clientConfig
 	ThreadCount         int
 	MessageBatchMaxSize int
 	Model               MessageModel
@@ -97,6 +94,7 @@ type PushConsumer interface {
 // PullConsumer consumer pulling the message
 type PullConsumer interface {
 	baseAPI
+
 	// Pull returns the messages from the consume queue by specify the offset and the max number
 	Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult
 

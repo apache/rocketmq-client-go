@@ -11,7 +11,7 @@ var (
 	topic        string
 	body         string
 	groupID      string
-	keys 	     string
+	keys         string
 )
 
 func init() {
@@ -23,7 +23,7 @@ func init() {
 
 }
 
-func main()  {
+func main() {
 	flag.Parse()
 	if namesrvAddrs == "" {
 		println("empty nameServer address")
@@ -45,7 +45,11 @@ func main()  {
 		return
 	}
 
-	producer := rocketmq.NewProduer(&rocketmq.ProducerConfig{GroupID: groupID, NameServer: namesrvAddrs})
+	cfg := &rocketmq.ProducerConfig{}
+	cfg.GroupID = groupID
+	cfg.NameServer = namesrvAddrs
+
+	producer, _ := rocketmq.NewProducer(cfg)
 	producer.Start()
 	defer producer.Shutdown()
 

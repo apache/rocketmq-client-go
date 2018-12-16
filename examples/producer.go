@@ -24,7 +24,15 @@ import (
 )
 
 func main() {
-	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{GroupID: "testGroup", NameServer: "localhost:9876"})
+	cfg := &rocketmq.ProducerConfig{}
+	cfg.GroupID = "testGroup"
+	cfg.NameServer = "47.101.55.250:9876"
+	producer, err := rocketmq.NewProducer(cfg)
+	if err != nil {
+		fmt.Println("create Producer failed, error:", err)
+		return
+	}
+
 	producer.Start()
 	defer producer.Shutdown()
 
@@ -36,4 +44,3 @@ func main() {
 	}
 	time.Sleep(10 * time.Second)
 }
-

@@ -6,7 +6,7 @@ import (
 )
 
 func TestLogConfig_String(t *testing.T) {
-	logc := LogConfig{Path: "/log/path1", FileNum: 3, FileSize: 1 << 20, Level:LogLevelDebug}
+	logc := LogConfig{Path: "/log/path1", FileNum: 3, FileSize: 1 << 20, Level: LogLevelDebug}
 	assert.Equal(t, "{Path:/log/path1 FileNum:3 FileSize:1048576 Level:Debug}", logc.String())
 	logc.Level = LogLevelFatal
 	assert.Equal(t, "{Path:/log/path1 FileNum:3 FileSize:1048576 Level:Fatal}", logc.String())

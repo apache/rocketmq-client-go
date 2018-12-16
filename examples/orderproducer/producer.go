@@ -83,11 +83,16 @@ func main() {
 		return
 	}
 
-	producer := rocketmq.NewProducer(&rocketmq.ProducerConfig{
-		GroupID:    groupID,
-		NameServer: namesrvAddrs,
-	})
-  
+	cfg := &rocketmq.ProducerConfig{}
+	cfg.GroupID = groupID
+	cfg.NameServer = namesrvAddrs
+
+	producer, err := rocketmq.NewProducer(cfg)
+	if err != nil {
+		fmt.Println("create Producer failed, error:", err)
+		return
+	}
+
 	producer.Start()
 	defer producer.Shutdown()
 

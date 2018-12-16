@@ -47,7 +47,7 @@ func goMsgToC(gomsg *Message) *C.struct_CMessage {
 	var cmsg = C.CreateMessage(cs)
 	C.free(unsafe.Pointer(cs))
 
-	cs =C.CString(gomsg.Tags)
+	cs = C.CString(gomsg.Tags)
 	C.SetMessageTags(cmsg, cs)
 	C.free(unsafe.Pointer(cs))
 
@@ -88,7 +88,7 @@ type MessageExt struct {
 }
 
 func (msgExt *MessageExt) String() string {
-	return fmt.Sprintf("[MessageId: %s, %s, QueueId: %d, ReconsumeTimes: %d, StoreSize: %d, BornTimestamp: %d, " +
+	return fmt.Sprintf("[MessageId: %s, %s, QueueId: %d, ReconsumeTimes: %d, StoreSize: %d, BornTimestamp: %d, "+
 		"StoreTimestamp: %d, QueueOffset: %d, CommitLogOffset: %d, PreparedTransactionOffset: %d]", msgExt.MessageID,
 		msgExt.Message.String(), msgExt.QueueId, msgExt.ReconsumeTimes, msgExt.StoreSize, msgExt.BornTimestamp,
 		msgExt.StoreTimestamp, msgExt.QueueOffset, msgExt.CommitLogOffset, msgExt.PreparedTransactionOffset)

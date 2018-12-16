@@ -63,6 +63,10 @@ func (status SendStatus) String() string {
 }
 
 func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
+	if config == nil {
+		return nil, errors.New("config is nil")
+	}
+
 	if config.GroupID == "" {
 		return nil, errors.New("GroupId is empty")
 	}
@@ -71,12 +75,11 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		return nil, errors.New("NameServer and NameServerDomain is empty")
 	}
 
-
 	producer := &defaultProducer{config: config}
 	cs := C.CString(config.GroupID)
 	cproduer := C.CreateProducer(cs)
 	C.free(unsafe.Pointer(cs))
-	
+
 	if cproduer == nil {
 		return nil, errors.New("create Producer failed, please check cpp logs for details")
 	}
@@ -87,7 +90,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerNameServerAddress(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set NameServerAddress error, code is: %d" +
+			return nil, errors.New(fmt.Sprintf("Producer Set NameServerAddress error, code is: %d"+
 				"please check cpp logs for details", code))
 		}
 	}
@@ -97,7 +100,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerNameServerDomain(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set NameServerDomain error, code is: %d" +
+			return nil, errors.New(fmt.Sprintf("Producer Set NameServerDomain error, code is: %d"+
 				"please check cpp logs for details", code))
 		}
 	}
@@ -107,7 +110,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerInstanceName(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set InstanceName error, code is: %d" +
+			return nil, errors.New(fmt.Sprintf("Producer Set InstanceName error, code is: %d"+
 				"please check cpp logs for details", code))
 		}
 	}
@@ -126,20 +129,20 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		}
 	}
 
-	if config.logC != nil {
-		cs = C.CString(config.logC.Path)
+	if config.LogC != nil {
+		cs = C.CString(config.LogC.Path)
 		code = int(C.SetProducerLogPath(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.logC.FileNum), C.long(config.logC.FileSize)))
+		code = int(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.logC.Level)))
+		code = int(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
 		}
@@ -183,7 +186,7 @@ func (p *defaultProducer) String() string {
 func (p *defaultProducer) Start() error {
 	code := int(C.StartProducer(p.cproduer))
 	if code != 0 {
-		 return errors.New(fmt.Sprintf("start producer error, error code is: %d", code))
+		return errors.New(fmt.Sprintf("start producer error, error code is: %d", code))
 	}
 	return nil
 }

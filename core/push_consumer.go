@@ -74,6 +74,9 @@ func (c *defaultPushConsumer) String() string {
 }
 
 func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
+	if config == nil {
+		return nil, errors.New("config is nil")
+	}
 	if config.GroupID == "" {
 		return nil, errors.New("GroupId is empty.")
 	}
@@ -97,7 +100,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerNameServerAddress(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			 return nil, errors.New(fmt.Sprintf(fmt.Sprintf("PushConsumer Set NameServerAddress error, code is: %d", code)))
+			return nil, errors.New(fmt.Sprintf(fmt.Sprintf("PushConsumer Set NameServerAddress error, code is: %d", code)))
 		}
 	}
 
@@ -106,7 +109,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerNameServerDomain(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return  nil, errors.New(fmt.Sprintf("PushConsumer Set NameServerDomain error, code is: %d", code))
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set NameServerDomain error, code is: %d", code))
 		}
 	}
 
@@ -115,7 +118,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerInstanceName(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set InstanceName error, code is: %d, " +
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set InstanceName error, code is: %d, "+
 				"please check cpp logs for details", code))
 		}
 	}
@@ -133,20 +136,20 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		}
 	}
 
-	if config.logC != nil {
-		cs = C.CString(config.logC.Path)
+	if config.LogC != nil {
+		cs = C.CString(config.LogC.Path)
 		code = int(C.SetProducerLogPath(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogFileNumAndSize(cconsumer, C.int(config.logC.FileNum), C.long(config.logC.FileSize)))
+		code = int(C.SetProducerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogLevel(cconsumer, C.CLogLevel(config.logC.Level)))
+		code = int(C.SetProducerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
 		if code != 0 {
 			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
 		}
@@ -185,7 +188,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 
 func (c *defaultPushConsumer) Start() error {
 	code := C.StartPushConsumer(c.cconsumer)
-	if code != 0{
+	if code != 0 {
 		return errors.New(fmt.Sprintf("start PushConsumer error, code is: %d", int(code)))
 	}
 	return nil
