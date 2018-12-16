@@ -36,7 +36,7 @@ type ProducerConfig struct {
 	InstanceName     string
 	Credentials      *SessionCredentials
 
-	// TODO log config
+	logC *LogConfig
 	SendMsgTimeout int
 	CompressLevel  int
 	MaxMessageSize int
@@ -75,7 +75,7 @@ type PushConsumerConfig struct {
 	InstanceName     string
 	Credentials      *SessionCredentials
 
-	// TODO log config
+	logC *LogConfig
 	ThreadCount         int
 	MessageBatchMaxSize int
 	Model               MessageModel
@@ -89,6 +89,7 @@ func (config *PushConsumerConfig) String() string {
 
 type PushConsumer interface {
 	baseAPI
+
 	// Subscribe a new topic with specify filter expression and consume function.
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
 }
@@ -98,6 +99,7 @@ type PullConsumer interface {
 	baseAPI
 	// Pull returns the messages from the consume queue by specify the offset and the max number
 	Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult
+
 	// FetchSubscriptionMessageQueues returns the consume queue of the topic
 	FetchSubscriptionMessageQueues(topic string) []MessageQueue
 }

@@ -131,21 +131,21 @@ func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
 func (c *DefaultPullConsumer) Start() error {
 	r := C.StartPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("start failed, code:%d", r)
+		return fmt.Errorf("start failed, code:%d", int(r))
 	}
 	return nil
 }
 
-// Shutdown shutdown the pulling conumser
+// Shutdown shutdown the pulling consumer
 func (c *DefaultPullConsumer) Shutdown() error {
 	r := C.ShutdownPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("shutdown failed, code:%d", r)
+		return fmt.Errorf("shutdown failed, code:%d", int(r))
 	}
 
 	r = C.DestroyPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("destory failed, code:%d", r)
+		return fmt.Errorf("destory failed, code:%d", int(r))
 	}
 	return nil
 }

@@ -20,6 +20,7 @@ package rocketmq
 #cgo LDFLAGS: -L/usr/local/lib/ -lrocketmq
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "rocketmq/CMessage.h"
 #include "rocketmq/CProducer.h"
 #include "rocketmq/CSendResult.h"
@@ -32,6 +33,7 @@ int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
 import "C"
 import (
 	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"unsafe"
 )
@@ -62,78 +64,105 @@ func (status SendStatus) String() string {
 
 func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 	if config.GroupID == "" {
-		return nil, errors.New("GroupId is empty.")
+		return nil, errors.New("GroupId is empty")
 	}
 
 	if config.NameServer == "" && config.NameServerDomain == "" {
-		return nil, errors.New("NameServer and NameServerDomain is empty.")
+		return nil, errors.New("NameServer and NameServerDomain is empty")
 	}
 
 
 	producer := &defaultProducer{config: config}
-	cproduer := C.CreateProducer(C.CString(config.GroupID))
+	cs := C.CString(config.GroupID)
+	cproduer := C.CreateProducer(cs)
+	C.free(unsafe.Pointer(cs))
 	
 	if cproduer == nil {
-		log.Fatal("Create Producer failed, please check cpp logs for details.")
+		return nil, errors.New("create Producer failed, please check cpp logs for details")
 	}
 
 	var code int
 	if config.NameServer != "" {
-		code = int(C.SetProducerNameServerAddress(cproduer, C.CString(config.NameServer)))
+		cs = C.CString(config.NameServer)
+		code = int(C.SetProducerNameServerAddress(cproduer, cs))
+		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			log.Fatalf("Producer Set NameServerAddress error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set NameServerAddress error, code is: %d" +
+				"please check cpp logs for details", code))
 		}
 	}
 
 	if config.NameServerDomain != "" {
-		code = int(C.SetProducerNameServerDomain(cproduer, C.CString(config.NameServerDomain)))
+		cs = C.CString(config.NameServerDomain)
+		code = int(C.SetProducerNameServerDomain(cproduer, cs))
+		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			log.Fatalf("Producer Set NameServerDomain error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set NameServerDomain error, code is: %d" +
+				"please check cpp logs for details", code))
 		}
 	}
 
 	if config.InstanceName != "" {
-		code = int(C.SetProducerInstanceName(cproduer, C.CString(config.InstanceName)))
+		cs = C.CString(config.InstanceName)
+		code = int(C.SetProducerInstanceName(cproduer, cs))
+		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			log.Fatalf("Producer Set InstanceName error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set InstanceName error, code is: %d" +
+				"please check cpp logs for details", code))
 		}
 	}
 
 	if config.Credentials != nil {
-		code = int(C.SetProducerSessionCredentials(cproduer,
-			C.CString(config.Credentials.AccessKey),
-			C.CString(config.Credentials.SecretKey),
-			C.CString(config.Credentials.Channel)))
+		ak := C.CString(config.Credentials.AccessKey)
+		sk := C.CString(config.Credentials.SecretKey)
+		ch := C.CString(config.Credentials.Channel)
+		code = int(C.SetProducerSessionCredentials(cproduer, ak, sk, ch))
+
+		C.free(unsafe.Pointer(ak))
+		C.free(unsafe.Pointer(sk))
+		C.free(unsafe.Pointer(ch))
 		if code != 0 {
-			log.Fatalf("Producer Set Credentials error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set Credentials error, code is: %d", code))
+		}
+	}
+
+	if config.logC != nil {
+		cs = C.CString(config.logC.Path)
+		code = int(C.SetProducerLogPath(cproduer, cs))
+		C.free(unsafe.Pointer(cs))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
+		}
+
+		code = int(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.logC.FileNum), C.long(config.logC.FileSize)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
+		}
+
+		code = int(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.logC.Level)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
 		}
 	}
 
 	if config.SendMsgTimeout > 0 {
 		code = int(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
 		if code != 0 {
-			log.Fatalf("Producer Set SendMsgTimeout error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set SendMsgTimeout error, code is: %d", code))
 		}
 	}
 
 	if config.CompressLevel > 0 {
 		code = int(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
 		if code != 0 {
-			log.Fatalf("Producer Set CompressLevel error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set CompressLevel error, code is: %d", code))
 		}
 	}
 
 	if config.MaxMessageSize > 0 {
 		code = int(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
 		if code != 0 {
-			log.Fatalf("Producer Set MaxMessageSize error, code is: %d, " +
-				"please check cpp logs for details", code)
+			return nil, errors.New(fmt.Sprintf("Producer Set MaxMessageSize error, code is: %d", code))
 		}
 	}
 
@@ -154,7 +183,7 @@ func (p *defaultProducer) String() string {
 func (p *defaultProducer) Start() error {
 	code := int(C.StartProducer(p.cproduer))
 	if code != 0 {
-		 log.Fatalf("start producer error, error code is: %d", code)
+		 return errors.New(fmt.Sprintf("start producer error, error code is: %d", code))
 	}
 	return nil
 }
