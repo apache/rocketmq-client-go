@@ -37,6 +37,27 @@ const (
 	LogLevelNum   = LogLevel(C.E_LOG_LEVEL_LEVEL_NUM)
 )
 
+func (l LogLevel) String() string {
+	switch l {
+	case LogLevelFatal:
+		return "Fatal"
+	case LogLevelError:
+		return "Error"
+	case LogLevelWarn:
+		return "Warn"
+	case LogLevelInfo:
+		return "Info"
+	case LogLevelDebug:
+		return "Debug"
+	case LogLevelTrace:
+		return "Trace"
+	case LogLevelNum:
+		return "Num"
+	default:
+		return "Unkonw"
+	}
+}
+
 // LogConfig the log configuration for the pull consumer
 type LogConfig struct {
 	Path     string

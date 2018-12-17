@@ -18,9 +18,9 @@ package rocketmq
 
 /*
 #cgo LDFLAGS: -L/usr/local/lib -lrocketmq
+#include <stdlib.h>
 #include "rocketmq/CMessageExt.h"
 #include "rocketmq/CPushConsumer.h"
-#include "stdio.h"
 
 extern int consumeMessageCallback(CPushConsumer *consumer, CMessageExt *msg);
 
@@ -32,9 +32,13 @@ import "C"
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
+	"github.com/prometheus/common/log"
 	"sync"
 	"unsafe"
 )
+
+type MessageModel C.CMessageModel
 
 type ConsumeStatus int
 
@@ -55,7 +59,7 @@ func (status ConsumeStatus) String() string {
 }
 
 type defaultPushConsumer struct {
-	config    *ConsumerConfig
+	config    *PushConsumerConfig
 	cconsumer *C.struct_CPushConsumer
 	funcsMap  sync.Map
 }
@@ -69,18 +73,112 @@ func (c *defaultPushConsumer) String() string {
 	return fmt.Sprintf("[%s, subcribed topics: [%s]]", c.config, topics)
 }
 
-func newPushConsumer(config *ConsumerConfig) (PushConsumer, error) {
+func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
+	if config == nil {
+		return nil, errors.New("config is nil")
+	}
+	if config.GroupID == "" {
+		return nil, errors.New("GroupId is empty.")
+	}
+
+	if config.NameServer == "" && config.NameServerDomain == "" {
+		return nil, errors.New("NameServer and NameServerDomain is empty.")
+	}
+
 	consumer := &defaultPushConsumer{config: config}
-	cconsumer := C.CreatePushConsumer(C.CString(config.GroupID))
-	C.SetPushConsumerNameServerAddress(cconsumer, C.CString(config.NameServer))
-	C.SetPushConsumerThreadCount(cconsumer, C.int(config.ConsumerThreadCount))
-	C.SetPushConsumerMessageBatchMaxSize(cconsumer, C.int(config.ConsumerThreadCount))
-	C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo)))
+	cs := C.CString(config.GroupID)
+	cconsumer := C.CreatePushConsumer(cs)
+	C.free(unsafe.Pointer(cs))
+
+	if cconsumer == nil {
+		return nil, errors.New("Create PushConsumer failed")
+	}
+
+	var code int
+	if config.NameServer != "" {
+		cs = C.CString(config.NameServer)
+		code = int(C.SetPushConsumerNameServerAddress(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf(fmt.Sprintf("PushConsumer Set NameServerAddress error, code is: %d", code)))
+		}
+	}
+
+	if config.NameServerDomain != "" {
+		cs = C.CString(config.NameServerDomain)
+		code = int(C.SetPushConsumerNameServerDomain(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set NameServerDomain error, code is: %d", code))
+		}
+	}
+
+	if config.InstanceName != "" {
+		cs = C.CString(config.InstanceName)
+		code = int(C.SetPushConsumerInstanceName(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set InstanceName error, code is: %d, "+
+				"please check cpp logs for details", code))
+		}
+	}
+
 	if config.Credentials != nil {
-		C.SetPushConsumerSessionCredentials(cconsumer,
-			C.CString(config.Credentials.AccessKey),
-			C.CString(config.Credentials.SecretKey),
-			C.CString(config.Credentials.Channel))
+		ak := C.CString(config.Credentials.AccessKey)
+		sk := C.CString(config.Credentials.SecretKey)
+		ch := C.CString(config.Credentials.Channel)
+		code = int(C.SetPushConsumerSessionCredentials(cconsumer, ak, sk, ch))
+		C.free(unsafe.Pointer(ak))
+		C.free(unsafe.Pointer(sk))
+		C.free(unsafe.Pointer(ch))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set Credentials error, code is: %d", int(code)))
+		}
+	}
+
+	if config.LogC != nil {
+		cs = C.CString(config.LogC.Path)
+		code = int(C.SetProducerLogPath(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
+		}
+
+		code = int(C.SetProducerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
+		}
+
+		code = int(C.SetProducerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
+		}
+	}
+
+	if config.ThreadCount > 0 {
+		code = int(C.SetPushConsumerThreadCount(cconsumer, C.int(config.ThreadCount)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set ThreadCount error, code is: %d", int(code)))
+		}
+	}
+
+	if config.MessageBatchMaxSize > 0 {
+		code = int(C.SetPushConsumerMessageBatchMaxSize(cconsumer, C.int(config.MessageBatchMaxSize)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set MessageBatchMaxSize error, code is: %d", int(code)))
+		}
+	}
+
+	code = int(C.SetPushConsumerMessageModel(cconsumer, (C.CMessageModel)(config.Model)))
+
+	if code != 0 {
+		return nil, errors.New(fmt.Sprintf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code)))
+	}
+
+	code = int(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+
+	if code != 0 {
+		return nil, errors.New(fmt.Sprintf("PushConsumer RegisterMessageCallback error, code is: %d", int(code)))
 	}
 
 	consumer.cconsumer = cconsumer
@@ -89,13 +187,24 @@ func newPushConsumer(config *ConsumerConfig) (PushConsumer, error) {
 }
 
 func (c *defaultPushConsumer) Start() error {
-	C.StartPushConsumer(c.cconsumer)
+	code := C.StartPushConsumer(c.cconsumer)
+	if code != 0 {
+		return errors.New(fmt.Sprintf("start PushConsumer error, code is: %d", int(code)))
+	}
 	return nil
 }
 
 func (c *defaultPushConsumer) Shutdown() error {
-	C.ShutdownPushConsumer(c.cconsumer)
+	code := C.ShutdownPushConsumer(c.cconsumer)
+
+	if code != 0 {
+		log.Warnf("Shutdown PushConsumer error, code is: %d, please check cpp logs for details", code)
+	}
+
 	C.DestroyPushConsumer(c.cconsumer)
+	if code != 0 {
+		log.Warnf("Destroy PushConsumer error, code is: %d, please check cpp logs for details", code)
+	}
 	return nil
 }
 
@@ -104,9 +213,11 @@ func (c *defaultPushConsumer) Subscribe(topic, expression string, consumeFunc fu
 	if exist {
 		return nil
 	}
-	err := C.Subscribe(c.cconsumer, C.CString(topic), C.CString(expression))
-	fmt.Println("err:", err)
+	code := C.Subscribe(c.cconsumer, C.CString(topic), C.CString(expression))
+	if code != 0 {
+		return errors.New(fmt.Sprintf("subscribe topic: %s failed, error code is: %d", topic, int(code)))
+	}
 	c.funcsMap.Store(topic, consumeFunc)
-	fmt.Printf("subscribe topic[%s] with expression[%s] successfully. \n", topic, expression)
+	log.Infof("subscribe topic[%s] with expression[%s] successfully.", topic, expression)
 	return nil
 }

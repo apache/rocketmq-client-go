@@ -17,12 +17,44 @@
 package rocketmq
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestGetMessageTopic(test *testing.T) {
-	//fmt.Println("-----TestGetMessageTopic Start----")
-	//msg := rocketmq.CreateMessage("testTopic")
-	//rocketmq.DestroyMessage(msg)
-	//fmt.Println("-----TestGetMessageTopic Finish----")
+func TestMessage_String(t *testing.T) {
+	msg := Message{
+		Topic:          "testTopic",
+		Tags:           "TagA, TagB",
+		Keys:           "Key1, Key2",
+		Body:           "Body1234567890",
+		DelayTimeLevel: 8}
+	expect := "[Topic: testTopic, Tags: TagA, TagB, Keys: Key1, Key2, Body: Body1234567890, DelayTimeLevel: 8," +
+		" Property: map[]]"
+	assert.Equal(t, expect, msg.String())
+}
+
+func TestMessageExt_String(t *testing.T) {
+	msg := Message{
+		Topic:          "testTopic",
+		Tags:           "TagA, TagB",
+		Keys:           "Key1, Key2",
+		Body:           "Body1234567890",
+		DelayTimeLevel: 8}
+	msgExt := MessageExt{
+		Message:                   msg,
+		MessageID:                 "messageId",
+		QueueId:                   2,
+		ReconsumeTimes:            13,
+		StoreSize:                 1 << 10,
+		BornTimestamp:             int64(1234567890897),
+		StoreTimestamp:            int64(1234567890),
+		QueueOffset:               int64(1234567890),
+		CommitLogOffset:           int64(1234567890),
+		PreparedTransactionOffset: int64(1234567890),
+	}
+	expect := "[MessageId: messageId, [Topic: testTopic, Tags: TagA, TagB, Keys: Key1, Key2, " +
+		"Body: Body1234567890, DelayTimeLevel: 8, Property: map[]], QueueId: 2, ReconsumeTimes: " +
+		"13, StoreSize: 1024, BornTimestamp: 1234567890897, StoreTimestamp: 1234567890, QueueOffset: 1234567890," +
+		" CommitLogOffset: 1234567890, PreparedTransactionOffset: 1234567890]"
+	assert.Equal(t, expect, msgExt.String())
 }

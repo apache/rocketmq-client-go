@@ -65,10 +65,7 @@ func (ps PullStatus) String() string {
 
 // PullConsumerConfig the configuration for the pull consumer
 type PullConsumerConfig struct {
-	GroupID     string
-	NameServer  string
-	Credentials *SessionCredentials
-	Log         *LogConfig
+	clientConfig
 }
 
 // DefaultPullConsumer default consumer pulling the message
@@ -89,6 +86,10 @@ func (c *DefaultPullConsumer) String() string {
 
 // NewPullConsumer creates one pull consumer
 func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
+	if conf == nil {
+		return nil, errors.New("config is nil")
+	}
+
 	cs := C.CString(conf.GroupID)
 	cconsumer := C.CreatePullConsumer(cs)
 	C.free(unsafe.Pointer(cs))
@@ -97,7 +98,7 @@ func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
 	C.SetPullConsumerNameServerAddress(cconsumer, cs)
 	C.free(unsafe.Pointer(cs))
 
-	log := conf.Log
+	log := conf.LogC
 	if log != nil {
 		cs = C.CString(log.Path)
 		if C.SetPullConsumerLogPath(cconsumer, cs) != 0 {
@@ -131,21 +132,21 @@ func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
 func (c *DefaultPullConsumer) Start() error {
 	r := C.StartPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("start failed, code:%d", r)
+		return fmt.Errorf("start failed, code:%d", int(r))
 	}
 	return nil
 }
 
-// Shutdown shutdown the pulling conumser
+// Shutdown shutdown the pulling consumer
 func (c *DefaultPullConsumer) Shutdown() error {
 	r := C.ShutdownPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("shutdown failed, code:%d", r)
+		return fmt.Errorf("shutdown failed, code:%d", int(r))
 	}
 
 	r = C.DestroyPullConsumer(c.cconsumer)
 	if r != 0 {
-		return fmt.Errorf("destory failed, code:%d", r)
+		return fmt.Errorf("destory failed, code:%d", int(r))
 	}
 	return nil
 }

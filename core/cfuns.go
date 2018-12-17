@@ -36,6 +36,7 @@ func consumeMessageCallback(cconsumer *C.CPushConsumer, msg *C.CMessageExt) C.in
 	}
 
 	msgExt := cmsgExtToGo(msg)
+	//C.DestroyMessageExt(msg)
 	cfunc, exist := consumer.(*defaultPushConsumer).funcsMap.Load(msgExt.Topic)
 	if !exist {
 		return C.int(ReConsumeLater)

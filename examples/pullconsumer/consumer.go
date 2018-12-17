@@ -59,13 +59,14 @@ func main() {
 		return
 	}
 
-	consumer, err := rocketmq.NewPullConsumer(&rocketmq.PullConsumerConfig{
-		GroupID:    groupID,
-		NameServer: namesrvAddrs,
-		Log: &rocketmq.LogConfig{
-			Path: "example",
-		},
-	})
+	cfg := &rocketmq.PullConsumerConfig{}
+	cfg.GroupID = groupID
+	cfg.NameServer = namesrvAddrs
+	cfg.LogC = &rocketmq.LogConfig{
+		Path: "example",
+	}
+
+	consumer, err := rocketmq.NewPullConsumer(cfg)
 	if err != nil {
 		fmt.Printf("new pull consumer error:%s\n", err)
 		return

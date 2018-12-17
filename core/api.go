@@ -22,21 +22,35 @@ func Version() (version string) {
 	return GetVersion()
 }
 
+type clientConfig struct {
+	GroupID          string
+	NameServer       string
+	NameServerDomain string
+	GroupName        string
+	InstanceName     string
+	Credentials      *SessionCredentials
+	LogC             *LogConfig
+}
+
 // NewProducer create a new producer with config
-func NewProducer(config *ProducerConfig) Producer {
+func NewProducer(config *ProducerConfig) (Producer, error) {
 	return newDefaultProducer(config)
 }
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	GroupID     string
-	NameServer  string
-	Credentials *SessionCredentials
+	clientConfig
+	SendMsgTimeout int
+	CompressLevel  int
+	MaxMessageSize int
 }
 
 func (config *ProducerConfig) String() string {
 	// For security, don't print Credentials default.
-	return fmt.Sprintf("[groupId: %s, nameServer: %s]", config.NameServer, config.GroupID)
+	return fmt.Sprintf("[GroupID: %s, NameServer: %s, NameServerDomain: %s, InstanceName: %s, NameServer: %s, "+
+		"SendMsgTimeout: %d, CompressLevel: %d, MaxMessageSize: %d, ]", config.NameServer, config.GroupID,
+		config.NameServerDomain, config.GroupName, config.InstanceName, config.SendMsgTimeout, config.CompressLevel,
+		config.MaxMessageSize)
 }
 
 type Producer interface {
@@ -52,27 +66,27 @@ type Producer interface {
 }
 
 // NewPushConsumer create a new consumer with config.
-func NewPushConsumer(config *ConsumerConfig) (PushConsumer, error) {
+func NewPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
 }
 
-// ConsumerConfig define a new consumer.
-type ConsumerConfig struct {
-	GroupID             string
-	NameServer          string
-	ConsumerThreadCount int
+// PushConsumerConfig define a new consumer.
+type PushConsumerConfig struct {
+	clientConfig
+	ThreadCount         int
 	MessageBatchMaxSize int
-	//ConsumerInstanceName int
-	Credentials *SessionCredentials
+	Model               MessageModel
 }
 
-func (config *ConsumerConfig) String() string {
-	return fmt.Sprintf("[groupId: %s, nameServer: %s, consumerThreadCount: %d, messageBatchMaxSize: %d]",
-		config.GroupID, config.NameServer, config.ConsumerThreadCount, config.MessageBatchMaxSize)
+func (config *PushConsumerConfig) String() string {
+	return fmt.Sprintf("[GroupID: %s, NameServer: %s, NameServerDomain: %s, InstanceName: %s, "+
+		"ThreadCount: %d, MessageBatchMaxSize: %d, Model: %v ]", config.NameServer, config.GroupID,
+		config.NameServerDomain, config.InstanceName, config.ThreadCount, config.MessageBatchMaxSize, config.Model)
 }
 
 type PushConsumer interface {
 	baseAPI
+
 	// Subscribe a new topic with specify filter expression and consume function.
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
 }
@@ -80,8 +94,10 @@ type PushConsumer interface {
 // PullConsumer consumer pulling the message
 type PullConsumer interface {
 	baseAPI
+
 	// Pull returns the messages from the consume queue by specify the offset and the max number
 	Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult
+
 	// FetchSubscriptionMessageQueues returns the consume queue of the topic
 	FetchSubscriptionMessageQueues(topic string) []MessageQueue
 }
@@ -105,7 +121,6 @@ type SendResult struct {
 
 func (result SendResult) String() string {
 	return fmt.Sprintf("[status: %s, messageId: %s, offset: %d]", result.Status, result.MsgId, result.Offset)
-
 }
 
 type baseAPI interface {
