@@ -20,13 +20,12 @@ package main
 import (
 	"fmt"
 	"github.com/apache/rocketmq-client-go/core"
-	"time"
 )
 
 func main() {
 	cfg := &rocketmq.ProducerConfig{}
 	cfg.GroupID = "testGroup"
-	cfg.NameServer = "47.101.55.250:9876"
+	cfg.NameServer = "localhost:9876"
 	producer, err := rocketmq.NewProducer(cfg)
 	if err != nil {
 		fmt.Println("create Producer failed, error:", err)
@@ -39,8 +38,8 @@ func main() {
 	fmt.Printf("Producer: %s started... \n", producer)
 	for i := 0; i < 100; i++ {
 		msg := fmt.Sprintf("Hello RocketMQ-%d", i)
-		result := producer.SendMessageSync(&rocketmq.Message{Topic: "wwf1", Body: msg})
+		result := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
 		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
 	}
-	time.Sleep(10 * time.Second)
+	fmt.Println("shutdown producer.")
 }

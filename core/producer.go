@@ -247,6 +247,14 @@ func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueue
 	}
 }
 
-func (p *defaultProducer) SendMessageAsync(msg *Message) {
-	// TODO
+func (p *defaultProducer) SendMessageOneway(msg *Message) {
+	cmsg := goMsgToC(msg)
+	defer C.DestroyMessage(cmsg)
+
+	code := int(C.SendMessageOneway(p.cproduer, cmsg))
+	if code != 0 {
+		log.Warnf("send message with oneway error, error code is: %d", code)
+	} else {
+		log.Debugf("Send Message: %s with oneway success.", msg.String())
+	}
 }

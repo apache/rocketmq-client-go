@@ -33,12 +33,10 @@ import "C"
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"sync"
 	"unsafe"
 )
-
-type MessageModel C.CMessageModel
 
 type ConsumeStatus int
 
@@ -138,20 +136,20 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		code = int(C.SetProducerLogPath(cconsumer, cs))
+		code = int(C.SetPushConsumerLogPath(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set LogPath error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		code = int(C.SetPushConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set FileNumAndSize error, code is: %d", code))
 		}
 
-		code = int(C.SetProducerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		code = int(C.SetPushConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set LogLevel error, code is: %d", code))
 		}
 	}
 
@@ -169,10 +167,20 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		}
 	}
 
-	code = int(C.SetPushConsumerMessageModel(cconsumer, (C.CMessageModel)(config.Model)))
+	if config.Model != 0 {
+		var mode C.CMessageModel
+		switch config.Model {
+		case BroadCasting:
+			mode = C.BROADCASTING
+		case Clustering:
+			mode = C.CLUSTERING
+		}
+		code = int(C.SetPushConsumerMessageModel(cconsumer, mode))
 
-	if code != 0 {
-		return nil, errors.New(fmt.Sprintf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code)))
+		if code != 0 {
+			return nil, errors.New(fmt.Sprintf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code)))
+		}
+
 	}
 
 	code = int(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
