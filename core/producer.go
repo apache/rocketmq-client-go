@@ -90,8 +90,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerNameServerAddress(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set NameServerAddress error, code is: %d"+
-				"please check cpp logs for details", code))
+			return nil, fmt.Errorf("producer Set NameServerAddress error, code is: %d", code)
 		}
 	}
 
@@ -100,8 +99,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerNameServerDomain(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set NameServerDomain error, code is: %d"+
-				"please check cpp logs for details", code))
+			return nil, fmt.Errorf("producer Set NameServerDomain error, code is: %d", code)
 		}
 	}
 
@@ -110,8 +108,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerInstanceName(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set InstanceName error, code is: %d"+
-				"please check cpp logs for details", code))
+			return nil, fmt.Errorf("producer Set InstanceName error, code is: %d", code)
 		}
 	}
 
@@ -125,7 +122,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set Credentials error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set Credentials error, code is: %d", code)
 		}
 	}
 
@@ -134,38 +131,38 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		code = int(C.SetProducerLogPath(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set LogPath error, code is: %d", code)
 		}
 
 		code = int(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set FileNumAndSize error, code is: %d", code)
 		}
 
 		code = int(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set LogLevel error, code is: %d", code)
 		}
 	}
 
 	if config.SendMsgTimeout > 0 {
 		code = int(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set SendMsgTimeout error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set SendMsgTimeout error, code is: %d", code)
 		}
 	}
 
 	if config.CompressLevel > 0 {
 		code = int(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set CompressLevel error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set CompressLevel error, code is: %d", code)
 		}
 	}
 
 	if config.MaxMessageSize > 0 {
 		code = int(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set MaxMessageSize error, code is: %d", code))
+			return nil, fmt.Errorf("producer Set MaxMessageSize error, code is: %d", code)
 		}
 	}
 
@@ -186,7 +183,7 @@ func (p *defaultProducer) String() string {
 func (p *defaultProducer) Start() error {
 	code := int(C.StartProducer(p.cproduer))
 	if code != 0 {
-		return errors.New(fmt.Sprintf("start producer error, error code is: %d", code))
+		return fmt.Errorf("start producer error, error code is: %d", code)
 	}
 	return nil
 }
@@ -247,6 +244,14 @@ func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueue
 	}
 }
 
-func (p *defaultProducer) SendMessageAsync(msg *Message) {
-	// TODO
+func (p *defaultProducer) SendMessageOneway(msg *Message) {
+	cmsg := goMsgToC(msg)
+	defer C.DestroyMessage(cmsg)
+
+	code := int(C.SendMessageOneway(p.cproduer, cmsg))
+	if code != 0 {
+		log.Warnf("send message with oneway error, error code is: %d", code)
+	} else {
+		log.Debugf("Send Message: %s with oneway success.", msg.String())
+	}
 }

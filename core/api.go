@@ -32,6 +32,22 @@ type clientConfig struct {
 	LogC             *LogConfig
 }
 
+func (config *clientConfig) string() string {
+	// For security, don't print Credentials.
+	str := ""
+	str = strJoin(str, "GroupId", config.GroupID)
+	str = strJoin(str, "NameServer", config.NameServer)
+	str = strJoin(str, "NameServerDomain", config.NameServerDomain)
+	str = strJoin(str, "GroupName", config.GroupName)
+	str = strJoin(str, "InstanceName", config.InstanceName)
+
+	if config.LogC != nil {
+		str = strJoin(str, "LogConfig", config.LogC.String())
+	}
+
+	return str
+}
+
 // NewProducer create a new producer with config
 func NewProducer(config *ProducerConfig) (Producer, error) {
 	return newDefaultProducer(config)
@@ -46,11 +62,21 @@ type ProducerConfig struct {
 }
 
 func (config *ProducerConfig) String() string {
-	// For security, don't print Credentials default.
-	return fmt.Sprintf("[GroupID: %s, NameServer: %s, NameServerDomain: %s, InstanceName: %s, NameServer: %s, "+
-		"SendMsgTimeout: %d, CompressLevel: %d, MaxMessageSize: %d, ]", config.NameServer, config.GroupID,
-		config.NameServerDomain, config.GroupName, config.InstanceName, config.SendMsgTimeout, config.CompressLevel,
-		config.MaxMessageSize)
+	str := "ProducerConfig=[" + config.clientConfig.string()
+
+	if config.SendMsgTimeout > 0 {
+		str = strJoin(str, "SendMsgTimeout", config.SendMsgTimeout)
+	}
+
+	if config.CompressLevel > 0 {
+		str = strJoin(str, "CompressLevel", config.CompressLevel)
+	}
+
+	if config.MaxMessageSize > 0 {
+		str = strJoin(str, "MaxMessageSize", config.MaxMessageSize)
+	}
+
+	return str + "]"
 }
 
 type Producer interface {
@@ -61,13 +87,31 @@ type Producer interface {
 	// SendMessageOrderly send the message orderly
 	SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult
 
-	// SendMessageAsync send a message with async
-	SendMessageAsync(msg *Message)
+	// SendMessageOneway send a message with oneway
+	SendMessageOneway(msg *Message)
 }
 
 // NewPushConsumer create a new consumer with config.
 func NewPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
+}
+
+type MessageModel int
+
+const (
+	BroadCasting = MessageModel(1)
+	Clustering   = MessageModel(2)
+)
+
+func (mode MessageModel) String() string {
+	switch mode {
+	case BroadCasting:
+		return "BroadCasting"
+	case Clustering:
+		return "Clustering"
+	default:
+		return "Unknown"
+	}
 }
 
 // PushConsumerConfig define a new consumer.
@@ -79,9 +123,22 @@ type PushConsumerConfig struct {
 }
 
 func (config *PushConsumerConfig) String() string {
-	return fmt.Sprintf("[GroupID: %s, NameServer: %s, NameServerDomain: %s, InstanceName: %s, "+
-		"ThreadCount: %d, MessageBatchMaxSize: %d, Model: %v ]", config.NameServer, config.GroupID,
-		config.NameServerDomain, config.InstanceName, config.ThreadCount, config.MessageBatchMaxSize, config.Model)
+	// For security, don't print Credentials.
+	str := "PushConsumerConfig=[" + config.clientConfig.string()
+
+	if config.ThreadCount > 0 {
+		str = strJoin(str, "ThreadCount", config.ThreadCount)
+	}
+
+	if config.MessageBatchMaxSize > 0 {
+		str = strJoin(str, "MessageBatchMaxSize", config.MessageBatchMaxSize)
+	}
+
+	if config.Model != 0 {
+		str = strJoin(str, "MessageModel", config.Model.String())
+	}
+
+	return str + "]"
 }
 
 type PushConsumer interface {

@@ -33,12 +33,10 @@ import "C"
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"sync"
 	"unsafe"
 )
-
-type MessageModel C.CMessageModel
 
 type ConsumeStatus int
 
@@ -100,7 +98,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerNameServerAddress(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf(fmt.Sprintf("PushConsumer Set NameServerAddress error, code is: %d", code)))
+			return nil, fmt.Errorf("PushConsumer Set NameServerAddress error, code is: %d", code)
 		}
 	}
 
@@ -109,7 +107,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerNameServerDomain(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set NameServerDomain error, code is: %d", code))
+			return nil, fmt.Errorf("PushConsumer Set NameServerDomain error, code is: %d", code)
 		}
 	}
 
@@ -118,8 +116,8 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerInstanceName(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set InstanceName error, code is: %d, "+
-				"please check cpp logs for details", code))
+			return nil, fmt.Errorf("PushConsumer Set InstanceName error, code is: %d, "+
+				"please check cpp logs for details", code)
 		}
 	}
 
@@ -132,53 +130,63 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set Credentials error, code is: %d", int(code)))
+			return nil, fmt.Errorf("PushConsumer Set Credentials error, code is: %d", int(code))
 		}
 	}
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		code = int(C.SetProducerLogPath(cconsumer, cs))
+		code = int(C.SetPushConsumerLogPath(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogPath error, code is: %d", code))
+			return nil, fmt.Errorf("PushConsumer Set LogPath error, code is: %d", code)
 		}
 
-		code = int(C.SetProducerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		code = int(C.SetPushConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set FileNumAndSize error, code is: %d", code))
+			return nil, fmt.Errorf("PushConsumer Set FileNumAndSize error, code is: %d", code)
 		}
 
-		code = int(C.SetProducerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		code = int(C.SetPushConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("Producer Set LogLevel error, code is: %d", code))
+			return nil, fmt.Errorf("PushConsumer Set LogLevel error, code is: %d", code)
 		}
 	}
 
 	if config.ThreadCount > 0 {
 		code = int(C.SetPushConsumerThreadCount(cconsumer, C.int(config.ThreadCount)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set ThreadCount error, code is: %d", int(code)))
+			return nil, fmt.Errorf("PushConsumer Set ThreadCount error, code is: %d", int(code))
 		}
 	}
 
 	if config.MessageBatchMaxSize > 0 {
 		code = int(C.SetPushConsumerMessageBatchMaxSize(cconsumer, C.int(config.MessageBatchMaxSize)))
 		if code != 0 {
-			return nil, errors.New(fmt.Sprintf("PushConsumer Set MessageBatchMaxSize error, code is: %d", int(code)))
+			return nil, fmt.Errorf("PushConsumer Set MessageBatchMaxSize error, code is: %d", int(code))
 		}
 	}
 
-	code = int(C.SetPushConsumerMessageModel(cconsumer, (C.CMessageModel)(config.Model)))
+	if config.Model != 0 {
+		var mode C.CMessageModel
+		switch config.Model {
+		case BroadCasting:
+			mode = C.BROADCASTING
+		case Clustering:
+			mode = C.CLUSTERING
+		}
+		code = int(C.SetPushConsumerMessageModel(cconsumer, mode))
 
-	if code != 0 {
-		return nil, errors.New(fmt.Sprintf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code)))
+		if code != 0 {
+			return nil, fmt.Errorf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code))
+		}
+
 	}
 
 	code = int(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
 
 	if code != 0 {
-		return nil, errors.New(fmt.Sprintf("PushConsumer RegisterMessageCallback error, code is: %d", int(code)))
+		return nil, fmt.Errorf("PushConsumer RegisterMessageCallback error, code is: %d", int(code))
 	}
 
 	consumer.cconsumer = cconsumer
@@ -189,7 +197,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 func (c *defaultPushConsumer) Start() error {
 	code := C.StartPushConsumer(c.cconsumer)
 	if code != 0 {
-		return errors.New(fmt.Sprintf("start PushConsumer error, code is: %d", int(code)))
+		return fmt.Errorf("start PushConsumer error, code is: %d", int(code))
 	}
 	return nil
 }
@@ -215,7 +223,7 @@ func (c *defaultPushConsumer) Subscribe(topic, expression string, consumeFunc fu
 	}
 	code := C.Subscribe(c.cconsumer, C.CString(topic), C.CString(expression))
 	if code != 0 {
-		return errors.New(fmt.Sprintf("subscribe topic: %s failed, error code is: %d", topic, int(code)))
+		return fmt.Errorf("subscribe topic: %s failed, error code is: %d", topic, int(code))
 	}
 	c.funcsMap.Store(topic, consumeFunc)
 	log.Infof("subscribe topic[%s] with expression[%s] successfully.", topic, expression)

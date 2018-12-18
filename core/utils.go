@@ -14,32 +14,14 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+package rocketmq
 
-package main
+import "fmt"
 
-import (
-	"fmt"
-	"github.com/apache/rocketmq-client-go/core"
-)
-
-func main() {
-	cfg := &rocketmq.ProducerConfig{}
-	cfg.GroupID = "testGroup"
-	cfg.NameServer = "localhost:9876"
-	producer, err := rocketmq.NewProducer(cfg)
-	if err != nil {
-		fmt.Println("create Producer failed, error:", err)
-		return
+func strJoin(str, key string, value interface{}) string {
+	if key == "" || value == "" {
+		return str
 	}
 
-	producer.Start()
-	defer producer.Shutdown()
-
-	fmt.Printf("Producer: %s started... \n", producer)
-	for i := 0; i < 100; i++ {
-		msg := fmt.Sprintf("Hello RocketMQ-%d", i)
-		result := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
-		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
-	}
-	fmt.Println("shutdown producer.")
+	return str + key + ": " + fmt.Sprint(value) + ", "
 }
