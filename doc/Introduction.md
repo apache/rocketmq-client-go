@@ -27,7 +27,7 @@
         - `git clone https://github.com/apache/rocketmq-client-cpp`
         - `cd rocketmq-client-cpp`
         - `sudo sh build.sh` 
-        - `cp bin/librocketmq.dylib /usr/local/lib`
+        - `sudo install bin/librocketmq.dylib /usr/local/lib`
         - `sudo mkdir /usr/local/include/rocketmq`
         - `sudo cp include/* /usr/local/include/rocketmq/`
 
@@ -44,7 +44,7 @@
 
 - import package
     ```
-    import "github.com/apache/rocketmq-client-go/core"
+    import rocketmq "github.com/apache/rocketmq-client-go/core"
     ```
 - Send message
     ```go
@@ -60,6 +60,20 @@
         }
         time.Sleep(10 * time.Second)
 	    producer.Shutdown()
+    }
+    ```
+- Send ordered message
+    ```go
+    type queueSelectorByOrderID struct{}
+
+    func (s queueSelectorByOrderID) Select(size int, m *rocketmq.Message, arg interface{}) int{
+       return arg.(int) % size
+    }
+    func SendOrderMessge(producer rocketmq.producer, topic, body string, order int){
+        selector := queueSelectorByOrderID{}
+        r := producer.SendMessageOrderly(
+            &rocketmq.Message{Topic: topic, Body: body}, selector, arg, 3)
+        fmt.Printf("send result: %v", r)
     }
     ```
 - Push Consumer
@@ -79,6 +93,31 @@
 	    defer consumer.Shutdown()
 	    fmt.Printf("consumer: %s started...\n", consumer)
 	    time.Sleep(10 * time.Minute)
+    }
+    ```
+- Pull Consumer
+    ```go
+    func Pull(consumer *rocketmq.DefaultPullConsumer, topic, expression string, maxNum int){
+        mqs := consumer.FetchSubscriptionMessageQueues(topic)
+        offsets := make(map[string]int64)
+        PULL:
+            for {
+                for _, mq := range mqs {
+                    pr := consumer.Pull(mq, expression, offsets[mq.ID], maxNum)
+                    switch pr.Status {
+                    case rocketmq.PullNoNewMsg:
+				        break PULL
+			        case rocketmq.PullFound:
+				        fallthrough
+			        case rocketmq.PullNoMatchedMsg:
+				        fallthrough
+			        case rocketmq.PullOffsetIllegal:
+				        offsets[mq.ID] = pr.NextBeginOffset
+			        case rocketmq.PullBrokerTimeout:
+				        fmt.Println("broker timeout occur")
+			        }
+                }
+            }
     }
     ```
 - [Full example](../examples)
