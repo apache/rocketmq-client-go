@@ -65,7 +65,7 @@ func (ps PullStatus) String() string {
 
 // PullConsumerConfig the configuration for the pull consumer
 type PullConsumerConfig struct {
-	clientConfig
+	ClientConfig
 }
 
 // DefaultPullConsumer default consumer pulling the message

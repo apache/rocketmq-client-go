@@ -22,7 +22,7 @@ func Version() (version string) {
 	return GetVersion()
 }
 
-type clientConfig struct {
+type ClientConfig struct {
 	GroupID          string
 	NameServer       string
 	NameServerDomain string
@@ -32,7 +32,7 @@ type clientConfig struct {
 	LogC             *LogConfig
 }
 
-func (config *clientConfig) string() string {
+func (config *ClientConfig) string() string {
 	// For security, don't print Credentials.
 	str := ""
 	str = strJoin(str, "GroupId", config.GroupID)
@@ -55,14 +55,14 @@ func NewProducer(config *ProducerConfig) (Producer, error) {
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	clientConfig
+	ClientConfig
 	SendMsgTimeout int
 	CompressLevel  int
 	MaxMessageSize int
 }
 
 func (config *ProducerConfig) String() string {
-	str := "ProducerConfig=[" + config.clientConfig.string()
+	str := "ProducerConfig=[" + config.ClientConfig.string()
 
 	if config.SendMsgTimeout > 0 {
 		str = strJoin(str, "SendMsgTimeout", config.SendMsgTimeout)
@@ -116,7 +116,7 @@ func (mode MessageModel) String() string {
 
 // PushConsumerConfig define a new consumer.
 type PushConsumerConfig struct {
-	clientConfig
+	ClientConfig
 	ThreadCount         int
 	MessageBatchMaxSize int
 	Model               MessageModel
@@ -124,7 +124,7 @@ type PushConsumerConfig struct {
 
 func (config *PushConsumerConfig) String() string {
 	// For security, don't print Credentials.
-	str := "PushConsumerConfig=[" + config.clientConfig.string()
+	str := "PushConsumerConfig=[" + config.ClientConfig.string()
 
 	if config.ThreadCount > 0 {
 		str = strJoin(str, "ThreadCount", config.ThreadCount)

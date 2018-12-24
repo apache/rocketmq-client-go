@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -79,98 +77,6 @@ func (s *snapshots) printStati() {
 		int64(sendTps), maxRT, avgRT, l.sendRequestFailedCount, l.receiveResponseFailedCount, l.receiveResponseSuccessCount,
 	)
 }
-
-var (
-	topic         string
-	nameSrv       string
-	groupID       string
-	instanceCount int
-	testMinutes   int
-	bodySize      int
-
-	longText    = ""
-	longTextLen int
-)
-
-func init() {
-	flag.StringVar(&topic, "t", "", "topic name")
-	flag.StringVar(&nameSrv, "n", "", "nameserver address")
-	flag.StringVar(&groupID, "g", "", "group id")
-	flag.IntVar(&instanceCount, "i", 1, "instance count")
-	flag.IntVar(&testMinutes, "m", 10, "test minutes")
-	flag.IntVar(&bodySize, "s", 32, "body size")
-
-	longText = strings.Repeat("0123456789", 100)
-	longTextLen = len(longText)
-}
-
-func buildMsg() string {
-	return longText[:bodySize]
-}
-
-func q(flag int) string {
-	return fmt.Sprintf(queue+"_%d", flag)
-}
-
-func produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan struct{}, topics, tags []string) {
-	p, err := rocketmq.NewProducer(&rocketmq.ProducerConfig{
-		GroupID:    "",
-		NameServer: nameSrv,
-	})
-	if err != nil {
-		fmt.Printf("new producer error:%s\n", err)
-		return
-	}
-
-	p.Start()
-	defer p.Shutdown()
-
-AGAIN:
-	select {
-	case <-exit:
-		return
-	default:
-	}
-
-	for i := len(topics) - 1; i >= 0; i-- {
-		topic := topics[i]
-		for _, tag := range tags {
-			req.Queue = topic
-			req.Tags = []string{tag}
-			req.Body = buildMsg()
-
-			now := time.Now()
-			ctx := context.Background()
-			_, err := p.SendMessageSync(&rocketmq.Message{
-				Topic: topic, Body: longText[:bodySize],
-			})
-
-			if err == nil {
-				atomic.AddInt64(&stati.receiveResponseSuccessCount, 1)
-				atomic.AddInt64(&stati.sendRequestSuccessCount, 1)
-				currentRT := int64(time.Since(now) / time.Millisecond)
-				atomic.AddInt64(&stati.sendMessageSuccessTimeTotal, currentRT)
-				prevRT := atomic.LoadInt64(&stati.sendMessageMaxRT)
-				for currentRT > prevRT {
-					if atomic.CompareAndSwapInt64(&stati.sendMessageMaxRT, prevRT, currentRT) {
-						break
-					}
-					prevRT = atomic.LoadInt64(&stati.sendMessageMaxRT)
-				}
-				continue
-			}
-
-			fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
-			//if _, ok := err.(*rpc.ErrorInfo); ok { TODO
-			//atomic.AddInt64(&stati.receiveResponseFailedCount, 1)
-			//} else {
-			//atomic.AddInt64(&stati.sendRequestFailedCount, 1)
-			//}
-		}
-	}
-	goto AGAIN
-}
-
 func takeSnapshot(s *snapshots, exit chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	for {
@@ -197,29 +103,129 @@ func printStati(s *snapshots, exit chan struct{}) {
 	}
 }
 
-func main() {
-	flag.Parse()
+type producer struct {
+	topic         string
+	nameSrv       string
+	groupID       string
+	instanceCount int
+	testMinutes   int
+	bodySize      int
+
+	flags *flag.FlagSet
+}
+
+func init() {
+	p := &producer{}
+	flags := flag.NewFlagSet("producer", flag.ExitOnError)
+	p.flags = flags
+
+	flags.StringVar(&p.topic, "t", "", "topic name")
+	flags.StringVar(&p.nameSrv, "n", "", "nameserver address")
+	flags.StringVar(&p.groupID, "g", "", "group id")
+	flags.IntVar(&p.instanceCount, "i", 1, "instance count")
+	flags.IntVar(&p.testMinutes, "m", 10, "test minutes")
+	flags.IntVar(&p.bodySize, "s", 32, "body size")
+
+	registerCommand("producer", p)
+}
+
+func (bp *producer) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan struct{}) {
+	p, err := rocketmq.NewProducer(&rocketmq.ProducerConfig{
+		ClientConfig: rocketmq.ClientConfig{GroupID: bp.groupID, NameServer: bp.nameSrv},
+	})
+	if err != nil {
+		fmt.Printf("new producer error:%s\n", err)
+		return
+	}
+
+	p.Start()
+	defer p.Shutdown()
+
+	topic, tag := bp.topic, "benchmark-producer"
+
+AGAIN:
+	select {
+	case <-exit:
+		return
+	default:
+	}
+
+	now := time.Now()
+	r := p.SendMessageSync(&rocketmq.Message{
+		Topic: bp.topic, Body: longText[:bp.bodySize],
+	})
+
+	if r.Status == rocketmq.SendOK {
+		atomic.AddInt64(&stati.receiveResponseSuccessCount, 1)
+		atomic.AddInt64(&stati.sendRequestSuccessCount, 1)
+		currentRT := int64(time.Since(now) / time.Millisecond)
+		atomic.AddInt64(&stati.sendMessageSuccessTimeTotal, currentRT)
+		prevRT := atomic.LoadInt64(&stati.sendMessageMaxRT)
+		for currentRT > prevRT {
+			if atomic.CompareAndSwapInt64(&stati.sendMessageMaxRT, prevRT, currentRT) {
+				break
+			}
+			prevRT = atomic.LoadInt64(&stati.sendMessageMaxRT)
+		}
+		goto AGAIN
+	}
+
+	fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
+	//if _, ok := err.(*rpc.ErrorInfo); ok { TODO
+	//atomic.AddInt64(&stati.receiveResponseFailedCount, 1)
+	//} else {
+	//atomic.AddInt64(&stati.sendRequestFailedCount, 1)
+	//}
+	goto AGAIN
+}
+
+func (bp *producer) run(args []string) {
+	bp.flags.Parse(args)
+
+	if bp.topic == "" {
+		println("empty topic")
+		bp.flags.Usage()
+		return
+	}
+
+	if bp.groupID == "" {
+		println("empty group id")
+		bp.flags.Usage()
+		return
+	}
+
+	if bp.nameSrv == "" {
+		println("empty namesrv")
+		bp.flags.Usage()
+		return
+	}
+	if bp.instanceCount <= 0 {
+		println("instance count must be positive integer")
+		bp.flags.Usage()
+		return
+	}
+	if bp.testMinutes <= 0 {
+		println("test time must be positive integer")
+		bp.flags.Usage()
+		return
+	}
+	if bp.bodySize <= 0 {
+		println("body size must be positive integer")
+		bp.flags.Usage()
+		return
+	}
 
 	stati := statiBenchmarkProducerSnapshot{}
 	snapshots := snapshots{cur: &stati}
 	exitChan := make(chan struct{})
 	wg := sync.WaitGroup{}
 
-	topics := make([]string, topicCount)
-	for i := 0; i < topicCount; i++ {
-		topics[i] = q(i + startSuffix)
-	}
-
-	tags := make([]string, tagCount)
-	for i := 0; i < tagCount; i++ {
-		tags[i] = fmt.Sprintf("default_tag_%d", i)
-	}
-
-	for i := 0; i < instanceCount; i++ {
+	for i := 0; i < bp.instanceCount; i++ {
+		i := i
 		go func() {
 			wg.Add(1)
-			produceMsg(&stati, exitChan, topics, tags)
-			fmt.Println("exit of produce ms")
+			bp.produceMsg(&stati, exitChan)
+			fmt.Printf("exit of produce %d\n", i)
 			wg.Done()
 		}()
 	}
@@ -241,7 +247,7 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	select {
-	case <-time.Tick(time.Minute * time.Duration(testMinutes)):
+	case <-time.Tick(time.Minute * time.Duration(bp.testMinutes)):
 	case <-signalChan:
 	}
 
@@ -250,4 +256,12 @@ func main() {
 	snapshots.takeSnapshot()
 	snapshots.printStati()
 	fmt.Println("TEST DONE")
+}
+
+func (bp *producer) usage() {
+	bp.flags.Usage()
+}
+
+func (bp *producer) buildMsg() string {
+	return longText[:bp.bodySize]
 }
