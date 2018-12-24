@@ -36,7 +36,7 @@ func registerCommand(name string, cmd command) {
 }
 
 func usage() {
-	println("./benchmark commandName [...]")
+	println(os.Args[0] + " commandName [...]")
 	for _, cmd := range cmds {
 		cmd.usage()
 	}
