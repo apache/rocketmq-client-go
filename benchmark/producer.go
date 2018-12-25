@@ -24,13 +24,13 @@ type statiBenchmarkProducerSnapshot struct {
 	next                        *statiBenchmarkProducerSnapshot
 }
 
-type snapshots struct {
+type produceSnapshots struct {
 	sync.RWMutex
 	head, tail, cur *statiBenchmarkProducerSnapshot
 	len             int
 }
 
-func (s *snapshots) takeSnapshot() {
+func (s *produceSnapshots) takeSnapshot() {
 	b := s.cur
 	sn := new(statiBenchmarkProducerSnapshot)
 	sn.sendRequestSuccessCount = atomic.LoadInt64(&b.sendRequestSuccessCount)
@@ -58,7 +58,7 @@ func (s *snapshots) takeSnapshot() {
 	s.Unlock()
 }
 
-func (s *snapshots) printStati() {
+func (s *produceSnapshots) printStati() {
 	s.RLock()
 	if s.len < 10 {
 		s.RUnlock()
@@ -76,31 +76,6 @@ func (s *snapshots) printStati() {
 		"Send TPS: %d Max RT: %d Average RT: %7.3f Send Failed: %d Response Failed: %d Total:%d\n",
 		int64(sendTps), maxRT, avgRT, l.sendRequestFailedCount, l.receiveResponseFailedCount, l.receiveResponseSuccessCount,
 	)
-}
-func takeSnapshot(s *snapshots, exit chan struct{}) {
-	ticker := time.NewTicker(time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			s.takeSnapshot()
-		case <-exit:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func printStati(s *snapshots, exit chan struct{}) {
-	ticker := time.NewTicker(time.Second * 10)
-	for {
-		select {
-		case <-ticker.C:
-			s.printStati()
-		case <-exit:
-			ticker.Stop()
-			return
-		}
-	}
 }
 
 type producer struct {
@@ -171,11 +146,6 @@ AGAIN:
 	}
 
 	fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
-	//if _, ok := err.(*rpc.ErrorInfo); ok { TODO
-	//atomic.AddInt64(&stati.receiveResponseFailedCount, 1)
-	//} else {
-	//atomic.AddInt64(&stati.sendRequestFailedCount, 1)
-	//}
 	goto AGAIN
 }
 
@@ -216,7 +186,7 @@ func (bp *producer) run(args []string) {
 	}
 
 	stati := statiBenchmarkProducerSnapshot{}
-	snapshots := snapshots{cur: &stati}
+	snapshots := produceSnapshots{cur: &stati}
 	exitChan := make(chan struct{})
 	wg := sync.WaitGroup{}
 
@@ -233,15 +203,33 @@ func (bp *producer) run(args []string) {
 	// snapshot
 	go func() {
 		wg.Add(1)
-		takeSnapshot(&snapshots, exitChan)
-		wg.Done()
+		defer wg.Done()
+		ticker := time.NewTicker(time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				snapshots.takeSnapshot()
+			case <-exitChan:
+				ticker.Stop()
+				return
+			}
+		}
 	}()
 
 	// print statistic
 	go func() {
 		wg.Add(1)
-		printStati(&snapshots, exitChan)
-		wg.Done()
+		defer wg.Done()
+		ticker := time.NewTicker(time.Second * 10)
+		for {
+			select {
+			case <-ticker.C:
+				snapshots.printStati()
+			case <-exitChan:
+				ticker.Stop()
+				return
+			}
+		}
 	}()
 
 	signalChan := make(chan os.Signal, 1)
