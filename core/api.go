@@ -148,6 +148,15 @@ type PushConsumer interface {
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
 }
 
+// PullConsumerConfig the configuration for the pull consumer
+type PullConsumerConfig struct {
+	ClientConfig
+}
+
+func (config *PullConsumerConfig) String() string {
+	return "PushConsumerConfig=[" + config.ClientConfig.string() + "]"
+}
+
 // PullConsumer consumer pulling the message
 type PullConsumer interface {
 	baseAPI

@@ -81,7 +81,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 	C.free(unsafe.Pointer(cs))
 
 	if cproduer == nil {
-		return nil, errors.New("create Producer failed, please check cpp logs for details")
+		return nil, errors.New("create Producer failed")
 	}
 
 	var code int

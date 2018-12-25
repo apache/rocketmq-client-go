@@ -37,8 +37,8 @@ func TestProducerConfig_String(t *testing.T) {
 	pConfig.CompressLevel = 4
 	pConfig.MaxMessageSize = 1024
 
-	expect := "ProducerConfig=[GroupId: testGroup, NameServer: localhost:9876, NameServerDomain: NameServerDomain, " +
-		"GroupId: testGroup, InstanceName: testProducer, " +
+	expect := "ProducerConfig=[GroupId: testGroup, NameServer: localhost:9876, NameServerDomain: domain1, " +
+		"GroupName: producerGroupName, InstanceName: testProducer, " +
 		"LogConfig: {Path:/rocketmq/log FileNum:16 FileSize:1048576 Level:Debug}, S" +
 		"endMsgTimeout: 30, CompressLevel: 4, MaxMessageSize: 1024, ]"
 	assert.Equal(t, expect, pConfig.String())

@@ -116,8 +116,7 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		code = int(C.SetPushConsumerInstanceName(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
 		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set InstanceName error, code is: %d, "+
-				"please check cpp logs for details", code)
+			return nil, fmt.Errorf("PushConsumer Set InstanceName error, code is: %d", code)
 		}
 	}
 
@@ -206,12 +205,12 @@ func (c *defaultPushConsumer) Shutdown() error {
 	code := C.ShutdownPushConsumer(c.cconsumer)
 
 	if code != 0 {
-		log.Warnf("Shutdown PushConsumer error, code is: %d, please check cpp logs for details", code)
+		log.Warnf("Shutdown PushConsumer error, code is: %d", code)
 	}
 
 	C.DestroyPushConsumer(c.cconsumer)
 	if code != 0 {
-		log.Warnf("Destroy PushConsumer error, code is: %d, please check cpp logs for details", code)
+		log.Warnf("Destroy PushConsumer error, code is: %d", code)
 	}
 	return nil
 }
