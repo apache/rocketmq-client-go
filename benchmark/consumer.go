@@ -129,8 +129,6 @@ func (c *consumer) consumeMsg(stati *statiBenchmarkConsumerSnapshot, exit chan s
 		s2cRT := now - m.StoreTimestamp
 		atomic.AddInt64(&stati.store2ConsumerTotalRT, s2cRT)
 
-		fmt.Printf("born time:%d, store time:%d\n", m.BornTimestamp, m.StoreTimestamp)
-
 		for {
 			old := atomic.LoadInt64(&stati.born2ConsumerMaxRT)
 			if old >= b2cRT || atomic.CompareAndSwapInt64(&stati.born2ConsumerMaxRT, old, b2cRT) {
