@@ -99,22 +99,22 @@ func NewPullConsumer(config *PullConsumerConfig) (PullConsumer, error) {
 		return nil, errors.New("create PullConsumer failed")
 	}
 
-	var code int
+	var err rmqError
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
-		code = int(C.SetPullConsumerNameServerAddress(cconsumer, cs))
+		err = rmqError(C.SetPullConsumerNameServerAddress(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set NameServerAddress error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.NameServerDomain != "" {
 		cs = C.CString(config.NameServerDomain)
-		code = int(C.SetPullConsumerNameServerDomain(cconsumer, cs))
+		err = rmqError(C.SetPullConsumerNameServerDomain(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set NameServerDomain error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -122,31 +122,31 @@ func NewPullConsumer(config *PullConsumerConfig) (PullConsumer, error) {
 		ak := C.CString(config.Credentials.AccessKey)
 		sk := C.CString(config.Credentials.SecretKey)
 		ch := C.CString(config.Credentials.Channel)
-		code = int(C.SetPullConsumerSessionCredentials(cconsumer, ak, sk, ch))
+		err = rmqError(C.SetPullConsumerSessionCredentials(cconsumer, ak, sk, ch))
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set Credentials error, code is: %d", int(code))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		code = int(C.SetPullConsumerLogPath(cconsumer, cs))
+		err = rmqError(C.SetPullConsumerLogPath(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set LogPath error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetPullConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set FileNumAndSize error, code is: %d", code)
+		err = rmqError(C.SetPullConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetPullConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
-		if code != 0 {
-			return nil, fmt.Errorf("PullConsumer Set LogLevel error, code is: %d", code)
+		err = rmqError(C.SetPullConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -155,23 +155,23 @@ func NewPullConsumer(config *PullConsumerConfig) (PullConsumer, error) {
 
 // Start starts the pulling consumer
 func (c *defaultPullConsumer) Start() error {
-	r := C.StartPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("start failed, code:%d", int(r))
+	err := rmqError(C.StartPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
 
 // Shutdown shutdown the pulling consumer
 func (c *defaultPullConsumer) Shutdown() error {
-	r := C.ShutdownPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("shutdown failed, code:%d", int(r))
+	err := rmqError(C.ShutdownPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 
-	r = C.DestroyPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("destory failed, code:%d", int(r))
+	err = rmqError(C.DestroyPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }

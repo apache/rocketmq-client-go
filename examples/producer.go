@@ -42,9 +42,9 @@ func sendMessage(config *rocketmq.ProducerConfig) {
 		msg := fmt.Sprintf("%s-%d", *body, i)
 		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Error:", err)
 		}
-		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
+		fmt.Printf("send message: %s result: %s\n", msg, result)
 	}
 	fmt.Println("shutdown producer.")
 }

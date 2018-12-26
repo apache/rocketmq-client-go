@@ -21,45 +21,47 @@ package rocketmq
 #include "rocketmq/CCommon.h"
 */
 import "C"
+import "fmt"
 
-type RMQError int
+type rmqError int
 
 const (
-	NullPoint               = RMQError(C.NULL_POINTER)
-	MallocFailed            = RMQError(C.MALLOC_FAILED)
-	ProducerStartFailed     = RMQError(C.PRODUCER_START_FAILED)
-	SendSyncFailed          = RMQError(C.PRODUCER_SEND_SYNC_FAILED)
-	SendOnewayFailed        = RMQError(C.PRODUCER_SEND_ONEWAY_FAILED)
-	SendOrderlyFailed       = RMQError(C.PRODUCER_SEND_ORDERLY_FAILED)
-	PushConsumerStartFailed = RMQError(C.PUSHCONSUMER_ERROR_CODE_START)
-	PullConsumerStartFailed = RMQError(C.PULLCONSUMER_START_FAILED)
-	FetchMQFailed           = RMQError(C.PULLCONSUMER_FETCH_MQ_FAILED)
-	FetchMessageFailed      = RMQError(C.PULLCONSUMER_FETCH_MESSAGE_FAILED)
+	NIL                        = rmqError(C.OK)
+	ErrNullPoint               = rmqError(C.NULL_POINTER)
+	ErrMallocFailed            = rmqError(C.MALLOC_FAILED)
+	ErrProducerStartFailed     = rmqError(C.PRODUCER_START_FAILED)
+	ErrSendSyncFailed          = rmqError(C.PRODUCER_SEND_SYNC_FAILED)
+	ErrSendOnewayFailed        = rmqError(C.PRODUCER_SEND_ONEWAY_FAILED)
+	ErrSendOrderlyFailed       = rmqError(C.PRODUCER_SEND_ORDERLY_FAILED)
+	ErrPushConsumerStartFailed = rmqError(C.PUSHCONSUMER_ERROR_CODE_START)
+	ErrPullConsumerStartFailed = rmqError(C.PULLCONSUMER_START_FAILED)
+	ErrFetchMQFailed           = rmqError(C.PULLCONSUMER_FETCH_MQ_FAILED)
+	ErrFetchMessageFailed      = rmqError(C.PULLCONSUMER_FETCH_MESSAGE_FAILED)
 )
 
-func (e RMQError) Error() string {
+func (e rmqError) Error() string {
 	switch e {
-	case NullPoint:
+	case ErrNullPoint:
 		return "null point"
-	case MallocFailed:
+	case ErrMallocFailed:
 		return "malloc memory failed"
-	case ProducerStartFailed:
+	case ErrProducerStartFailed:
 		return "start producer failed"
-	case SendSyncFailed:
+	case ErrSendSyncFailed:
 		return "send message with sync failed"
-	case SendOrderlyFailed:
+	case ErrSendOrderlyFailed:
 		return "send message with orderly failed"
-	case SendOnewayFailed:
+	case ErrSendOnewayFailed:
 		return "send message with oneway failed"
-	case PushConsumerStartFailed:
+	case ErrPushConsumerStartFailed:
 		return "start push-consumer failed"
-	case PullConsumerStartFailed:
+	case ErrPullConsumerStartFailed:
 		return "start pull-consumer failed"
-	case FetchMQFailed:
+	case ErrFetchMQFailed:
 		return "fetch MessageQueue failed"
-	case FetchMessageFailed:
+	case ErrFetchMessageFailed:
 		return "fetch Message failed"
 	default:
-		return "unknow error."
+		return fmt.Sprintf("unknow error: %v", int(e))
 	}
 }

@@ -38,9 +38,12 @@ type worker struct {
 func (w *worker) run() {
 	selector := queueSelectorByOrderID{}
 	for atomic.AddInt64(&w.leftMsgCount, -1) >= 0 {
-		r := w.p.SendMessageOrderly(
+		r, err := w.p.SendMessageOrderly(
 			&rocketmq.Message{Topic: *topic, Body: *body}, selector, 7 /*orderID*/, 3,
 		)
+		if err != nil {
+			println("Send Orderly Error:", err)
+		}
 		fmt.Printf("send orderly result:%+v\n", r)
 	}
 }

@@ -32,7 +32,7 @@ type ClientConfig struct {
 	LogC             *LogConfig
 }
 
-func (config *ClientConfig) string() string {
+func (config *ClientConfig) String() string {
 	// For security, don't print Credentials.
 	str := ""
 	str = strJoin(str, "GroupId", config.GroupID)
@@ -62,7 +62,7 @@ type ProducerConfig struct {
 }
 
 func (config *ProducerConfig) String() string {
-	str := "ProducerConfig=[" + config.ClientConfig.string()
+	str := "ProducerConfig=[" + config.ClientConfig.String()
 
 	if config.SendMsgTimeout > 0 {
 		str = strJoin(str, "SendMsgTimeout", config.SendMsgTimeout)
@@ -85,10 +85,14 @@ type Producer interface {
 	SendMessageSync(msg *Message) (*SendResult, error)
 
 	// SendMessageOrderly send the message orderly
-	SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult
+	SendMessageOrderly(
+		msg *Message,
+		selector MessageQueueSelector,
+		arg interface{},
+		autoRetryTimes int) (*SendResult, error)
 
 	// SendMessageOneway send a message with oneway
-	SendMessageOneway(msg *Message)
+	SendMessageOneway(msg *Message) error
 }
 
 // NewPushConsumer create a new consumer with config.
@@ -124,7 +128,7 @@ type PushConsumerConfig struct {
 
 func (config *PushConsumerConfig) String() string {
 	// For security, don't print Credentials.
-	str := "PushConsumerConfig=[" + config.ClientConfig.string()
+	str := "PushConsumerConfig=[" + config.ClientConfig.String()
 
 	if config.ThreadCount > 0 {
 		str = strJoin(str, "ThreadCount", config.ThreadCount)
@@ -154,7 +158,7 @@ type PullConsumerConfig struct {
 }
 
 func (config *PullConsumerConfig) String() string {
-	return "PushConsumerConfig=[" + config.ClientConfig.string() + "]"
+	return "PushConsumerConfig=[" + config.ClientConfig.String() + "]"
 }
 
 // PullConsumer consumer pulling the message
