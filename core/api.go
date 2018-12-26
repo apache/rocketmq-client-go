@@ -82,7 +82,7 @@ func (config *ProducerConfig) String() string {
 type Producer interface {
 	baseAPI
 	// SendMessageSync send a message with sync
-	SendMessageSync(msg *Message) SendResult
+	SendMessageSync(msg *Message) (*SendResult, error)
 
 	// SendMessageOrderly send the message orderly
 	SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult
@@ -185,7 +185,7 @@ type SendResult struct {
 	Offset int64
 }
 
-func (result SendResult) String() string {
+func (result *SendResult) String() string {
 	return fmt.Sprintf("[status: %s, messageId: %s, offset: %d]", result.Status, result.MsgId, result.Offset)
 }
 

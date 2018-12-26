@@ -22,23 +22,28 @@ import (
 	"github.com/apache/rocketmq-client-go/core"
 )
 
-func main() {
-	cfg := &rocketmq.ProducerConfig{}
-	cfg.GroupID = "testGroup"
-	cfg.NameServer = "localhost:9876"
-	producer, err := rocketmq.NewProducer(cfg)
+func sendMessage(config *rocketmq.ProducerConfig) {
+	producer, err := rocketmq.NewProducer(config)
+
 	if err != nil {
 		fmt.Println("create Producer failed, error:", err)
 		return
 	}
 
-	producer.Start()
+	err = producer.Start()
+	if err != nil {
+		fmt.Println("start producer error", err)
+		return
+	}
 	defer producer.Shutdown()
 
 	fmt.Printf("Producer: %s started... \n", producer)
-	for i := 0; i < 100; i++ {
-		msg := fmt.Sprintf("Hello RocketMQ-%d", i)
-		result := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
+	for i := 0; i < *amount; i++ {
+		msg := fmt.Sprintf("%s-%d", *body, i)
+		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
+		if err != nil {
+			fmt.Println(err)
+		}
 		fmt.Println(fmt.Sprintf("send message: %s result: %s", msg, result))
 	}
 	fmt.Println("shutdown producer.")

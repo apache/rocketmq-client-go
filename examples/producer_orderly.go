@@ -17,12 +17,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
-	rocketmq "github.com/apache/rocketmq-client-go/core"
+	"github.com/apache/rocketmq-client-go/core"
 )
 
 type queueSelectorByOrderID struct{}
@@ -31,79 +30,23 @@ func (s queueSelectorByOrderID) Select(size int, m *rocketmq.Message, arg interf
 	return arg.(int) % size
 }
 
-var (
-	namesrvAddrs string
-	topic        string
-	body         string
-	groupID      string
-	msgCount     int64
-	workerCount  int
-)
-
-func init() {
-	flag.StringVar(&namesrvAddrs, "n", "", "name server address")
-	flag.StringVar(&topic, "t", "", "topic")
-	flag.StringVar(&groupID, "g", "", "group")
-	flag.StringVar(&body, "d", "", "body")
-	flag.Int64Var(&msgCount, "m", 0, "message count")
-	flag.IntVar(&workerCount, "w", 0, "worker count")
-}
-
 type worker struct {
 	p            rocketmq.Producer
-	leftMsgCount *int64
+	leftMsgCount int64
 }
 
 func (w *worker) run() {
 	selector := queueSelectorByOrderID{}
-	for atomic.AddInt64(w.leftMsgCount, -1) >= 0 {
+	for atomic.AddInt64(&w.leftMsgCount, -1) >= 0 {
 		r := w.p.SendMessageOrderly(
-			&rocketmq.Message{Topic: topic, Body: body}, selector, 7 /*orderID*/, 3,
+			&rocketmq.Message{Topic: *topic, Body: *body}, selector, 7 /*orderID*/, 3,
 		)
-		fmt.Printf("send result:%+v\n", r)
+		fmt.Printf("send orderly result:%+v\n", r)
 	}
 }
 
-// example:
-// ./producer -n "localhost:9876" -t local_test -g local_test -d data -m 100 -w 10
-func main() {
-	flag.Parse()
-
-	if namesrvAddrs == "" {
-		println("empty namesrv address")
-		return
-	}
-
-	if topic == "" {
-		println("empty topic")
-		return
-	}
-
-	if body == "" {
-		println("empty body")
-		return
-	}
-
-	if groupID == "" {
-		println("empty groupID")
-		return
-	}
-
-	if msgCount == 0 {
-		println("zero message count")
-		return
-	}
-
-	if workerCount == 0 {
-		println("zero worker count")
-		return
-	}
-
-	cfg := &rocketmq.ProducerConfig{}
-	cfg.GroupID = groupID
-	cfg.NameServer = namesrvAddrs
-
-	producer, err := rocketmq.NewProducer(cfg)
+func sendMessageOrderly(config *rocketmq.ProducerConfig) {
+	producer, err := rocketmq.NewProducer(config)
 	if err != nil {
 		fmt.Println("create Producer failed, error:", err)
 		return
@@ -113,12 +56,12 @@ func main() {
 	defer producer.Shutdown()
 
 	wg := sync.WaitGroup{}
-	wg.Add(workerCount)
+	wg.Add(*workerCount)
 
-	workers := make([]worker, workerCount)
+	workers := make([]worker, *workerCount)
 	for i := range workers {
 		workers[i].p = producer
-		workers[i].leftMsgCount = &msgCount
+		workers[i].leftMsgCount = (int64)(*amount)
 	}
 
 	for i := range workers {

@@ -18,55 +18,15 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"time"
 
-	rocketmq "github.com/apache/rocketmq-client-go/core"
+	"github.com/apache/rocketmq-client-go/core"
 )
 
-var (
-	namesrvAddrs string
-	topic        string
-	body         string
-	groupID      string
-	msgCount     int64
-	workerCount  int
-)
+func ConsumeWithPull(config *rocketmq.PullConsumerConfig, topic string) {
 
-func init() {
-	flag.StringVar(&namesrvAddrs, "n", "", "name server address")
-	flag.StringVar(&topic, "t", "", "topic")
-	flag.StringVar(&groupID, "g", "", "group")
-}
-
-// ./consumer -n "localhost:9876" -t test -g local_test
-func main() {
-	flag.Parse()
-
-	if namesrvAddrs == "" {
-		fmt.Println("empty namesrv")
-		return
-	}
-
-	if topic == "" {
-		fmt.Println("empty topic")
-		return
-	}
-
-	if groupID == "" {
-		fmt.Println("empty groupID")
-		return
-	}
-
-	cfg := &rocketmq.PullConsumerConfig{}
-	cfg.GroupID = groupID
-	cfg.NameServer = namesrvAddrs
-	cfg.LogC = &rocketmq.LogConfig{
-		Path: "example",
-	}
-
-	consumer, err := rocketmq.NewPullConsumer(cfg)
+	consumer, err := rocketmq.NewPullConsumer(config)
 	if err != nil {
 		fmt.Printf("new pull consumer error:%s\n", err)
 		return

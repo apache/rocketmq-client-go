@@ -204,7 +204,7 @@ func (p *defaultProducer) Shutdown() error {
 	return nil
 }
 
-func (p *defaultProducer) SendMessageSync(msg *Message) SendResult {
+func (p *defaultProducer) SendMessageSync(msg *Message) (*SendResult, error) {
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
 
@@ -213,13 +213,14 @@ func (p *defaultProducer) SendMessageSync(msg *Message) SendResult {
 
 	if code != 0 {
 		log.Warnf("send message error, error code is: %d", code)
+		return nil, RMQError(code)
 	}
 
-	result := SendResult{}
+	result := &SendResult{}
 	result.Status = SendStatus(sr.sendStatus)
 	result.MsgId = C.GoString(&sr.msgId[0])
 	result.Offset = int64(sr.offset)
-	return result
+	return result, nil
 }
 
 func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult {

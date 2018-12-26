@@ -99,7 +99,6 @@ func NewPullConsumer(config *PullConsumerConfig) (PullConsumer, error) {
 		return nil, errors.New("create PullConsumer failed")
 	}
 
-
 	var code int
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
