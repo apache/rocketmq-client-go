@@ -20,31 +20,40 @@ package main
 import (
 	"fmt"
 	"github.com/apache/rocketmq-client-go/core"
-	"time"
+	"sync/atomic"
 )
 
-func main() {
-	fmt.Println("Start Receiving Messages...")
-	cfg := &rocketmq.PushConsumerConfig{
-		ThreadCount:         2,
-		MessageBatchMaxSize: 16,
-	}
-	cfg.GroupID = "testGroupId"
-	cfg.NameServer = "localhost:9876"
-	consumer, err := rocketmq.NewPushConsumer(cfg)
+func ConsumeWithPush(config *rocketmq.PushConsumerConfig) {
+
+	consumer, err := rocketmq.NewPushConsumer(config)
 	if err != nil {
-		fmt.Println("create Consumer failed, error:", err)
+		println("create Consumer failed, error:", err)
 		return
 	}
 
+	ch := make(chan interface{})
+	var count = (int64)(*amount)
 	// MUST subscribe topic before consumer started.
 	consumer.Subscribe("test", "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
 		fmt.Printf("A message received: \"%s\" \n", msg.Body)
+		if atomic.AddInt64(&count, -1) <= 0 {
+			ch <- "quit"
+		}
 		return rocketmq.ConsumeSuccess
 	})
 
-	consumer.Start()
-	defer consumer.Shutdown()
+	err = consumer.Start()
+	if err != nil {
+		println("consumer start failed,", err)
+		return
+	}
+
 	fmt.Printf("consumer: %s started...\n", consumer)
-	time.Sleep(10 * time.Minute)
+	<-ch
+	err = consumer.Shutdown()
+	if err != nil {
+		println("consumer shutdown failed")
+		return
+	}
+	println("consumer has shutdown.")
 }

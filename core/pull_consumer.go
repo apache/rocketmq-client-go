@@ -63,19 +63,14 @@ func (ps PullStatus) String() string {
 	}
 }
 
-// PullConsumerConfig the configuration for the pull consumer
-type PullConsumerConfig struct {
-	ClientConfig
-}
-
-// DefaultPullConsumer default consumer pulling the message
-type DefaultPullConsumer struct {
+// defaultPullConsumer default consumer pulling the message
+type defaultPullConsumer struct {
 	PullConsumerConfig
 	cconsumer *C.struct_CPullConsumer
 	funcsMap  sync.Map
 }
 
-func (c *DefaultPullConsumer) String() string {
+func (c *defaultPullConsumer) String() string {
 	topics := ""
 	c.funcsMap.Range(func(key, value interface{}) bool {
 		topics += key.(string) + ", "
@@ -84,75 +79,105 @@ func (c *DefaultPullConsumer) String() string {
 	return fmt.Sprintf("[%+v, subcribed topics: [%s]]", c.PullConsumerConfig, topics)
 }
 
-// NewPullConsumer creates one pull consumer
-func NewPullConsumer(conf *PullConsumerConfig) (*DefaultPullConsumer, error) {
-	if conf == nil {
+// NewPullConsumer creates a pull consumer
+func NewPullConsumer(config *PullConsumerConfig) (PullConsumer, error) {
+	if config == nil {
 		return nil, errors.New("config is nil")
 	}
+	if config.GroupID == "" {
+		return nil, errors.New("GroupId is empty")
+	}
 
-	cs := C.CString(conf.GroupID)
+	if config.NameServer == "" && config.NameServerDomain == "" {
+		return nil, errors.New("NameServer and NameServerDomain is empty")
+	}
+
+	cs := C.CString(config.GroupID)
 	cconsumer := C.CreatePullConsumer(cs)
 	C.free(unsafe.Pointer(cs))
+	if cconsumer == nil {
+		return nil, errors.New("create PullConsumer failed")
+	}
 
-	cs = C.CString(conf.NameServer)
-	C.SetPullConsumerNameServerAddress(cconsumer, cs)
-	C.free(unsafe.Pointer(cs))
-
-	log := conf.LogC
-	if log != nil {
-		cs = C.CString(log.Path)
-		if C.SetPullConsumerLogPath(cconsumer, cs) != 0 {
-			return nil, errors.New("new pull consumer error:set log path failed")
-		}
+	var err rmqError
+	if config.NameServer != "" {
+		cs = C.CString(config.NameServer)
+		err = rmqError(C.SetPullConsumerNameServerAddress(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-
-		if C.SetPullConsumerLogFileNumAndSize(cconsumer, C.int(log.FileNum), C.long(log.FileSize)) != 0 {
-			return nil, errors.New("new pull consumer error:set log file num and size failed")
-		}
-		if C.SetPullConsumerLogLevel(cconsumer, C.CLogLevel(log.Level)) != 0 {
-			return nil, errors.New("new pull consumer error:set log level failed")
+		if err != NIL {
+			return nil, err
 		}
 	}
 
-	if conf.Credentials != nil {
-		ak := C.CString(conf.Credentials.AccessKey)
-		sk := C.CString(conf.Credentials.SecretKey)
-		ch := C.CString(conf.Credentials.Channel)
-		C.SetPullConsumerSessionCredentials(cconsumer, ak, sk, ch)
+	if config.NameServerDomain != "" {
+		cs = C.CString(config.NameServerDomain)
+		err = rmqError(C.SetPullConsumerNameServerDomain(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if err != NIL {
+			return nil, err
+		}
+	}
 
+	if config.Credentials != nil {
+		ak := C.CString(config.Credentials.AccessKey)
+		sk := C.CString(config.Credentials.SecretKey)
+		ch := C.CString(config.Credentials.Channel)
+		err = rmqError(C.SetPullConsumerSessionCredentials(cconsumer, ak, sk, ch))
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
+		if err != NIL {
+			return nil, err
+		}
 	}
 
-	return &DefaultPullConsumer{PullConsumerConfig: *conf, cconsumer: cconsumer}, nil
+	if config.LogC != nil {
+		cs = C.CString(config.LogC.Path)
+		err = rmqError(C.SetPullConsumerLogPath(cconsumer, cs))
+		C.free(unsafe.Pointer(cs))
+		if err != NIL {
+			return nil, err
+		}
+
+		err = rmqError(C.SetPullConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		if err != NIL {
+			return nil, err
+		}
+
+		err = rmqError(C.SetPullConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		if err != NIL {
+			return nil, err
+		}
+	}
+
+	return &defaultPullConsumer{PullConsumerConfig: *config, cconsumer: cconsumer}, nil
 }
 
-// Start starts the pulling conumser
-func (c *DefaultPullConsumer) Start() error {
-	r := C.StartPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("start failed, code:%d", int(r))
+// Start starts the pulling consumer
+func (c *defaultPullConsumer) Start() error {
+	err := rmqError(C.StartPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
 
 // Shutdown shutdown the pulling consumer
-func (c *DefaultPullConsumer) Shutdown() error {
-	r := C.ShutdownPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("shutdown failed, code:%d", int(r))
+func (c *defaultPullConsumer) Shutdown() error {
+	err := rmqError(C.ShutdownPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 
-	r = C.DestroyPullConsumer(c.cconsumer)
-	if r != 0 {
-		return fmt.Errorf("destory failed, code:%d", int(r))
+	err = rmqError(C.DestroyPullConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
 
 // FetchSubscriptionMessageQueues returns the topic's consume queue
-func (c *DefaultPullConsumer) FetchSubscriptionMessageQueues(topic string) []MessageQueue {
+func (c *defaultPullConsumer) FetchSubscriptionMessageQueues(topic string) []MessageQueue {
 	var (
 		q    *C.struct__CMessageQueue_
 		size C.int
@@ -191,7 +216,7 @@ func (pr *PullResult) String() string {
 }
 
 // Pull pulling the message from the specified message queue
-func (c *DefaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult {
+func (c *defaultPullConsumer) Pull(mq MessageQueue, subExpression string, offset int64, maxNums int) PullResult {
 	cmq := C.struct__CMessageQueue_{
 		queueId: C.int(mq.ID),
 	}
