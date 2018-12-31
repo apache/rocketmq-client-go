@@ -17,34 +17,18 @@
 
 package main
 
-import (
-	"fmt"
-	"github.com/apache/rocketmq-client-go/core"
+import "strings"
+
+var (
+	longText    = ""
+	longTextLen = 0
 )
 
-func sendMessage(config *rocketmq.ProducerConfig) {
-	producer, err := rocketmq.NewProducer(config)
+func init() {
+	longText = strings.Repeat("0123456789", 100)
+	longTextLen = len(longText)
+}
 
-	if err != nil {
-		fmt.Println("create Producer failed, error:", err)
-		return
-	}
-
-	err = producer.Start()
-	if err != nil {
-		fmt.Println("start producer error", err)
-		return
-	}
-	defer producer.Shutdown()
-
-	fmt.Printf("Producer: %s started... \n", producer)
-	for i := 0; i < *amount; i++ {
-		msg := fmt.Sprintf("%s-%d", *body, i)
-		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		fmt.Printf("send message: %s result: %s\n", msg, result)
-	}
-	fmt.Println("shutdown producer.")
+func buildMsg(size int) string {
+	return longText[:size]
 }

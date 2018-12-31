@@ -33,7 +33,6 @@ int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
 import "C"
 import (
 	"errors"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"unsafe"
 )
@@ -81,34 +80,34 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 	C.free(unsafe.Pointer(cs))
 
 	if cproduer == nil {
-		return nil, errors.New("create Producer failed, please check cpp logs for details")
+		return nil, errors.New("create Producer failed")
 	}
 
-	var code int
+	var err rmqError
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
-		code = int(C.SetProducerNameServerAddress(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerAddress(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set NameServerAddress error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.NameServerDomain != "" {
 		cs = C.CString(config.NameServerDomain)
-		code = int(C.SetProducerNameServerDomain(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerDomain(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set NameServerDomain error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.InstanceName != "" {
 		cs = C.CString(config.InstanceName)
-		code = int(C.SetProducerInstanceName(cproduer, cs))
+		err = rmqError(C.SetProducerInstanceName(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set InstanceName error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -116,53 +115,53 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		ak := C.CString(config.Credentials.AccessKey)
 		sk := C.CString(config.Credentials.SecretKey)
 		ch := C.CString(config.Credentials.Channel)
-		code = int(C.SetProducerSessionCredentials(cproduer, ak, sk, ch))
+		err = rmqError(C.SetProducerSessionCredentials(cproduer, ak, sk, ch))
 
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set Credentials error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		code = int(C.SetProducerLogPath(cproduer, cs))
+		err = rmqError(C.SetProducerLogPath(cproduer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set LogPath error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set FileNumAndSize error, code is: %d", code)
+		err = rmqError(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set LogLevel error, code is: %d", code)
+		err = rmqError(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.SendMsgTimeout > 0 {
-		code = int(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set SendMsgTimeout error, code is: %d", code)
+		err = rmqError(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.CompressLevel > 0 {
-		code = int(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set CompressLevel error, code is: %d", code)
+		err = rmqError(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.MaxMessageSize > 0 {
-		code = int(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
-		if code != 0 {
-			return nil, fmt.Errorf("producer Set MaxMessageSize error, code is: %d", code)
+		err = rmqError(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -181,77 +180,84 @@ func (p *defaultProducer) String() string {
 
 // Start the producer.
 func (p *defaultProducer) Start() error {
-	code := int(C.StartProducer(p.cproduer))
-	if code != 0 {
-		return fmt.Errorf("start producer error, error code is: %d", code)
+	err := rmqError(C.StartProducer(p.cproduer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
 
 // Shutdown the producer.
 func (p *defaultProducer) Shutdown() error {
-	code := int(C.ShutdownProducer(p.cproduer))
+	err := rmqError(C.ShutdownProducer(p.cproduer))
 
-	if code != 0 {
-		log.Warnf("shutdown producer error, error code is: %d", code)
+	if err != NIL {
+		return err
 	}
 
-	code = int(int(C.DestroyProducer(p.cproduer)))
-	if code != 0 {
-		log.Warnf("destroy producer error, error code is: %d", code)
+	err = rmqError(int(C.DestroyProducer(p.cproduer)))
+	if err != NIL {
+		return err
 	}
 
-	return nil
+	return err
 }
 
-func (p *defaultProducer) SendMessageSync(msg *Message) SendResult {
+func (p *defaultProducer) SendMessageSync(msg *Message) (*SendResult, error) {
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
 
 	var sr C.struct__SendResult_
-	code := int(C.SendMessageSync(p.cproduer, cmsg, &sr))
+	err := rmqError(C.SendMessageSync(p.cproduer, cmsg, &sr))
 
-	if code != 0 {
-		log.Warnf("send message error, error code is: %d", code)
+	if err != NIL {
+		log.Warnf("send message error, error is: %s", err.Error())
+		return nil, err
 	}
 
-	result := SendResult{}
+	result := &SendResult{}
 	result.Status = SendStatus(sr.sendStatus)
 	result.MsgId = C.GoString(&sr.msgId[0])
 	result.Offset = int64(sr.offset)
-	return result
+	return result, nil
 }
 
-func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult {
+func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) (*SendResult, error) {
 	cmsg := goMsgToC(msg)
+	defer C.DestroyMessage(cmsg)
 	key := selectors.put(&messageQueueSelectorWrapper{selector: selector, m: msg, arg: arg})
 
 	var sr C.struct__SendResult_
-	C.SendMessageOrderly(
+	err := rmqError(C.SendMessageOrderly(
 		p.cproduer,
 		cmsg,
 		(C.QueueSelectorCallback)(unsafe.Pointer(C.queueSelectorCallback_cgo)),
 		unsafe.Pointer(&key),
 		C.int(autoRetryTimes),
-		&sr,
-	)
-	C.DestroyMessage(cmsg)
-
-	return SendResult{
+		&sr))
+	
+	if err != NIL {
+		log.Warnf("send message orderly error, error is: %s", err.Error())
+		return nil, err
+	}
+	
+	return &SendResult{
 		Status: SendStatus(sr.sendStatus),
 		MsgId:  C.GoString(&sr.msgId[0]),
 		Offset: int64(sr.offset),
-	}
+	}, nil
 }
 
-func (p *defaultProducer) SendMessageOneway(msg *Message) {
+func (p *defaultProducer) SendMessageOneway(msg *Message) error {
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
 
-	code := int(C.SendMessageOneway(p.cproduer, cmsg))
-	if code != 0 {
-		log.Warnf("send message with oneway error, error code is: %d", code)
-	} else {
-		log.Debugf("Send Message: %s with oneway success.", msg.String())
+	err := rmqError(C.SendMessageOneway(p.cproduer, cmsg))
+	if err != NIL {
+		log.Warnf("send message with oneway error, error is: %s", err.Error())
+		return err
 	}
+	
+	log.Debugf("Send Message: %s with oneway success.", msg.String())
+	return nil
 }

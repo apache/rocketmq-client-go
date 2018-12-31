@@ -92,32 +92,31 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		return nil, errors.New("Create PushConsumer failed")
 	}
 
-	var code int
+	var err rmqError
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
-		code = int(C.SetPushConsumerNameServerAddress(cconsumer, cs))
+		err = rmqError(C.SetPushConsumerNameServerAddress(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set NameServerAddress error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.NameServerDomain != "" {
 		cs = C.CString(config.NameServerDomain)
-		code = int(C.SetPushConsumerNameServerDomain(cconsumer, cs))
+		err = rmqError(C.SetPushConsumerNameServerDomain(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set NameServerDomain error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.InstanceName != "" {
 		cs = C.CString(config.InstanceName)
-		code = int(C.SetPushConsumerInstanceName(cconsumer, cs))
+		err = rmqError(C.SetPushConsumerInstanceName(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set InstanceName error, code is: %d, "+
-				"please check cpp logs for details", code)
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -125,45 +124,45 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		ak := C.CString(config.Credentials.AccessKey)
 		sk := C.CString(config.Credentials.SecretKey)
 		ch := C.CString(config.Credentials.Channel)
-		code = int(C.SetPushConsumerSessionCredentials(cconsumer, ak, sk, ch))
+		err = rmqError(C.SetPushConsumerSessionCredentials(cconsumer, ak, sk, ch))
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
 		C.free(unsafe.Pointer(ch))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set Credentials error, code is: %d", int(code))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		code = int(C.SetPushConsumerLogPath(cconsumer, cs))
+		err = rmqError(C.SetPushConsumerLogPath(cconsumer, cs))
 		C.free(unsafe.Pointer(cs))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set LogPath error, code is: %d", code)
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetPushConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set FileNumAndSize error, code is: %d", code)
+		err = rmqError(C.SetPushConsumerLogFileNumAndSize(cconsumer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		if err != NIL {
+			return nil, err
 		}
 
-		code = int(C.SetPushConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set LogLevel error, code is: %d", code)
+		err = rmqError(C.SetPushConsumerLogLevel(cconsumer, C.CLogLevel(config.LogC.Level)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.ThreadCount > 0 {
-		code = int(C.SetPushConsumerThreadCount(cconsumer, C.int(config.ThreadCount)))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set ThreadCount error, code is: %d", int(code))
+		err = rmqError(C.SetPushConsumerThreadCount(cconsumer, C.int(config.ThreadCount)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
 	if config.MessageBatchMaxSize > 0 {
-		code = int(C.SetPushConsumerMessageBatchMaxSize(cconsumer, C.int(config.MessageBatchMaxSize)))
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set MessageBatchMaxSize error, code is: %d", int(code))
+		err = rmqError(C.SetPushConsumerMessageBatchMaxSize(cconsumer, C.int(config.MessageBatchMaxSize)))
+		if err != NIL {
+			return nil, err
 		}
 	}
 
@@ -175,18 +174,18 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		case Clustering:
 			mode = C.CLUSTERING
 		}
-		code = int(C.SetPushConsumerMessageModel(cconsumer, mode))
+		err = rmqError(C.SetPushConsumerMessageModel(cconsumer, mode))
 
-		if code != 0 {
-			return nil, fmt.Errorf("PushConsumer Set ConsumerMessageModel error, code is: %d", int(code))
+		if err != NIL {
+			return nil, err
 		}
 
 	}
 
-	code = int(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+	err = rmqError(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
 
-	if code != 0 {
-		return nil, fmt.Errorf("PushConsumer RegisterMessageCallback error, code is: %d", int(code))
+	if err != NIL {
+		return nil, err
 	}
 
 	consumer.cconsumer = cconsumer
@@ -195,23 +194,23 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 }
 
 func (c *defaultPushConsumer) Start() error {
-	code := C.StartPushConsumer(c.cconsumer)
-	if code != 0 {
-		return fmt.Errorf("start PushConsumer error, code is: %d", int(code))
+	err := rmqError(C.StartPushConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
 
 func (c *defaultPushConsumer) Shutdown() error {
-	code := C.ShutdownPushConsumer(c.cconsumer)
+	err := rmqError(C.ShutdownPushConsumer(c.cconsumer))
 
-	if code != 0 {
-		log.Warnf("Shutdown PushConsumer error, code is: %d, please check cpp logs for details", code)
+	if err != NIL {
+		return err
 	}
 
-	C.DestroyPushConsumer(c.cconsumer)
-	if code != 0 {
-		log.Warnf("Destroy PushConsumer error, code is: %d, please check cpp logs for details", code)
+	err = rmqError(C.DestroyPushConsumer(c.cconsumer))
+	if err != NIL {
+		return err
 	}
 	return nil
 }
@@ -221,9 +220,9 @@ func (c *defaultPushConsumer) Subscribe(topic, expression string, consumeFunc fu
 	if exist {
 		return nil
 	}
-	code := C.Subscribe(c.cconsumer, C.CString(topic), C.CString(expression))
-	if code != 0 {
-		return fmt.Errorf("subscribe topic: %s failed, error code is: %d", topic, int(code))
+	err := rmqError(C.Subscribe(c.cconsumer, C.CString(topic), C.CString(expression)))
+	if err != NIL {
+		return err
 	}
 	c.funcsMap.Store(topic, consumeFunc)
 	log.Infof("subscribe topic[%s] with expression[%s] successfully.", topic, expression)

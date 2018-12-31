@@ -19,32 +19,53 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/core"
+	"os"
 )
 
-func sendMessage(config *rocketmq.ProducerConfig) {
-	producer, err := rocketmq.NewProducer(config)
+type command interface {
+	usage()
+	run(args []string)
+}
 
-	if err != nil {
-		fmt.Println("create Producer failed, error:", err)
+var (
+	cmds = map[string]command{}
+)
+
+func registerCommand(name string, cmd command) {
+	if cmd == nil {
+		panic("empty command")
+	}
+
+	_, ok := cmds[name]
+	if ok {
+		panic(fmt.Sprintf("%s command existed", name))
+	}
+
+	cmds[name] = cmd
+}
+
+func usage() {
+	println(os.Args[0] + " commandName [...]")
+	for _, cmd := range cmds {
+		cmd.usage()
+	}
+}
+
+// go run *.go [command name] [command args]
+func main() {
+	if len(os.Args) < 2 {
+		println("error:lack cmd name\n")
+		usage()
 		return
 	}
 
-	err = producer.Start()
-	if err != nil {
-		fmt.Println("start producer error", err)
+	name := os.Args[1]
+	cmd, ok := cmds[name]
+	if !ok {
+		fmt.Printf("command %s is not supported\n", name)
+		usage()
 		return
 	}
-	defer producer.Shutdown()
 
-	fmt.Printf("Producer: %s started... \n", producer)
-	for i := 0; i < *amount; i++ {
-		msg := fmt.Sprintf("%s-%d", *body, i)
-		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		fmt.Printf("send message: %s result: %s\n", msg, result)
-	}
-	fmt.Println("shutdown producer.")
+	cmd.run(os.Args[2:])
 }

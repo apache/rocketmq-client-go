@@ -22,7 +22,7 @@ func Version() (version string) {
 	return GetVersion()
 }
 
-type clientConfig struct {
+type ClientConfig struct {
 	GroupID          string
 	NameServer       string
 	NameServerDomain string
@@ -32,7 +32,7 @@ type clientConfig struct {
 	LogC             *LogConfig
 }
 
-func (config *clientConfig) string() string {
+func (config *ClientConfig) String() string {
 	// For security, don't print Credentials.
 	str := ""
 	str = strJoin(str, "GroupId", config.GroupID)
@@ -55,14 +55,14 @@ func NewProducer(config *ProducerConfig) (Producer, error) {
 
 // ProducerConfig define a producer
 type ProducerConfig struct {
-	clientConfig
+	ClientConfig
 	SendMsgTimeout int
 	CompressLevel  int
 	MaxMessageSize int
 }
 
 func (config *ProducerConfig) String() string {
-	str := "ProducerConfig=[" + config.clientConfig.string()
+	str := "ProducerConfig=[" + config.ClientConfig.String()
 
 	if config.SendMsgTimeout > 0 {
 		str = strJoin(str, "SendMsgTimeout", config.SendMsgTimeout)
@@ -82,13 +82,17 @@ func (config *ProducerConfig) String() string {
 type Producer interface {
 	baseAPI
 	// SendMessageSync send a message with sync
-	SendMessageSync(msg *Message) SendResult
+	SendMessageSync(msg *Message) (*SendResult, error)
 
 	// SendMessageOrderly send the message orderly
-	SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) SendResult
+	SendMessageOrderly(
+		msg *Message,
+		selector MessageQueueSelector,
+		arg interface{},
+		autoRetryTimes int) (*SendResult, error)
 
 	// SendMessageOneway send a message with oneway
-	SendMessageOneway(msg *Message)
+	SendMessageOneway(msg *Message) error
 }
 
 // NewPushConsumer create a new consumer with config.
@@ -116,7 +120,7 @@ func (mode MessageModel) String() string {
 
 // PushConsumerConfig define a new consumer.
 type PushConsumerConfig struct {
-	clientConfig
+	ClientConfig
 	ThreadCount         int
 	MessageBatchMaxSize int
 	Model               MessageModel
@@ -124,7 +128,7 @@ type PushConsumerConfig struct {
 
 func (config *PushConsumerConfig) String() string {
 	// For security, don't print Credentials.
-	str := "PushConsumerConfig=[" + config.clientConfig.string()
+	str := "PushConsumerConfig=[" + config.ClientConfig.String()
 
 	if config.ThreadCount > 0 {
 		str = strJoin(str, "ThreadCount", config.ThreadCount)
@@ -146,6 +150,15 @@ type PushConsumer interface {
 
 	// Subscribe a new topic with specify filter expression and consume function.
 	Subscribe(topic, expression string, consumeFunc func(msg *MessageExt) ConsumeStatus) error
+}
+
+// PullConsumerConfig the configuration for the pull consumer
+type PullConsumerConfig struct {
+	ClientConfig
+}
+
+func (config *PullConsumerConfig) String() string {
+	return "PushConsumerConfig=[" + config.ClientConfig.String() + "]"
 }
 
 // PullConsumer consumer pulling the message
@@ -176,7 +189,7 @@ type SendResult struct {
 	Offset int64
 }
 
-func (result SendResult) String() string {
+func (result *SendResult) String() string {
 	return fmt.Sprintf("[status: %s, messageId: %s, offset: %d]", result.Status, result.MsgId, result.Offset)
 }
 
