@@ -7,7 +7,10 @@
 ## Features
 At present, this SDK supports
 * sending message in synchronous mode
+* sending message in orderly mode
+* sending message in oneway mode
 * consuming message using push model
+* consuming message using pull model
 
 ----------
 ## How to use
