@@ -16,7 +16,7 @@
  */
 package rocketmq
 
-const GoClientVersion = "Go Client V1.0.0, BuildTime:2018.10.30"
+const GoClientVersion = "Go Client V1.2.0, Support CPP Core:V1.2.X"
 
 func GetVersion() (version string) {
 	return GoClientVersion
