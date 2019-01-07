@@ -1,45 +1,30 @@
-----------
-## RocketMQ Client Go
+## Prerequisites
 
-### 1. Go Version
-* go1.10.5 darwin/amd64
+### Install `librocketmq`
+because the project top on [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), so you need install 
+`librocketmq` first.
 
+#### include file
+```bash
+git clone https://github.com/apache/rocketmq-client-cpp
 
-### 2. Dependency
-* [librocketmq](https://github.com/apache/rocketmq-client-cpp)	
+# By default, CFLAGS contains `/usr/local/include`
+sudo mkdir -p /usr/local/include/rocketmq/
+sudo cp rocketmq-client-cpp/include/* /usr/local/include/rocketmq
+```
 
-### 3. Build and Install
-#### macOS Platform (macOS Mojave 10.14)
-* Install Compile tools (homebrew package manager)
-    ```
-    1. xcode-select --install
-    2. brew install cmake
-    3. brew install automake
-    ```
-* Install dependencies
-    1. [Go official download](https://golang.org/dl/)
+#### binary library
+your could download directly or build manually:
 
-    2. Get go client package
-    ```
-    go get github.com/apache/rocketmq-client-go
-    ```
-    3. [librocketmq](https://github.com/apache/rocketmq-client-cpp)
-        - `git clone https://github.com/apache/rocketmq-client-cpp`
-        - `cd rocketmq-client-cpp`
-        - `sudo sh build.sh` 
-        - `sudo install bin/librocketmq.dylib /usr/local/lib`
-        - `sudo mkdir /usr/local/include/rocketmq`
-        - `sudo cp include/* /usr/local/include/rocketmq/`
+- download specific release: [rocketmq-client-cpp-1.2.0](http://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/libindex.log)
+ and move files downloaded to your `LDFLAGS` directory(if you don't know what is `LDFLAGS`, just google it), in linux, `/usr/local/lib/` works finely.
+ 
+- build from source: [Build and Install](https://github.com/apache/rocketmq-client-cpp/tree/master#build-and-install)
 
-#### Linux
+### install
+1. Go Version: 1.10 or later
+2. `go get github.com/apache/rocketmq-client-go`
 
-*coming soon*
-
-#### Windows
-
-*coming soon*
-
-----------
 ## How to use
 
 - import package
