@@ -22,8 +22,8 @@ package rocketmq
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "rocketmq/CMessageExt.h"
-#include "rocketmq/CPullConsumer.h"
+#include <rocketmq/CMessageExt.h>
+#include <rocketmq/CPullConsumer.h>
 */
 import "C"
 

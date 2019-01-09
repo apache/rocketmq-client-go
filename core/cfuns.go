@@ -18,8 +18,9 @@ package rocketmq
 
 /*
 #cgo LDFLAGS: -L/usr/local/lib -lrocketmq
-#include "rocketmq/CMessageExt.h"
-#include "rocketmq/CPushConsumer.h"
+
+#include <rocketmq/CMessageExt.h>
+#include <rocketmq/CPushConsumer.h>
 */
 import "C"
 import (

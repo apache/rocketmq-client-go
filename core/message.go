@@ -18,8 +18,8 @@ package rocketmq
 
 /*
 #cgo LDFLAGS: -L/usr/local/lib/ -lrocketmq
-#include "rocketmq/CMessage.h"
-#include "rocketmq/CMessageExt.h"
+#include <rocketmq/CMessage.h>
+#include <rocketmq/CMessageExt.h>
 #include <stdlib.h>
 */
 import "C"

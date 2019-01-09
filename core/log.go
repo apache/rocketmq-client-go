@@ -18,7 +18,7 @@
 package rocketmq
 
 /*
-#include "rocketmq/CCommon.h"
+#include <rocketmq/CCommon.h>
 */
 import "C"
 import "fmt"
