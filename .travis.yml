@@ -19,7 +19,7 @@ before_install:
   - cd ${TRAVIS_HOME}
   - wget https://opensource-rocketmq-client.oss-cn-hangzhou.aliyuncs.com/cpp-client/linux/1.2.0/RHEL7.x/librocketmq.tar.gz
   - tar -xzf librocketmq.tar.gz
-  - sudo cp librocketmq.* /usr/local/lib/
+  - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
   - sudo cp -r rocketmq /usr/local/include/
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
 
@@ -32,9 +32,10 @@ before_script:
   - nohup sh bin/mqnamesrv &
   - nohup sh bin/mqbroker -n localhost:9876 &
   - sleep 10
-  - ./bin/mqadmin updateTopic -n '127.0.0.1:9876' -b '127.0.0.1:10911'  -t ${TOPIC}
-  - ./bin/mqadmin updateSubGroup -n '127.0.0.1:9876' -b '127.0.0.1:10911' -g ${GROUP}
+  - ./bin/mqadmin updateTopic -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS}  -t ${TOPIC}
+  - ./bin/mqadmin updateSubGroup -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS} -g ${GROUP}
 
 script:
+  - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
-  - go build examples/main.go
+  - go test ./core
