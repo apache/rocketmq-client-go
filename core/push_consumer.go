@@ -18,9 +18,10 @@ package rocketmq
 
 /*
 #cgo LDFLAGS: -L/usr/local/lib -lrocketmq
+
 #include <stdlib.h>
-#include "rocketmq/CMessageExt.h"
-#include "rocketmq/CPushConsumer.h"
+#include <rocketmq/CMessageExt.h>
+#include <rocketmq/CPushConsumer.h>
 
 extern int consumeMessageCallback(CPushConsumer *consumer, CMessageExt *msg);
 
@@ -32,10 +33,10 @@ import "C"
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"unsafe"
+	"errors"
 )
 
 type ConsumeStatus int

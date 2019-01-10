@@ -1,0 +1,41 @@
+language: go
+
+go:
+  - "1.10.x"
+  - "1.11.x"
+
+go_import_path: github.com/apache/rocketmq-client-go
+
+env:
+  global:
+    - NAME_SERVER_ADDRESS=127.0.0.1:9876
+    - BROKER_ADDRESS=127.0.0.1:10911
+    - TOPIC=test
+    - GROUP=testGroup
+  matrix:
+  - OS_TYPE=centos OS_VERSION=7
+
+before_install:
+  - cd ${TRAVIS_HOME}
+  - wget https://opensource-rocketmq-client.oss-cn-hangzhou.aliyuncs.com/cpp-client/linux/1.2.0/RHEL7.x/librocketmq.tar.gz
+  - tar -xzf librocketmq.tar.gz
+  - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
+  - sudo cp -r rocketmq /usr/local/include/
+  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+
+before_script:
+  - cd ${TRAVIS_HOME}
+  - wget http://us.mirrors.quenda.co/apache/rocketmq/4.3.2/rocketmq-all-4.3.2-bin-release.zip
+  - unzip rocketmq-all-4.3.2-bin-release.zip
+  - cd rocketmq-all-4.3.2-bin-release
+  - perl -i -pe's/-Xms8g -Xmx8g -Xmn4g/-Xms2g -Xmx2g -Xmn1g/g' bin/runbroker.sh
+  - nohup sh bin/mqnamesrv &
+  - nohup sh bin/mqbroker -n localhost:9876 &
+  - sleep 10
+  - ./bin/mqadmin updateTopic -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS}  -t ${TOPIC}
+  - ./bin/mqadmin updateSubGroup -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS} -g ${GROUP}
+
+script:
+  - export LD_LIBRARY_PATH=/usr/local/lib
+  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+  - go test ./core

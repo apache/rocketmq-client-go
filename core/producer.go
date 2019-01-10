@@ -21,9 +21,9 @@ package rocketmq
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "rocketmq/CMessage.h"
-#include "rocketmq/CProducer.h"
-#include "rocketmq/CSendResult.h"
+#include <rocketmq/CMessage.h>
+#include <rocketmq/CProducer.h>
+#include <rocketmq/CSendResult.h>
 
 int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
 	int queueSelectorCallback(int, void*);
