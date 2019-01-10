@@ -40,7 +40,7 @@ func sendMessage(config *rocketmq.ProducerConfig) {
 	fmt.Printf("Producer: %s started... \n", producer)
 	for i := 0; i < *amount; i++ {
 		msg := fmt.Sprintf("%s-%d", *body, i)
-		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: "test", Body: msg})
+		result, err := producer.SendMessageSync(&rocketmq.Message{Topic: *topic, Body: msg})
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
