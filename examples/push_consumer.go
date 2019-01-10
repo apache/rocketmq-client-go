@@ -34,7 +34,7 @@ func ConsumeWithPush(config *rocketmq.PushConsumerConfig) {
 	ch := make(chan interface{})
 	var count = (int64)(*amount)
 	// MUST subscribe topic before consumer started.
-	consumer.Subscribe("test", "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
+	consumer.Subscribe(*topic, "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
 		fmt.Printf("A message received: \"%s\" \n", msg.Body)
 		if atomic.AddInt64(&count, -1) <= 0 {
 			ch <- "quit"
