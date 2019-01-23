@@ -16,6 +16,8 @@
  */
 package remote
 
+import "time"
+
 const (
 	SUCCESS                       = 0
 	SYSTEM_ERROR                  = 1
@@ -57,10 +59,8 @@ type ResponseFuture struct {
 	SendRequestOK   bool
 	Rrr             error
 	Opaque          int32
-	TimeoutMillis   int64
-	InvokeCallback  InvokeCallback
+	TimeoutMillis   time.Duration
+	callback        func(*remotingCommand)
 	BeginTimestamp  int64
 	Done            chan bool
 }
-
-type InvokeCallback func(responseFuture *ResponseFuture)

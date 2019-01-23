@@ -6,16 +6,19 @@ import "time"
 type ClientConfig struct {
 	nameServerAddress string // only this is in use
 
-	clientIP                      string
-	instanceName                  string
-	clientCallbackExecutorThreads int // TODO: clientCallbackExecutorThreads
-	// Pulling topic information interval from the named server
-	pullNameServerInterval time.Duration // default 30
-	// Heartbeat interval in microseconds with message broker
-	heartbeatBrokerInterval time.Duration // default 30
-	// Offset persistent interval for consumer
-	persistConsumerOffsetInterval time.Duration // default 5
-	unitMode                      bool
-	unitName                      string
-	vipChannelEnabled             bool
+	clientIP     string
+	instanceName string
+
+	// Pulling topic information interval from the named server, default is 30
+	pullNameServerInterval time.Duration
+
+	// Heartbeat interval in microseconds with message broker, default is 30
+	heartbeatBrokerInterval time.Duration
+
+	// Offset persistent interval for consumer, default is 5
+	persistConsumerOffsetInterval time.Duration
+
+	unitMode          bool
+	unitName          string
+	vipChannelEnabled bool
 }

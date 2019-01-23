@@ -81,14 +81,14 @@ const (
 
 var codec serializer
 
-type serializer interface{
+type serializer interface {
 	encode(command *remotingCommand) ([]byte, error)
 	decode(headerArray, body []byte) (*remotingCommand, error)
 }
 
-type jsonCodeC int
+type jsonCodec struct {}
 
-func (c *jsonCodeC) encode(command *remotingCommand) ([]byte, error) {
+func (c *jsonCodec) encode(command *remotingCommand) ([]byte, error) {
 	buf, err := json.Marshal(command)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (c *jsonCodeC) encode(command *remotingCommand) ([]byte, error) {
 	return buf, nil
 }
 
-func (c *jsonCodeC) decode(header, body []byte) (*remotingCommand, error) {
+func (c *jsonCodec) decode(header, body []byte) (*remotingCommand, error) {
 	cmd := &remotingCommand{}
 	cmd.ExtFields = make(map[string]string)
 	err := json.Unmarshal(header, cmd)
@@ -107,11 +107,11 @@ func (c *jsonCodeC) decode(header, body []byte) (*remotingCommand, error) {
 	return cmd, nil
 }
 
-type rmqCodec int
+type rmqCodec struct {}
 
 func (c *rmqCodec) encode(cmd *remotingCommand) ([]byte, error) {
 	var (
-		err error
+		err               error
 		remarkBytes       []byte
 		remarkBytesLen    int
 		extFieldsBytes    []byte
