@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"sync/atomic"
 )
 
@@ -37,18 +36,19 @@ const (
 
 	RemotingCommandFlag    = 0
 	languageFlag           = "golang"
+	languageCode = byte(9)
 	remotingCommandVersion = 137
 )
 
 type remotingCommand struct {
 	Code      int16             `json:"code"`
-	Language  string            `json:"language"` //int 8
+	Language  string            `json:"language"`
 	Version   int16             `json:"version"`
 	Opaque    int32             `json:"opaque"`
 	Flag      int               `json:"flag"`
 	Remark    string            `json:"remark"`
 	ExtFields map[string]string `json:"extFields"`
-	Body      []byte            `json:"body,omitempty"`
+	Body      []byte            `json:"body"`
 }
 
 func newRemotingCommand(code int16, properties map[string]string, body []byte) *remotingCommand {
@@ -64,31 +64,127 @@ func newRemotingCommand(code int16, properties map[string]string, body []byte) *
 	return remotingCommand
 }
 
-func (rcm *remotingCommand) isResponseType() bool {
-	return rcm.Flag&(ResponseType) == ResponseType
+func (command *remotingCommand) isResponseType() bool {
+	return command.Flag&(ResponseType) == ResponseType
 }
 
-func (rcm *remotingCommand) markResponseType() {
-	rcm.Flag = rcm.Flag | ResponseType
+func (command *remotingCommand) markResponseType() {
+	command.Flag = command.Flag | ResponseType
 }
 
-type CodecType int
-
-const (
-	Json CodecType = iota
-	RocketMQ
+var (
+	jsonSerializer = &jsonCodec{}
+	rocketMqSerializer = &rmqCodec{}
+	codecType byte
 )
 
-var codec serializer
+// encode remotingCommand
+//
+// Frame format:
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// + item | frame_size | header_length |         header_body        |     body     +
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// + len  |   4bytes   |     4bytes    | (19 + r_len + e_len) bytes | remain bytes +
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+func encode(command *remotingCommand) ([]byte, error) {
+	var (
+		header []byte
+		err error
+	)
 
-type serializer interface {
-	encode(command *remotingCommand) ([]byte, error)
-	decode(headerArray, body []byte) (*remotingCommand, error)
+	switch codecType {
+	case Json:
+		header, err  = jsonSerializer.encodeHeader(command)
+	case RocketMQ:
+		header, err  = rocketMqSerializer.encodeHeader(command)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	frameSize := 8 + len(header) + len(command.Body)
+	buf := bytes.NewBuffer(make([]byte, frameSize))
+
+	err = binary.Write(buf, binary.BigEndian, int32(frameSize))
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(buf, binary.BigEndian, markProtocolType(int32(len(header))))
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(buf, binary.BigEndian, int32(len(command.Body)))
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
+func decode(data []byte) (*remotingCommand, error) {
+	buf := bytes.NewBuffer(data)
+
+	var oriHeaderLen, headerLength int32
+	err := binary.Read(buf, binary.BigEndian, &oriHeaderLen)
+	if err != nil {
+		return nil, err
+	}
+	headerLength = oriHeaderLen & 0xFFFFFF
+
+	headerData := make([]byte, headerLength)
+	err = binary.Read(buf, binary.BigEndian, &headerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	var command *remotingCommand
+
+	switch byte((oriHeaderLen >> 24) & 0xFF) {
+	case Json:
+		command, err = jsonSerializer.decodeHeader(headerData)
+	case RocketMQ:
+		command, err = rocketMqSerializer.decodeHeader(headerData)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	bodyLength := int32(len(data)) - 4 - headerLength
+	command.Body = make([]byte, bodyLength)
+	err = binary.Read(buf, binary.BigEndian, &command.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return command, nil
+}
+
+func markProtocolType(source int32) []byte {
+	result := make([]byte, 4)
+	result[0] = codecType
+	result[1] = byte((source >> 16) & 0xFF)
+	result[2] = byte((source >> 8) & 0xFF)
+	result[3] = byte(source & 0xFF)
+	return result
+}
+
+const (
+	Json  = byte(0)
+	RocketMQ  = byte(1)
+)
+
+type serializer interface {
+	encodeHeader(command *remotingCommand) ([]byte, error)
+	decodeHeader(data []byte) (*remotingCommand, error)
+}
+
+// jsonCodec please refer to remoting/protocol/RemotingSerializable
 type jsonCodec struct {}
 
-func (c *jsonCodec) encode(command *remotingCommand) ([]byte, error) {
+func (c *jsonCodec) encodeHeader(command *remotingCommand) ([]byte, error) {
 	buf, err := json.Marshal(command)
 	if err != nil {
 		return nil, err
@@ -96,146 +192,175 @@ func (c *jsonCodec) encode(command *remotingCommand) ([]byte, error) {
 	return buf, nil
 }
 
-func (c *jsonCodec) decode(header, body []byte) (*remotingCommand, error) {
-	cmd := &remotingCommand{}
-	cmd.ExtFields = make(map[string]string)
-	err := json.Unmarshal(header, cmd)
+func (c *jsonCodec) decodeHeader(header []byte) (*remotingCommand, error) {
+	command := &remotingCommand{}
+	command.ExtFields = make(map[string]string)
+	err := json.Unmarshal(header, command)
 	if err != nil {
 		return nil, err
 	}
-	cmd.Body = body
-	return cmd, nil
+	return command, nil
 }
+
+// rmqCodec implementation of RocketMQ private protocol, please refer to remoting/protocol/RocketMQSerializable
+// RocketMQ Private Protocol Header format:
+//
+// v_flag: version flag
+// r_len: length of remark body
+// r_body: data of remark body
+// e_len: length of extends fields body
+// e_body: data of extends fields
+//
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// + item | request_code | l_flag | v_flag | opaque | request_flag |  r_len  |   r_body    |  e_len  |    e_body   +
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// + len  |    2bytes    |  1byte | 2bytes | 2bytes |    4 bytes   | 4 bytes | r_len bytes | 4 bytes | e_len bytes +
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+const (
+	// header + body length
+	headerFixedLength = 19
+)
 
 type rmqCodec struct {}
 
-func (c *rmqCodec) encode(cmd *remotingCommand) ([]byte, error) {
-	var (
-		err               error
-		remarkBytes       []byte
-		remarkBytesLen    int
-		extFieldsBytes    []byte
-		extFieldsBytesLen int
-	)
-	remarkBytesLen = 0
-	if len(cmd.Remark) > 0 {
-		remarkBytes = []byte(cmd.Remark)
-		remarkBytesLen = len(remarkBytes)
+// encodeHeader
+func (c *rmqCodec) encodeHeader(command *remotingCommand)  ([]byte, error) {
+	extBytes, err := c.encodeMaps(command.ExtFields)
+	if err != nil {
+		return nil, err
 	}
-	if cmd.ExtFields != nil {
-		buf := bytes.NewBuffer([]byte{})
-		for key, value := range cmd.ExtFields {
-			keyBytes := []byte(fmt.Sprintf("%v", key))
-			valueBytes := []byte(fmt.Sprintf("%v", value))
-			err = binary.Write(buf, binary.BigEndian, int16(len(keyBytes)))
-			if err != nil {
-				return nil, err
-			}
-			buf.Write(keyBytes)
 
-			err = binary.Write(buf, binary.BigEndian, int32(len(valueBytes)))
-			if err != nil {
-				return nil, err
-			}
-			buf.Write(valueBytes)
+	buf := bytes.NewBuffer(make([]byte, headerFixedLength + len(command.Remark) + len(extBytes)))
+
+	// request code, length is 2 bytes
+	err = binary.Write(buf, binary.BigEndian, command.Code)
+	if err != nil {
+		return nil, err
+	}
+
+	// language flag, length is 1 byte
+	err = binary.Write(buf, binary.BigEndian, languageCode)
+	if err != nil {
+		return nil, err
+	}
+
+	// version flag, length is 2 bytes
+	err = binary.Write(buf, binary.BigEndian, command.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	// opaque flag, opaque is request identifier, length is 4 bytes
+	err = binary.Write(buf, binary.BigEndian, command.Opaque)
+	if err != nil {
+		return nil, err
+	}
+
+	// request flag, length is 4 bytes
+	err = binary.Write(buf, binary.BigEndian, command.Flag)
+	if err != nil {
+		return nil, err
+	}
+
+	// remark length flag, length is 4 bytes
+	err = binary.Write(buf, binary.BigEndian, int32(len(command.Remark)))
+	if err != nil {
+		return nil, err
+	}
+
+	// write remark, len(command.Remark) bytes
+	if len(command.Remark) > 0 {
+		err = binary.Write(buf, binary.BigEndian, command.Remark)
+		if err != nil {
+			return nil, err
 		}
-
-		extFieldsBytes = buf.Bytes()
-		extFieldsBytesLen = len(extFieldsBytes)
 	}
-	buf := bytes.NewBuffer([]byte{})
 
-	// code(~32767) 2
-	err = binary.Write(buf, binary.BigEndian, int16(cmd.Code))
+	err = binary.Write(buf, binary.BigEndian, int32(len(extBytes)))
 	if err != nil {
 		return nil, err
 	}
 
-	// Golang
-	err = binary.Write(buf, binary.BigEndian, int8(0))
-	if err != nil {
-		return nil, err
-	}
-
-	// 2
-	err = binary.Write(buf, binary.BigEndian, int16(cmd.Version))
-	if err != nil {
-		return nil, err
-	}
-
-	// opaque 4
-	err = binary.Write(buf, binary.BigEndian, int32(cmd.Opaque))
-	if err != nil {
-		return nil, err
-	}
-
-	// 4
-	err = binary.Write(buf, binary.BigEndian, int32(cmd.Flag))
-	if err != nil {
-		return nil, err
-	}
-
-	// 4
-	err = binary.Write(buf, binary.BigEndian, int32(remarkBytesLen))
-	if err != nil {
-		return nil, err
-	}
-
-	if remarkBytesLen > 0 {
-		buf.Write(remarkBytes)
-	}
-
-	// 4
-	err = binary.Write(buf, binary.BigEndian, int32(extFieldsBytesLen))
-	if err != nil {
-		return nil, err
-	}
-
-	if extFieldsBytesLen > 0 {
-		buf.Write(extFieldsBytes)
+	if len(extBytes) > 0 {
+		err = binary.Write(buf, binary.BigEndian, extBytes)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return buf.Bytes(), nil
 }
 
-func (c *rmqCodec) decode(headerArray, body []byte) (*remotingCommand, error) {
+func (c *rmqCodec) encodeMaps(maps map[string]string) ([]byte, error) {
+	if maps == nil || len(maps) == 0 {
+		return []byte{}, nil
+	}
+	extFieldsBuf := bytes.NewBuffer([]byte{})
 	var err error
-	cmd := &remotingCommand{}
-	buf := bytes.NewBuffer(headerArray)
+	for key, value := range maps {
+		err = binary.Write(extFieldsBuf, binary.BigEndian, int16(len(key)))
+		if err != nil {
+			return nil, err
+		}
+		err = binary.Write(extFieldsBuf, binary.BigEndian, []byte(key))
+		if err != nil {
+			return nil, err
+		}
+
+		err = binary.Write(extFieldsBuf, binary.BigEndian, int32(len(value)))
+		if err != nil {
+			return nil, err
+		}
+		err = binary.Write(extFieldsBuf, binary.BigEndian, []byte(value))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return extFieldsBuf.Bytes(), nil
+}
+
+func (c *rmqCodec) decodeHeader(data []byte) (*remotingCommand, error) {
+	var err error
+	command := &remotingCommand{}
+	buf := bytes.NewBuffer(data)
 	// int code(~32767)
-	err = binary.Read(buf, binary.BigEndian, &cmd.Code)
+	err = binary.Read(buf, binary.BigEndian, &command.Code)
 	if err != nil {
 		return nil, err
 	}
 
 	// LanguageCode language
-	var LanguageCodeNope byte
-	err = binary.Read(buf, binary.BigEndian, &LanguageCodeNope)
-	cmd.Language = languageFlag
+
+	var (
+		languageCode byte
+		remarkLen int32
+		extFieldsLen int32
+	)
+	err = binary.Read(buf, binary.BigEndian, &languageCode)
 	if err != nil {
 		return nil, err
 	}
+	//command.Language = languageFlag
 
 	// int version(~32767)
-	err = binary.Read(buf, binary.BigEndian, &cmd.Version)
+	err = binary.Read(buf, binary.BigEndian, &command.Version)
 	if err != nil {
 		return nil, err
 	}
 
 	// int opaque
-	err = binary.Read(buf, binary.BigEndian, &cmd.Opaque)
+	err = binary.Read(buf, binary.BigEndian, &command.Opaque)
 	if err != nil {
 		return nil, err
 	}
 
 	// int flag
-	err = binary.Read(buf, binary.BigEndian, &cmd.Flag)
+	err = binary.Read(buf, binary.BigEndian, &command.Flag)
 	if err != nil {
 		return nil, err
 	}
 
 	// String remark
-	var remarkLen, extFieldsLen int32
 	err = binary.Read(buf, binary.BigEndian, &remarkLen)
 	if err != nil {
 		return nil, err
@@ -247,27 +372,28 @@ func (c *rmqCodec) decode(headerArray, body []byte) (*remotingCommand, error) {
 		if err != nil {
 			return nil, err
 		}
-		cmd.Remark = string(remarkData)
+		command.Remark = string(remarkData)
 	}
 
-	// map ext
-	// HashMap<String, String> extFields
 	err = binary.Read(buf, binary.BigEndian, &extFieldsLen)
 	if err != nil {
 		return nil, err
 	}
 
 	if extFieldsLen > 0 {
-		var extFieldsData = make([]byte, extFieldsLen)
+		extFieldsData := make([]byte, extFieldsLen)
 		err = binary.Read(buf, binary.BigEndian, &extFieldsData)
 		if err != nil {
 			return nil, err
 		}
 
-		cmd.ExtFields = make(map[string]string)
+		command.ExtFields = make(map[string]string)
 		buf := bytes.NewBuffer(extFieldsData)
+		var (
+			kLen int16
+			vLen int32
+		)
 		for buf.Len() > 0 {
-			var kLen int16
 			err = binary.Read(buf, binary.BigEndian, &kLen)
 			if err != nil {
 				return nil, err
@@ -278,7 +404,6 @@ func (c *rmqCodec) decode(headerArray, body []byte) (*remotingCommand, error) {
 				return nil, err
 			}
 
-			var vLen int32
 			err = binary.Read(buf, binary.BigEndian, &vLen)
 			if err != nil {
 				return nil, err
@@ -288,12 +413,11 @@ func (c *rmqCodec) decode(headerArray, body []byte) (*remotingCommand, error) {
 			if err != nil {
 				return nil, err
 			}
-			cmd.ExtFields[key] = value
+			command.ExtFields[key] = value
 		}
 	}
 
-	cmd.Body = body
-	return cmd, nil
+	return command, nil
 }
 
 func getExtFieldsData(buff *bytes.Buffer, length int32) (string, error) {

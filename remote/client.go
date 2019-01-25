@@ -18,33 +18,48 @@ package remote
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"time"
 )
 
-type CommunicationMode int
-
-const (
-	Sync CommunicationMode = iota
-	Async
-	OneWay
+var (
+	ErrRequestTimeout = errors.New("request timeout")
 )
 
 type RemotingClient interface {
-	InvokeSync(context context.Context, request *remotingCommand) (remotingCommand *remotingCommand, err error)
-	InvokeAsync(context context.Context, request *remotingCommand, f func(*remotingCommand)) error
-	InvokeOneWay(context context.Context, request *remotingCommand) error
+	InvokeSync(request *remotingCommand) (*remotingCommand, error)
+	InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error
+	InvokeOneWay(request *remotingCommand) error
+}
+
+
+// ClientConfig common config
+type ClientConfig struct {
+	// NameServer or Broker address
+	RemotingAddress string
+
+	ClientIP     string
+	InstanceName string
+
+	// Heartbeat interval in microseconds with message broker, default is 30
+	HeartbeatBrokerInterval time.Duration
+
+	// request timeout time
+	RequestTimeout time.Duration
+	CType byte
+
+	UnitMode          bool
+	UnitName          string
+	VipChannelEnabled bool
 }
 
 type defaultClient struct {
 	//clientId     string
-	remoteAddress string
+	config ClientConfig
 	conn net.Conn
 	// requestId
 	opaque int32
@@ -55,13 +70,12 @@ type defaultClient struct {
 	exitCh chan interface{}
 }
 
-func NewRemotingClient(remoteAddress string, cType CodecType) (*defaultClient, error) {
-
+func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
 	client := &defaultClient{
-		remoteAddress: remoteAddress,
+		config: config,
 	}
 
-	switch cType {
+	switch config.CType {
 	case Json:
 		client.codec = &jsonCodec{}
 	case RocketMQ:
@@ -70,7 +84,7 @@ func NewRemotingClient(remoteAddress string, cType CodecType) (*defaultClient, e
 		return nil, errors.New("unknow codec")
 	}
 
-	conn, err := net.Dial("tcp", remoteAddress)
+	conn, err := net.Dial("tcp", config.RemotingAddress)
 	if err != nil {
 		log.Error(err)
 		return nil, err
@@ -81,16 +95,16 @@ func NewRemotingClient(remoteAddress string, cType CodecType) (*defaultClient, e
 	return client, nil
 }
 
-func (client *defaultClient) InvokeSync(request *remotingCommand, timeout time.Duration) (*remotingCommand, error) {
+func (client *defaultClient) InvokeSync(request *remotingCommand) (*remotingCommand, error) {
 
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
-		TimeoutMillis:  timeout,
+		TimeoutMillis:  client.config.RequestTimeout,
 		BeginTimestamp: time.Now().Unix(),
 		Done:           make(chan bool),
 	}
-	header, err := client.codec.encode(request)
+	header, err := encode(request)
 	body := request.Body
 	client.responseTable.Store(request.Opaque, response)
 	err = client.doRequest(header, body)
@@ -103,41 +117,38 @@ func (client *defaultClient) InvokeSync(request *remotingCommand, timeout time.D
 	case <-response.Done:
 		rmd := response.ResponseCommand
 		return rmd, nil
-	case <-time.After(timeout * time.Millisecond):
-		return nil, fmt.Errorf("invoke sync timeout")
+	case <-time.After(client.config.RequestTimeout):
+		return nil, ErrRequestTimeout
 	}
 }
 
-func (client *defaultClient) InvokeAsync(request *remotingCommand, timeout time.Duration,
-	callback func(*remotingCommand)) error {
+func (client *defaultClient) InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error {
 
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
-		TimeoutMillis:  timeout,
+		TimeoutMillis:  client.config.RequestTimeout,
 		BeginTimestamp: time.Now().Unix(),
-		callback:       callback,
+		callback:       f,
 	}
 	client.responseTable.Store(request.Opaque, response)
-	header, err := client.codec.encode(request)
-	body := request.Body
-	err = client.doRequest(header, body)
+	header, err := encode(request)
 	if err != nil {
-		log.Error(err)
 		return err
 	}
-	return err
+
+	body := request.Body
+	return client.doRequest(header, body)
 }
 
-func (client *defaultClient) InvokeOneWay(request *remotingCommand, timeout time.Duration) error {
-	header, err := client.codec.encode(request)
-	body := request.Body
-	err = client.doRequest(header, body)
+func (client *defaultClient) InvokeOneWay(request *remotingCommand) error {
+	header, err := encode(request)
 	if err != nil {
-		log.Error(err)
 		return err
 	}
-	return err
+
+	body := request.Body
+	return client.doRequest(header, body)
 }
 
 func (client *defaultClient) doRequest(header, body []byte) error {
@@ -147,14 +158,7 @@ func (client *defaultClient) doRequest(header, body []byte) error {
 		requestBytes = append(requestBytes, body...)
 	}
 	_, err := client.conn.Write(requestBytes)
-	if err != nil {
-		log.Error(err)
-		if len(client.remoteAddress) > 0 {
-			client.close()
-		}
-		return err
-	}
-	return nil
+	return err
 }
 
 func (client *defaultClient) close() {
@@ -163,12 +167,11 @@ func (client *defaultClient) close() {
 }
 
 func (client *defaultClient) listen() {
-	
 	b := make([]byte, 1024)
 	var length, headerLength, bodyLength int32
 	var buf = bytes.NewBuffer([]byte{})
 	var header, body []byte
-	var readTotalLengthFlag = true //readLen when true,read data when false
+	var readTotalLengthFlag = true // readLen when true, read data when false
 	for {
 		var n int
 		n, err := client.conn.Read(b)
@@ -222,12 +225,12 @@ func (client *defaultClient) listen() {
 }
 
 func (client *defaultClient) handlerReceivedMessage(conn net.Conn, headerSerializableType byte, headBytes []byte, bodyBytes []byte) {
-	cmd, _ := client.codec.decode(headBytes, bodyBytes)
-	if cmd.isResponseType() {
-		client.handlerResponse(cmd)
-		return
-	}
-	go client.handlerRequestFromServer(cmd)
+	//cmd, _ := decode(headBytes, bodyBytes)
+	//if cmd.isResponseType() {
+	//	client.handlerResponse(cmd)
+	//	return
+	//}
+	//go client.handlerRequestFromServer(cmd)
 }
 
 func (client *defaultClient) handlerRequestFromServer(cmd *remotingCommand) {
@@ -237,7 +240,7 @@ func (client *defaultClient) handlerRequestFromServer(cmd *remotingCommand) {
 	//}
 	//responseCommand.Opaque = cmd.Opaque
 	//responseCommand.markResponseType()
-	//header, err := client.codec.encode(responseCommand)
+	//header, err := encode(responseCommand)
 	//body := responseCommand.Body
 	//err = client.doRequest(header, body)
 	//if err != nil {

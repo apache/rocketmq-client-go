@@ -14,10 +14,14 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package remote
 
-type RPCHook interface {
-	DoBeforeRequest(string, *remotingCommand)
-	DoAfterResponse(string, *remotingCommand)
+import (
+	"testing"
+)
+
+func TestEncode(t *testing.T) {
+}
+
+func TestDecode(t *testing.T) {
 }
