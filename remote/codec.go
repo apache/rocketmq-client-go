@@ -48,7 +48,7 @@ type remotingCommand struct {
 	Flag      int               `json:"flag"`
 	Remark    string            `json:"remark"`
 	ExtFields map[string]string `json:"extFields"`
-	Body      []byte            `json:"body"`
+	Body      []byte            `json:"body,omitempty"`
 }
 
 func newRemotingCommand(code int16, properties map[string]string, body []byte) *remotingCommand {
