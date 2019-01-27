@@ -33,7 +33,7 @@
 - benchmark：压力测试相关代码
 - core：1.2版本cgo的代码库，该目录下的代码将会被移除，只保留API进行兼容，并会被标记为`Deprecated`
 - docs：文档，包括面向用户和开发者
-- examples：实例代码
+- examples：示例代码
 - test：集成测试代码
 
 ## API
@@ -79,12 +79,12 @@ TODO
 - [ ] normal message with pull/push
 - [ ] order message with pull/push
 - [ ] rebalance
+- [ ] offset manager
 
 #### common
 - [ ] API wrapper
 - [ ] connections manager
 - [ ] route switch
-- [ ] offset storage
 
 #### remote
 - [ ] serializer
