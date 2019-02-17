@@ -36,7 +36,6 @@ type RemotingClient interface {
 	InvokeOneWay(request *remotingCommand) error
 }
 
-
 // ClientConfig common config
 type ClientConfig struct {
 	// NameServer or Broker address

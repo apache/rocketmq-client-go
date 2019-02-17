@@ -48,7 +48,7 @@ type remotingCommand struct {
 	Flag      int               `json:"flag"`
 	Remark    string            `json:"remark"`
 	ExtFields map[string]string `json:"extFields"`
-	Body      []byte            `json:"body"`
+	Body      []byte            `json:"body,omitempty"`
 }
 
 func newRemotingCommand(code int16, properties map[string]string, body []byte) *remotingCommand {
@@ -214,11 +214,11 @@ func (c *jsonCodec) decodeHeader(header []byte) (*remotingCommand, error) {
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // + item | request_code | l_flag | v_flag | opaque | request_flag |  r_len  |   r_body    |  e_len  |    e_body   +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// + len  |    2bytes    |  1byte | 2bytes | 2bytes |    4 bytes   | 4 bytes | r_len bytes | 4 bytes | e_len bytes +
+// + len  |    2bytes    |  1byte | 2bytes | 4bytes |    4 bytes   | 4 bytes | r_len bytes | 4 bytes | e_len bytes +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 const (
 	// header + body length
-	headerFixedLength = 19
+	headerFixedLength = 21
 )
 
 type rmqCodec struct {}
