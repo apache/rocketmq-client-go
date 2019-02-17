@@ -17,9 +17,9 @@
 package remote
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
+	"github.com/apache/rocketmq-client-go/utils"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
@@ -166,73 +166,49 @@ func (client *defaultClient) close() {
 }
 
 func (client *defaultClient) listen() {
-	b := make([]byte, 1024)
-	var length, headerLength, bodyLength int32
-	var buf = bytes.NewBuffer([]byte{})
-	var header, body []byte
-	var readTotalLengthFlag = true // readLen when true, read data when false
-	for {
-		var n int
-		n, err := client.conn.Read(b)
-		if err != nil {
-			return
-		}
-		_, err = buf.Write(b[:n])
-		if err != nil {
-			return
-		}
-		for {
-			if readTotalLengthFlag {
-				//we read 4 bytes of allDataLength
-				if buf.Len() >= 4 {
-					err = binary.Read(buf, binary.BigEndian, &length)
-					if err != nil {
-						return
-					}
-					readTotalLengthFlag = false //now turn to read data
-				} else {
-					break //wait bytes we not got
-				}
-			}
-			if !readTotalLengthFlag {
-				if buf.Len() < int(length) {
-					// judge all data received.if not,loop to wait
-					break
-				}
-			}
-			//now all data received, we can read totalLen again
-			readTotalLengthFlag = true
+	rb := utils.NewRingBuffer(4096)
 
-			//get the data,and handler it
-			//header len
-			err = binary.Read(buf, binary.BigEndian, &headerLength)
-			var realHeaderLen = headerLength & 0x00ffffff
-			//headerData the first ff is about serializable type
-			var headerSerializableType = byte(headerLength >> 24)
-			header = make([]byte, realHeaderLen)
-			_, err = buf.Read(header)
-			bodyLength = length - 4 - realHeaderLen
-			body = make([]byte, int(bodyLength))
-			if bodyLength == 0 {
-				// no body
-			} else {
-				_, err = buf.Read(body)
+	var frameSize int32
+	go func() {
+		for {
+			err := binary.Read(rb, binary.BigEndian, &frameSize)
+			if err != nil {
+				 // TODO
 			}
-			go client.handlerReceivedMessage(client.conn, headerSerializableType, header, body)
+			data := make([]byte, frameSize)
+
+			_, err = rb.Read(data)
+
+			if err != nil {
+				// TODO
+			}
+
+			cmd, err := decode(data)
+			if cmd.isResponseType() {
+				client.handleResponse(cmd)
+			}  else {
+				client.handleRequestFromServer(cmd)
+			}
 		}
+	}()
+
+	buf := make([]byte, 4096)
+	for {
+		n, err := client.conn.Read(buf)
+		if err != nil {
+			log.Errorf("read data from connection errors: %v", err)
+			return
+		}
+		err = rb.Write(buf[:n])
+		if err != nil {
+			// just log
+			log.Errorf("write data to buffer errors: %v", err)
+		}
+
 	}
 }
 
-func (client *defaultClient) handlerReceivedMessage(conn net.Conn, headerSerializableType byte, headBytes []byte, bodyBytes []byte) {
-	//cmd, _ := decode(headBytes, bodyBytes)
-	//if cmd.isResponseType() {
-	//	client.handlerResponse(cmd)
-	//	return
-	//}
-	//go client.handlerRequestFromServer(cmd)
-}
-
-func (client *defaultClient) handlerRequestFromServer(cmd *remotingCommand) {
+func (client *defaultClient) handleRequestFromServer(cmd *remotingCommand) {
 	//responseCommand := client.clientRequestProcessor(cmd)
 	//if responseCommand == nil {
 	//	return
@@ -247,7 +223,7 @@ func (client *defaultClient) handlerRequestFromServer(cmd *remotingCommand) {
 	//}
 }
 
-func (client *defaultClient) handlerResponse(cmd *remotingCommand) error {
+func (client *defaultClient) handleResponse(cmd *remotingCommand) error {
 	//response, err := client.getResponse(cmd.Opaque)
 	////client.removeResponse(cmd.Opaque)
 	//if err != nil {
