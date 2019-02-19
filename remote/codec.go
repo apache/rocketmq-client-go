@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"sync/atomic"
 )
 
@@ -27,41 +28,41 @@ var opaque int32
 
 const (
 	// 0, REQUEST_COMMAND
-	RpcType = 0
+	RPCType = 0
 
 	// 1, RPC
-	RpcOneWay = 1
+	RPCOneWay = 1
 
+	//ResponseType for reponse
 	ResponseType = 1
 
-	RemotingCommandFlag    = 0
-	languageFlag           = "golang"
-	languageCode = byte(9)
-	remotingCommandVersion = 137
+	_Flag         = 0
+	_LanguageFlag = "golang"
+	_LanguageCode = byte(9)
+	_Version      = 137
 )
 
 type remotingCommand struct {
-	Code      int16             `json:"code"`
-	Language  string            `json:"language"`
-	Version   int16             `json:"version"`
+	Code      int32             `json:"code"`
+	Language  byte              `json:"language"`
+	Version   int32             `json:"version"`
 	Opaque    int32             `json:"opaque"`
-	Flag      int               `json:"flag"`
+	Flag      int32             `json:"flag"`
 	Remark    string            `json:"remark"`
 	ExtFields map[string]string `json:"extFields"`
 	Body      []byte            `json:"body,omitempty"`
 }
 
-func newRemotingCommand(code int16, properties map[string]string, body []byte) *remotingCommand {
-	remotingCommand := &remotingCommand{
+func newRemotingCommand(code int32, properties map[string]string, body []byte) *remotingCommand {
+	return &remotingCommand{
 		Code:      code,
-		Language:  languageFlag,
-		Version:   remotingCommandVersion,
+		Language:  _LanguageCode,
+		Version:   _Version,
 		Opaque:    atomic.AddInt32(&opaque, 1),
 		ExtFields: properties,
 		Body:      body,
 	}
 
-	return remotingCommand
 }
 
 func (command *remotingCommand) isResponseType() bool {
@@ -73,9 +74,9 @@ func (command *remotingCommand) markResponseType() {
 }
 
 var (
-	jsonSerializer = &jsonCodec{}
+	jsonSerializer     = &jsonCodec{}
 	rocketMqSerializer = &rmqCodec{}
-	codecType byte
+	codecType          byte
 )
 
 // encode remotingCommand
@@ -89,14 +90,14 @@ var (
 func encode(command *remotingCommand) ([]byte, error) {
 	var (
 		header []byte
-		err error
+		err    error
 	)
 
 	switch codecType {
-	case Json:
-		header, err  = jsonSerializer.encodeHeader(command)
-	case RocketMQ:
-		header, err  = rocketMqSerializer.encodeHeader(command)
+	case JsonCodecs:
+		header, err = jsonSerializer.encodeHeader(command)
+	case RocketMQCodecs:
+		header, err = rocketMqSerializer.encodeHeader(command)
 	}
 
 	if err != nil {
@@ -104,7 +105,7 @@ func encode(command *remotingCommand) ([]byte, error) {
 	}
 
 	frameSize := 8 + len(header) + len(command.Body)
-	buf := bytes.NewBuffer(make([]byte, frameSize))
+	buf := new(bytes.Buffer)
 
 	err = binary.Write(buf, binary.BigEndian, int32(frameSize))
 	if err != nil {
@@ -115,8 +116,11 @@ func encode(command *remotingCommand) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	err = binary.Write(buf, binary.BigEndian, int32(len(command.Body)))
+	err = binary.Write(buf, binary.BigEndian, header)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Write(buf, binary.BigEndian, command.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -126,39 +130,46 @@ func encode(command *remotingCommand) ([]byte, error) {
 
 func decode(data []byte) (*remotingCommand, error) {
 	buf := bytes.NewBuffer(data)
-
-	var oriHeaderLen, headerLength int32
-	err := binary.Read(buf, binary.BigEndian, &oriHeaderLen)
+	var length int32
+	err := binary.Read(buf, binary.BigEndian, &length)
 	if err != nil {
 		return nil, err
 	}
-	headerLength = oriHeaderLen & 0xFFFFFF
+	var oriHeaderLen int32
+	err = binary.Read(buf, binary.BigEndian, &oriHeaderLen)
+	if err != nil {
+		return nil, err
+	}
+	headerLength := oriHeaderLen & 0xFFFFFF
 
 	headerData := make([]byte, headerLength)
-	err = binary.Read(buf, binary.BigEndian, &headerLength)
+	err = binary.Read(buf, binary.BigEndian, &headerData)
 	if err != nil {
 		return nil, err
 	}
 
 	var command *remotingCommand
+	codeType := byte((oriHeaderLen >> 24) & 0xFF)
 
 	switch byte((oriHeaderLen >> 24) & 0xFF) {
-	case Json:
+	case JsonCodecs:
 		command, err = jsonSerializer.decodeHeader(headerData)
-	case RocketMQ:
+	case RocketMQCodecs:
 		command, err = rocketMqSerializer.decodeHeader(headerData)
+	default:
+		err = fmt.Errorf("unknown codec type: %d", codeType)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	bodyLength := int32(len(data)) - 4 - headerLength
-	command.Body = make([]byte, bodyLength)
-	err = binary.Read(buf, binary.BigEndian, &command.Body)
+	bodyLength := length - 8 - headerLength
+	bodyData := make([]byte, bodyLength)
+	err = binary.Read(buf, binary.BigEndian, &bodyData)
 	if err != nil {
 		return nil, err
 	}
-
+	command.Body = bodyData
 	return command, nil
 }
 
@@ -172,8 +183,8 @@ func markProtocolType(source int32) []byte {
 }
 
 const (
-	Json  = byte(0)
-	RocketMQ  = byte(1)
+	JsonCodecs     = byte(0)
+	RocketMQCodecs = byte(1)
 )
 
 type serializer interface {
@@ -182,7 +193,7 @@ type serializer interface {
 }
 
 // jsonCodec please refer to remoting/protocol/RemotingSerializable
-type jsonCodec struct {}
+type jsonCodec struct{}
 
 func (c *jsonCodec) encodeHeader(command *remotingCommand) ([]byte, error) {
 	buf, err := json.Marshal(command)
@@ -202,8 +213,8 @@ func (c *jsonCodec) decodeHeader(header []byte) (*remotingCommand, error) {
 	return command, nil
 }
 
-// rmqCodec implementation of RocketMQ private protocol, please refer to remoting/protocol/RocketMQSerializable
-// RocketMQ Private Protocol Header format:
+// rmqCodec implementation of RocketMQCodecs private protocol, please refer to remoting/protocol/RocketMQSerializable
+// RocketMQCodecs Private Protocol Header format:
 //
 // v_flag: version flag
 // r_len: length of remark body
@@ -221,31 +232,31 @@ const (
 	headerFixedLength = 21
 )
 
-type rmqCodec struct {}
+type rmqCodec struct{}
 
 // encodeHeader
-func (c *rmqCodec) encodeHeader(command *remotingCommand)  ([]byte, error) {
+func (c *rmqCodec) encodeHeader(command *remotingCommand) ([]byte, error) {
 	extBytes, err := c.encodeMaps(command.ExtFields)
 	if err != nil {
 		return nil, err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, headerFixedLength + len(command.Remark) + len(extBytes)))
+	buf := new(bytes.Buffer)
 
 	// request code, length is 2 bytes
-	err = binary.Write(buf, binary.BigEndian, command.Code)
+	err = binary.Write(buf, binary.BigEndian, int16(command.Code))
 	if err != nil {
 		return nil, err
 	}
 
 	// language flag, length is 1 byte
-	err = binary.Write(buf, binary.BigEndian, languageCode)
+	err = binary.Write(buf, binary.BigEndian, _LanguageCode)
 	if err != nil {
 		return nil, err
 	}
 
 	// version flag, length is 2 bytes
-	err = binary.Write(buf, binary.BigEndian, command.Version)
+	err = binary.Write(buf, binary.BigEndian, int16(command.Version))
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +281,7 @@ func (c *rmqCodec) encodeHeader(command *remotingCommand)  ([]byte, error) {
 
 	// write remark, len(command.Remark) bytes
 	if len(command.Remark) > 0 {
-		err = binary.Write(buf, binary.BigEndian, command.Remark)
+		err = binary.Write(buf, binary.BigEndian, []byte(command.Remark))
 		if err != nil {
 			return nil, err
 		}
@@ -323,30 +334,30 @@ func (c *rmqCodec) decodeHeader(data []byte) (*remotingCommand, error) {
 	var err error
 	command := &remotingCommand{}
 	buf := bytes.NewBuffer(data)
-	// int code(~32767)
-	err = binary.Read(buf, binary.BigEndian, &command.Code)
+	var code int16
+	err = binary.Read(buf, binary.BigEndian, &code)
 	if err != nil {
 		return nil, err
 	}
-
-	// LanguageCode language
+	command.Code = int32(code)
 
 	var (
 		languageCode byte
-		remarkLen int32
+		remarkLen    int32
 		extFieldsLen int32
 	)
 	err = binary.Read(buf, binary.BigEndian, &languageCode)
 	if err != nil {
 		return nil, err
 	}
-	//command.Language = languageFlag
+	command.Language = languageCode
 
-	// int version(~32767)
-	err = binary.Read(buf, binary.BigEndian, &command.Version)
+	var version int16
+	err = binary.Read(buf, binary.BigEndian, &version)
 	if err != nil {
 		return nil, err
 	}
+	command.Version = int32(version)
 
 	// int opaque
 	err = binary.Read(buf, binary.BigEndian, &command.Opaque)
