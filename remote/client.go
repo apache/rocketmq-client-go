@@ -75,7 +75,7 @@ func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
 	}
 
 	switch config.CType {
-	case Json:
+	case JSON:
 		client.codec = &jsonCodec{}
 	case RocketMQ:
 		client.codec = &rmqCodec{}
