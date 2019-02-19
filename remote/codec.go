@@ -140,7 +140,7 @@ func decode(data []byte) (*remotingCommand, error) {
 	headerLength = oriHeaderLen & 0xFFFFFF
 
 	headerData := make([]byte, headerLength)
-	err = binary.Read(buf, binary.BigEndian, &headerLength)
+	err = binary.Read(buf, binary.BigEndian, &headerData)
 	if err != nil {
 		return nil, err
 	}
