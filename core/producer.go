@@ -235,12 +235,12 @@ func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueue
 		unsafe.Pointer(&key),
 		C.int(autoRetryTimes),
 		&sr))
-	
+
 	if err != NIL {
 		log.Warnf("send message orderly error, error is: %s", err.Error())
 		return nil, err
 	}
-	
+
 	return &SendResult{
 		Status: SendStatus(sr.sendStatus),
 		MsgId:  C.GoString(&sr.msgId[0]),
@@ -257,7 +257,7 @@ func (p *defaultProducer) SendMessageOneway(msg *Message) error {
 		log.Warnf("send message with oneway error, error is: %s", err.Error())
 		return err
 	}
-	
+
 	log.Debugf("Send Message: %s with oneway success.", msg.String())
 	return nil
 }

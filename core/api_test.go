@@ -75,3 +75,14 @@ func TestPushConsumerConfig_String(t *testing.T) {
 		" MessageBatchMaxSize: 32, MessageModel: Clustering, ]"
 	assert.Equal(t, expect, pcConfig.String())
 }
+
+func TestMessageModel_String(t *testing.T) {
+	m := BroadCasting
+	assert.Equal(t, "BroadCasting", m.String())
+
+	m = Clustering
+	assert.Equal(t, "Clustering", m.String())
+
+	m = 3
+	assert.Equal(t, "Unknown", m.String())
+}

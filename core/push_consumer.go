@@ -32,11 +32,11 @@ int callback_cgo(CPushConsumer *consumer, CMessageExt *msg) {
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"unsafe"
-	"errors"
 )
 
 type ConsumeStatus int
