@@ -76,7 +76,7 @@ func Test_decode(t *testing.T) {
 			t.Fatalf("encode RemotingCommand to bytes fail: %v", err)
 		}
 
-		decodedRc, err := decode(bs[4:])
+		decodedRc, err := decode(bs)
 		if err != nil {
 			t.Fatalf("decode bytes to RemotingCommand fail: %v", err)
 		}
@@ -222,6 +222,94 @@ func Benchmark_rmqCodec_decodeHeader(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		if _, err := rocketMqSerializer.decodeHeader(headers); err != nil {
 			b.Fatalf("decode header with rmqCodec fail: %v", err)
+		}
+	}
+}
+
+func TestCommandJsonEncodeDecode(t *testing.T) {
+	cmd := NewRemotingCommand(192, map[string]string{"brokers": "127.0.0.1"}, []byte("Hello RocketMQCodecs"))
+	codecType = JsonCodecs
+	cmdData, err := encode(cmd)
+	if err != nil {
+		t.Errorf("failed to encode remotingCommand in JSON, %s", err)
+	} else {
+		if len(cmdData) == 0 {
+			t.Errorf("failed to encode remotingCommand, result is empty.")
+		}
+	}
+	newCmd, err := decode(cmdData)
+	if err != nil {
+		t.Errorf("failed to decode remoting in JSON. %s", err)
+	}
+	if newCmd.Code != cmd.Code {
+		t.Errorf("wrong command code. want=%d, got=%d", cmd.Code, newCmd.Code)
+	}
+	if newCmd.Language != cmd.Language {
+		t.Errorf("wrong command language. want=%d, got=%d", cmd.Language, newCmd.Language)
+	}
+	if newCmd.Version != cmd.Version {
+		t.Errorf("wrong command version. want=%d, got=%d", cmd.Version, newCmd.Version)
+	}
+	if newCmd.Opaque != cmd.Opaque {
+		t.Errorf("wrong command version. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
+	}
+	if newCmd.Flag != cmd.Flag {
+		t.Errorf("wrong commad flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
+	}
+	if newCmd.Remark != cmd.Remark {
+		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
+	}
+	for k, v := range cmd.ExtFields {
+		if vv, ok := newCmd.ExtFields[k]; !ok {
+			t.Errorf("key: %s not exists in newCommand.", k)
+		} else {
+			if v != vv {
+				t.Errorf("wrong value. want=%s, got=%s", v, vv)
+			}
+		}
+	}
+}
+
+func TestCommandRocketMQEncodeDecode(t *testing.T) {
+	cmd := NewRemotingCommand(192, map[string]string{"brokers": "127.0.0.1"}, []byte("Hello RocketMQCodecs"))
+	codecType = RocketMQCodecs
+	cmdData, err := encode(cmd)
+	if err != nil {
+		t.Errorf("failed to encode remotingCommand in JSON, %s", err)
+	} else {
+		if len(cmdData) == 0 {
+			t.Errorf("failed to encode remotingCommand, result is empty.")
+		}
+	}
+	newCmd, err := decode(cmdData)
+	if err != nil {
+		t.Errorf("failed to decode remoting in JSON. %s", err)
+	}
+	if newCmd.Code != cmd.Code {
+		t.Errorf("wrong command code. want=%d, got=%d", cmd.Code, newCmd.Code)
+	}
+	if newCmd.Language != cmd.Language {
+		t.Errorf("wrong command language. want=%d, got=%d", cmd.Language, newCmd.Language)
+	}
+	if newCmd.Version != cmd.Version {
+		t.Errorf("wrong command version. want=%d, got=%d", cmd.Version, newCmd.Version)
+	}
+	if newCmd.Opaque != cmd.Opaque {
+		t.Errorf("wrong command version. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
+	}
+	if newCmd.Flag != cmd.Flag {
+		t.Errorf("wrong commad flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
+	}
+	if newCmd.Remark != cmd.Remark {
+		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
+	}
+	for k, v := range cmd.ExtFields {
+		if vv, ok := newCmd.ExtFields[k]; !ok {
+			t.Errorf("key: %s not exists in newCommand.", k)
+		} else {
+			if v != vv {
+				t.Errorf("wrong value. want=%s, got=%s", v, vv)
+			}
 		}
 	}
 }
