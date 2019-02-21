@@ -3,7 +3,7 @@
 ## Architecture
 
 ### Overview
-![client-design](client-design.png)
+![client-design](../images/client-design.png)
 
 ### Description
 在RocketMQ Java Client的实现里面，代码耦合了大量的admin方面的功能， 其为了尽可能的提高代码复用率，代码的依赖关系较为复杂、接口的设计比
@@ -68,7 +68,7 @@ TODO
 ```
 
 ## Road map
-for more details about features: [feature-list](feature.md)
+for more details about features: [feature-list](../feature.md)
 
 ### Milestone1(due: 2019.3.10)
 

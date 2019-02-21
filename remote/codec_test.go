@@ -17,16 +17,222 @@
 package remote
 
 import (
+	"math/rand"
+	"reflect"
 	"testing"
 )
 
-func TestCommandJsonEncodeDecode(t *testing.T){
-	cmd :=newRemotingCommand(int32(192), map[string]string{"brokers":"127.0.0.1"}, []byte("Hello RocketMQCodecs"))
+func randomBytes(length int) []byte {
+	bs := make([]byte, length)
+	if _, err := rand.Read(bs); err != nil {
+		panic("read random bytes fail")
+	}
+	return bs
+}
+
+func randomString(length int) string {
+	bs := make([]byte, length)
+	for i := 0; i < len(bs); i++ {
+		bs[i] = byte(97 + rand.Intn(26))
+	}
+	return string(bs)
+}
+
+func randomNewRemotingCommand() *RemotingCommand {
+	properties := make(map[string]string)
+	for i := 0; i < 10; i++ {
+		properties[randomString(rand.Intn(20))] = randomString(rand.Intn(20))
+	}
+	body := randomBytes(rand.Intn(100))
+	return NewRemotingCommand(int16(rand.Intn(1000)), properties, body)
+}
+
+func Test_encode(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		rc := randomNewRemotingCommand()
+		if _, err := encode(rc); err != nil {
+			t.Fatalf("encode RemotingCommand to bytes fail: %v", err)
+		}
+	}
+}
+
+func Benchmark_encode(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := encode(rc); err != nil {
+			b.Fatalf("encode RemotingCommand to bytes fail: %v", err)
+		}
+	}
+}
+
+func Test_decode(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		rc := randomNewRemotingCommand()
+
+		bs, err := encode(rc)
+		if err != nil {
+			t.Fatalf("encode RemotingCommand to bytes fail: %v", err)
+		}
+
+		decodedRc, err := decode(bs)
+		if err != nil {
+			t.Fatalf("decode bytes to RemotingCommand fail: %v", err)
+		}
+
+		if !reflect.DeepEqual(*rc, *decodedRc) {
+			t.Fatal("decoded RemotingCommand not equal to the original one")
+		}
+	}
+}
+
+func Benchmark_decode(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	bs, err := encode(rc)
+	if err != nil {
+		b.Fatalf("encode RemotingCommand to bytes fail: %v", err)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := decode(bs[4:]); err != nil {
+			b.Fatalf("decode bytes to RemotingCommand fail: %v", err)
+		}
+	}
+}
+
+func Test_jsonCodec_encodeHeader(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		rc := randomNewRemotingCommand()
+
+		if _, err := jsonSerializer.encodeHeader(rc); err != nil {
+			t.Fatalf("encode header with jsonCodec fail: %v", err)
+		}
+	}
+}
+
+func Benchmark_jsonCodec_encodeHeader(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := jsonSerializer.encodeHeader(rc); err != nil {
+			b.Fatalf("encode header with jsonCodec fail: %v", err)
+		}
+	}
+}
+
+func Test_jsonCodec_decodeHeader(t *testing.T) {
+	for i := 0; i < 1; i++ {
+		rc := randomNewRemotingCommand()
+
+		headers, err := jsonSerializer.encodeHeader(rc)
+		if err != nil {
+			t.Fatalf("encode header with jsonCodec fail: %v", err)
+		}
+
+		decodedRc, err := jsonSerializer.decodeHeader(headers)
+		if err != nil {
+			t.Fatalf("decode header with jsonCodec fail: %v", err)
+		}
+
+		if rc.Code != decodedRc.Code ||
+			rc.Language != decodedRc.Language ||
+			rc.Version != decodedRc.Version ||
+			rc.Opaque != rc.Opaque ||
+			rc.Flag != rc.Flag ||
+			rc.Remark != rc.Remark ||
+			!reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
+			t.Fatal("decoded RemotingCommand not equal to the original one")
+		}
+	}
+}
+
+func Benchmark_jsonCodec_decodeHeader(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	headers, err := jsonSerializer.encodeHeader(rc)
+	if err != nil {
+		b.Fatalf("encode header with jsonCodec fail: %v", err)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := jsonSerializer.decodeHeader(headers); err != nil {
+			b.Fatalf("decode header with jsonCodec fail: %v", err)
+		}
+	}
+}
+
+func Test_rmqCodec_encodeHeader(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		rc := randomNewRemotingCommand()
+
+		if _, err := rocketMqSerializer.encodeHeader(rc); err != nil {
+			t.Fatalf("encode header with rmqCodec fail: %v", err)
+		}
+	}
+}
+
+func Benchmark_rmqCodec_encodeHeader(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := rocketMqSerializer.encodeHeader(rc); err != nil {
+			b.Fatalf("encode header with rmqCodec fail: %v", err)
+		}
+	}
+}
+
+func Test_rmqCodec_decodeHeader(t *testing.T) {
+	for i := 0; i < 1; i++ {
+		rc := randomNewRemotingCommand()
+
+		headers, err := rocketMqSerializer.encodeHeader(rc)
+		if err != nil {
+			t.Fatalf("encode header with rmqCodec fail: %v", err)
+		}
+
+		decodedRc, err := rocketMqSerializer.decodeHeader(headers)
+		if err != nil {
+			t.Fatalf("decode header with rmqCodec fail: %v", err)
+		}
+
+		if rc.Code != decodedRc.Code ||
+			rc.Language != decodedRc.Language ||
+			rc.Version != decodedRc.Version ||
+			rc.Opaque != rc.Opaque ||
+			rc.Flag != rc.Flag ||
+			rc.Remark != rc.Remark ||
+			!reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
+			t.Fatal("decoded RemotingCommand not equal to the original one")
+		}
+	}
+}
+
+func Benchmark_rmqCodec_decodeHeader(b *testing.B) {
+	rc := randomNewRemotingCommand()
+	headers, err := rocketMqSerializer.encodeHeader(rc)
+	if err != nil {
+		b.Fatalf("encode header with rmqCodec fail: %v", err)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if _, err := rocketMqSerializer.decodeHeader(headers); err != nil {
+			b.Fatalf("decode header with rmqCodec fail: %v", err)
+		}
+	}
+}
+
+func TestCommandJsonEncodeDecode(t *testing.T) {
+	cmd := NewRemotingCommand(192, map[string]string{"brokers": "127.0.0.1"}, []byte("Hello RocketMQCodecs"))
 	codecType = JsonCodecs
-	cmdData, err:= encode(cmd)
+	cmdData, err := encode(cmd)
 	if err != nil {
 		t.Errorf("failed to encode remotingCommand in JSON, %s", err)
-	}else{
+	} else {
 		if len(cmdData) == 0 {
 			t.Errorf("failed to encode remotingCommand, result is empty.")
 		}
@@ -64,14 +270,13 @@ func TestCommandJsonEncodeDecode(t *testing.T){
 	}
 }
 
-
-func TestCommandRocketMQEncodeDecode(t *testing.T){
-	cmd :=newRemotingCommand(int32(192), map[string]string{"brokers":"127.0.0.1"}, []byte("Hello RocketMQCodecs"))
+func TestCommandRocketMQEncodeDecode(t *testing.T) {
+	cmd := NewRemotingCommand(192, map[string]string{"brokers": "127.0.0.1"}, []byte("Hello RocketMQCodecs"))
 	codecType = RocketMQCodecs
-	cmdData, err:= encode(cmd)
+	cmdData, err := encode(cmd)
 	if err != nil {
 		t.Errorf("failed to encode remotingCommand in JSON, %s", err)
-	}else{
+	} else {
 		if len(cmdData) == 0 {
 			t.Errorf("failed to encode remotingCommand, result is empty.")
 		}

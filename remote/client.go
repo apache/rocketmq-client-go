@@ -32,9 +32,9 @@ var (
 )
 
 type RemotingClient interface {
-	InvokeSync(request *remotingCommand) (*remotingCommand, error)
-	InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error
-	InvokeOneWay(request *remotingCommand) error
+	InvokeSync(request *RemotingCommand) (*RemotingCommand, error)
+	InvokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error
+	InvokeOneWay(request *RemotingCommand) error
 }
 
 // ClientConfig common config
@@ -76,9 +76,9 @@ func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
 	}
 
 	switch config.CType {
-	case JSON:
+	case JsonCodecs:
 		client.codec = &jsonCodec{}
-	case RocketMQ:
+	case RocketMQCodecs:
 		client.codec = &rmqCodec{}
 	default:
 		return nil, errors.New("unknow codec")
@@ -95,7 +95,7 @@ func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
 	return client, nil
 }
 
-func (client *defaultClient) InvokeSync(request *remotingCommand) (*remotingCommand, error) {
+func (client *defaultClient) InvokeSync(request *RemotingCommand) (*RemotingCommand, error) {
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
@@ -121,7 +121,7 @@ func (client *defaultClient) InvokeSync(request *remotingCommand) (*remotingComm
 	}
 }
 
-func (client *defaultClient) InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error {
+func (client *defaultClient) InvokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error {
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
@@ -139,7 +139,7 @@ func (client *defaultClient) InvokeAsync(request *remotingCommand, f func(*remot
 	return client.doRequest(header, body)
 }
 
-func (client *defaultClient) InvokeOneWay(request *remotingCommand) error {
+func (client *defaultClient) InvokeOneWay(request *RemotingCommand) error {
 	header, err := encode(request)
 	if err != nil {
 		return err
@@ -208,7 +208,7 @@ func (client *defaultClient) listen() {
 	}
 }
 
-func (client *defaultClient) handleRequestFromServer(cmd *remotingCommand) {
+func (client *defaultClient) handleRequestFromServer(cmd *RemotingCommand) {
 	//responseCommand := client.clientRequestProcessor(cmd)
 	//if responseCommand == nil {
 	//	return
@@ -223,7 +223,7 @@ func (client *defaultClient) handleRequestFromServer(cmd *remotingCommand) {
 	//}
 }
 
-func (client *defaultClient) handleResponse(cmd *remotingCommand) error {
+func (client *defaultClient) handleResponse(cmd *RemotingCommand) error {
 	//response, err := client.getResponse(cmd.Opaque)
 	////client.removeResponse(cmd.Opaque)
 	//if err != nil {
