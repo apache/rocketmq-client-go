@@ -16,28 +16,3 @@
  */
 package rocketmq
 
-//func TestCreateMessage(test *testing.T){
-//    fmt.Println("-----TestCreateMessage Start----")
-//    rocketmq.CreateMessage("testTopic")
-//    fmt.Println("-----TestCreateMessage Finish----")
-//}
-//
-//func TestDestroyMessage(test *testing.T){
-//    fmt.Println("-----TestCreateMessage Start----")
-//    msg := rocketmq.CreateMessage("testTopic")
-//    rocketmq.DestroyMessage(msg)
-//    fmt.Println("-----TestCreateMessage Finish----")
-//}
-//func TestSetMessageKeys(test *testing.T){
-//    fmt.Println("-----TestSetMessageKeys Start----")
-//    msg := rocketmq.CreateMessage("testTopic")
-//    len := rocketmq.SetMessageKeys(msg,"testKey")
-//    fmt.Println("Len:",len)
-//    rocketmq.DestroyMessage(msg)
-//    fmt.Println("-----TestCreateMessage Finish----")
-//}
-//func TestCreateProducer(test *testing.T){
-//    fmt.Println("-----TestCreateProducer Start----")
-//    rocketmq.CreateProducer("testGroupId")
-//    fmt.Println("-----TestCreateProducer Finish----")
-//}

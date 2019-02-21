@@ -2,6 +2,7 @@
 
 ## Unit Test
 **TODO: How to mock cgo API**
+
 ### core package
 #### api.go
 - [ ] `func (config *ClientConfig) String() string`
@@ -19,12 +20,15 @@
 - [ ] `func (e rmqError) Error() string`
 
 #### log.go
-- [ ] `func (l LogLevel) String() string `
-- [ ] `func (lc *LogConfig) String() string `
+- [x] `func (l LogLevel) String() string `
+- [x] `func (lc *LogConfig) String() string `
 
 #### message.go
 - [ ] `func (msg *Message) String() string`
+- [ ] `func goMsgToC(gomsg *Message) *C.struct_CMessage `
 - [ ] `func (msgExt *MessageExt) String() string`
+- [ ] `func (msgExt *MessageExt) GetProperty(key string) string `
+- [ ] `func cmsgExtToGo(cmsg *C.struct_CMessageExt) *MessageExt `
 
 #### producer.go
 - [ ] `func (status SendStatus) String() string `
@@ -57,18 +61,17 @@
 #### queue_selector.go
 - [ ] `func (q *MessageQueue) String() string `
 - [ ] `func queueSelectorCallback(size int, selectorKey unsafe.Pointer) int `
-- [ ] `func (w *messageQueueSelectorWrapper) Select(size int) int`
-- [ ] `func (s *selectorHolder) put(selector *messageQueueSelectorWrapper) (key int) `
-- [ ] `func (s *selectorHolder) getAndDelete(key int) (*messageQueueSelectorWrapper, bool) `
+- [x] `func (w *messageQueueSelectorWrapper) Select(size int) int`
+- [x] `func (s *selectorHolder) put(selector *messageQueueSelectorWrapper) (key int) `
+- [x] `func (s *selectorHolder) getAndDelete(key int) (*messageQueueSelectorWrapper, bool) `
 
 ## Integration Test
 ### Producer
-### Consumer
+- send message with `DelayTimeLevel`
+- send message with `tag`
+- send message orderly with `tag`
 
-## Performance Test
-### Producer
 ### Consumer
-
-## Stability Test
-### Producer
-### Consumer
+- consume message delayed through push/pull
+- subscribe topic with expression 
+- pull message with expression

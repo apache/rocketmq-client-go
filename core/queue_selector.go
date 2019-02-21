@@ -16,6 +16,7 @@
  */
 package rocketmq
 
+import "C"
 import (
 	"fmt"
 	"strconv"
