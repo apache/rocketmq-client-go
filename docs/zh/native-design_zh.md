@@ -51,20 +51,32 @@ InvokeOneWay(request *remotingCommand) error
 ```
 
 ### common
+All struct needed has been defined in codebase.
+
 ```go
-// for producer
-SendMessageSync(route *TopicRouteInfo, msg *Message) error
-SendMessageAsync(route *TopicRouteInfo, msg *Message, f func(result *SendResult)) error
+// PullMessage with sync
+func SendMessage(topic string, msgs *[]Message) error 
 
-SendMessageSyncBatch(route *TopicRouteInfo, msg []*Message) error
-SendMessageAsyncBatch(route *TopicRouteInfo, msg []*Message, f func(result *SendResult)) error
+// SendMessageAsync send message with batch by async
+func SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult)) error 
 
-// for consumer
-PullMessageSync(route *TopicRouteInfo, request *PullMessageRequest) error
-PullMessageAsync(route *TopicRouteInfo, request *PullMessageRequest, f func(result *PullResult)) error
+// PullMessage with sync
+func PullMessage(request *PullMessageRequest) error 
 
-// for offset
-TODO
+// PullMessageAsync pull message async
+func PullMessageAsync(request *PullMessageRequest, f func(result *PullResult)) error 
+
+// QueryMaxOffset with specific queueId and topic
+func QueryMaxOffset(topic string, queueId int) error 
+
+// QueryConsumerOffset with specific queueId and topic of consumerGroup
+func QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) 
+
+// SearchOffsetByTimestamp with specific queueId and topic
+func SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) 
+
+// UpdateConsumerOffset with specific queueId and topic
+func UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error 
 ```
 
 ## Road map
