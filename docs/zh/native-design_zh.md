@@ -40,14 +40,14 @@
 
 ### remote
 ```go
+NewRemotingCommand(code int16, header CustomHeader) *RemotingCommand 
+
 // send a request to servers and return until response received.
-InvokeSync(request *remotingCommand) (*remotingCommand, error)
+InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) 
 
-// send a request to servers, process response with async
-InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error
+InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error 
 
-// send request only, no response will be returned by servers.
-InvokeOneWay(request *remotingCommand) error
+InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error 
 ```
 
 ### common
@@ -55,28 +55,28 @@ All struct needed has been defined in codebase.
 
 ```go
 // PullMessage with sync
-func SendMessage(topic string, msgs *[]Message) error 
+SendMessage(topic string, msgs *[]Message) error 
 
 // SendMessageAsync send message with batch by async
-func SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult)) error 
+SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult)) error 
 
 // PullMessage with sync
-func PullMessage(request *PullMessageRequest) error 
+PullMessage(request *PullMessageRequest) error 
 
 // PullMessageAsync pull message async
-func PullMessageAsync(request *PullMessageRequest, f func(result *PullResult)) error 
+PullMessageAsync(request *PullMessageRequest, f func(result *PullResult)) error 
 
 // QueryMaxOffset with specific queueId and topic
-func QueryMaxOffset(topic string, queueId int) error 
+QueryMaxOffset(topic string, queueId int) error 
 
 // QueryConsumerOffset with specific queueId and topic of consumerGroup
-func QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) 
+QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) 
 
 // SearchOffsetByTimestamp with specific queueId and topic
-func SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) 
+SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) 
 
 // UpdateConsumerOffset with specific queueId and topic
-func UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error 
+UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error 
 ```
 
 ## Road map

@@ -55,12 +55,12 @@ const (
 )
 
 type ResponseFuture struct {
-	ResponseCommand *remotingCommand
+	ResponseCommand *RemotingCommand
 	SendRequestOK   bool
 	Rrr             error
 	Opaque          int32
 	TimeoutMillis   time.Duration
-	callback        func(*remotingCommand)
+	callback        func(*RemotingCommand)
 	BeginTimestamp  int64
 	Done            chan bool
 }
