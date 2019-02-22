@@ -49,7 +49,7 @@ type ClientConfig struct {
 
 	// request timeout time
 	RequestTimeout time.Duration
-	CType byte
+	CType          byte
 
 	UnitMode          bool
 	UnitName          string
@@ -59,14 +59,14 @@ type ClientConfig struct {
 type defaultClient struct {
 	//clientId     string
 	config ClientConfig
-	conn net.Conn
+	conn   net.Conn
 	// requestId
 	opaque int32
 
 	// int32 -> ResponseFuture
 	responseTable sync.Map
 	codec         serializer
-	exitCh chan interface{}
+	exitCh        chan interface{}
 }
 
 func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
@@ -173,7 +173,7 @@ func (client *defaultClient) listen() {
 		for {
 			err := binary.Read(rb, binary.BigEndian, &frameSize)
 			if err != nil {
-				 // TODO
+				// TODO
 			}
 			data := make([]byte, frameSize)
 
@@ -186,7 +186,7 @@ func (client *defaultClient) listen() {
 			cmd, err := decode(data)
 			if cmd.isResponseType() {
 				client.handleResponse(cmd)
-			}  else {
+			} else {
 				client.handleRequestFromServer(cmd)
 			}
 		}

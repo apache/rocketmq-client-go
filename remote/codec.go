@@ -36,7 +36,7 @@ const (
 
 	RemotingCommandFlag    = 0
 	languageFlag           = "golang"
-	languageCode = byte(9)
+	languageCode           = byte(9)
 	remotingCommandVersion = 137
 )
 
@@ -73,9 +73,9 @@ func (command *remotingCommand) markResponseType() {
 }
 
 var (
-	jsonSerializer = &jsonCodec{}
+	jsonSerializer     = &jsonCodec{}
 	rocketMqSerializer = &rmqCodec{}
-	codecType byte
+	codecType          byte
 )
 
 // encode remotingCommand
@@ -89,14 +89,14 @@ var (
 func encode(command *remotingCommand) ([]byte, error) {
 	var (
 		header []byte
-		err error
+		err    error
 	)
 
 	switch codecType {
 	case Json:
-		header, err  = jsonSerializer.encodeHeader(command)
+		header, err = jsonSerializer.encodeHeader(command)
 	case RocketMQ:
-		header, err  = rocketMqSerializer.encodeHeader(command)
+		header, err = rocketMqSerializer.encodeHeader(command)
 	}
 
 	if err != nil {
@@ -172,8 +172,8 @@ func markProtocolType(source int32) []byte {
 }
 
 const (
-	Json  = byte(0)
-	RocketMQ  = byte(1)
+	Json     = byte(0)
+	RocketMQ = byte(1)
 )
 
 type serializer interface {
@@ -182,7 +182,7 @@ type serializer interface {
 }
 
 // jsonCodec please refer to remoting/protocol/RemotingSerializable
-type jsonCodec struct {}
+type jsonCodec struct{}
 
 func (c *jsonCodec) encodeHeader(command *remotingCommand) ([]byte, error) {
 	buf, err := json.Marshal(command)
@@ -221,16 +221,16 @@ const (
 	headerFixedLength = 21
 )
 
-type rmqCodec struct {}
+type rmqCodec struct{}
 
 // encodeHeader
-func (c *rmqCodec) encodeHeader(command *remotingCommand)  ([]byte, error) {
+func (c *rmqCodec) encodeHeader(command *remotingCommand) ([]byte, error) {
 	extBytes, err := c.encodeMaps(command.ExtFields)
 	if err != nil {
 		return nil, err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, headerFixedLength + len(command.Remark) + len(extBytes)))
+	buf := bytes.NewBuffer(make([]byte, headerFixedLength+len(command.Remark)+len(extBytes)))
 
 	// request code, length is 2 bytes
 	err = binary.Write(buf, binary.BigEndian, command.Code)
@@ -333,7 +333,7 @@ func (c *rmqCodec) decodeHeader(data []byte) (*remotingCommand, error) {
 
 	var (
 		languageCode byte
-		remarkLen int32
+		remarkLen    int32
 		extFieldsLen int32
 	)
 	err = binary.Read(buf, binary.BigEndian, &languageCode)

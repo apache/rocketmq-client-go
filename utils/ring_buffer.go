@@ -14,22 +14,22 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
- 
+
 package utils
 
 import "sync"
 
 type RingBuffer struct {
-	buf         []byte
+	buf      []byte
 	writePos int
-	readPos int
-	cap int
-	rwMutex sync.RWMutex
-	exitCh chan interface{}
+	readPos  int
+	cap      int
+	rwMutex  sync.RWMutex
+	exitCh   chan interface{}
 }
 
 func NewRingBuffer(cap int) *RingBuffer {
-	rb := &RingBuffer{buf: make([]byte, cap), cap:cap}
+	rb := &RingBuffer{buf: make([]byte, cap), cap: cap}
 	go rb.resize()
 	return rb
 }
@@ -42,7 +42,7 @@ func (r *RingBuffer) Write(b []byte) error {
 func (r *RingBuffer) Read(p []byte) (n int, err error) {
 
 	if r.Size() >= len(p) {
-		copy(p, r.buf[r.readPos: r.readPos + len(p)])
+		copy(p, r.buf[r.readPos:r.readPos+len(p)])
 		r.readPos += len(p)
 
 	}

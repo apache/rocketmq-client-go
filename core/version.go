@@ -14,7 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package rocketmq_client_go
+package rocketmq
 
 const GoClientVersion = "Go Client V1.2.0, Support CPP Core:V1.2.X"
 
