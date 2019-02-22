@@ -15,14 +15,3 @@
  *  limitations under the License.
  */
 package rocketmq
-
-//import "fmt"
-//import "testing"
-//import "../client"
-//
-//func TestCreatePushConsumer(test *testing.T){
-//    fmt.Println("-----TestCreateProducer Start----")
-//    consumer := rocketmq.CreatePushConsumer("testGroupId")
-//    rocketmq.DestroyPushConsumer(consumer)
-//    fmt.Println("-----TestCreateProducer Finish----")
-//}

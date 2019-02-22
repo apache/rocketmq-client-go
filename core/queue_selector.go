@@ -18,10 +18,22 @@ package rocketmq
 
 import "C"
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"unsafe"
 )
+
+// MessageQueue the queue of the message
+type MessageQueue struct {
+	Topic  string
+	Broker string
+	ID     int
+}
+
+func (q *MessageQueue) String() string {
+	return fmt.Sprintf("broker:%s, topic:%s, id:%d", q.Broker, q.Topic, q.ID)
+}
 
 var selectors = selectorHolder{selectors: map[int]*messageQueueSelectorWrapper{}}
 

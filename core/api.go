@@ -18,8 +18,10 @@ package rocketmq
 
 import "fmt"
 
+const GoClientVersion = "Go Client V1.2.0, Support CPP Core:V1.2.X"
+
 func Version() (version string) {
-	return GetVersion()
+	return GoClientVersion
 }
 
 type ClientConfig struct {
