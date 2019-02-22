@@ -17,6 +17,10 @@ limitations under the License.
 
 package common
 
+const (
+	GetRouteInfoByTopic = 105
+)
+
 type SendMessageRequest struct {
 	ProducerGroup         string `json:"producerGroup"`
 	Topic                 string `json:"topic"`
@@ -67,4 +71,12 @@ type UpdateConsumerOffsetRequest struct {
 	Topic         string `json:"topic"`
 	QueueId       int32  `json:"queueId"`
 	CommitOffset  int64  `json:"commitOffset"`
+}
+
+type GetRouteInfoRequest struct {
+	Topic string `json:"topic"`
+}
+
+func (getRouteInfo *GetRouteInfoRequest) Header() map[string]string {
+	return nil
 }

@@ -17,6 +17,11 @@ limitations under the License.
 
 package common
 
+const (
+	Success = int16(0)
+	TopicNotExist = int16(17)
+)
+
 type SendMessageResponse struct {
 	MsgId         string
 	QueueId       int32

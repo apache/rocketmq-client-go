@@ -19,13 +19,27 @@ package common
 
 import (
 	"fmt"
+	"github.com/apache/rocketmq-externals/rocketmq-go/model"
+	"github.com/golang/glog"
 	"sync"
 )
 
+// client connection maps, key is address, value is RemotingClient
 var connMap sync.Map
 
 // SendMessage with batch by sync
-func SendMessage(topic string, msgs *[]Message) error {
+func SendMessage(topic string, msgs *[]Message) (*SendResult, error) {
+	err := checkMessage(msgs)
+	if err != nil {
+		return nil, err
+	}
+
+	publishInfo := tryToFindTopicPublishInfo(topic)
+
+	return nil, nil
+}
+
+func checkMessage(msgs *[]Message) error {
 	return nil
 }
 
@@ -35,8 +49,8 @@ func SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult))
 }
 
 // PullMessage with sync
-func PullMessage(request *PullMessageRequest) error {
-	return nil
+func PullMessage(request *PullMessageRequest) (*PullResult, error) {
+	return nil, nil
 }
 
 // PullMessageAsync pull message async
@@ -117,7 +131,7 @@ const (
 type MessageQueue struct {
 	Topic      string `json:"topic"`
 	BrokerName string `json:"brokerName"`
-	QueueId    int32  `json:"queueId"`
+	QueueId    int    `json:"queueId"`
 }
 
 func (mq *MessageQueue) String() string {
