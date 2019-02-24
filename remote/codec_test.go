@@ -96,7 +96,7 @@ func Benchmark_decode(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if _, err := decode(bs[4:]); err != nil {
+		if _, err := decode(bs); err != nil {
 			b.Fatalf("decode bytes to RemotingCommand fail: %v", err)
 		}
 	}
