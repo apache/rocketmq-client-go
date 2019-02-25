@@ -18,6 +18,6 @@
 package remote
 
 type RPCHook interface {
-	DoBeforeRequest(string, *remotingCommand)
-	DoAfterResponse(string, *remotingCommand)
+	DoBeforeRequest(string, *RemotingCommand)
+	DoAfterResponse(string, *RemotingCommand)
 }

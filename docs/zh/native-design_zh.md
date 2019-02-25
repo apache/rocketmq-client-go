@@ -40,31 +40,43 @@
 
 ### remote
 ```go
+NewRemotingCommand(code int16, header CustomHeader) *RemotingCommand 
+
 // send a request to servers and return until response received.
-InvokeSync(request *remotingCommand) (*remotingCommand, error)
+InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) 
 
-// send a request to servers, process response with async
-InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error
+InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error 
 
-// send request only, no response will be returned by servers.
-InvokeOneWay(request *remotingCommand) error
+InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error 
 ```
 
 ### common
+All struct needed has been defined in codebase.
+
 ```go
-// for producer
-SendMessageSync(route *TopicRouteInfo, msg *Message) error
-SendMessageAsync(route *TopicRouteInfo, msg *Message, f func(result *SendResult)) error
+// PullMessage with sync
+SendMessage(topic string, msgs *[]Message) error 
 
-SendMessageSyncBatch(route *TopicRouteInfo, msg []*Message) error
-SendMessageAsyncBatch(route *TopicRouteInfo, msg []*Message, f func(result *SendResult)) error
+// SendMessageAsync send message with batch by async
+SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult)) error 
 
-// for consumer
-PullMessageSync(route *TopicRouteInfo, request *PullMessageRequest) error
-PullMessageAsync(route *TopicRouteInfo, request *PullMessageRequest, f func(result *PullResult)) error
+// PullMessage with sync
+PullMessage(request *PullMessageRequest) error 
 
-// for offset
-TODO
+// PullMessageAsync pull message async
+PullMessageAsync(request *PullMessageRequest, f func(result *PullResult)) error 
+
+// QueryMaxOffset with specific queueId and topic
+QueryMaxOffset(topic string, queueId int) error 
+
+// QueryConsumerOffset with specific queueId and topic of consumerGroup
+QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) 
+
+// SearchOffsetByTimestamp with specific queueId and topic
+SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) 
+
+// UpdateConsumerOffset with specific queueId and topic
+UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error 
 ```
 
 ## Road map

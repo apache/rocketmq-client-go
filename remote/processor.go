@@ -16,7 +16,7 @@
  */
 package remote
 
-type ClientRequestProcessor func(remotingCommand *remotingCommand) (responseCommand *remotingCommand)
+type ClientRequestProcessor func(remotingCommand *RemotingCommand) (responseCommand *RemotingCommand)
 
 //CHECK_TRANSACTION_STATE
 //NOTIFY_CONSUMER_IDS_CHANGED

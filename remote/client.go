@@ -30,10 +30,16 @@ var (
 	ErrRequestTimeout = errors.New("request timeout")
 )
 
-type RemotingClient interface {
-	InvokeSync(request *remotingCommand) (*remotingCommand, error)
-	InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error
-	InvokeOneWay(request *remotingCommand) error
+func InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	return nil, nil
+}
+
+func InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error {
+	return nil
+}
+
+func InvokeOneWay(addr string, request *RemotingCommand) error {
+	return nil
 }
 
 // ClientConfig common config
@@ -49,7 +55,7 @@ type ClientConfig struct {
 
 	// request timeout time
 	RequestTimeout time.Duration
-	CType byte
+	CType          byte
 
 	UnitMode          bool
 	UnitName          string
@@ -59,42 +65,42 @@ type ClientConfig struct {
 type defaultClient struct {
 	//clientId     string
 	config ClientConfig
-	conn net.Conn
+	conn   net.Conn
 	// requestId
 	opaque int32
 
 	// int32 -> ResponseFuture
 	responseTable sync.Map
 	codec         serializer
-	exitCh chan interface{}
+	exitCh        chan interface{}
 }
 
-func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
-	client := &defaultClient{
-		config: config,
-	}
+//func newRemotingClient(config ClientConfig) error {
+//	client := &defaultClient{
+//		config: config,
+//	}
+//
+//	switch config.CType {
+//	case Json:
+//		client.codec = &jsonCodec{}
+//	case RocketMQ:
+//		client.codec = &rmqCodec{}
+//	default:
+//		return errors.New("unknow codec")
+//	}
+//
+//	conn, err := net.Dial("tcp", config.RemotingAddress)
+//	if err != nil {
+//		log.Error(err)
+//		return nil, err
+//	}
+//	client.conn = conn
+//	go client.listen()
+//	go client.clearExpiredRequest()
+//	return client, nil
+//}
 
-	switch config.CType {
-	case Json:
-		client.codec = &jsonCodec{}
-	case RocketMQ:
-		client.codec = &rmqCodec{}
-	default:
-		return nil, errors.New("unknow codec")
-	}
-
-	conn, err := net.Dial("tcp", config.RemotingAddress)
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
-	client.conn = conn
-	go client.listen()
-	go client.clearExpiredRequest()
-	return client, nil
-}
-
-func (client *defaultClient) InvokeSync(request *remotingCommand) (*remotingCommand, error) {
+func (client *defaultClient) invokeSync(request *RemotingCommand) (*RemotingCommand, error) {
 
 	response := &ResponseFuture{
 		SendRequestOK:  false,
@@ -121,7 +127,7 @@ func (client *defaultClient) InvokeSync(request *remotingCommand) (*remotingComm
 	}
 }
 
-func (client *defaultClient) InvokeAsync(request *remotingCommand, f func(*remotingCommand)) error {
+func (client *defaultClient) invokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error {
 
 	response := &ResponseFuture{
 		SendRequestOK:  false,
@@ -140,7 +146,7 @@ func (client *defaultClient) InvokeAsync(request *remotingCommand, f func(*remot
 	return client.doRequest(header, body)
 }
 
-func (client *defaultClient) InvokeOneWay(request *remotingCommand) error {
+func (client *defaultClient) invokeOneWay(request *RemotingCommand) error {
 	header, err := encode(request)
 	if err != nil {
 		return err
@@ -173,7 +179,7 @@ func (client *defaultClient) listen() {
 		for {
 			err := binary.Read(rb, binary.BigEndian, &frameSize)
 			if err != nil {
-				 // TODO
+				// TODO
 			}
 			data := make([]byte, frameSize)
 
@@ -186,7 +192,7 @@ func (client *defaultClient) listen() {
 			cmd, err := decode(data)
 			if cmd.isResponseType() {
 				client.handleResponse(cmd)
-			}  else {
+			} else {
 				client.handleRequestFromServer(cmd)
 			}
 		}
@@ -208,7 +214,7 @@ func (client *defaultClient) listen() {
 	}
 }
 
-func (client *defaultClient) handleRequestFromServer(cmd *remotingCommand) {
+func (client *defaultClient) handleRequestFromServer(cmd *RemotingCommand) {
 	//responseCommand := client.clientRequestProcessor(cmd)
 	//if responseCommand == nil {
 	//	return
@@ -223,7 +229,7 @@ func (client *defaultClient) handleRequestFromServer(cmd *remotingCommand) {
 	//}
 }
 
-func (client *defaultClient) handleResponse(cmd *remotingCommand) error {
+func (client *defaultClient) handleResponse(cmd *RemotingCommand) error {
 	//response, err := client.getResponse(cmd.Opaque)
 	////client.removeResponse(cmd.Opaque)
 	//if err != nil {
