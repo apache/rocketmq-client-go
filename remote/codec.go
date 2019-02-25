@@ -78,13 +78,13 @@ var (
 	codecType          byte
 )
 
-// encode remotingCommand
+// encode RemotingCommand
 //
 // Frame format:
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // + item | frame_size | header_length |         header_body        |     body     +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// + len  |   4bytes   |     4bytes    | (19 + r_len + e_len) bytes | remain bytes +
+// + len  |   4bytes   |     4bytes    | (21 + r_len + e_len) bytes | remain bytes +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 func encode(command *RemotingCommand) ([]byte, error) {
 	var (

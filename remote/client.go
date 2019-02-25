@@ -31,10 +31,16 @@ var (
 	ErrRequestTimeout = errors.New("request timeout")
 )
 
-type RemotingClient interface {
-	InvokeSync(request *RemotingCommand) (*RemotingCommand, error)
-	InvokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error
-	InvokeOneWay(request *RemotingCommand) error
+func InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	return nil, nil
+}
+
+func InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error {
+	return nil
+}
+
+func InvokeOneWay(addr string, request *RemotingCommand) error {
+	return nil
 }
 
 // ClientConfig common config
@@ -70,32 +76,33 @@ type defaultClient struct {
 	exitCh        chan interface{}
 }
 
-func NewRemotingClient(config ClientConfig) (RemotingClient, error) {
-	client := &defaultClient{
-		config: config,
-	}
+//func newRemotingClient(config ClientConfig) error {
+//	client := &defaultClient{
+//		config: config,
+//	}
+//
+//	switch config.CType {
+//	case Json:
+//		client.codec = &jsonCodec{}
+//	case RocketMQ:
+//		client.codec = &rmqCodec{}
+//	default:
+//		return errors.New("unknow codec")
+//	}
+//
+//	conn, err := net.Dial("tcp", config.RemotingAddress)
+//	if err != nil {
+//		log.Error(err)
+//		return nil, err
+//	}
+//	client.conn = conn
+//	go client.listen()
+//	go client.clearExpiredRequest()
+//	return client, nil
+//}
 
-	switch config.CType {
-	case JsonCodecs:
-		client.codec = &jsonCodec{}
-	case RocketMQCodecs:
-		client.codec = &rmqCodec{}
-	default:
-		return nil, errors.New("unknow codec")
-	}
+func (client *defaultClient) invokeSync(request *RemotingCommand) (*RemotingCommand, error) {
 
-	conn, err := net.Dial("tcp", config.RemotingAddress)
-	if err != nil {
-		log.Error(err)
-		return nil, err
-	}
-	client.conn = conn
-	go client.listen()
-	go client.clearExpiredRequest()
-	return client, nil
-}
-
-func (client *defaultClient) InvokeSync(request *RemotingCommand) (*RemotingCommand, error) {
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
@@ -121,7 +128,8 @@ func (client *defaultClient) InvokeSync(request *RemotingCommand) (*RemotingComm
 	}
 }
 
-func (client *defaultClient) InvokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error {
+func (client *defaultClient) invokeAsync(request *RemotingCommand, f func(*RemotingCommand)) error {
+
 	response := &ResponseFuture{
 		SendRequestOK:  false,
 		Opaque:         request.Opaque,
@@ -139,7 +147,7 @@ func (client *defaultClient) InvokeAsync(request *RemotingCommand, f func(*Remot
 	return client.doRequest(header, body)
 }
 
-func (client *defaultClient) InvokeOneWay(request *RemotingCommand) error {
+func (client *defaultClient) invokeOneWay(request *RemotingCommand) error {
 	header, err := encode(request)
 	if err != nil {
 		return err
