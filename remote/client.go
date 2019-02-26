@@ -19,11 +19,12 @@ package remote
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/apache/rocketmq-client-go/utils"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -157,11 +158,12 @@ func (client *defaultClient) invokeOneWay(request *RemotingCommand) error {
 }
 
 func (client *defaultClient) doRequest(header, body []byte) error {
-	var requestBytes []byte
-	requestBytes = append(requestBytes, header...)
-	if body != nil && len(body) > 0 {
-		requestBytes = append(requestBytes, body...)
+	var requestBytes = make([]byte, len(header)+len(body))
+	copy(requestBytes, header)
+	if len(body) > 0 {
+		copy(requestBytes[len(header):], body)
 	}
+
 	_, err := client.conn.Write(requestBytes)
 	return err
 }
