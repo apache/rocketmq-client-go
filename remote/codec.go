@@ -33,7 +33,7 @@ const (
 	// 1, RPC
 	RPCOneWay = 1
 
-	//ResponseType for reponse
+	//ResponseType for response
 	ResponseType = 1
 
 	_Flag         = 0
@@ -53,15 +53,24 @@ type RemotingCommand struct {
 	Body      []byte            `json:"-"`
 }
 
-func NewRemotingCommand(code int16, properties map[string]string, body []byte) *RemotingCommand {
-	return &RemotingCommand{
-		Code:      code,
-		Language:  _LanguageCode,
-		Version:   _Version,
-		Opaque:    atomic.AddInt32(&opaque, 1),
-		ExtFields: properties,
-		Body:      body,
+type CustomHeader interface {
+	Encode() map[string]string
+}
+
+func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingCommand {
+	cmd := &RemotingCommand{
+		Code:     code,
+		Language: _LanguageCode,
+		Version:  _Version,
+		Opaque:   atomic.AddInt32(&opaque, 1),
+		Body:     body,
 	}
+
+	if header != nil {
+		cmd.ExtFields = header.Encode()
+	}
+
+	return cmd
 }
 
 func (command *RemotingCommand) isResponseType() bool {

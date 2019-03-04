@@ -18,8 +18,11 @@ limitations under the License.
 package common
 
 const (
-	Success = int16(0)
-	TopicNotExist = int16(17)
+	Success           = int16(0)
+	FlushDiskTimeout  = int16(10)
+	SlaveNotAvailable = int16(11)
+	FlushSlaveTimeout = int16(12)
+	TopicNotExist     = int16(17)
 )
 
 type SendMessageResponse struct {
@@ -28,6 +31,10 @@ type SendMessageResponse struct {
 	QueueOffset   int64
 	TransactionId string
 	MsgRegion     string
+}
+
+func (response *SendMessageResponse) Decode(properties map[string]string) {
+
 }
 
 type PullMessageResponse struct {

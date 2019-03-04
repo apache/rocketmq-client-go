@@ -18,6 +18,9 @@ limitations under the License.
 package common
 
 import (
+	"encoding/json"
+	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"sort"
 	"strconv"
@@ -25,9 +28,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"github.com/apache/rocketmq-client-go/remote"
-	"github.com/pkg/errors"
-	"encoding/json"
 )
 
 const (
@@ -155,7 +155,7 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 	request := &GetRouteInfoRequest{
 		Topic: topic,
 	}
-	rc := remote.NewRemotingCommand(GetRouteInfoByTopic, request)
+	rc := remote.NewRemotingCommand(GetRouteInfoByTopic, request, nil)
 
 	response, err := remote.InvokeSync(getNameServerAddress(), rc, timeout)
 
@@ -181,7 +181,6 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 		return nil, errors.New(response.Remark)
 	}
 }
-
 
 func topicRouteDataIsChange(oldData *topicRouteData, newData *topicRouteData) bool {
 	if oldData == nil || newData == nil {
@@ -286,7 +285,7 @@ type topicRouteData struct {
 func (routeData *topicRouteData) clone() *topicRouteData {
 	cloned := &topicRouteData{
 		orderTopicConf: routeData.orderTopicConf,
-		queueDataList: make([]*QueueData, len(routeData.queueDataList)),
+		queueDataList:  make([]*QueueData, len(routeData.queueDataList)),
 		brokerDataList: make([]*BrokerData, len(routeData.brokerDataList)),
 	}
 

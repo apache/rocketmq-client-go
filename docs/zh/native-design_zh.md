@@ -43,11 +43,11 @@
 NewRemotingCommand(code int16, header CustomHeader) *RemotingCommand 
 
 // send a request to servers and return until response received.
-InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) 
+SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest, msgs []*Message) (*SendResult, error)
 
-InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error 
+SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest, msgs []*Message, f func(result *SendResult)) error
 
-InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error 
+SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest, msgs []*Message) (*SendResult, error)
 ```
 
 ### common
@@ -61,10 +61,10 @@ SendMessage(topic string, msgs *[]Message) error
 SendMessageAsync(topic string, msgs *[]Message, f func(result *SendResult)) error 
 
 // PullMessage with sync
-PullMessage(request *PullMessageRequest) error 
+PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error)
 
 // PullMessageAsync pull message async
-PullMessageAsync(request *PullMessageRequest, f func(result *PullResult)) error 
+func PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *PullResult)) error
 
 // QueryMaxOffset with specific queueId and topic
 QueryMaxOffset(topic string, queueId int) error 

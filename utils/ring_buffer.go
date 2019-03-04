@@ -28,7 +28,7 @@ type RingBuffer struct {
 	exitCh   chan interface{}
 }
 
-func NewRingBuffer(cap int) *RingBuffer {
+func NewRingRBuffer(cap int) *RingBuffer {
 	rb := &RingBuffer{buf: make([]byte, cap), cap: cap}
 	go rb.resize()
 	return rb

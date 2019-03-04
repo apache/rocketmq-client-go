@@ -18,7 +18,8 @@ limitations under the License.
 package common
 
 const (
-	GetRouteInfoByTopic = 105
+	GetRouteInfoByTopic = int16(105)
+	SendBatchMessage    = int16(320)
 )
 
 type SendMessageRequest struct {
@@ -34,6 +35,14 @@ type SendMessageRequest struct {
 	ReconsumeTimes        int    `json:"reconsumeTimes"`
 	UnitMode              bool   `json:"unitMode"`
 	MaxReconsumeTimes     int    `json:"maxReconsumeTimes"`
+}
+
+func (request *SendMessageRequest) Encode() map[string]string {
+	return nil
+}
+
+func (request *SendMessageRequest) Decode(properties map[string]string) error {
+	return nil
 }
 
 type PullMessageRequest struct {
@@ -77,6 +86,10 @@ type GetRouteInfoRequest struct {
 	Topic string `json:"topic"`
 }
 
-func (getRouteInfo *GetRouteInfoRequest) Header() map[string]string {
+func (request *GetRouteInfoRequest) Encode() map[string]string {
+	return nil
+}
+
+func (request *GetRouteInfoRequest) Decode(properties map[string]string) error {
 	return nil
 }
