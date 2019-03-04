@@ -29,6 +29,24 @@ const (
 	tranceOff            = "false"
 )
 
+type InnerProducer interface {
+	PublishTopicList() []string
+	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
+	IsPublishTopicNeedUpdate(topic string) bool
+	GetCheckListener() func(msg *MessageExt)
+	GetTransactionListener() TransactionListener
+	//CheckTransactionState()
+	isUnitMode() bool
+}
+
+type InnerConsumer interface {
+	DoRebalance()
+	PersistConsumerOffset()
+	UpdateTopicSubscribeInfo(topic string, mqs []*MessageQueue)
+	IsSubscribeTopicNeedUpdate(topic string) bool
+	IsUnitMode() bool
+}
+
 // SendMessage with batch by sync
 func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
@@ -193,4 +211,53 @@ type MessageQueue struct {
 
 func (mq *MessageQueue) String() string {
 	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
+}
+
+func CheckClientInBroker() {
+
+}
+
+func SendHeartbeatToAllBrokerWithLock() {
+
+}
+
+func UpdateTopicRouteInfoFromNameServer(topic string) {
+}
+
+func RegisterConsumer(group string, consumer InnerConsumer) {
+
+}
+
+func UnregisterConsumer(group string) {
+
+}
+
+func RegisterProducer(group string, producer InnerProducer) {
+
+}
+
+func UnregisterProducer(group string) {
+
+}
+
+func SelectProducer(group string) InnerProducer {
+	return nil
+}
+
+func SelectConsumer(group string) InnerConsumer {
+	return nil
+}
+
+func FindBrokerAddressInPublish(brokerName string) {
+
+}
+
+func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
+	return nil
+}
+
+type FindBrokerResult struct {
+	brokerAddr    string
+	slave         bool
+	brokerVersion int32
 }
