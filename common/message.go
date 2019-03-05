@@ -40,7 +40,7 @@ const (
 	ReconsumeTime                  = "RECONSUME_TIME"
 	MsgRegion                      = "MSG_REGION"
 	TraceSwitch                    = "TRACE_ON"
-	UniqeClientMessageIdKeyindex   = "UNIQ_KEY"
+	UniqueClientMessageIdKeyindex  = "UNIQ_KEY"
 	MaxReconsumeTimes              = "MAX_RECONSUME_TIMES"
 	ConsumeStartTime               = "CONSUME_START_TIME"
 	TranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
