@@ -19,9 +19,8 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/apache/rocketmq-client-go/remote"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,10 +41,15 @@ var (
 )
 
 var (
+	// brokerName -> *BrokerData
 	brokerAddressesMap sync.Map
-	publishInfoMap     sync.Map
-	routeDataMap       sync.Map
-	lockNamesrv        sync.Mutex
+
+	// brokerName -> map[string]int32
+	brokerVersionMap sync.Map
+
+	publishInfoMap sync.Map
+	routeDataMap   sync.Map
+	lockNamesrv    sync.Mutex
 )
 
 // key is topic, value is TopicPublishInfo
@@ -70,37 +74,7 @@ func (info *TopicPublishInfo) fetchQueueIndex() int {
 	return int(qIndex) % length
 }
 
-func tryToFindTopicPublishInfo(topic string) *TopicPublishInfo {
-	value, exist := publishInfoMap.Load(topic)
-
-	var info *TopicPublishInfo
-	if exist {
-		info = value.(*TopicPublishInfo)
-	}
-
-	if info == nil || !info.isOK() {
-		updateTopicRouteInfo(topic)
-		value, exist = publishInfoMap.Load(topic)
-		if !exist {
-			info = &TopicPublishInfo{HaveTopicRouterInfo: false}
-		} else {
-			info = value.(*TopicPublishInfo)
-		}
-	}
-
-	if info.HaveTopicRouterInfo || info.isOK() {
-		return info
-	}
-
-	value, exist = publishInfoMap.Load(topic)
-	if exist {
-		return value.(*TopicPublishInfo)
-	}
-
-	return nil
-}
-
-func updateTopicRouteInfo(topic string) {
+func UpdateTopicRouteInfo(topic string) {
 	// Todo process lock timeout
 	lockNamesrv.Lock()
 	defer lockNamesrv.Unlock()
@@ -149,6 +123,65 @@ func updateTopicRouteInfo(topic string) {
 	if old != nil {
 		log.Infof("Old TopicPublishInfo [%s] removed.", old)
 	}
+}
+
+func FindBrokerAddressInPublish(brokerName string) string {
+	bd, exist := brokerAddressesMap.Load(brokerName)
+
+	if !exist {
+		return ""
+	}
+
+	return bd.(*BrokerData).brokerAddresses[masterId]
+}
+
+func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
+	var (
+		brokerAddr = ""
+		slave      = false
+		found      = false
+	)
+
+	bd, exist := brokerAddressesMap.Load(brokerName)
+
+	if exist {
+		for k, v := range bd.(*BrokerData).brokerAddresses {
+			if v != "" {
+				found = true
+				if k != masterId {
+					slave = true
+				}
+				break
+			}
+		}
+	}
+
+	var result *FindBrokerResult
+	if found {
+		result = &FindBrokerResult{
+			BrokerAddr:    brokerName,
+			Slave:         slave,
+			BrokerVersion: findBrokerVersion(brokerName, brokerAddr),
+		}
+	}
+
+	return result
+}
+
+func findBrokerVersion(brokerName, brokerAddr string) int32 {
+	versions, exist := brokerVersionMap.Load(brokerName)
+
+	var version = int32(0)
+	if !exist {
+		return version
+	}
+
+	v, exist := versions.(map[string]int32)[brokerAddr]
+
+	if exist {
+		version = v
+	}
+	return version
 }
 
 func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicRouteData, error) {

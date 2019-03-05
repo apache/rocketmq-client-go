@@ -19,14 +19,30 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/utils"
+	"os"
+	"strconv"
+	"sync"
 	"time"
 )
 
 const (
 	defaultTraceRegionID = "DefaultRegion"
 	tranceOff            = "false"
+)
+
+var (
+	log                           = utils.RLog
+	namesrvAddrs                  = os.Getenv("rocketmq.namesrv.addr")
+	clientIP                      = utils.LocalIP()
+	instanceName                  = os.Getenv("rocketmq.client.name")
+	pollNameServerInterval        = 30 * time.Second
+	heartbeatBrokerInterval       = 30 * time.Second
+	persistConsumerOffsetInterval = 5 * time.Second
+	unitMode                      = false
+	vipChannelEnabled, _          = strconv.ParseBool(os.Getenv("com.rocketmq.sendMessageWithVIPChannel"))
+	clientID                      = clientIP + "@" + instanceName
 )
 
 type InnerProducer interface {
@@ -53,6 +69,7 @@ func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, reques
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
 	response, err := client.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
+		log.Warningf("send messages with sync error: %v", err)
 		return nil, err
 	}
 
@@ -69,11 +86,10 @@ func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMes
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
 	err := client.InvokeOneWay(brokerAddrs, cmd)
+	if err != nil {
+		log.Warningf("send messages with oneway error: %v", err)
+	}
 	return nil, err
-}
-
-func encodeMessages(message []*Message) []byte {
-	return nil
 }
 
 func processSendResponse(brokerName string, msgs []*Message, cmd *remote.RemotingCommand) *SendResult {
@@ -97,7 +113,6 @@ func processSendResponse(brokerName string, msgs []*Message, cmd *remote.Remotin
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
 		msgIDs = append(msgIDs, msgs[i].Properties[UniqueClientMessageIdKeyindex])
-
 	}
 
 	regionId := cmd.ExtFields[MsgRegion]
@@ -153,75 +168,16 @@ func UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) 
 	return nil
 }
 
-//SendStatus message send result
-type SendStatus int
+var (
+	// group -> InnerProducer
+	producerMap sync.Map
 
-const (
-	SendOK SendStatus = iota
-	SendFlushDiskTimeout
-	SendFlushSlaveTimeout
-	SendSlaveNotAvailable
+	// group -> InnerConsumer
+	consumerMap sync.Map
 )
-
-// SendResult rocketmq send result
-type SendResult struct {
-	Status        SendStatus
-	MsgIDs        []string
-	MessageQueue  *MessageQueue
-	QueueOffset   int64
-	TransactionID string
-	OffsetMsgID   string
-	RegionID      string
-	TraceOn       bool
-}
-
-// SendResult send message result to string(detail result)
-func (result *SendResult) String() string {
-	return fmt.Sprintf("SendResult [sendStatus=%d, msgIds=%s, offsetMsgId=%s, queueOffset=%d, messageQueue=%s]",
-		result.Status, result.MsgIDs, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
-}
-
-// PullResult the pull result
-type PullResult struct {
-	NextBeginOffset int64
-	MinOffset       int64
-	MaxOffset       int64
-	Status          PullStatus
-	Messages        []*MessageExt
-}
-
-// PullStatus pull status
-type PullStatus int
-
-// predefined pull status
-const (
-	PullFound PullStatus = iota
-	PullNoNewMsg
-	PullNoMatchedMsg
-	PullOffsetIllegal
-	PullBrokerTimeout
-)
-
-// MessageQueue message queue
-type MessageQueue struct {
-	Topic      string `json:"topic"`
-	BrokerName string `json:"brokerName"`
-	QueueId    int    `json:"queueId"`
-}
-
-func (mq *MessageQueue) String() string {
-	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
-}
 
 func CheckClientInBroker() {
 
-}
-
-func SendHeartbeatToAllBrokerWithLock() {
-
-}
-
-func UpdateTopicRouteInfoFromNameServer(topic string) {
 }
 
 func RegisterConsumer(group string, consumer InnerConsumer) {
@@ -248,16 +204,10 @@ func SelectConsumer(group string) InnerConsumer {
 	return nil
 }
 
-func FindBrokerAddressInPublish(brokerName string) {
-
-}
-
-func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
+func encodeMessages(message []*Message) []byte {
 	return nil
 }
 
-type FindBrokerResult struct {
-	brokerAddr    string
-	slave         bool
-	brokerVersion int32
+func sendHeartbeatToAllBroker() {
+
 }
