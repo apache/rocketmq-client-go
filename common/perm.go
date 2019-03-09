@@ -14,13 +14,45 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package remote
 
-type ClientRequestProcessor func(remotingCommand *RemotingCommand) (responseCommand *RemotingCommand)
+package common
 
-//CHECK_TRANSACTION_STATE
-//NOTIFY_CONSUMER_IDS_CHANGED
-//RESET_CONSUMER_CLIENT_OFFSET
-//GET_CONSUMER_STATUS_FROM_CLIENT
-//GET_CONSUMER_RUNNING_INFO
-//CONSUME_MESSAGE_DIRECTLY
+const (
+	permPriority = 0x1 << 3
+	permRead     = 0x1 << 2
+	permWrite    = 0x1 << 1
+	permInherit  = 0x1 << 0
+)
+
+func isReadable(perm int) bool {
+	return (perm & permRead) == permRead
+}
+
+func isWriteable(perm int) bool {
+	return (perm & permWrite) == permWrite
+}
+
+func isInherited(perm int) bool {
+	return (perm & permInherit) == permInherit
+}
+
+func perm2string(perm int) string {
+	bytes := make([]byte, 3)
+	for i := 0; i < 3; i++ {
+		bytes[i] = '-'
+	}
+
+	if isReadable(perm) {
+		bytes[0] = 'R'
+	}
+
+	if isWriteable(perm) {
+		bytes[1] = 'W'
+	}
+
+	if isInherited(perm) {
+		bytes[2] = 'X'
+	}
+
+	return string(bytes)
+}
