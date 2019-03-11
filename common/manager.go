@@ -51,7 +51,7 @@ type InnerConsumer interface {
 func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
-	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	response, err := client.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, reque
 func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
-	err := remote.InvokeOneWay(brokerAddrs, cmd)
+	err := client.InvokeOneWay(brokerAddrs, cmd)
 	return nil, err
 }
 

@@ -157,7 +157,7 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 	}
 	rc := remote.NewRemotingCommand(GetRouteInfoByTopic, request, nil)
 
-	response, err := remote.InvokeSync(getNameServerAddress(), rc, timeout)
+	response, err := client.InvokeSync(getNameServerAddress(), rc, timeout)
 
 	if err != nil {
 		return nil, err
