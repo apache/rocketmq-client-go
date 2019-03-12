@@ -93,6 +93,18 @@ type RemotingClient interface {
 	InvokeOneWay(string, *RemotingCommand) error
 }
 
+func InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	return nil, nil
+}
+
+func InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error {
+	return nil
+}
+
+func InvokeOneWay(addr string, request*RemotingCommand) error {
+	return nil
+}
+
 //defaultRemotingClient for default RemotingClient implementation
 type defaultRemotingClient struct {
 	responseTable    map[int32]*ResponseFuture

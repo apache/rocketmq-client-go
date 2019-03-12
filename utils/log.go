@@ -15,44 +15,28 @@
  *  limitations under the License.
  */
 
-package common
+package utils
 
-const (
-	permPriority = 0x1 << 3
-	permRead     = 0x1 << 2
-	permWrite    = 0x1 << 1
-	permInherit  = 0x1 << 0
-)
+import "io"
 
-func isReadable(perm int) bool {
-	return (perm & permRead) == permRead
-}
+var RLog Logger
 
-func isWriteable(perm int) bool {
-	return (perm & permWrite) == permWrite
-}
-
-func isInherited(perm int) bool {
-	return (perm & permInherit) == permInherit
-}
-
-func perm2string(perm int) string {
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = '-'
-	}
-
-	if isReadable(perm) {
-		bytes[0] = 'R'
-	}
-
-	if isWriteable(perm) {
-		bytes[1] = 'W'
-	}
-
-	if isInherited(perm) {
-		bytes[2] = 'X'
-	}
-
-	return string(bytes)
+type Logger interface {
+	Output() io.Writer
+	SetOutput(w io.Writer)
+	Prefix() string
+	SetPrefix(p string)
+	SetHeader(h string)
+	Print(i ...interface{})
+	Printf(format string, args ...interface{})
+	Debug(i ...interface{})
+	Debugf(format string, args ...interface{})
+	Info(i ...interface{})
+	Infof(format string, args ...interface{})
+	Warning(i ...interface{})
+	Warningf(format string, args ...interface{})
+	Error(i ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatal(i ...interface{})
+	Fatalf(format string, args ...interface{})
 }

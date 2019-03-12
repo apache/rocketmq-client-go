@@ -15,7 +15,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
-type TransactionListener interface {
+const (
+	Success           = int16(0)
+	FlushDiskTimeout  = int16(10)
+	SlaveNotAvailable = int16(11)
+	FlushSlaveTimeout = int16(12)
+	TopicNotExist     = int16(17)
+)
+
+type SendMessageResponse struct {
+	MsgId         string
+	QueueId       int32
+	QueueOffset   int64
+	TransactionId string
+	MsgRegion     string
+}
+
+func (response *SendMessageResponse) Decode(properties map[string]string) {
+
+}
+
+type PullMessageResponse struct {
+	SuggestWhichBrokerId int64
+	NextBeginOffset      int64
+	MinOffset            int64
+	MaxOffset            int64
 }

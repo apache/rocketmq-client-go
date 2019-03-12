@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
 const (
 	GetRouteInfoByTopic = int16(105)
@@ -54,8 +54,9 @@ type PullMessageRequest struct {
 	SysFlag              int32  `json:"sysFlag"`
 	CommitOffset         int64  `json:"commitOffset"`
 	SuspendTimeoutMillis int64  `json:"suspendTimeoutMillis"`
-	Subscription         string `json:"subscription"`
+	SubExpression        string `json:"subscription"`
 	SubVersion           int64  `json:"subVersion"`
+	ExpressionType       string `json:"expressionType"`
 }
 
 type GetMaxOffsetRequest struct {
