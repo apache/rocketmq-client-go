@@ -15,10 +15,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
 import (
 	"context"
+	"errors"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/utils"
 	"os"
@@ -45,6 +46,10 @@ var (
 	clientID                      = clientIP + "@" + instanceName
 )
 
+var (
+	ErrServiceState = errors.New("service state is not Running, please check")
+)
+
 type InnerProducer interface {
 	PublishTopicList() []string
 	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
@@ -67,7 +72,7 @@ type InnerConsumer interface {
 func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
-	response, err := client.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	response, err := remote.InvokeSync(brokerAddrs, cmd, 3 * time.Second)
 	if err != nil {
 		log.Warningf("send messages with sync error: %v", err)
 		return nil, err
@@ -85,7 +90,7 @@ func SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, reque
 func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
-	err := client.InvokeOneWay(brokerAddrs, cmd)
+	err := remote.InvokeOneWay(brokerAddrs, cmd)
 	if err != nil {
 		log.Warningf("send messages with oneway error: %v", err)
 	}
@@ -112,7 +117,7 @@ func processSendResponse(brokerName string, msgs []*Message, cmd *remote.Remotin
 
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
-		msgIDs = append(msgIDs, msgs[i].Properties[UniqueClientMessageIdKeyindex])
+		msgIDs = append(msgIDs, msgs[i].Properties[UniqueClientMessageIdKeyIndex])
 	}
 
 	regionId := cmd.ExtFields[MsgRegion]

@@ -17,6 +17,16 @@ limitations under the License.
 
 package utils
 
+import "hash/crc32"
+
 func LocalIP() string {
 	return ""
+}
+
+// HashString hashes a string to a unique hashcode.
+func HashString(s string) int {
+	if s == "" {
+		return 0
+	}
+	return int(crc32.ChecksumIEEE([]byte(s)))
 }

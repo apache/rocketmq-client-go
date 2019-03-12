@@ -15,9 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/apache/rocketmq-client-go/utils"
+)
 
 // SendStatus of message
 type SendStatus int
@@ -29,7 +32,7 @@ const (
 	SendSlaveNotAvailable
 )
 
-// SendResult rocketmq send result
+// SendResult RocketMQ send result
 type SendResult struct {
 	Status        SendStatus
 	MsgIDs        []string
@@ -47,15 +50,6 @@ func (result *SendResult) String() string {
 		result.Status, result.MsgIDs, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
 }
 
-// PullResult the pull result
-type PullResult struct {
-	NextBeginOffset int64
-	MinOffset       int64
-	MaxOffset       int64
-	Status          PullStatus
-	Messages        []*MessageExt
-}
-
 // PullStatus pull status
 type PullStatus int
 
@@ -68,6 +62,43 @@ const (
 	PullBrokerTimeout
 )
 
+// PullResult the pull result
+type PullResult struct {
+	NextBeginOffset      int64
+	MinOffset            int64
+	MaxOffset            int64
+	Status               PullStatus
+	SuggestWhichBrokerId int64
+	messageBinary        []byte
+	messageExts          []*MessageExt
+}
+
+func (result *PullResult) GetMessageExts() []*MessageExt {
+	if result.messageExts != nil && len(result.messageExts) > 0 {
+		return result.messageExts
+	}
+
+	return result.messageExts
+}
+
+func (result *PullResult) SetMessageExts(msgExts []*MessageExt) {
+	result.messageBinary = nil
+	result.messageExts = msgExts
+}
+
+func (result *PullResult) GetMessages() []*Message {
+	if result.messageExts == nil || len(result.messageExts) == 0 {
+		return make([]*Message, 0)
+	}
+	return toMessages(result.messageExts)
+}
+
+func toMessages(messageExts []*MessageExt) []*Message {
+	msgs := make([]*Message, 0)
+
+	return msgs
+}
+
 // MessageQueue message queue
 type MessageQueue struct {
 	Topic      string `json:"topic"`
@@ -79,10 +110,19 @@ func (mq *MessageQueue) String() string {
 	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
 }
 
+func (mq *MessageQueue) HashCode() int {
+	result := 1
+	result = 31*result + utils.HashString(mq.BrokerName)
+	result = 31*result + mq.QueueId
+	result = 31*result + utils.HashString(mq.Topic)
+
+	return result
+}
+
 type FindBrokerResult struct {
 	BrokerAddr    string
 	Slave         bool
-	BrokerVersion int32
+	BrokerVersion int
 }
 
 type (
@@ -93,6 +133,7 @@ type (
 
 	MessageModel     int
 	ConsumeFromWhere int
+	ServiceState int
 )
 
 const (
@@ -105,6 +146,10 @@ const (
 	ConsumeFromLastOffset ConsumeFromWhere = iota
 	ConsumeFromFirstOffset
 	ConsumeFromTimestamp
+
+	CreateJust ServiceState = iota
+	Running
+	Shutdown
 )
 
 func (mode MessageModel) String() string {
@@ -118,7 +163,66 @@ func (mode MessageModel) String() string {
 	}
 }
 
+type ExpressionType string
+
+const (
+	/**
+	 * <ul>
+	 * Keywords:
+	 * <li>{@code AND, OR, NOT, BETWEEN, IN, TRUE, FALSE, IS, NULL}</li>
+	 * </ul>
+	 * <p/>
+	 * <ul>
+	 * Data type:
+	 * <li>Boolean, like: TRUE, FALSE</li>
+	 * <li>String, like: 'abc'</li>
+	 * <li>Decimal, like: 123</li>
+	 * <li>Float number, like: 3.1415</li>
+	 * </ul>
+	 * <p/>
+	 * <ul>
+	 * Grammar:
+	 * <li>{@code AND, OR}</li>
+	 * <li>{@code >, >=, <, <=, =}</li>
+	 * <li>{@code BETWEEN A AND B}, equals to {@code >=A AND <=B}</li>
+	 * <li>{@code NOT BETWEEN A AND B}, equals to {@code >B OR <A}</li>
+	 * <li>{@code IN ('a', 'b')}, equals to {@code ='a' OR ='b'}, this operation only support String type.</li>
+	 * <li>{@code IS NULL}, {@code IS NOT NULL}, check parameter whether is null, or not.</li>
+	 * <li>{@code =TRUE}, {@code =FALSE}, check parameter whether is true, or false.</li>
+	 * </ul>
+	 * <p/>
+	 * <p>
+	 * Example:
+	 * (a > 10 AND a < 100) OR (b IS NOT NULL AND b=TRUE)
+	 * </p>
+	 */
+	SQL92 = ExpressionType("SQL92")
+
+	/**
+	 * Only support or operation such as
+	 * "tag1 || tag2 || tag3", <br>
+	 * If null or * expression, meaning subscribe all.
+	 */
+	TAG = ExpressionType("TAG")
+)
+
+func IsTagType(exp string) bool {
+	if exp == "" || exp == "TAG" {
+		return true
+	}
+	return false
+}
+
+var SubAll = "*"
+
 type SubscriptionData struct {
+	ClassFilterMode bool
+	Topic           string
+	SubString       string
+	Tags            map[string]bool
+	Codes           map[int32]bool
+	SubVersion      int64
+	ExpType         ExpressionType
 }
 
 type consumerData struct {

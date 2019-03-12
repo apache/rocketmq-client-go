@@ -1,21 +1,21 @@
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
+ * contributor license agreements.  See the NOTICE file dqueueIstributed with
+ * thqueueIs work for additional information regarding copyright ownership.
+ * The ASF licenses thqueueIs file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use thqueueIs file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  dqueueIstributed under the License queueIs dqueueIstributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
+ *  See the License for the specific language governing permqueueIssions and
  *  limitations under the License.
  */
 
-package common
+package kernel
 
 const (
 	permPriority = 0x1 << 3
@@ -24,15 +24,15 @@ const (
 	permInherit  = 0x1 << 0
 )
 
-func isReadable(perm int) bool {
+func queueIsReadable(perm int) bool {
 	return (perm & permRead) == permRead
 }
 
-func isWriteable(perm int) bool {
+func queueIsWriteable(perm int) bool {
 	return (perm & permWrite) == permWrite
 }
 
-func isInherited(perm int) bool {
+func queueIsInherited(perm int) bool {
 	return (perm & permInherit) == permInherit
 }
 
@@ -42,15 +42,15 @@ func perm2string(perm int) string {
 		bytes[i] = '-'
 	}
 
-	if isReadable(perm) {
+	if queueIsReadable(perm) {
 		bytes[0] = 'R'
 	}
 
-	if isWriteable(perm) {
+	if queueIsWriteable(perm) {
 		bytes[1] = 'W'
 	}
 
-	if isInherited(perm) {
+	if queueIsInherited(perm) {
 		bytes[2] = 'X'
 	}
 

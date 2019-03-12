@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
 import "fmt"
 
@@ -40,7 +40,7 @@ const (
 	ReconsumeTime                  = "RECONSUME_TIME"
 	MsgRegion                      = "MSG_REGION"
 	TraceSwitch                    = "TRACE_ON"
-	UniqueClientMessageIdKeyindex  = "UNIQ_KEY"
+	UniqueClientMessageIdKeyIndex  = "UNIQ_KEY"
 	MaxReconsumeTimes              = "MAX_RECONSUME_TIMES"
 	ConsumeStartTime               = "CONSUME_START_TIME"
 	TranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
@@ -69,9 +69,10 @@ func (msg *Message) String() string {
 		msg.Topic, string(msg.Body), msg.Flag, msg.Properties, msg.TransactionId)
 }
 
-func (msg *Message) SetTags(tags string) {
-	msg.Properties[tags] = tags
-}
+//
+//func (msg *Message) SetTags(tags string) {
+//	msg.Properties[tags] = tags
+//}
 
 func (msg *Message) PutProperty(key, value string) {
 	msg.Properties[key] = value
@@ -102,6 +103,10 @@ type MessageExt struct {
 	BodyCRC                   int32
 	ReconsumeTimes            int32
 	PreparedTransactionOffset int64
+}
+
+func (msgExt *MessageExt) GetTags() string {
+	return msgExt.Properties[Tags]
 }
 
 func (msgExt *MessageExt) String() string {

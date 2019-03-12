@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package kernel
 
 import (
 	"encoding/json"
@@ -33,7 +33,7 @@ const (
 	requestTimeout   = 3000
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
-	masterId         = int64(0)
+	MasterId         = int64(0)
 )
 
 var (
@@ -132,7 +132,7 @@ func FindBrokerAddressInPublish(brokerName string) string {
 		return ""
 	}
 
-	return bd.(*BrokerData).brokerAddresses[masterId]
+	return bd.(*BrokerData).brokerAddresses[MasterId]
 }
 
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
@@ -148,7 +148,7 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 		for k, v := range bd.(*BrokerData).brokerAddresses {
 			if v != "" {
 				found = true
-				if k != masterId {
+				if k != MasterId {
 					slave = true
 				}
 				break
@@ -168,20 +168,39 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 	return result
 }
 
-func findBrokerVersion(brokerName, brokerAddr string) int32 {
+func FetchSubscribeMessageQueues(topic string) ([]*MessageQueue, error) {
+	routeData, err := queryTopicRouteInfoFromServer(topic, 3*time.Second)
+
+	if err != nil {
+		return nil, err
+	}
+
+	mqs := make([]*MessageQueue, 0)
+
+	for _, qd := range routeData.queueDataList {
+		if queueIsReadable(qd.perm) {
+			for i := 0; i < qd.readQueueNums; i++ {
+				mqs = append(mqs, &MessageQueue{Topic: topic, BrokerName: qd.brokerName, QueueId: i})
+			}
+		}
+	}
+
+	return mqs, nil
+}
+
+func findBrokerVersion(brokerName, brokerAddr string) int {
 	versions, exist := brokerVersionMap.Load(brokerName)
 
-	var version = int32(0)
 	if !exist {
-		return version
+		return 0
 	}
 
-	v, exist := versions.(map[string]int32)[brokerAddr]
+	v, exist := versions.(map[string]int)[brokerAddr]
 
 	if exist {
-		version = v
+		return v
 	}
-	return version
+	return 0
 }
 
 func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicRouteData, error) {
@@ -190,7 +209,7 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 	}
 	rc := remote.NewRemotingCommand(GetRouteInfoByTopic, request, nil)
 
-	response, err := client.InvokeSync(getNameServerAddress(), rc, timeout)
+	response, err := remote.InvokeSync(getNameServerAddress(), rc, timeout)
 
 	if err != nil {
 		return nil, err
@@ -275,7 +294,7 @@ func RouteData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo
 	})
 
 	for _, qd := range qds {
-		if !isWriteable(qd.perm) {
+		if !queueIsWriteable(qd.perm) {
 			continue
 		}
 
@@ -287,7 +306,7 @@ func RouteData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo
 			}
 		}
 
-		if bData == nil || bData.brokerAddresses[masterId] == "" {
+		if bData == nil || bData.brokerAddresses[MasterId] == "" {
 			continue
 		}
 
