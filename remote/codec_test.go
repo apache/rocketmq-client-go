@@ -269,15 +269,6 @@ func TestCommandJsonEncodeDecode(t *testing.T) {
 	if newCmd.Remark != cmd.Remark {
 		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
 	}
-	//for k, v := range cmd.ExtFields {
-	//	if vv, ok := newCmd.ExtFields[k]; !ok {
-	//		t.Errorf("key: %s not exists in newCommand.", k)
-	//	} else {
-	//		if v != vv {
-	//			t.Errorf("wrong value. want=%s, got=%s", v, vv)
-	//		}
-	//	}
-	//}
 }
 
 func TestCommandRocketMQEncodeDecode(t *testing.T) {
@@ -314,13 +305,4 @@ func TestCommandRocketMQEncodeDecode(t *testing.T) {
 	if newCmd.Remark != cmd.Remark {
 		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
 	}
-	//for k, v := range cmd.ExtFields {
-	//	if vv, ok := newCmd.ExtFields[k]; !ok {
-	//		t.Errorf("key: %s not exists in newCommand.", k)
-	//	} else {
-	//		if v != vv {
-	//			t.Errorf("wrong value. want=%s, got=%s", v, vv)
-	//		}
-	//	}
-	//}
 }

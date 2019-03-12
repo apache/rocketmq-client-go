@@ -19,6 +19,7 @@ package remote
 import (
 	"bytes"
 	"errors"
+	"net"
 	"reflect"
 	"sync"
 	"testing"
@@ -176,4 +177,168 @@ func TestCreateScanner(t *testing.T) {
 			t.Fatal("decoded RemotingCommand not equal to the original one")
 		}
 	}
+}
+
+func TestDefaultRemotingClient_InvokeSync(t *testing.T) {
+	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
+	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
+	serverSendRemotingCommand.Flag = ResponseType
+
+	client := NewDefaultRemotingClient()
+	client.Start()
+	defer client.Shutdown()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		receiveCommand, err := client.InvokeSync(":3000",
+			clientSendRemtingCommand, time.Duration(1000))
+		if err != nil {
+			t.Fatalf("failed to invoke synchronous. %s", err)
+		} else {
+			if !reflect.DeepEqual(&receiveCommand, &serverSendRemotingCommand) {
+				t.Errorf("remotingCommand prased in client is different from server. ")
+			}
+		}
+		wg.Done()
+	}()
+
+	l, err := net.Listen("tcp", ":3000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		scanner := createScanner(conn)
+		for scanner.Scan() {
+			receivedRemotingCommand, err := decode(scanner.Bytes())
+			if err != nil {
+				t.Errorf("failed to decode RemotingCommnad. %s", err)
+			}
+			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
+				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+					clientSendRemtingCommand.Code)
+			}
+			body, err := encode(serverSendRemotingCommand)
+			if err != nil {
+				t.Fatalf("failed to encode RemotingCommand")
+			}
+			_, err = conn.Write(body)
+			if err != nil {
+				t.Fatalf("failed to write body to conneciton.")
+			}
+			return
+		}
+	}
+	wg.Done()
+}
+
+func TestDefaultRemotingClient_InvokeAsync(t *testing.T) {
+	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
+	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
+	serverSendRemotingCommand.Flag = ResponseType
+
+	client := NewDefaultRemotingClient()
+	client.Start()
+	defer client.Shutdown()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
+			time.Duration(1000), func(r *ResponseFuture) {
+			if string(r.ResponseCommand.Body) != "Welcome native" {
+				t.Errorf("wrong responseCommand.Body. want=%s, got=%s",
+					"Welcome native",  string(r.ResponseCommand.Body))
+			}
+			wg.Done()
+		})
+		if err != nil {
+			t.Errorf("failed to invokeSync. %s", err)
+		}
+
+	}()
+
+	l, err := net.Listen("tcp", ":3000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		scanner := createScanner(conn)
+		for scanner.Scan() {
+			receivedRemotingCommand, err := decode(scanner.Bytes())
+			if err != nil {
+				t.Errorf("failed to decode RemotingCommnad. %s", err)
+			}
+			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
+				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+					clientSendRemtingCommand.Code)
+			}
+			body, err := encode(serverSendRemotingCommand)
+			if err != nil {
+				t.Fatalf("failed to encode RemotingCommand")
+			}
+			_, err = conn.Write(body)
+			if err != nil {
+				t.Fatalf("failed to write body to conneciton.")
+			}
+			return
+		}
+	}
+	wg.Done()
+}
+
+
+func TestDefaultRemotingClient_InvokeOneWay(t *testing.T) {
+	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+
+	client := NewDefaultRemotingClient()
+	client.Start()
+	defer client.Shutdown()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		err := client.InvokeOneWay(":3000", clientSendRemtingCommand)
+		if err != nil {
+			t.Fatalf("failed to invoke synchronous. %s", err)
+		}
+		wg.Done()
+	}()
+
+	l, err := net.Listen("tcp", ":3000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		scanner := createScanner(conn)
+		for scanner.Scan() {
+			receivedRemotingCommand, err := decode(scanner.Bytes())
+			if err != nil {
+				t.Errorf("failed to decode RemotingCommnad. %s", err)
+			}
+			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
+				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+					clientSendRemtingCommand.Code)
+			}
+			return
+		}
+	}
+	wg.Done()
 }
