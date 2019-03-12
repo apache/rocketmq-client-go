@@ -90,11 +90,11 @@ func (c *defaultConsumer) SubscribeWithChan(topic, expression string) (chan *ker
 
 // SubscribeWithFunc ack automatic
 func (c *defaultConsumer) SubscribeWithFunc(topic, expression string,
-	f func(msg *kernel.Message) kernel.ConsumeResult) error {
+	f func(msg *kernel.Message) ConsumeResult) error {
 	return nil
 }
 
-func (c *defaultConsumer) ACK(msg *kernel.Message, result kernel.ConsumeResult) {
+func (c *defaultConsumer) ACK(msg *kernel.Message, result ConsumeResult) {
 
 }
 
