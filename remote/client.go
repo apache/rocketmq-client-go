@@ -19,7 +19,6 @@ package remote
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -31,6 +30,7 @@ import (
 var (
 	//ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
+	connectionLocker sync.Mutex
 )
 
 //ResponseFuture for
@@ -84,87 +84,14 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 	}
 }
 
-//RemotingClient includes basic operations for remote
-type RemotingClient interface {
-	Start()
-	Shutdown()
-	InvokeSync(string, *RemotingCommand, time.Duration) (*RemotingCommand, error)
-	InvokeAsync(string, *RemotingCommand, time.Duration, func(*ResponseFuture)) error
-	InvokeOneWay(string, *RemotingCommand) error
-}
-
-func InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
-	return nil, nil
-}
-
-func InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, f func(*RemotingCommand)) error {
-	return nil
-}
-
-func InvokeOneWay(addr string, request*RemotingCommand) error {
-	return nil
-}
-
-//defaultRemotingClient for default RemotingClient implementation
-type defaultRemotingClient struct {
-	responseTable    map[int32]*ResponseFuture
-	responseLock     sync.RWMutex
-	connectionsTable map[string]net.Conn
-	connectionLock   sync.RWMutex
-	ctx              context.Context
-	cancel           context.CancelFunc
-}
-
-//NewDefaultRemotingClient for
-func NewDefaultRemotingClient() RemotingClient {
-	client := &defaultRemotingClient{
-		responseTable:    make(map[int32]*ResponseFuture, 0),
-		connectionsTable: make(map[string]net.Conn, 0),
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	client.ctx = ctx
-	client.cancel = cancel
-	return client
-}
-
-//Start begin sca
-func (client *defaultRemotingClient) Start() {
-	ticker := time.NewTicker(1 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				client.scanResponseTable()
-			case <-client.ctx.Done():
-				ticker.Stop()
-				return
-			}
-		}
-	}()
-}
-
-// Shutdown for call client.cancel
-func (client *defaultRemotingClient) Shutdown() {
-	client.cancel()
-	client.connectionLock.Lock()
-	for addr, conn := range client.connectionsTable {
-		conn.Close()
-		delete(client.connectionsTable, addr)
-	}
-	client.connectionLock.Unlock()
-}
-
-// InvokeSync sends request synchronously
-func (client *defaultRemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
-	conn, err := client.connect(addr)
+func InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
+	conn, err := connect(addr)
 	if err != nil {
 		return nil, err
 	}
 	resp := NewResponseFuture(request.Opaque, timeoutMillis, nil)
-	client.responseLock.Lock()
-	client.responseTable[resp.Opaque] = resp
-	client.responseLock.Unlock()
-	err = client.sendRequest(conn, request)
+	responseTable.Store(resp.Opaque, resp)
+	err = sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
@@ -172,53 +99,57 @@ func (client *defaultRemotingClient) InvokeSync(addr string, request *RemotingCo
 	return resp.waitResponse()
 }
 
-//InvokeAsync send request asynchronously
-func (client *defaultRemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
-	conn, err := client.connect(addr)
+func InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
+	conn, err := connect(addr)
 	if err != nil {
 		return err
 	}
 	resp := NewResponseFuture(request.Opaque, timeoutMillis, callback)
-	client.responseLock.Lock()
-	client.responseTable[resp.Opaque] = resp
-	client.responseLock.Unlock()
-	err = client.sendRequest(conn, request)
+	responseTable.Store(resp.Opaque, resp)
+	err = sendRequest(conn, request)
 	if err != nil {
 		return err
 	}
 	resp.SendRequestOK = true
 	return nil
+
 }
 
-//InvokeOneWay send one-way request
-func (client *defaultRemotingClient) InvokeOneWay(addr string, request *RemotingCommand) error {
-	conn, err := client.connect(addr)
+func InvokeOneWay(addr string, request *RemotingCommand) error {
+	conn, err := connect(addr)
 	if err != nil {
 		return err
 	}
-	return client.sendRequest(conn, request)
+	return sendRequest(conn, request)
 }
 
-func (client *defaultRemotingClient) scanResponseTable() {
+var (
+	responseTable   sync.Map
+	connectionTable sync.Map
+)
+
+func ScanResponseTable() {
 	rfs := make([]*ResponseFuture, 0)
-	client.responseLock.Lock()
-	for opaque, resp := range client.responseTable {
-		if (resp.BeginTimestamp + int64(resp.TimeoutMillis) + 1000) <= time.Now().Unix()*1000 {
-			delete(client.responseTable, opaque)
-			rfs = append(rfs, resp)
+	responseTable.Range(func(key, value interface{}) bool {
+		if resp, ok := value.(*ResponseFuture); ok {
+			if (resp.BeginTimestamp + int64(resp.TimeoutMillis) + 1000) <= time.Now().Unix()*1000 {
+				rfs = append(rfs, resp)
+				responseTable.Delete(key)
+			}
 		}
-	}
-	client.responseLock.Unlock()
+		return true
+	})
 	for _, rf := range rfs {
 		rf.Err = ErrRequestTimeout
 		rf.executeInvokeCallback()
 	}
 }
 
-func (client *defaultRemotingClient) connect(addr string) (net.Conn, error) {
-	client.connectionLock.Lock()
-	defer client.connectionLock.Unlock()
-	conn, ok := client.connectionsTable[addr]
+func connect(addr string) (net.Conn, error) {
+	//it needs additional locker.
+	connectionLocker.Lock()
+	defer connectionLocker.Unlock()
+	conn, ok := connectionTable.Load(addr)
 	if ok {
 		return conn.(net.Conn), nil
 	}
@@ -226,30 +157,31 @@ func (client *defaultRemotingClient) connect(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.connectionsTable[addr] = tcpConn
-	go client.receiveResponse(tcpConn)
+	connectionTable.Store(addr, tcpConn)
+	go receiveResponse(tcpConn)
 	return tcpConn, nil
+
 }
 
-func (client *defaultRemotingClient) receiveResponse(conn net.Conn) {
-	scanner := createScanner(conn)
+func receiveResponse(r net.Conn) {
+	scanner := createScanner(r)
 	for scanner.Scan() {
 		receivedRemotingCommand, err := decode(scanner.Bytes())
 		if err != nil {
-			client.closeConnection(conn)
+			closeConnection(r)
 			break
 		}
 		if receivedRemotingCommand.isResponseType() {
-			client.responseLock.Lock()
-			if resp, ok := client.responseTable[receivedRemotingCommand.Opaque]; ok {
-				delete(client.responseTable, receivedRemotingCommand.Opaque)
-				resp.ResponseCommand = receivedRemotingCommand
-				resp.executeInvokeCallback()
-				if resp.Done != nil {
-					resp.Done <- true
+			resp, ok := responseTable.Load(receivedRemotingCommand.Opaque)
+			if ok {
+				responseTable.Delete(receivedRemotingCommand.Opaque)
+				responseFuture := resp.(*ResponseFuture)
+				responseFuture.ResponseCommand = receivedRemotingCommand
+				responseFuture.executeInvokeCallback()
+				if responseFuture.Done != nil {
+					responseFuture.Done <- true
 				}
 			}
-			client.responseLock.Unlock()
 		} else {
 			// todo handler request from peer
 		}
@@ -273,31 +205,27 @@ func createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func (client *defaultRemotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
+func sendRequest(conn net.Conn, request *RemotingCommand) error {
 	content, err := encode(request)
 	if err != nil {
 		return err
 	}
 	_, err = conn.Write(content)
 	if err != nil {
-		client.closeConnection(conn)
+		closeConnection(conn)
 		return err
 	}
 	return nil
 }
 
-func (client *defaultRemotingClient) closeConnection(toCloseConn net.Conn) {
-	client.connectionLock.Lock()
-	var toCloseAddr string
-	for addr, con := range client.connectionsTable {
-		if con == toCloseConn {
-			toCloseAddr = addr
-			break
+func closeConnection(toCloseConn net.Conn) {
+	connectionTable.Range(func(key, value interface{}) bool {
+		if value == toCloseConn {
+			connectionTable.Delete(key)
+			return false
+		} else {
+			return true
 		}
-	}
-	if conn, ok := client.connectionsTable[toCloseAddr]; ok {
-		delete(client.connectionsTable, toCloseAddr)
-		conn.Close()
-	}
-	client.connectionLock.Unlock()
+
+	})
 }
