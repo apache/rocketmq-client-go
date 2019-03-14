@@ -43,7 +43,7 @@ var (
 	persistConsumerOffsetInterval = 5 * time.Second
 	unitMode                      = false
 	vipChannelEnabled, _          = strconv.ParseBool(os.Getenv("com.rocketmq.sendMessageWithVIPChannel"))
-	clientID                      = clientIP + "@" + instanceName
+	clientID                      = string(clientIP) + "@" + instanceName
 )
 
 var (

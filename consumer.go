@@ -158,7 +158,7 @@ func (c *defaultConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, dat
 
 func (c *defaultConsumer) makeSureStateOK() error {
 	if c.state != kernel.Running {
-		return fmt.Errorf("the consumer state is [%s], not running", c.state)
+		return fmt.Errorf("the consumer state is [%d], not running", c.state)
 	}
 	return nil
 }

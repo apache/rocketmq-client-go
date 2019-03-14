@@ -123,43 +123,6 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 	}
 }
 
-func TestNewDefaultRemotingClient(t *testing.T) {
-	r := NewDefaultRemotingClient()
-	d, ok := r.(*defaultRemotingClient)
-	if !ok {
-		t.Errorf("defaultRemotingClient does not implement RemotingClient interface")
-	}
-	if len(d.responseTable) != 0 {
-		t.Errorf("wrong responseTable size. want=%d, got=%d",
-			0, len(d.responseTable))
-	}
-	if len(d.connectionsTable) != 0 {
-		t.Errorf("wrong connectionsTable size. want=%d, got=%d",
-			0, len(d.connectionsTable))
-	}
-	if d.ctx == nil {
-		t.Errorf("wrong ctx. want=%v, got=<nil>", d.ctx)
-	}
-	if d.cancel == nil {
-		t.Errorf("wrong cancel. want=%v, got=<nil>", d.cancel)
-	}
-}
-
-func TestDefaultRemotingClient_Start_ShutDown(t *testing.T) {
-	r := NewDefaultRemotingClient()
-	d, ok := r.(*defaultRemotingClient)
-	if !ok {
-		t.Errorf("defaultRemotingClient does not implement RemotingClient interface")
-	}
-	d.Start()
-	time.Sleep(2 * time.Second)
-	d.Shutdown()
-	if len(d.connectionsTable) != 0 {
-		t.Errorf("wrong connectionTable. want=%d, got=%d",
-			0, len(d.connectionsTable))
-	}
-}
-
 func TestCreateScanner(t *testing.T) {
 	r := randomNewRemotingCommand()
 	content, err := encode(r)
@@ -179,19 +142,15 @@ func TestCreateScanner(t *testing.T) {
 	}
 }
 
-func TestDefaultRemotingClient_InvokeSync(t *testing.T) {
+func TestInvokeSync(t *testing.T) {
 	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
 	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
 	serverSendRemotingCommand.Flag = ResponseType
-
-	client := NewDefaultRemotingClient()
-	client.Start()
-	defer client.Shutdown()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		receiveCommand, err := client.InvokeSync(":3000",
+		receiveCommand, err := InvokeSync(":3000",
 			clientSendRemtingCommand, time.Duration(1000))
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
@@ -221,7 +180,7 @@ func TestDefaultRemotingClient_InvokeSync(t *testing.T) {
 				t.Errorf("failed to decode RemotingCommnad. %s", err)
 			}
 			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
-				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
 					clientSendRemtingCommand.Code)
 			}
 			body, err := encode(serverSendRemotingCommand)
@@ -238,26 +197,23 @@ func TestDefaultRemotingClient_InvokeSync(t *testing.T) {
 	wg.Done()
 }
 
-func TestDefaultRemotingClient_InvokeAsync(t *testing.T) {
+func TestInvokeAsync(t *testing.T) {
 	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
 	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
 	serverSendRemotingCommand.Flag = ResponseType
 
-	client := NewDefaultRemotingClient()
-	client.Start()
-	defer client.Shutdown()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
+		err := InvokeAsync(":3000", clientSendRemtingCommand,
 			time.Duration(1000), func(r *ResponseFuture) {
-			if string(r.ResponseCommand.Body) != "Welcome native" {
-				t.Errorf("wrong responseCommand.Body. want=%s, got=%s",
-					"Welcome native",  string(r.ResponseCommand.Body))
-			}
-			wg.Done()
-		})
+				if string(r.ResponseCommand.Body) != "Welcome native" {
+					t.Errorf("wrong responseCommand.Body. want=%s, got=%s",
+						"Welcome native", string(r.ResponseCommand.Body))
+				}
+				wg.Done()
+			})
 		if err != nil {
 			t.Errorf("failed to invokeSync. %s", err)
 		}
@@ -282,7 +238,7 @@ func TestDefaultRemotingClient_InvokeAsync(t *testing.T) {
 				t.Errorf("failed to decode RemotingCommnad. %s", err)
 			}
 			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
-				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
 					clientSendRemtingCommand.Code)
 			}
 			body, err := encode(serverSendRemotingCommand)
@@ -299,17 +255,13 @@ func TestDefaultRemotingClient_InvokeAsync(t *testing.T) {
 	wg.Done()
 }
 
-
-func TestDefaultRemotingClient_InvokeOneWay(t *testing.T) {
+func TestInvokeOneWay(t *testing.T) {
 	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 
-	client := NewDefaultRemotingClient()
-	client.Start()
-	defer client.Shutdown()
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := client.InvokeOneWay(":3000", clientSendRemtingCommand)
+		err := InvokeOneWay(":3000", clientSendRemtingCommand)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		}
@@ -334,7 +286,7 @@ func TestDefaultRemotingClient_InvokeOneWay(t *testing.T) {
 				t.Errorf("failed to decode RemotingCommnad. %s", err)
 			}
 			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
-				t.Errorf("wrong code. want=%d, got=%d",receivedRemotingCommand.Code,
+				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
 					clientSendRemtingCommand.Code)
 			}
 			return
