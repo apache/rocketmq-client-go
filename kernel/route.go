@@ -20,7 +20,9 @@ package kernel
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"sort"
 	"strconv"
 	"strings"
@@ -80,13 +82,14 @@ func UpdateTopicRouteInfo(topic string) {
 	defer lockNamesrv.Unlock()
 
 	RouteData, err := queryTopicRouteInfoFromServer(topic, requestTimeout)
+	fmt.Println(err)
 	if err != nil {
-		log.Warningf("query topic route from server error: %s", err)
+		rlog.Warningf("query topic route from server error: %s", err)
 		return
 	}
 
 	if RouteData == nil {
-		log.Warningf("queryTopicRouteInfoFromServer return nil, Topic: %s", topic)
+		rlog.Warningf("queryTopicRouteInfoFromServer return nil, Topic: %s", topic)
 		return
 	}
 
@@ -101,7 +104,7 @@ func UpdateTopicRouteInfo(topic string) {
 	if !changed {
 		changed = isNeedUpdateTopicRouteInfo(topic)
 	} else {
-		log.Infof("the topic[%s] route info changed, old[%s] ,new[%s]", topic, oldRouteData, RouteData)
+		rlog.Infof("the topic[%s] route info changed, old[%s] ,new[%s]", topic, oldRouteData, RouteData)
 	}
 
 	if !changed {
@@ -121,7 +124,7 @@ func UpdateTopicRouteInfo(topic string) {
 	old, _ := publishInfoMap.Load(topic)
 	publishInfoMap.Store(topic, publishInfoMap)
 	if old != nil {
-		log.Infof("Old TopicPublishInfo [%s] removed.", old)
+		rlog.Infof("Old TopicPublishInfo [%s] removed.", old)
 	}
 }
 
@@ -223,7 +226,7 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 		RouteData := &topicRouteData{}
 		err = json.Unmarshal(response.Body, RouteData)
 		if err != nil {
-			log.Warningf("unmarshal topicRouteData error: %s", err)
+			rlog.Warningf("unmarshal topicRouteData error: %s", err)
 			return nil, err
 		}
 		return RouteData, nil
@@ -324,7 +327,7 @@ func RouteData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo
 }
 
 func getNameServerAddress() string {
-	return ""
+	return "127.0.0.1:9876"
 }
 
 // topicRouteData topicRouteData

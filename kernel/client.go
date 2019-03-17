@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"strconv"
@@ -34,7 +35,6 @@ const (
 )
 
 var (
-	log                           = utils.RLog
 	namesrvAddrs                  = os.Getenv("rocketmq.namesrv.addr")
 	clientIP                      = utils.LocalIP()
 	instanceName                  = os.Getenv("rocketmq.client.name")
@@ -72,9 +72,9 @@ type InnerConsumer interface {
 func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
-	response, err := remote.InvokeSync(brokerAddrs, cmd, 3 * time.Second)
+	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
-		log.Warningf("send messages with sync error: %v", err)
+		rlog.Warningf("send messages with sync error: %v", err)
 		return nil, err
 	}
 
@@ -92,7 +92,7 @@ func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMes
 	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
 	err := remote.InvokeOneWay(brokerAddrs, cmd)
 	if err != nil {
-		log.Warningf("send messages with oneway error: %v", err)
+		rlog.Warningf("send messages with oneway error: %v", err)
 	}
 	return nil, err
 }

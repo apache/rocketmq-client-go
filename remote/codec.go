@@ -37,14 +37,13 @@ const (
 	ResponseType = 1
 
 	_Flag         = 0
-	_LanguageFlag = "golang"
 	_LanguageCode = byte(9)
 	_Version      = 137
 )
 
 type RemotingCommand struct {
 	Code      int16             `json:"code"`
-	Language  byte              `json:"language"`
+	Language  byte              `json:"-"`
 	Version   int16             `json:"version"`
 	Opaque    int32             `json:"opaque"`
 	Flag      int32             `json:"flag"`
@@ -59,11 +58,10 @@ type CustomHeader interface {
 
 func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingCommand {
 	cmd := &RemotingCommand{
-		Code:     code,
-		Language: _LanguageCode,
-		Version:  _Version,
-		Opaque:   atomic.AddInt32(&opaque, 1),
-		Body:     body,
+		Code:    code,
+		Version: _Version,
+		Opaque:  atomic.AddInt32(&opaque, 1),
+		Body:    body,
 	}
 
 	if header != nil {
@@ -71,6 +69,11 @@ func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingC
 	}
 
 	return cmd
+}
+
+func (command *RemotingCommand) String() string {
+	return fmt.Sprintf("Code: %d, Opaque: %d, Remark: %s, ExtFields: %v",
+		command.Code, command.Opaque, command.Remark, command.ExtFields)
 }
 
 func (command *RemotingCommand) isResponseType() bool {
@@ -112,7 +115,7 @@ func encode(command *RemotingCommand) ([]byte, error) {
 		return nil, err
 	}
 
-	frameSize := 8 + len(header) + len(command.Body)
+	frameSize := 4 + len(header) + len(command.Body)
 	buf := bytes.NewBuffer(make([]byte, frameSize))
 	buf.Reset()
 
@@ -141,18 +144,14 @@ func encode(command *RemotingCommand) ([]byte, error) {
 
 func decode(data []byte) (*RemotingCommand, error) {
 	buf := bytes.NewBuffer(data)
-	var length int32
-	err := binary.Read(buf, binary.BigEndian, &length)
-	if err != nil {
-		return nil, err
-	}
+	length := int32(len(data))
 	var oriHeaderLen int32
-	err = binary.Read(buf, binary.BigEndian, &oriHeaderLen)
+	err := binary.Read(buf, binary.BigEndian, &oriHeaderLen)
 	if err != nil {
 		return nil, err
 	}
-	headerLength := oriHeaderLen & 0xFFFFFF
 
+	headerLength := oriHeaderLen & 0xFFFFFF
 	headerData := make([]byte, headerLength)
 	err = binary.Read(buf, binary.BigEndian, &headerData)
 	if err != nil {
@@ -160,7 +159,6 @@ func decode(data []byte) (*RemotingCommand, error) {
 	}
 
 	var command *RemotingCommand
-
 	switch codeType := byte((oriHeaderLen >> 24) & 0xFF); codeType {
 	case JsonCodecs:
 		command, err = jsonSerializer.decodeHeader(headerData)
@@ -173,13 +171,15 @@ func decode(data []byte) (*RemotingCommand, error) {
 		return nil, err
 	}
 
-	bodyLength := length - 8 - headerLength
-	bodyData := make([]byte, bodyLength)
-	err = binary.Read(buf, binary.BigEndian, &bodyData)
-	if err != nil {
-		return nil, err
+	bodyLength := length - 4 - headerLength
+	if bodyLength > 0 {
+		bodyData := make([]byte, bodyLength)
+		err = binary.Read(buf, binary.BigEndian, &bodyData)
+		if err != nil {
+			return nil, err
+		}
+		command.Body = bodyData
 	}
-	command.Body = bodyData
 	return command, nil
 }
 

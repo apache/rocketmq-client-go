@@ -211,7 +211,7 @@ func (p *defaultProducer) SendMessageSync(msg *Message) (*SendResult, error) {
 	err := rmqError(C.SendMessageSync(p.cproduer, cmsg, &sr))
 
 	if err != NIL {
-		log.Warnf("send message error, error is: %s", err.Error())
+		rlog.Warnf("send message error, error is: %s", err.Error())
 		return nil, err
 	}
 
@@ -237,7 +237,7 @@ func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueue
 		&sr))
 
 	if err != NIL {
-		log.Warnf("send message orderly error, error is: %s", err.Error())
+		rlog.Warnf("send message orderly error, error is: %s", err.Error())
 		return nil, err
 	}
 
@@ -254,10 +254,10 @@ func (p *defaultProducer) SendMessageOneway(msg *Message) error {
 
 	err := rmqError(C.SendMessageOneway(p.cproduer, cmsg))
 	if err != NIL {
-		log.Warnf("send message with oneway error, error is: %s", err.Error())
+		rlog.Warnf("send message with oneway error, error is: %s", err.Error())
 		return err
 	}
 
-	log.Debugf("Send Message: %s with oneway success.", msg.String())
+	rlog.Debugf("Send Message: %s with oneway success.", msg.String())
 	return nil
 }

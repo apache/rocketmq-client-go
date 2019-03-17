@@ -15,18 +15,13 @@
  *  limitations under the License.
  */
 
-package utils
+package rlog
 
-import "io"
-
-var RLog Logger
+import (
+	"github.com/sirupsen/logrus"
+)
 
 type Logger interface {
-	Output() io.Writer
-	SetOutput(w io.Writer)
-	Prefix() string
-	SetPrefix(p string)
-	SetHeader(h string)
 	Print(i ...interface{})
 	Printf(format string, args ...interface{})
 	Debug(i ...interface{})
@@ -39,4 +34,58 @@ type Logger interface {
 	Errorf(format string, args ...interface{})
 	Fatal(i ...interface{})
 	Fatalf(format string, args ...interface{})
+}
+
+var rLog Logger = logrus.New()
+
+func SetLogger(log Logger) {
+	rLog = log
+}
+
+func Print(i ...interface{}) {
+	rLog.Print(i...)
+}
+
+func Printf(format string, args ...interface{}) {
+	rLog.Printf(format, args...)
+}
+
+func Debug(i ...interface{}) {
+	rLog.Debug(i...)
+}
+
+func Debugf(format string, args ...interface{}) {
+	rLog.Debugf(format, args...)
+}
+
+func Info(i ...interface{}) {
+	rLog.Info(i...)
+}
+
+func Infof(format string, args ...interface{}) {
+	rLog.Infof(format, args...)
+}
+
+func Warning(i ...interface{}) {
+	rLog.Warning(i...)
+}
+
+func Warningf(format string, args ...interface{}) {
+	rLog.Warningf(format, args...)
+}
+
+func Error(i ...interface{}) {
+	rLog.Error(i...)
+}
+
+func Errorf(format string, args ...interface{}) {
+	rLog.Errorf(format, args...)
+}
+
+func Fatal(i ...interface{}) {
+	rLog.Fatal(i...)
+}
+
+func Fatalf(format string, args ...interface{}) {
+	rLog.Fatalf(format, args...)
 }

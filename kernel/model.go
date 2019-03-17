@@ -133,7 +133,7 @@ type (
 
 	MessageModel     int
 	ConsumeFromWhere int
-	ServiceState int
+	ServiceState     int
 )
 
 const (

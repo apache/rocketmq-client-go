@@ -1,6 +1,6 @@
 module github.com/apache/rocketmq-client-go
 
-go 1.12
+go 1.11
 
 require (
 	github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect

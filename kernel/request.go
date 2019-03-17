@@ -88,7 +88,9 @@ type GetRouteInfoRequest struct {
 }
 
 func (request *GetRouteInfoRequest) Encode() map[string]string {
-	return nil
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	return maps
 }
 
 func (request *GetRouteInfoRequest) Decode(properties map[string]string) error {

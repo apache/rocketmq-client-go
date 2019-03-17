@@ -30,7 +30,7 @@ import (
 var (
 	//ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
-	connectionLocker sync.Mutex
+	connectionLocker  sync.Mutex
 )
 
 //ResponseFuture for
@@ -160,7 +160,6 @@ func connect(addr string) (net.Conn, error) {
 	connectionTable.Store(addr, tcpConn)
 	go receiveResponse(tcpConn)
 	return tcpConn, nil
-
 }
 
 func receiveResponse(r net.Conn) {
@@ -195,8 +194,8 @@ func createScanner(r io.Reader) *bufio.Scanner {
 			if len(data) >= 4 {
 				var length int32
 				binary.Read(bytes.NewReader(data[0:4]), binary.BigEndian, &length)
-				if int(length) <= len(data) {
-					return int(length), data[:length], nil
+				if int(length)+4 <= len(data) {
+					return int(length), data[4 : length+4], nil
 				}
 			}
 		}
