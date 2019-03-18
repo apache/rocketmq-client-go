@@ -17,9 +17,12 @@ limitations under the License.
 
 package kernel
 
+import "fmt"
+
 const (
-	GetRouteInfoByTopic = int16(105)
-	SendBatchMessage    = int16(320)
+	ReqPullMessage         = int16(11)
+	ReqGetRouteInfoByTopic = int16(105)
+	ReqSendBatchMessage    = int16(320)
 )
 
 type SendMessageRequest struct {
@@ -57,6 +60,22 @@ type PullMessageRequest struct {
 	SubExpression        string `json:"subscription"`
 	SubVersion           int64  `json:"subVersion"`
 	ExpressionType       string `json:"expressionType"`
+}
+
+func (request *PullMessageRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.ConsumerGroup
+	maps["topic"] = request.Topic
+	maps["queueId"] = fmt.Sprintf("%d", request.QueueOffset)
+	maps["queueOffset"] = fmt.Sprintf("%d", request.QueueOffset)
+	maps["maxMsgNums"] = fmt.Sprintf("%d", request.MaxMsgNums)
+	maps["sysFlag"] = fmt.Sprintf("%d", request.SysFlag)
+	maps["commitOffset"] = fmt.Sprintf("%d", request.CommitOffset)
+	maps["suspendTimeoutMillis"] = fmt.Sprintf("%d", request.SuspendTimeoutMillis)
+	maps["subscription"] = request.SubExpression
+	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
+	maps["expressionType"] = request.ExpressionType
+	return maps
 }
 
 type GetMaxOffsetRequest struct {

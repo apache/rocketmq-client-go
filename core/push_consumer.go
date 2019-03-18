@@ -34,7 +34,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"sync"
 	"unsafe"
 )

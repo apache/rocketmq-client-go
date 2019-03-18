@@ -18,11 +18,14 @@ limitations under the License.
 package kernel
 
 const (
-	Success           = int16(0)
-	FlushDiskTimeout  = int16(10)
-	SlaveNotAvailable = int16(11)
-	FlushSlaveTimeout = int16(12)
-	TopicNotExist     = int16(17)
+	ResSuccess              = int16(0)
+	ResFlushDiskTimeout     = int16(10)
+	ResSlaveNotAvailable    = int16(11)
+	ResFlushSlaveTimeout    = int16(12)
+	ResTopicNotExist        = int16(17)
+	ResPullNotFound         = int16(19)
+	ResPullRetryImmediately = int16(20)
+	ResPullOffsetMoved      = int16(21)
 )
 
 type SendMessageResponse struct {

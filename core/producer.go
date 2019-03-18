@@ -33,7 +33,7 @@ int queueSelectorCallback_cgo(int size, CMessage *msg, void *selectorKey) {
 import "C"
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"unsafe"
 )
 

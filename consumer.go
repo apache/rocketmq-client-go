@@ -22,17 +22,24 @@ import (
 	"errors"
 	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type Consumer interface {
+	Start()
 	Pull(topic, expression string, numbers int) (*kernel.PullResult, error)
 	SubscribeWithChan(topic, expression string) (chan *kernel.Message, error)
 	SubscribeWithFunc(topic, expression string, f func(msg *kernel.Message) ConsumeResult) error
 	ACK(msg *kernel.Message, result ConsumeResult)
 }
+
+var (
+	queueCounterTable sync.Map
+)
 
 type ConsumeResult int
 
@@ -42,6 +49,8 @@ const (
 	Original ConsumerType = iota
 	Orderly
 	Transaction
+
+	SubAll = "*"
 )
 
 type ConsumerConfig struct {
@@ -65,9 +74,12 @@ type defaultConsumer struct {
 	config ConsumerConfig
 }
 
+func (c *defaultConsumer) Start() {
+	c.state = kernel.Running
+}
+
 func (c *defaultConsumer) Pull(topic, expression string, numbers int) (*kernel.PullResult, error) {
 	mq := getNextQueueOf(topic)
-
 	if mq == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
@@ -210,11 +222,33 @@ func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data 
 }
 
 func getSubscriptionData(mq *kernel.MessageQueue, exp string) *kernel.SubscriptionData {
-	return nil
+	subData := &kernel.SubscriptionData{
+		Topic: mq.Topic,
+	}
+	if exp == "" || exp == SubAll {
+		subData.SubString = SubAll
+	} else {
+		// TODO
+	}
+	return subData
 }
 
 func getNextQueueOf(topic string) *kernel.MessageQueue {
-	return nil
+	queues, err := kernel.FetchSubscribeMessageQueues(topic)
+	if err != nil && len(queues) > 0 {
+		rlog.Error(err.Error())
+		return nil
+	}
+	var index int64
+	v, exist := queueCounterTable.Load(topic)
+	if !exist {
+		index = -1
+		queueCounterTable.Store(topic, 0)
+	} else {
+		index = v.(int64)
+	}
+
+	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
 }
 
 func buildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {
@@ -248,7 +282,6 @@ func tryFindBroker(mq *kernel.MessageQueue) *kernel.FindBrokerResult {
 	if result == nil {
 		kernel.UpdateTopicRouteInfo(mq.Topic)
 	}
-
 	return kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 }
 

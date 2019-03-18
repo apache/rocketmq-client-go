@@ -195,7 +195,7 @@ func createScanner(r io.Reader) *bufio.Scanner {
 				var length int32
 				binary.Read(bytes.NewReader(data[0:4]), binary.BigEndian, &length)
 				if int(length)+4 <= len(data) {
-					return int(length), data[4 : length+4], nil
+					return int(length) + 4, data[4 : length+4], nil
 				}
 			}
 		}

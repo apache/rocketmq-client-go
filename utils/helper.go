@@ -87,6 +87,10 @@ func clientIP4() ([]byte, error) {
 	return nil, errors.New("unknown IP address")
 }
 
+func GetAddressByBytes(data []byte) string {
+	return "127.0.0.1"
+}
+
 func Pid() int16 {
 	return int16(os.Getpid())
 }
@@ -101,4 +105,8 @@ func HashString(s string) int {
 		return 0
 	}
 	return int(crc32.ChecksumIEEE([]byte(s)))
+}
+
+func UnCompress(data []byte) []byte {
+	return data
 }

@@ -18,6 +18,8 @@ limitations under the License.
 package kernel
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/apache/rocketmq-client-go/utils"
 )
@@ -30,6 +32,9 @@ const (
 	SendFlushDiskTimeout
 	SendFlushSlaveTimeout
 	SendSlaveNotAvailable
+
+	FlagCompressed = 0x1
+	MsgIdLength    = 8 + 8
 )
 
 // SendResult RocketMQ send result
@@ -69,20 +74,14 @@ type PullResult struct {
 	MaxOffset            int64
 	Status               PullStatus
 	SuggestWhichBrokerId int64
-	messageBinary        []byte
 	messageExts          []*MessageExt
 }
 
 func (result *PullResult) GetMessageExts() []*MessageExt {
-	if result.messageExts != nil && len(result.messageExts) > 0 {
-		return result.messageExts
-	}
-
 	return result.messageExts
 }
 
 func (result *PullResult) SetMessageExts(msgExts []*MessageExt) {
-	result.messageBinary = nil
 	result.messageExts = msgExts
 }
 
@@ -91,6 +90,112 @@ func (result *PullResult) GetMessages() []*Message {
 		return make([]*Message, 0)
 	}
 	return toMessages(result.messageExts)
+}
+
+func decodeMessage(data []byte) []*MessageExt {
+	msgs := make([]*MessageExt, 0)
+	buf := bytes.NewBuffer(data)
+	count := 0
+	for count < len(data) {
+		msg := &MessageExt{}
+
+		// 1. total size
+		binary.Read(buf, binary.BigEndian, &msg.StoreSize)
+		count += 4
+
+		// 2. magic code
+		buf.Next(4)
+		count += 4
+
+		// 3. body CRC32
+		binary.Read(buf, binary.BigEndian, &msg.BodyCRC)
+		count += 4
+
+		// 4. queueID
+		binary.Read(buf, binary.BigEndian, &msg.QueueId)
+		count += 4
+
+		// 5. Flag
+		binary.Read(buf, binary.BigEndian, &msg.Flag)
+		count += 4
+
+		// 6. QueueOffset
+		binary.Read(buf, binary.BigEndian, &msg.QueueOffset)
+		count += 8
+
+		// 7. physical offset
+		binary.Read(buf, binary.BigEndian, &msg.CommitLogOffset)
+		count += 8
+
+		// 8. SysFlag
+		binary.Read(buf, binary.BigEndian, &msg.SysFlag)
+		count += 4
+
+		// 9. BornTimestamp
+		binary.Read(buf, binary.BigEndian, &msg.BornTimestamp)
+		count += 8
+
+		// 10. born host
+		hostBytes := buf.Next(4)
+		var port int32
+		binary.Read(buf, binary.BigEndian, &port)
+		msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+		count += 8
+
+		// 11. store timestamp
+		binary.Read(buf, binary.BigEndian, &msg.StoreTimestamp)
+		count += 8
+
+		// 12. store host
+		hostBytes = buf.Next(4)
+		binary.Read(buf, binary.BigEndian, &port)
+		msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+		count += 8
+
+		// 13. reconsume times
+		binary.Read(buf, binary.BigEndian, &msg.ReconsumeTimes)
+		count += 4
+
+		// 14. prepared transaction offset
+		binary.Read(buf, binary.BigEndian, &msg.PreparedTransactionOffset)
+		count += 8
+
+		// 15. body
+		var length int32
+		binary.Read(buf, binary.BigEndian, &length)
+		msg.Body = buf.Next(int(length))
+		if (msg.SysFlag & FlagCompressed) == FlagCompressed {
+			msg.Body = utils.UnCompress(msg.Body)
+		}
+		count += 4 + int(length)
+
+		// 16. topic
+		_byte, _ := buf.ReadByte()
+		msg.Topic = string(buf.Next(int(_byte)))
+		count += 1 + int(_byte)
+
+		var propertiesLength int16
+		binary.Read(buf, binary.BigEndian, &propertiesLength)
+		if propertiesLength > 0 {
+			msg.Properties = parseProperties(buf.Next(int(propertiesLength)))
+		}
+		count += 2 + int(propertiesLength)
+
+		msg.MsgId = createMessageId(hostBytes, msg.CommitLogOffset)
+		//count += 16
+
+		msgs = append(msgs, msg)
+	}
+
+	return msgs
+}
+
+func createMessageId(addr []byte, offset int64) string {
+	return "msgID" // TODO
+}
+
+func parseProperties(data []byte) map[string]string {
+	return make(map[string]string, 0)
 }
 
 func toMessages(messageExts []*MessageExt) []*Message {

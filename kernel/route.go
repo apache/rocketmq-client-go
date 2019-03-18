@@ -20,9 +20,9 @@ package kernel
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/tidwall/gjson"
 	"sort"
 	"strconv"
 	"strings"
@@ -81,44 +81,43 @@ func UpdateTopicRouteInfo(topic string) {
 	lockNamesrv.Lock()
 	defer lockNamesrv.Unlock()
 
-	RouteData, err := queryTopicRouteInfoFromServer(topic, requestTimeout)
-	fmt.Println(err)
+	routeData, err := queryTopicRouteInfoFromServer(topic, requestTimeout)
 	if err != nil {
-		rlog.Warningf("query topic route from server error: %s", err)
+		rlog.Warnf("query topic route from server error: %s", err)
 		return
 	}
 
-	if RouteData == nil {
-		rlog.Warningf("queryTopicRouteInfoFromServer return nil, Topic: %s", topic)
+	if routeData == nil {
+		rlog.Warnf("queryTopicRouteInfoFromServer return nil, Topic: %s", topic)
 		return
 	}
 
 	var changed bool
 	oldRouteData, exist := routeDataMap.Load(topic)
-	if !exist || RouteData == nil {
+	if !exist || routeData == nil {
 		changed = true
 	} else {
-		changed = topicRouteDataIsChange(oldRouteData.(*topicRouteData), RouteData)
+		changed = topicRouteDataIsChange(oldRouteData.(*topicRouteData), routeData)
 	}
 
 	if !changed {
 		changed = isNeedUpdateTopicRouteInfo(topic)
 	} else {
-		rlog.Infof("the topic[%s] route info changed, old[%s] ,new[%s]", topic, oldRouteData, RouteData)
+		rlog.Infof("the topic[%s] route info changed, old[%v] ,new[%s]", topic, oldRouteData, routeData)
 	}
 
 	if !changed {
 		return
 	}
 
-	newTopicRouteData := RouteData.clone()
+	newTopicRouteData := routeData.clone()
 
-	for _, brokerData := range newTopicRouteData.brokerDataList {
-		brokerAddressesMap.Store(brokerData.brokerName, brokerData.brokerAddresses)
+	for _, brokerData := range newTopicRouteData.BrokerDataList {
+		brokerAddressesMap.Store(brokerData.BrokerName, brokerData.BrokerAddresses)
 	}
 
 	// update publish info
-	publishInfo := RouteData2PublishInfo(topic, RouteData)
+	publishInfo := routeData2PublishInfo(topic, routeData)
 	publishInfo.HaveTopicRouterInfo = true
 
 	old, _ := publishInfoMap.Load(topic)
@@ -135,7 +134,7 @@ func FindBrokerAddressInPublish(brokerName string) string {
 		return ""
 	}
 
-	return bd.(*BrokerData).brokerAddresses[MasterId]
+	return bd.(*BrokerData).BrokerAddresses[MasterId]
 }
 
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
@@ -145,15 +144,16 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 		found      = false
 	)
 
-	bd, exist := brokerAddressesMap.Load(brokerName)
+	addrs, exist := brokerAddressesMap.Load(brokerName)
 
 	if exist {
-		for k, v := range bd.(*BrokerData).brokerAddresses {
+		for k, v := range addrs.(map[int64]string) {
 			if v != "" {
 				found = true
 				if k != MasterId {
 					slave = true
 				}
+				brokerAddr = v
 				break
 			}
 		}
@@ -162,7 +162,7 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 	var result *FindBrokerResult
 	if found {
 		result = &FindBrokerResult{
-			BrokerAddr:    brokerName,
+			BrokerAddr:    brokerAddr,
 			Slave:         slave,
 			BrokerVersion: findBrokerVersion(brokerName, brokerAddr),
 		}
@@ -180,14 +180,13 @@ func FetchSubscribeMessageQueues(topic string) ([]*MessageQueue, error) {
 
 	mqs := make([]*MessageQueue, 0)
 
-	for _, qd := range routeData.queueDataList {
-		if queueIsReadable(qd.perm) {
-			for i := 0; i < qd.readQueueNums; i++ {
-				mqs = append(mqs, &MessageQueue{Topic: topic, BrokerName: qd.brokerName, QueueId: i})
+	for _, qd := range routeData.QueueDataList {
+		if queueIsReadable(qd.Perm) {
+			for i := 0; i < qd.ReadQueueNums; i++ {
+				mqs = append(mqs, &MessageQueue{Topic: topic, BrokerName: qd.BrokerName, QueueId: i})
 			}
 		}
 	}
-
 	return mqs, nil
 }
 
@@ -210,8 +209,7 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 	request := &GetRouteInfoRequest{
 		Topic: topic,
 	}
-	rc := remote.NewRemotingCommand(GetRouteInfoByTopic, request, nil)
-
+	rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
 	response, err := remote.InvokeSync(getNameServerAddress(), rc, timeout)
 
 	if err != nil {
@@ -219,18 +217,19 @@ func queryTopicRouteInfoFromServer(topic string, timeout time.Duration) (*topicR
 	}
 
 	switch response.Code {
-	case Success:
+	case ResSuccess:
 		if response.Body == nil {
 			return nil, errors.New(response.Remark)
 		}
-		RouteData := &topicRouteData{}
-		err = json.Unmarshal(response.Body, RouteData)
+		routeData := &topicRouteData{}
+
+		err = routeData.decode(string(response.Body))
 		if err != nil {
-			rlog.Warningf("unmarshal topicRouteData error: %s", err)
+			rlog.Warnf("decode topicRouteData error: %s", err)
 			return nil, err
 		}
-		return RouteData, nil
-	case TopicNotExist:
+		return routeData, nil
+	case ResTopicNotExist:
 		return nil, ErrTopicNotExist
 	default:
 		return nil, errors.New(response.Remark)
@@ -244,17 +243,17 @@ func topicRouteDataIsChange(oldData *topicRouteData, newData *topicRouteData) bo
 	oldDataCloned := oldData.clone()
 	newDataCloned := newData.clone()
 
-	sort.Slice(oldDataCloned.queueDataList, func(i, j int) bool {
-		return strings.Compare(oldDataCloned.queueDataList[i].brokerName, oldDataCloned.queueDataList[j].brokerName) > 0
+	sort.Slice(oldDataCloned.QueueDataList, func(i, j int) bool {
+		return strings.Compare(oldDataCloned.QueueDataList[i].BrokerName, oldDataCloned.QueueDataList[j].BrokerName) > 0
 	})
-	sort.Slice(oldDataCloned.brokerDataList, func(i, j int) bool {
-		return strings.Compare(oldDataCloned.brokerDataList[i].brokerName, oldDataCloned.brokerDataList[j].brokerName) > 0
+	sort.Slice(oldDataCloned.BrokerDataList, func(i, j int) bool {
+		return strings.Compare(oldDataCloned.BrokerDataList[i].BrokerName, oldDataCloned.BrokerDataList[j].BrokerName) > 0
 	})
-	sort.Slice(newDataCloned.queueDataList, func(i, j int) bool {
-		return strings.Compare(newDataCloned.queueDataList[i].brokerName, newDataCloned.queueDataList[j].brokerName) > 0
+	sort.Slice(newDataCloned.QueueDataList, func(i, j int) bool {
+		return strings.Compare(newDataCloned.QueueDataList[i].BrokerName, newDataCloned.QueueDataList[j].BrokerName) > 0
 	})
-	sort.Slice(newDataCloned.brokerDataList, func(i, j int) bool {
-		return strings.Compare(newDataCloned.brokerDataList[i].brokerName, newDataCloned.brokerDataList[j].brokerName) > 0
+	sort.Slice(newDataCloned.BrokerDataList, func(i, j int) bool {
+		return strings.Compare(newDataCloned.BrokerDataList[i].BrokerName, newDataCloned.BrokerDataList[j].BrokerName) > 0
 	})
 
 	return !oldDataCloned.equals(newDataCloned)
@@ -266,7 +265,7 @@ func isNeedUpdateTopicRouteInfo(topic string) bool {
 	return !exist || value.(*TopicPublishInfo).isOK()
 }
 
-func RouteData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo {
+func routeData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo {
 	publishInfo := &TopicPublishInfo{
 		RouteData:  data,
 		OrderTopic: false,
@@ -291,32 +290,32 @@ func RouteData2PublishInfo(topic string, data *topicRouteData) *TopicPublishInfo
 		return publishInfo
 	}
 
-	qds := data.queueDataList
+	qds := data.QueueDataList
 	sort.Slice(qds, func(i, j int) bool {
 		return i-j >= 0
 	})
 
 	for _, qd := range qds {
-		if !queueIsWriteable(qd.perm) {
+		if !queueIsWriteable(qd.Perm) {
 			continue
 		}
 
 		var bData *BrokerData
-		for _, bd := range data.brokerDataList {
-			if bd.brokerName == qd.brokerName {
+		for _, bd := range data.BrokerDataList {
+			if bd.BrokerName == qd.BrokerName {
 				bData = bd
 				break
 			}
 		}
 
-		if bData == nil || bData.brokerAddresses[MasterId] == "" {
+		if bData == nil || bData.BrokerAddresses[MasterId] == "" {
 			continue
 		}
 
-		for i := 0; i < qd.writeQueueNums; i++ {
+		for i := 0; i < qd.WriteQueueNums; i++ {
 			mq := &MessageQueue{
 				Topic:      topic,
-				BrokerName: qd.brokerName,
+				BrokerName: qd.BrokerName,
 				QueueId:    i,
 			}
 			publishInfo.MqList = append(publishInfo.MqList, mq)
@@ -333,44 +332,74 @@ func getNameServerAddress() string {
 // topicRouteData topicRouteData
 type topicRouteData struct {
 	OrderTopicConf string
-	queueDataList  []*QueueData
-	brokerDataList []*BrokerData
+	QueueDataList  []*QueueData  `json:"queueDatas"`
+	BrokerDataList []*BrokerData `json:"brokerDatas"`
 }
 
-func (RouteData *topicRouteData) clone() *topicRouteData {
+func (routeData *topicRouteData) decode(data string) error {
+	res := gjson.Parse(data)
+	json.Unmarshal([]byte(res.Get("queueDatas").String()), &routeData.QueueDataList)
+
+	bds := res.Get("brokerDatas").Array()
+	routeData.BrokerDataList = make([]*BrokerData, len(bds))
+	for idx, v := range bds {
+		bd := &BrokerData{
+			BrokerName:      v.Get("brokerName").String(),
+			Cluster:         v.Get("cluster").String(),
+			BrokerAddresses: make(map[int64]string, 0),
+		}
+		addrs := v.Get("brokerAddrs").String()
+		strs := strings.Split(addrs[1:len(addrs)-1], ",")
+		if strs != nil {
+			for _, str := range strs {
+				i := strings.Index(str, ":")
+				if i < 0 {
+					continue
+				}
+				id, _ := strconv.ParseInt(str[0:i], 10, 64)
+				bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
+			}
+		}
+		routeData.BrokerDataList[idx] = bd
+	}
+	return nil
+}
+
+func (routeData *topicRouteData) clone() *topicRouteData {
 	cloned := &topicRouteData{
-		OrderTopicConf: RouteData.OrderTopicConf,
-		queueDataList:  make([]*QueueData, len(RouteData.queueDataList)),
-		brokerDataList: make([]*BrokerData, len(RouteData.brokerDataList)),
+		OrderTopicConf: routeData.OrderTopicConf,
+		QueueDataList:  make([]*QueueData, len(routeData.QueueDataList)),
+		BrokerDataList: make([]*BrokerData, len(routeData.BrokerDataList)),
 	}
 
-	for index, value := range RouteData.queueDataList {
-		cloned.queueDataList[index] = value
+	for index, value := range routeData.QueueDataList {
+		cloned.QueueDataList[index] = value
 	}
 
-	for index, value := range RouteData.brokerDataList {
-		cloned.brokerDataList[index] = value
+	for index, value := range routeData.BrokerDataList {
+		cloned.BrokerDataList[index] = value
 	}
 
 	return cloned
 }
 
-func (RouteData *topicRouteData) equals(data *topicRouteData) bool {
+func (routeData *topicRouteData) equals(data *topicRouteData) bool {
 	return false
 }
 
 // QueueData QueueData
 type QueueData struct {
-	brokerName     string
-	readQueueNums  int
-	writeQueueNums int
-	perm           int
-	topicSynFlag   int
+	BrokerName     string `json:"brokerName"`
+	ReadQueueNums  int    `json:"readQueueNums"`
+	WriteQueueNums int    `json:"writeQueueNums"`
+	Perm           int    `json:"perm"`
+	TopicSynFlag   int    `json:"topicSynFlag"`
 }
 
 // BrokerData BrokerData
 type BrokerData struct {
-	brokerName          string
-	brokerAddresses     map[int64]string
+	Cluster             string           `json:"cluster"`
+	BrokerName          string           `json:"brokerName"`
+	BrokerAddresses     map[int64]string `json:"brokerAddrs"`
 	brokerAddressesLock sync.RWMutex
 }

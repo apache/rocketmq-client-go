@@ -20,6 +20,7 @@ package kernel
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
@@ -71,10 +72,10 @@ type InnerConsumer interface {
 // SendMessage with batch by sync
 func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
-	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
+	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
 	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
-		rlog.Warningf("send messages with sync error: %v", err)
+		rlog.Warnf("send messages with sync error: %v", err)
 		return nil, err
 	}
 
@@ -89,10 +90,10 @@ func SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, reque
 
 func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
-	cmd := remote.NewRemotingCommand(SendBatchMessage, request, encodeMessages(msgs))
+	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
 	err := remote.InvokeOneWay(brokerAddrs, cmd)
 	if err != nil {
-		rlog.Warningf("send messages with oneway error: %v", err)
+		rlog.Warnf("send messages with oneway error: %v", err)
 	}
 	return nil, err
 }
@@ -100,13 +101,13 @@ func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMes
 func processSendResponse(brokerName string, msgs []*Message, cmd *remote.RemotingCommand) *SendResult {
 	var status SendStatus
 	switch cmd.Code {
-	case FlushDiskTimeout:
+	case ResFlushDiskTimeout:
 		status = SendFlushDiskTimeout
-	case FlushSlaveTimeout:
+	case ResFlushSlaveTimeout:
 		status = SendFlushSlaveTimeout
-	case SlaveNotAvailable:
+	case ResSlaveNotAvailable:
 		status = SendSlaveNotAvailable
-	case Success:
+	case ResSuccess:
 		status = SendOK
 	default:
 		// TODO process unknown code
@@ -145,7 +146,54 @@ func processSendResponse(brokerName string, msgs []*Message, cmd *remote.Remotin
 
 // PullMessage with sync
 func PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
-	return nil, nil
+	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
+
+	res, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	return processPullResponse(res)
+}
+
+func processPullResponse(response *remote.RemotingCommand) (*PullResult, error) {
+	pullResult := &PullResult{}
+	switch response.Code {
+	case ResSuccess:
+		pullResult.Status = PullFound
+	case ResPullNotFound:
+		pullResult.Status = PullNoNewMsg
+	case ResPullRetryImmediately:
+		pullResult.Status = PullNoMatchedMsg
+	case ResPullOffsetMoved:
+		pullResult.Status = PullOffsetIllegal
+	default:
+		return nil, fmt.Errorf("unknown Response Code: %d, remark: %s", response.Code, response.Remark)
+	}
+
+	v, exist := response.ExtFields["maxOffset"]
+	if exist {
+		pullResult.MaxOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = response.ExtFields["minOffset"]
+	if exist {
+		pullResult.MinOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = response.ExtFields["nextBeginOffset"]
+	if exist {
+		pullResult.NextBeginOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = response.ExtFields["suggestWhichBrokerId"]
+	if exist {
+		pullResult.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	pullResult.messageExts = decodeMessage(response.Body)
+
+	return pullResult, nil
 }
 
 // PullMessageAsync pull message async

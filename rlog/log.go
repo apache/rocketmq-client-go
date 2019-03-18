@@ -28,8 +28,8 @@ type Logger interface {
 	Debugf(format string, args ...interface{})
 	Info(i ...interface{})
 	Infof(format string, args ...interface{})
-	Warning(i ...interface{})
-	Warningf(format string, args ...interface{})
+	Warn(i ...interface{})
+	Warnf(format string, args ...interface{})
 	Error(i ...interface{})
 	Errorf(format string, args ...interface{})
 	Fatal(i ...interface{})
@@ -66,12 +66,12 @@ func Infof(format string, args ...interface{}) {
 	rLog.Infof(format, args...)
 }
 
-func Warning(i ...interface{}) {
-	rLog.Warning(i...)
+func Warn(i ...interface{}) {
+	rLog.Warn(i...)
 }
 
-func Warningf(format string, args ...interface{}) {
-	rLog.Warningf(format, args...)
+func Warnf(format string, args ...interface{}) {
+	rLog.Warnf(format, args...)
 }
 
 func Error(i ...interface{}) {
