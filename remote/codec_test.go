@@ -23,7 +23,6 @@ import (
 )
 
 type testHeader struct {
-
 }
 
 func (t testHeader) Encode() map[string]string {

@@ -33,7 +33,7 @@ var (
 	counter        int16 = 0
 	startTimestamp int64 = 0
 	nextTimestamp  int64 = 0
-	prefix  string
+	prefix         string
 	locker         sync.Mutex
 )
 
@@ -79,7 +79,7 @@ func clientIP4() ([]byte, error) {
 	}
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ip4 := ipnet.IP.To4(); ip4!=nil{
+			if ip4 := ipnet.IP.To4(); ip4 != nil {
 				return ip4, nil
 			}
 		}
@@ -87,7 +87,9 @@ func clientIP4() ([]byte, error) {
 	return nil, errors.New("unknown IP address")
 }
 
-
+func GetAddressByBytes(data []byte) string {
+	return "127.0.0.1"
+}
 
 func Pid() int16 {
 	return int16(os.Getpid())
@@ -103,4 +105,8 @@ func HashString(s string) int {
 		return 0
 	}
 	return int(crc32.ChecksumIEEE([]byte(s)))
+}
+
+func UnCompress(data []byte) []byte {
+	return data
 }

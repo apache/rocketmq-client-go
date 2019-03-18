@@ -17,32 +17,10 @@ limitations under the License.
 
 package kernel
 
-const (
-	ResSuccess              = int16(0)
-	ResFlushDiskTimeout     = int16(10)
-	ResSlaveNotAvailable    = int16(11)
-	ResFlushSlaveTimeout    = int16(12)
-	ResTopicNotExist        = int16(17)
-	ResPullNotFound         = int16(19)
-	ResPullRetryImmediately = int16(20)
-	ResPullOffsetMoved      = int16(21)
+import (
+	"testing"
 )
 
-type SendMessageResponse struct {
-	MsgId         string
-	QueueId       int32
-	QueueOffset   int64
-	TransactionId string
-	MsgRegion     string
-}
-
-func (response *SendMessageResponse) Decode(properties map[string]string) {
-
-}
-
-type PullMessageResponse struct {
-	SuggestWhichBrokerId int64
-	NextBeginOffset      int64
-	MinOffset            int64
-	MaxOffset            int64
+func TestUpdateTopicRouteInfo(t *testing.T) {
+	UpdateTopicRouteInfo("test")
 }

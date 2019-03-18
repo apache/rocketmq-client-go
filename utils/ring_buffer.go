@@ -19,8 +19,8 @@ package utils
 
 import (
 	"runtime"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
 // 1.需要能够动态扩容
@@ -30,14 +30,14 @@ import (
 type RingNodesBuffer struct {
 	writePos uint64
 	readPos  uint64
-	mask  uint64
+	mask     uint64
 
 	nodes nodes
 }
 
 type node struct {
 	position uint64
-	buf     []byte
+	buf      []byte
 }
 
 type nodes []*node
@@ -106,10 +106,10 @@ L:
 // 直接返回数据
 func (r *RingNodesBuffer) Read(timeout time.Duration) (data []byte, err error) {
 	var (
-		node     *node
+		node  *node
 		pos   = atomic.LoadUint64(&r.readPos)
 		start time.Time
-		dif uint64
+		dif   uint64
 	)
 	if timeout > 0 {
 		start = time.Now()
@@ -143,12 +143,12 @@ L:
 }
 
 // 知道大小，传进去解析
-func (r *RingNodesBuffer) ReadBySize(data []byte,timeout time.Duration) (n int, err error) {
+func (r *RingNodesBuffer) ReadBySize(data []byte, timeout time.Duration) (n int, err error) {
 	var (
-		node     *node
+		node  *node
 		pos   = atomic.LoadUint64(&r.readPos)
 		start time.Time
-		dif uint64
+		dif   uint64
 	)
 	i := 0
 	if timeout > 0 {
@@ -176,11 +176,10 @@ L:
 			i++
 		}
 	}
-	n = copy(data,node.buf)
+	n = copy(data, node.buf)
 	atomic.StoreUint64(&node.position, pos+r.mask+1)
 	return
 }
-
 
 func (r *RingNodesBuffer) Size() uint64 {
 	return atomic.LoadUint64(&r.writePos) - atomic.LoadUint64(&r.readPos)

@@ -28,14 +28,13 @@ func TestLocalIP(t *testing.T) {
 	ip := LocalIP()
 	if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 {
 		t.Errorf("failed to get host public ip4 address")
-	}else{
+	} else {
 		t.Logf("ip4 address: %v", ip)
 	}
 }
 
-
 func BenchmarkMessageClientID(b *testing.B) {
-	for i:= 0; i< b.N;i++{
-		 MessageClientID()
+	for i := 0; i < b.N; i++ {
+		MessageClientID()
 	}
 }

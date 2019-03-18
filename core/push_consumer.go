@@ -34,7 +34,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"sync"
 	"unsafe"
 )
@@ -226,6 +226,6 @@ func (c *defaultPushConsumer) Subscribe(topic, expression string, consumeFunc fu
 		return err
 	}
 	c.funcsMap.Store(topic, consumeFunc)
-	log.Infof("subscribe topic[%s] with expression[%s] successfully.", topic, expression)
+	rlog.Infof("subscribe topic[%s] with expression[%s] successfully.", topic, expression)
 	return nil
 }

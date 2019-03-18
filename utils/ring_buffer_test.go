@@ -18,15 +18,15 @@
 package utils
 
 import (
-	"time"
-	"testing"
-	"github.com/stretchr/testify/assert"
-	"sync"
-	"strconv"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
 )
 
-func TestRingRead(t *testing.T)  {
+func TestRingRead(t *testing.T) {
 	rb := NewRingNodesBuffer(5)
 	assert.Equal(t, uint64(8), rb.Cap())
 
@@ -34,7 +34,7 @@ func TestRingRead(t *testing.T)  {
 	if !assert.Nil(t, err) {
 		return
 	}
-	data, err := rb.Read(1*time.Second)
+	data, err := rb.Read(1 * time.Second)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -42,8 +42,7 @@ func TestRingRead(t *testing.T)  {
 	assert.Equal(t, "hello", string(data))
 }
 
-
-func TestRingReadBySize(t *testing.T)  {
+func TestRingReadBySize(t *testing.T) {
 	rb := NewRingNodesBuffer(5)
 	assert.Equal(t, uint64(8), rb.Cap())
 
@@ -52,7 +51,7 @@ func TestRingReadBySize(t *testing.T)  {
 		return
 	}
 	sink := make([]byte, 5)
-	n, err := rb.ReadBySize(sink,1*time.Second)
+	n, err := rb.ReadBySize(sink, 1*time.Second)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -68,7 +67,6 @@ func BenchmarkRingReadBufferMPMC(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-
 	for i := 0; i < 100; i++ {
 		go func() {
 			for i := 0; i < b.N; i++ {
@@ -82,8 +80,8 @@ func BenchmarkRingReadBufferMPMC(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				_ = len(strconv.Itoa(i))
 				var p []byte
-				p,_ = q.Read(1*time.Second)
-				fmt.Sprintf("%v",p)
+				p, _ = q.Read(1 * time.Second)
+				fmt.Sprintf("%v", p)
 
 			}
 			wg.Done()
@@ -93,15 +91,12 @@ func BenchmarkRingReadBufferMPMC(b *testing.B) {
 	wg.Wait()
 }
 
-
-
 func BenchmarkRingBySizeBufferMPMC(b *testing.B) {
 	q := NewRingNodesBuffer(uint64(b.N * 100))
 	var wg sync.WaitGroup
 	wg.Add(100)
 	b.ResetTimer()
 	b.ReportAllocs()
-
 
 	for i := 0; i < 100; i++ {
 		go func() {
@@ -114,9 +109,9 @@ func BenchmarkRingBySizeBufferMPMC(b *testing.B) {
 	for i := 0; i < 100; i++ {
 		go func() {
 			for i := 0; i < b.N; i++ {
-				p := make([]byte,len(strconv.Itoa(i)))
-				q.ReadBySize(p,1*time.Second)
-				fmt.Sprintf("%v",p)
+				p := make([]byte, len(strconv.Itoa(i)))
+				q.ReadBySize(p, 1*time.Second)
+				fmt.Sprintf("%v", p)
 			}
 			wg.Done()
 		}()
