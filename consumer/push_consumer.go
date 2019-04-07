@@ -1,7 +1,25 @@
+/*
+Licensed to the Apache Software Foundation (ASF) under one or more
+contributor license agreements.  See the NOTICE file distributed with
+this work for additional information regarding copyright ownership.
+The ASF licenses this file to You under the Apache License, Version 2.0
+(the "License"); you may not use this file except in compliance with
+the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package consumer
 
 import (
 	"context"
+	"errors"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"math"
@@ -9,22 +27,14 @@ import (
 	"time"
 )
 
-/**
- * In most scenarios, this is the mostly recommended usage to consume messages.
- * </p>
- *
- * Technically speaking, this push client is virtually a wrapper of the underlying pull service. Specifically, on
- * arrival of messages pulled from brokers, it roughly invokes the registered callback handler to feed the messages.
- * </p>
- *
- * See quick start/Consumer in the example module for a typical usage.
- * </p>
- *
- * <p>
- * <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
- * </p>
- */
-
+// In most scenarios, this is the mostly recommended usage to consume messages.
+//
+// Technically speaking, this push client is virtually a wrapper of the underlying pull service. Specifically, on
+// arrival of messages pulled from brokers, it roughly invokes the registered callback handler to feed the messages.
+//
+// See quick start/Consumer in the example module for a typical usage.
+//
+// <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
 type ConsumeResult int
 
 const (
@@ -34,17 +44,25 @@ const (
 )
 
 type PushConsumer interface {
-	Start()
+	Start() error
 	Shutdown()
 	Subscribe(topic, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error
 }
 
 type pushConsumer struct {
 	*defaultConsumer
+	/**
+     * Backtracking consumption time with second precision. Time format is
+     * 20131223171201<br>
+     * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
+     * Default backtracking consumption time Half an hour ago.
+     */
+	ConsumeTimestamp time.Duration
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
 	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
 	submitToConsume              func([]*kernel.MessageExt, *ProcessQueue, *kernel.MessageQueue, bool)
+	subscribedTopic map[string]string
 }
 
 func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
@@ -78,8 +96,10 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
+		ConsumeTimestamp: 30 * time.Minute,
+		subscribedTopic: make(map[string]string, 0),
 	}
-	dc.re = p
+	dc.mqChanged = p.mqChanged
 	if p.consumeOrderly {
 		p.submitToConsume = p.consumeMessageOrderly
 	} else {
@@ -88,35 +108,55 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 	return p
 }
 
-func (pc *pushConsumer) Start() {
+func (pc *pushConsumer) Start() error {
+	var err error
 	pc.once.Do(func() {
-		rlog.Infof("the consumer: %s start beginning. messageModel: %v, unitMode: %v",
+		rlog.Infof("the consumerGroup=%s start beginning. messageModel=%v, unitMode=%v",
 			pc.consumerGroup, pc.model, pc.unitMode)
-		pc.checkConfig()
-		pc.copySubscription()
-		pc.client = kernel.NewRocketMQClient(pc.option.ClientOption)
+		pc.state = kernel.StateStartFailed
+		pc.validate()
 
+		// set retry topic
 		if pc.model == Clustering {
-			pc.changeInstanceNameToPID()
-			pc.storage = nil // todo RemoteBrokerOffsetStore{}
+			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
+			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic, _SubAll, TAG ))
+		}
+
+		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
+		if pc.model == Clustering {
+			pc.option.ChangeInstanceNameToPID()
+			pc.storage = &remoteBrokerOffsetStore{}
 		} else {
-			pc.storage = nil // LocalFileOffsetStore{}
+			pc.storage = &localFileOffsetStore{}
 		}
 		pc.storage.load()
-		pc.updateTopicSubscribeInfoWhenSubscriptionChanged()
-		pc.client.RegisterConsumer(pc.consumerGroup, pc)
-		pc.client.CheckClientInBroker()
-		pc.client.SendHeartbeatToAllBrokerWithLock()
-		//pc.client.RebalanceImmediately()
-		// start clean msg expired
 		go func() {
+			// start clean msg expired
 			for {
 				pr := <-pc.prCh
 				// TODO manager
 				go pc.pullMessage(&pr)
 			}
 		}()
+
+		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
+		if err != nil {
+			pc.state = kernel.StateCreateJust
+			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
+			err = errors.New("consumer group has been created")
+			return
+		}
+		pc.client.Start()
+		pc.state = kernel.StateRunning
 	})
+
+	go func() {
+		pc.client.UpdateTopicRouteInfo()
+		pc.client.RebalanceImmediately()
+	}()
+	pc.client.CheckClientInBroker()
+	pc.client.SendHeartbeatToAllBrokerWithLock()
+	return err
 }
 
 func (pc *pushConsumer) Shutdown() {}
@@ -125,7 +165,7 @@ func (pc *pushConsumer) Subscribe(topic, selector MessageSelector, f func(msg *k
 	return nil
 }
 
-func (pc *pushConsumer) DoRebalance() {
+func (pc *pushConsumer) Rebalance() {
 	pc.defaultConsumer.doBalance()
 }
 
@@ -141,28 +181,62 @@ func (pc *pushConsumer) IsSubscribeTopicNeedUpdate(topic string) bool {
 	return pc.defaultConsumer.isSubscribeTopicNeedUpdate(topic)
 }
 
+func (pc *pushConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
+	return pc.defaultConsumer.SubscriptionDataList()
+}
+
 func (pc *pushConsumer) IsUnitMode() bool {
 	return pc.unitMode
 }
 
 func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*kernel.MessageQueue) {
-
+	// TODO
 }
 
-func (pc *pushConsumer) updateTopicSubscribeInfoWhenSubscriptionChanged() {
+func (pc *pushConsumer) validate() {
+	kernel.ValidateGroup(pc.consumerGroup)
 
-}
+	if pc.consumerGroup == kernel.DefaultConsumerGroup {
+		// TODO FQA
+		rlog.Fatalf("consumerGroup can't equal [%s], please specify another one.", kernel.DefaultConsumerGroup)
+	}
 
-func (pc *pushConsumer) checkConfig() {
+	if len(pc.subscribedTopic) == 0 {
+		rlog.Fatal("number of subscribed topics is 0.")
+	}
 
-}
+	// TODO max goroutine
+	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
+		rlog.Fatal("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
+	}
 
-func (pc *pushConsumer) copySubscription() {
+	if pc.option.PullThresholdForQueue < 1 || pc.option.PullThresholdForQueue > 65535 {
+		rlog.Fatal("option.PullThresholdForQueue out of range [1, 65535]")
+	}
 
-}
+	if pc.option.PullThresholdForTopic < 1 || pc.option.PullThresholdForTopic > 6553500 {
+		rlog.Fatal("option.PullThresholdForTopic out of range [1, 6553500]")
+	}
 
-func (pc *pushConsumer) changeInstanceNameToPID() {
+	if pc.option.PullThresholdSizeForQueue < 1 || pc.option.PullThresholdSizeForQueue > 1024 {
+		rlog.Fatal("option.PullThresholdSizeForQueue out of range [1, 1024]")
+	}
 
+	if pc.option.PullThresholdSizeForTopic < 1 || pc.option.PullThresholdSizeForTopic > 102400 {
+		rlog.Fatal("option.PullThresholdSizeForTopic out of range [1, 102400]")
+	}
+
+	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535 {
+		rlog.Fatal("option.PullInterval out of range [0, 65535]")
+	}
+
+	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
+		rlog.Fatal("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
+	}
+
+	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
+		rlog.Fatal("option.PullBatchSize out of range [1, 1024]")
+	}
 }
 
 func (pc *pushConsumer) pullMessage(request *PullRequest) {

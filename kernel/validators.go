@@ -15,27 +15,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package kernel
 
-import "fmt"
+import (
+	"github.com/apache/rocketmq-client-go/rlog"
+	"regexp"
+)
 
-// HashString hashes a string to a unique hashcode.
-func HashString(s string) int {
-	val := []byte(s)
-	var h int
+const (
+	_ValidPattern = "^[%|a-zA-Z0-9_-]+$"
+	_CharacterMaxLength = 255
+)
 
-	for idx := range val {
-		h = 31*h + int(val[idx])
+var (
+	_Pattern, _ = regexp.Compile("_ValidPattern")
+)
+
+func ValidateGroup(group string) {
+	if group == "" {
+		rlog.Fatal("consumerGroup is empty")
 	}
 
-	return h
-}
-
-
-func StrJoin(str, key string, value interface{}) string {
-	if key == "" || value == "" {
-		return str
+	if !_Pattern.Match([]byte(group)) {
+		rlog.Fatalf("the specified group[%s] contains illegal characters, allowing only %s", group, _ValidPattern)
 	}
 
-	return str + key + ": " + fmt.Sprint(value) + ", "
+	if len(group) > _CharacterMaxLength {
+		rlog.Fatal("the specified group is longer than group max length 255.")
+	}
 }

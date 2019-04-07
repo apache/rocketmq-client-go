@@ -22,10 +22,12 @@ import (
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -49,18 +51,16 @@ const (
 	_PersistConsumerOffsetInterval = 5 * time.Second
 )
 
-/**
- * Message model defines the way how messages are delivered to each consumer clients.
- * </p>
- *
- * RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
- * the same {@link #consumerGroup} would only consume shards of the messages subscribed, which achieves load
- * balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
- * separately.
- * </p>
- *
- * This field defaults to clustering.
- */
+// Message model defines the way how messages are delivered to each consumer clients.
+// </p>
+//
+// RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
+// the same {@link #consumerGroup} would only consume shards of the messages subscribed, which achieves load
+// balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
+// separately.
+// </p>
+//
+// This field defaults to clustering.
 type MessageModel int
 
 const (
@@ -79,37 +79,35 @@ func (mode MessageModel) String() string {
 	}
 }
 
-/**
- * Consuming point on consumer booting.
- * </p>
- *
- * There are three consuming points:
- * <ul>
- * <li>
- * <code>CONSUME_FROM_LAST_OFFSET</code>: consumer clients pick up where it stopped previously.
- * If it were a newly booting up consumer client, according aging of the consumer group, there are two
- * cases:
- * <ol>
- * <li>
- * if the consumer group is created so recently that the earliest message being subscribed has yet
- * expired, which means the consumer group represents a lately launched business, consuming will
- * start from the very beginning;
- * </li>
- * <li>
- * if the earliest message being subscribed has expired, consuming will start from the latest
- * messages, meaning messages born prior to the booting timestamp would be ignored.
- * </li>
- * </ol>
- * </li>
- * <li>
- * <code>CONSUME_FROM_FIRST_OFFSET</code>: Consumer client will start from earliest messages available.
- * </li>
- * <li>
- * <code>CONSUME_FROM_TIMESTAMP</code>: Consumer client will start from specified timestamp, which means
- * messages born prior to {@link #consumeTimestamp} will be ignored
- * </li>
- * </ul>
- */
+// Consuming point on consumer booting.
+// </p>
+//
+// There are three consuming points:
+// <ul>
+// <li>
+// <code>CONSUME_FROM_LAST_OFFSET</code>: consumer clients pick up where it stopped previously.
+// If it were a newly booting up consumer client, according aging of the consumer group, there are two
+// cases:
+// <ol>
+// <li>
+// if the consumer group is created so recently that the earliest message being subscribed has yet
+// expired, which means the consumer group represents a lately launched business, consuming will
+// start from the very beginning;
+// </li>
+// <li>
+// if the earliest message being subscribed has expired, consuming will start from the latest
+// messages, meaning messages born prior to the booting timestamp would be ignored.
+// </li>
+// </ol>
+// </li>
+// <li>
+// <code>CONSUME_FROM_FIRST_OFFSET</code>: Consumer client will start from earliest messages available.
+// </li>
+// <li>
+// <code>CONSUME_FROM_TIMESTAMP</code>: Consumer client will start from specified timestamp, which means
+// messages born prior to {@link #consumeTimestamp} will be ignored
+// </li>
+// </ul>
 type ConsumeFromWhere int
 
 const (
@@ -189,10 +187,6 @@ type PullRequest struct {
 
 func (pr *PullRequest) String() string {
 	return ""
-}
-
-type rebalance interface {
-	messageQueueChanged(topic string, mqAll, mqDivided []*kernel.MessageQueue)
 }
 
 type ConsumerOption struct {
@@ -283,7 +277,7 @@ type defaultConsumer struct {
 
 	cType  ConsumeType
 	client *kernel.RMQClient
-	re     rebalance
+	mqChanged     func(topic string, mqAll, mqDivided []*kernel.MessageQueue)
 	state  kernel.ServiceState
 	pause  bool
 	once   sync.Once
@@ -297,7 +291,7 @@ type defaultConsumer struct {
 	topicSubscribeInfoTable sync.Map
 
 	// key: topic
-	// value: SubscriptionData
+	// value: *SubscriptionData
 	subscriptionDataTable sync.Map
 	storage               OffsetStore
 	// chan for push consumer
@@ -352,7 +346,7 @@ func (dc *defaultConsumer) doBalance() {
 		case BroadCasting:
 			changed := dc.updateProcessQueueTable(topic, mqs, dc.consumeOrderly)
 			if changed {
-				dc.re.messageQueueChanged(topic, mqs, mqs)
+				dc.mqChanged(topic, mqs, mqs)
 				rlog.Infof("messageQueueChanged, Group: %s, Topic: %s, MessageQueues: %v",
 					dc.consumerGroup, topic, mqs)
 			}
@@ -379,9 +373,9 @@ func (dc *defaultConsumer) doBalance() {
 				return (mqAll[i].QueueId - mqAll[j].QueueId) > 0
 			})
 			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
-			change := dc.updateProcessQueueTable(topic, allocateResult, dc.consumeOrderly)
-			if change {
-				dc.re.messageQueueChanged(topic, mqAll, allocateResult)
+			changed := dc.updateProcessQueueTable(topic, allocateResult, dc.consumeOrderly)
+			if changed {
+				dc.mqChanged(topic, mqAll, allocateResult)
 				rlog.Infof("do balance result changed, allocateMessageQueueStrategyName=%s, group=%s, "+
 					"topic=%s, clientId=%s, mqAllSize=%d, cidAllSize=%d, rebalanceResultSize=%d, "+
 					"rebalanceResultSet=%v", string(dc.option.Strategy), dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
@@ -391,6 +385,15 @@ func (dc *defaultConsumer) doBalance() {
 		}
 		return true
 	})
+}
+
+func (dc *defaultConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
+	result := make([]*kernel.SubscriptionData, 0 )
+	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
+		result = append(result, value.(*kernel.SubscriptionData))
+		return true
+	})
+	return result
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
@@ -717,4 +720,104 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 		return list
 	}
 	return nil
+}
+
+func buildSubscriptionData(topic, subString string, subType ExpressionType) *kernel.SubscriptionData {
+	subData := &kernel.SubscriptionData{
+		Topic:     topic,
+		SubString: subString,
+		ExpType:   string(TAG),
+	}
+
+	if subType != "" && subType != TAG {
+		return subData
+	}
+
+	if subString == "" || subString == _SubAll {
+		subData.ExpType = string(TAG)
+		subData.SubString = _SubAll
+	} else {
+		tags := strings.Split(subString, "\\|\\|")
+		for idx := range tags {
+			trimString := strings.Trim(tags[idx], " ")
+			if trimString != "" {
+				if !subData.Tags[trimString] {
+					subData.Tags[trimString] = true
+				}
+				hCode := utils.HashString(trimString)
+				if !subData.Codes[int32(hCode)] {
+					subData.Codes[int32(hCode)] = true
+				}
+			}
+		}
+	}
+	return subData
+}
+
+func getNextQueueOf(topic string) *kernel.MessageQueue {
+	queues, err := kernel.FetchSubscribeMessageQueues(topic)
+	if err != nil && len(queues) > 0 {
+		rlog.Error(err.Error())
+		return nil
+	}
+	var index int64
+	v, exist := queueCounterTable.Load(topic)
+	if !exist {
+		index = -1
+		queueCounterTable.Store(topic, 0)
+	} else {
+		index = v.(int64)
+	}
+
+	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
+}
+
+func buildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {
+	var flag int32 = 0
+	if commitOffset {
+		flag |= 0x1 << 0
+	}
+
+	if suspend {
+		flag |= 0x1 << 1
+	}
+
+	if subscription {
+		flag |= 0x1 << 2
+	}
+
+	if classFilter {
+		flag |= 0x1 << 3
+	}
+
+	return flag
+}
+
+func clearCommitOffsetFlag(sysFlag int32) int32 {
+	return sysFlag & (^0x1 << 0)
+}
+
+func tryFindBroker(mq *kernel.MessageQueue) *kernel.FindBrokerResult {
+	result := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+
+	if result == nil {
+		kernel.UpdateTopicRouteInfo(mq.Topic)
+	}
+	return kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+}
+
+var (
+	pullFromWhichNodeTable sync.Map
+)
+
+func updatePullFromWhichNode(mq *kernel.MessageQueue, brokerId int64) {
+	pullFromWhichNodeTable.Store(mq.HashCode(), brokerId)
+}
+
+func recalculatePullFromWhichNode(mq *kernel.MessageQueue) int64 {
+	v, exist := pullFromWhichNodeTable.Load(mq.HashCode())
+	if exist {
+		return v.(int64)
+	}
+	return kernel.MasterId
 }

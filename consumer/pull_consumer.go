@@ -70,7 +70,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
 
-	data := getSubscriptionData(mq, selector)
+	data := buildSubscriptionData(mq.Topic, selector.Expression)
 	result, err := c.pull(context.Background(), mq, data, c.nextOffsetOf(mq), numbers)
 
 	if err != nil {
@@ -205,104 +205,4 @@ func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data 
 
 		result.SetMessageExts(msgListFilterAgain)
 	}
-}
-
-func getSubscriptionData(mq *kernel.MessageQueue, selector MessageSelector) *kernel.SubscriptionData {
-	subData := &kernel.SubscriptionData{
-		Topic:     mq.Topic,
-		SubString: selector.Expression,
-		ExpType:   string(selector.Type),
-	}
-
-	if selector.Type != "" && selector.Type != kernel.Tags {
-		return subData
-	}
-
-	if selector.Expression == "" || selector.Expression == _SubAll {
-		subData.ExpType = kernel.Tags
-		subData.SubString = _SubAll
-	} else {
-		tags := strings.Split(selector.Expression, "\\|\\|")
-		for idx := range tags {
-			trimString := strings.Trim(tags[idx], " ")
-			if trimString != "" {
-				if !subData.Tags[trimString] {
-					subData.Tags[trimString] = true
-				}
-				hCode := utils.HashString(trimString)
-				if !subData.Codes[int32(hCode)] {
-					subData.Codes[int32(hCode)] = true
-				}
-			}
-		}
-	}
-	return subData
-}
-
-func getNextQueueOf(topic string) *kernel.MessageQueue {
-	queues, err := kernel.FetchSubscribeMessageQueues(topic)
-	if err != nil && len(queues) > 0 {
-		rlog.Error(err.Error())
-		return nil
-	}
-	var index int64
-	v, exist := queueCounterTable.Load(topic)
-	if !exist {
-		index = -1
-		queueCounterTable.Store(topic, 0)
-	} else {
-		index = v.(int64)
-	}
-
-	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
-}
-
-func buildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {
-	var flag int32 = 0
-	if commitOffset {
-		flag |= 0x1 << 0
-	}
-
-	if suspend {
-		flag |= 0x1 << 1
-	}
-
-	if subscription {
-		flag |= 0x1 << 2
-	}
-
-	if classFilter {
-		flag |= 0x1 << 3
-	}
-
-	return flag
-}
-
-func clearCommitOffsetFlag(sysFlag int32) int32 {
-	return sysFlag & (^0x1 << 0)
-}
-
-func tryFindBroker(mq *kernel.MessageQueue) *kernel.FindBrokerResult {
-	result := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
-
-	if result == nil {
-		kernel.UpdateTopicRouteInfo(mq.Topic)
-	}
-	return kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
-}
-
-var (
-	pullFromWhichNodeTable sync.Map
-)
-
-func updatePullFromWhichNode(mq *kernel.MessageQueue, brokerId int64) {
-	pullFromWhichNodeTable.Store(mq.HashCode(), brokerId)
-}
-
-func recalculatePullFromWhichNode(mq *kernel.MessageQueue) int64 {
-	v, exist := pullFromWhichNodeTable.Load(mq.HashCode())
-	if exist {
-		return v.(int64)
-	}
-	return kernel.MasterId
 }

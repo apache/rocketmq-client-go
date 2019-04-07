@@ -40,6 +40,12 @@ const (
 
 	// Pulling topic information interval from the named server
 	_HeartbeatBrokerInterval = 30 * time.Second
+
+	// Offset persistent interval for consumer
+	_PersistOffset = 5 * time.Second
+
+	// Rebalance interval
+	_RebalanceInterval = 20 * time.Millisecond
 )
 
 var (
@@ -82,15 +88,63 @@ type InnerConsumer interface {
 	PersistConsumerOffset()
 	UpdateTopicSubscribeInfo(topic string, mqs []*MessageQueue)
 	IsSubscribeTopicNeedUpdate(topic string) bool
+	SubscriptionDataList() []*SubscriptionData
+	Rebalance()
 	IsUnitMode() bool
 }
 
 type RMQClient struct {
 	option ClientOption
+	// group -> InnerProducer
+	producerMap sync.Map
+
+	// group -> InnerConsumer
+	consumerMap sync.Map
 }
 
-func NewRocketMQClient(option ClientOption) *RMQClient {
+var clientMap sync.Map
+
+func GetOrNewRocketMQClient(option ClientOption) *RMQClient {
+
 	return nil
+}
+
+func (c *RMQClient) Start() {
+	// TODO fetchNameServerAddr
+	go func() {}()
+
+	// schedule update route info
+	go func() {
+		// delay
+		time.Sleep( 50 * time.Millisecond)
+		for  {
+			c.UpdateTopicRouteInfo()
+			time.Sleep(_PullNameServerInterval)
+		}
+	}()
+
+	// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
+	go func() {}()
+
+	// schedule persist offset
+	go func() {
+		time.Sleep( 10 * time.Second)
+		for {
+			c.consumerMap.Range(func(key, value interface{}) bool {
+				consumer := value.(InnerConsumer)
+				consumer.PersistConsumerOffset()
+				return true
+			})
+			time.Sleep(_PersistOffset)
+		}
+	}()
+
+	go func() {
+		for {
+			c.RebalanceImmediately()
+			time.Sleep(_RebalanceInterval)
+		}
+	}()
 }
 
 func (c *RMQClient) ClientID() string {
@@ -107,6 +161,35 @@ func (c *RMQClient) CheckClientInBroker() {
 
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 
+}
+
+func (c *RMQClient) UpdateTopicRouteInfo() {
+	publishTopicSet := make(map[string]bool, 0)
+	c.producerMap.Range(func(key, value interface{}) bool {
+		producer := value.(InnerProducer)
+		list := producer.PublishTopicList()
+		for idx := range list {
+			publishTopicSet[list[idx]] = true
+		}
+		return true
+	})
+	for topic := range publishTopicSet {
+		c.UpdatePublishInfo(topic, UpdateTopicRouteInfo(topic))
+	}
+
+	subscribedTopicSet := make(map[string]bool, 0)
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		list := consumer.SubscriptionDataList()
+		for idx := range list {
+			subscribedTopicSet[list[idx].Topic] = true
+		}
+		return true
+	})
+
+	for topic := range subscribedTopicSet {
+		c.UpdateSubscribeInfo(topic, UpdateTopicRouteInfo(topic))
+	}
 }
 
 // SendMessage with batch by sync
@@ -158,11 +241,11 @@ func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd 
 
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
-		msgIDs = append(msgIDs, msgs[i].Properties[UniqueClientMessageIdKeyIndex])
+		msgIDs = append(msgIDs, msgs[i].Properties[PropertyUniqueClientMessageIdKeyIndex])
 	}
 
-	regionId := cmd.ExtFields[MsgRegion]
-	trace := cmd.ExtFields[TraceSwitch]
+	regionId := cmd.ExtFields[PropertyMsgRegion]
+	trace := cmd.ExtFields[PropertyTraceSwitch]
 
 	if regionId == "" {
 		regionId = defaultTraceRegionID
@@ -261,16 +344,8 @@ func (c *RMQClient) UpdateConsumerOffset(consumerGroup, topic string, queue int,
 	return nil
 }
 
-var (
-	// group -> InnerProducer
-	producerMap sync.Map
-
-	// group -> InnerConsumer
-	consumerMap sync.Map
-)
-
-func (c *RMQClient) RegisterConsumer(group string, consumer InnerConsumer) {
-
+func (c *RMQClient) RegisterConsumer(group string, consumer InnerConsumer) error {
+	return nil
 }
 
 func (c *RMQClient) UnregisterConsumer(group string) {
@@ -291,6 +366,81 @@ func (c *RMQClient) SelectProducer(group string) InnerProducer {
 
 func (c *RMQClient) SelectConsumer(group string) InnerConsumer {
 	return nil
+}
+
+func (c *RMQClient) RebalanceImmediately() {
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		consumer.Rebalance()
+		return true
+	})
+}
+
+func (c *RMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
+	if !c.isNeedUpdatePublishInfo(topic) {
+		return
+	}
+	c.producerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerProducer)
+		publishInfo := routeData2PublishInfo(topic, data)
+		publishInfo.HaveTopicRouterInfo  = true
+		consumer.UpdateTopicPublishInfo(topic, publishInfo)
+		return true
+	})
+}
+
+func (c *RMQClient) isNeedUpdatePublishInfo(topic string) bool {
+	var result bool
+	c.producerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerProducer)
+		if consumer.IsPublishTopicNeedUpdate(topic) {
+			result = true
+			return false
+		}
+		return true
+	})
+	return result
+}
+
+func (c *RMQClient) UpdateSubscribeInfo(topic string, data *TopicRouteData) {
+	if !c.isNeedUpdateSubscribeInfo(topic) {
+		return
+	}
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
+		return true
+	})
+}
+
+func (c *RMQClient) isNeedUpdateSubscribeInfo(topic string) bool {
+	var result bool
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		if consumer.IsSubscribeTopicNeedUpdate(topic) {
+			result = true
+			return false
+		}
+		return true
+	})
+	return result
+}
+
+func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue {
+	list := make([]*MessageQueue, 0)
+	for idx := range data.QueueDataList {
+		qd := data.QueueDataList[idx]
+		if queueIsReadable(qd.Perm) {
+			for i := 0; i < qd.ReadQueueNums; i++  {
+				list = append(list, &MessageQueue{
+					Topic: topic,
+					BrokerName: qd.BrokerName,
+					QueueId: i,
+				})
+			}
+		}
+	}
+	return list
 }
 
 func encodeMessages(message []*Message) []byte {

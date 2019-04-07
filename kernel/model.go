@@ -250,6 +250,7 @@ type (
 
 const (
 	StateCreateJust ServiceState = iota
+	StateStartFailed
 	StateRunning
 	StateShutdown
 )

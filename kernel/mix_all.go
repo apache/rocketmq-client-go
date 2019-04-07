@@ -1,5 +1,10 @@
 package kernel
 
 const (
-	RetryGroupTopicPrefix = ""
+	RetryGroupTopicPrefix = "%RETRY%"
+	DefaultConsumerGroup = "DEFAULT_CONSUMER"
 )
+
+func GetRetryTopic(group string) string {
+	return  RetryGroupTopicPrefix + group
+}
