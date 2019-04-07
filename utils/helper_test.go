@@ -16,7 +16,9 @@
  */
 package utils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestClassLoaderID(t *testing.T) {
 	if ClassLoaderID() != 0 {

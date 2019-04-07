@@ -2,12 +2,10 @@ package consumer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/core"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"math"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -40,27 +38,54 @@ type PushConsumer interface {
 	Shutdown()
 	Subscribe(topic, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error
 }
-type PushConsumerOption struct {
-	ConsumerOption
-	// The socket timeout in milliseconds
-	ConsumerPullTimeout time.Duration
-}
 
 type pushConsumer struct {
-	defaultConsumer
-	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
+	*defaultConsumer
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
-	// TODO hook
-	client          *kernel.RMQClient
-	once            sync.Once
-	option          PushConsumerOption
-	submitToConsume func([]*kernel.MessageExt, *ProcessQueue, *kernel.MessageQueue, bool)
+	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
+	submitToConsume              func([]*kernel.MessageExt, *ProcessQueue, *kernel.MessageQueue, bool)
 }
 
-func NewPushConsumer(cfg rocketmq.ClientConfig) PushConsumer {
-	//p := pushConsumer{}
-	return nil
+func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
+	dc := &defaultConsumer{
+		consumerGroup:  consumerGroup,
+		cType:          _PushConsume,
+		state:          kernel.StateCreateJust,
+		prCh:           make(chan PullRequest, 4),
+		model:          opt.ConsumerModel,
+		consumeOrderly: opt.ConsumeOrderly,
+		fromWhere:      opt.FromWhere,
+		option:         opt,
+	}
+
+	switch opt.Strategy {
+	case StrategyAveragely:
+		dc.allocate = allocateByAveragely
+	case StrategyAveragelyCircle:
+		dc.allocate = allocateByAveragelyCircle
+	case StrategyConfig:
+		dc.allocate = allocateByConfig
+	case StrategyConsistentHash:
+		dc.allocate = allocateByConsistentHash
+	case StrategyMachineNearby:
+		dc.allocate = allocateByMachineNearby
+	case StrategyMachineRoom:
+		dc.allocate = allocateByMachineRoom
+	default:
+		dc.allocate = allocateByAveragely
+	}
+
+	p := &pushConsumer{
+		defaultConsumer: dc,
+	}
+	dc.re = p
+	if p.consumeOrderly {
+		p.submitToConsume = p.consumeMessageOrderly
+	} else {
+		p.submitToConsume = p.consumeMessageCurrently
+	}
+	return p
 }
 
 func (pc *pushConsumer) Start() {
@@ -69,22 +94,21 @@ func (pc *pushConsumer) Start() {
 			pc.consumerGroup, pc.model, pc.unitMode)
 		pc.checkConfig()
 		pc.copySubscription()
+		pc.client = kernel.NewRocketMQClient(pc.option.ClientOption)
+
 		if pc.model == Clustering {
 			pc.changeInstanceNameToPID()
 			pc.storage = nil // todo RemoteBrokerOffsetStore{}
 		} else {
 			pc.storage = nil // LocalFileOffsetStore{}
 		}
-		pc.client = kernel.NewRocketMQClient(pc.option.ClientOption)
-		//pc.r.strategy =
-
 		pc.storage.load()
-
-		pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		pc.updateTopicSubscribeInfoWhenSubscriptionChanged()
+		pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		pc.client.CheckClientInBroker()
 		pc.client.SendHeartbeatToAllBrokerWithLock()
 		//pc.client.RebalanceImmediately()
+		// start clean msg expired
 		go func() {
 			for {
 				pr := <-pc.prCh
@@ -93,6 +117,12 @@ func (pc *pushConsumer) Start() {
 			}
 		}()
 	})
+}
+
+func (pc *pushConsumer) Shutdown() {}
+
+func (pc *pushConsumer) Subscribe(topic, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error {
+	return nil
 }
 
 func (pc *pushConsumer) DoRebalance() {
@@ -160,7 +190,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		if pc.pause {
 			rlog.Warnf("consumer [%s] of [%s] was paused, execute pull request [%s] later",
-				pc.config.InstanceName, pc.consumerGroup, request.String())
+				pc.option.InstanceName, pc.consumerGroup, request.String())
 			sleepTime = _PullDelayTimeWhenSuspend
 			goto NEXT
 		}
@@ -340,7 +370,21 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) consumeCurrently(msgs []*kernel.MessageExt, pq *ProcessQueue, mq *kernel.MessageQueue,
+func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *kernel.MessageExt) bool {
+	return true
+}
+
+type ConsumeMessageContext struct {
+	consumerGroup string
+	msgs          []*kernel.MessageExt
+	mq            *kernel.MessageQueue
+	success       bool
+	status        string
+	// mqTractContext
+	properties map[string]string
+}
+
+func (pc *pushConsumer) consumeMessageCurrently(msgs []*kernel.MessageExt, pq *ProcessQueue, mq *kernel.MessageQueue,
 	dispatchToConsume bool) {
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*kernel.MessageExt
@@ -427,16 +471,7 @@ func (pc *pushConsumer) consumeCurrently(msgs []*kernel.MessageExt, pq *ProcessQ
 	}
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *kernel.MessageExt) bool {
-	return true
-}
+func (pc *pushConsumer) consumeMessageOrderly(msgs []*kernel.MessageExt, pq *ProcessQueue, mq *kernel.MessageQueue,
+	dispatchToConsume bool) {
 
-type ConsumeMessageContext struct {
-	consumerGroup string
-	msgs          []*kernel.MessageExt
-	mq            *kernel.MessageQueue
-	success       bool
-	status        string
-	// mqTractContext
-	properties map[string]string
 }

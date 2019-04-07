@@ -255,6 +255,10 @@ type ConsumerOption struct {
 	// Maximum amount of time a message may block the consuming thread.
 	ConsumeTimeout time.Duration
 
+	ConsumerModel  MessageModel
+	Strategy       AllocateStrategy
+	ConsumeOrderly bool
+	FromWhere      ConsumeFromWhere
 	// TODO traceDispatcher
 }
 
@@ -262,6 +266,7 @@ type ConfigOfPushConfig struct {
 }
 
 type defaultConsumer struct {
+	// TODO hook
 	/**
 	 * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
 	 * load balance. It's required and needs to be globally unique.
@@ -269,19 +274,20 @@ type defaultConsumer struct {
 	 *
 	 * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
 	 */
-	consumerGroup string
-
+	consumerGroup  string
 	model          MessageModel
-	cType          ConsumeType
-	strategy       AllocateMessageQueueStrategy
-	client         *kernel.RMQClient
+	allocate       func(string, string, []*kernel.MessageQueue, []string) []*kernel.MessageQueue
 	unitMode       bool
-	re             rebalance
-	state          kernel.ServiceState
 	consumeOrderly bool
 	fromWhere      ConsumeFromWhere
-	config         ConsumerOption
-	pause          bool
+
+	cType  ConsumeType
+	client *kernel.RMQClient
+	re     rebalance
+	state  kernel.ServiceState
+	pause  bool
+	once   sync.Once
+	option ConsumerOption
 	// key: int, hash(*kernel.MessageQueue)
 	// value: *processQueue
 	processQueueTable sync.Map
@@ -294,7 +300,6 @@ type defaultConsumer struct {
 	// value: SubscriptionData
 	subscriptionDataTable sync.Map
 	storage               OffsetStore
-
 	// chan for push consumer
 	prCh chan PullRequest
 }
@@ -373,13 +378,13 @@ func (dc *defaultConsumer) doBalance() {
 				}
 				return (mqAll[i].QueueId - mqAll[j].QueueId) > 0
 			})
-			allocateResult := dc.strategy.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
+			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
 			change := dc.updateProcessQueueTable(topic, allocateResult, dc.consumeOrderly)
 			if change {
 				dc.re.messageQueueChanged(topic, mqAll, allocateResult)
 				rlog.Infof("do balance result changed, allocateMessageQueueStrategyName=%s, group=%s, "+
 					"topic=%s, clientId=%s, mqAllSize=%d, cidAllSize=%d, rebalanceResultSize=%d, "+
-					"rebalanceResultSet=%v", dc.strategy.name(), dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
+					"rebalanceResultSet=%v", string(dc.option.Strategy), dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
 					len(cidAll), len(allocateResult), allocateResult)
 
 			}

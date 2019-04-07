@@ -23,3 +23,10 @@ func AbsInt(i int) int {
 	}
 	return -i
 }
+
+func MinInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
