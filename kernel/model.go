@@ -62,7 +62,7 @@ type PullStatus int
 const (
 	PullFound PullStatus = iota
 	PullNoNewMsg
-	PullNoMatchedMsg
+	PullNoMsgMatched
 	PullOffsetIllegal
 	PullBrokerTimeout
 )
@@ -90,6 +90,10 @@ func (result *PullResult) GetMessages() []*Message {
 		return make([]*Message, 0)
 	}
 	return toMessages(result.messageExts)
+}
+
+func (result *PullResult) String() string {
+	return ""
 }
 
 func decodeMessage(data []byte) []*MessageExt {
@@ -224,6 +228,11 @@ func (mq *MessageQueue) HashCode() int {
 	return result
 }
 
+func (mq *MessageQueue) Equals(queue *MessageQueue) bool {
+	// TODO
+	return true
+}
+
 type FindBrokerResult struct {
 	BrokerAddr    string
 	Slave         bool
@@ -236,89 +245,14 @@ type (
 
 	consumeType string
 
-	MessageModel     int
-	ConsumeFromWhere int
-	ServiceState     int
+	ServiceState int
 )
 
 const (
-	ConsumeActively  = consumeType("PULL")
-	ConsumePassively = consumeType("PUSH")
-
-	BroadCasting = MessageModel(1)
-	Clustering   = MessageModel(2)
-
-	ConsumeFromLastOffset ConsumeFromWhere = iota
-	ConsumeFromFirstOffset
-	ConsumeFromTimestamp
-
-	CreateJust ServiceState = iota
-	Running
-	Shutdown
+	StateCreateJust ServiceState = iota
+	StateRunning
+	StateShutdown
 )
-
-func (mode MessageModel) String() string {
-	switch mode {
-	case BroadCasting:
-		return "BroadCasting"
-	case Clustering:
-		return "Clustering"
-	default:
-		return "Unknown"
-	}
-}
-
-type ExpressionType string
-
-const (
-	/**
-	 * <ul>
-	 * Keywords:
-	 * <li>{@code AND, OR, NOT, BETWEEN, IN, TRUE, FALSE, IS, NULL}</li>
-	 * </ul>
-	 * <p/>
-	 * <ul>
-	 * Data type:
-	 * <li>Boolean, like: TRUE, FALSE</li>
-	 * <li>String, like: 'abc'</li>
-	 * <li>Decimal, like: 123</li>
-	 * <li>Float number, like: 3.1415</li>
-	 * </ul>
-	 * <p/>
-	 * <ul>
-	 * Grammar:
-	 * <li>{@code AND, OR}</li>
-	 * <li>{@code >, >=, <, <=, =}</li>
-	 * <li>{@code BETWEEN A AND B}, equals to {@code >=A AND <=B}</li>
-	 * <li>{@code NOT BETWEEN A AND B}, equals to {@code >B OR <A}</li>
-	 * <li>{@code IN ('a', 'b')}, equals to {@code ='a' OR ='b'}, this operation only support String type.</li>
-	 * <li>{@code IS NULL}, {@code IS NOT NULL}, check parameter whether is null, or not.</li>
-	 * <li>{@code =TRUE}, {@code =FALSE}, check parameter whether is true, or false.</li>
-	 * </ul>
-	 * <p/>
-	 * <p>
-	 * Example:
-	 * (a > 10 AND a < 100) OR (b IS NOT NULL AND b=TRUE)
-	 * </p>
-	 */
-	SQL92 = ExpressionType("SQL92")
-
-	/**
-	 * Only support or operation such as
-	 * "tag1 || tag2 || tag3", <br>
-	 * If null or * expression, meaning subscribe all.
-	 */
-	TAG = ExpressionType("TAG")
-)
-
-func IsTagType(exp string) bool {
-	if exp == "" || exp == "TAG" {
-		return true
-	}
-	return false
-}
-
-var SubAll = "*"
 
 type SubscriptionData struct {
 	ClassFilterMode bool
@@ -327,14 +261,14 @@ type SubscriptionData struct {
 	Tags            map[string]bool
 	Codes           map[int32]bool
 	SubVersion      int64
-	ExpType         ExpressionType
+	ExpType         string
 }
 
 type consumerData struct {
 	groupName         string
 	cType             consumeType
-	messageModel      MessageModel
-	where             ConsumeFromWhere
+	messageModel      string
+	where             string
 	subscriptionDatas []SubscriptionData
 	unitMode          bool
 }

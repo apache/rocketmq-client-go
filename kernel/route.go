@@ -22,7 +22,9 @@ import (
 	"errors"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -125,6 +127,31 @@ func UpdateTopicRouteInfo(topic string) {
 	if old != nil {
 		rlog.Infof("Old TopicPublishInfo [%s] removed.", old)
 	}
+}
+
+func FindBrokerAddrByTopic(topic string) string {
+	v, exist := routeDataMap.Load(topic)
+	if !exist {
+		return ""
+	}
+	routeData := v.(*topicRouteData)
+	if len(routeData.BrokerDataList) == 0 {
+		return ""
+	}
+	i := utils.AbsInt(rand.Int())
+	bd := routeData.BrokerDataList[i%len(routeData.BrokerDataList)]
+	addr := bd.BrokerAddresses[MasterId]
+	if addr == "" && len(bd.BrokerAddresses) > 0 {
+		i = i % len(bd.BrokerAddresses)
+		for _, v := range bd.BrokerAddresses {
+			if i <= 0 {
+				addr = v
+				break
+			}
+			i--
+		}
+	}
+	return addr
 }
 
 func FindBrokerAddressInPublish(brokerName string) string {

@@ -1,4 +1,4 @@
-package rocketmq
+package consumer
 
 import (
 	"fmt"

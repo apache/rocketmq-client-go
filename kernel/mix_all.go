@@ -1,0 +1,5 @@
+package kernel
+
+const (
+	RetryGroupTopicPrefix = ""
+)

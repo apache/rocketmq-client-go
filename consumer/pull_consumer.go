@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rocketmq
+package consumer
 
 import (
 	"context"
@@ -23,68 +23,54 @@ import (
 	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
-type Consumer interface {
+type MessageSelector struct {
+	Type       ExpressionType
+	Expression string
+}
+
+type PullConsumer interface {
 	Start()
-	Pull(topic, expression string, numbers int) (*kernel.PullResult, error)
-	SubscribeWithChan(topic, expression string) (chan *kernel.Message, error)
-	SubscribeWithFunc(topic, expression string, f func(msg *kernel.Message) ConsumeResult) error
-	ACK(msg *kernel.Message, result ConsumeResult)
+	Shutdown()
+	Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*kernel.PullResult, error)
 }
 
 var (
 	queueCounterTable sync.Map
 )
 
-type ConsumeResult int
-
-type ConsumerType int
-
-const (
-	Original ConsumerType = iota
-	Orderly
-	Transaction
-
-	SubAll = "*"
-)
-
-type ConsumerConfig struct {
-	GroupName                  string
-	Model                      kernel.MessageModel
-	UnitMode                   bool
-	MaxReconsumeTimes          int
-	PullMessageTimeout         time.Duration
-	FromWhere                  kernel.ConsumeFromWhere
-	brokerSuspendMaxTimeMillis int64
-}
-
-func NewConsumer(config ConsumerConfig) Consumer {
-	return &defaultConsumer{
+func NewConsumer(config ConsumerOption) *defaultPullConsumer {
+	return &defaultPullConsumer{
 		config: config,
 	}
 }
 
-type defaultConsumer struct {
-	state  kernel.ServiceState
-	config ConsumerConfig
+type defaultPullConsumer struct {
+	state     kernel.ServiceState
+	config    ConsumerOption
+	client    *kernel.RMQClient
+	GroupName string
+	Model     MessageModel
+	UnitMode  bool
 }
 
-func (c *defaultConsumer) Start() {
-	c.state = kernel.Running
+func (c *defaultPullConsumer) Start() {
+	c.state = kernel.StateRunning
 }
 
-func (c *defaultConsumer) Pull(topic, expression string, numbers int) (*kernel.PullResult, error) {
+func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*kernel.PullResult, error) {
 	mq := getNextQueueOf(topic)
 	if mq == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
 
-	data := getSubscriptionData(mq, expression)
+	data := getSubscriptionData(mq, selector)
 	result, err := c.pull(context.Background(), mq, data, c.nextOffsetOf(mq), numbers)
 
 	if err != nil {
@@ -96,21 +82,21 @@ func (c *defaultConsumer) Pull(topic, expression string, numbers int) (*kernel.P
 }
 
 // SubscribeWithChan ack manually
-func (c *defaultConsumer) SubscribeWithChan(topic, expression string) (chan *kernel.Message, error) {
+func (c *defaultPullConsumer) SubscribeWithChan(topic, selector MessageSelector) (chan *kernel.Message, error) {
 	return nil, nil
 }
 
 // SubscribeWithFunc ack automatic
-func (c *defaultConsumer) SubscribeWithFunc(topic, expression string,
+func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector MessageSelector,
 	f func(msg *kernel.Message) ConsumeResult) error {
 	return nil
 }
 
-func (c *defaultConsumer) ACK(msg *kernel.Message, result ConsumeResult) {
+func (c *defaultPullConsumer) ACK(msg *kernel.Message, result ConsumeResult) {
 
 }
 
-func (c *defaultConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, data *kernel.SubscriptionData,
+func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, data *kernel.SubscriptionData,
 	offset int64, numbers int) (*kernel.PullResult, error) {
 	err := c.makeSureStateOK()
 	if err != nil {
@@ -135,7 +121,7 @@ func (c *defaultConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, dat
 		return nil, fmt.Errorf("the broker %s does not exist", mq.BrokerName)
 	}
 
-	if (data.ExpType == kernel.TAG) && brokerResult.BrokerVersion < kernel.V4_1_0 {
+	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
 			mq.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
@@ -146,40 +132,40 @@ func (c *defaultConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, dat
 		sysFlag = clearCommitOffsetFlag(sysFlag)
 	}
 	pullRequest := &kernel.PullMessageRequest{
-		ConsumerGroup:        c.config.GroupName,
-		Topic:                mq.Topic,
-		QueueId:              int32(mq.QueueId),
-		QueueOffset:          offset,
-		MaxMsgNums:           int32(numbers),
-		SysFlag:              sysFlag,
-		CommitOffset:         0,
-		SuspendTimeoutMillis: c.config.brokerSuspendMaxTimeMillis,
-		SubExpression:        data.SubString,
-		ExpressionType:       string(data.ExpType),
+		ConsumerGroup: c.GroupName,
+		Topic:         mq.Topic,
+		QueueId:       int32(mq.QueueId),
+		QueueOffset:   offset,
+		MaxMsgNums:    int32(numbers),
+		SysFlag:       sysFlag,
+		CommitOffset:  0,
+		//SuspendTimeoutMillis: c.config.brokerSuspendMaxTimeMillis,
+		SubExpression:  data.SubString,
+		ExpressionType: string(data.ExpType),
 	}
 
-	if data.ExpType == kernel.TAG {
+	if data.ExpType == string(TAG) {
 		pullRequest.SubVersion = 0
 	} else {
 		pullRequest.SubVersion = data.SubVersion
 	}
 
 	// TODO computePullFromWhichFilterServer
-	return kernel.PullMessage(ctx, brokerResult.BrokerAddr, pullRequest)
+	return c.client.PullMessage(ctx, brokerResult.BrokerAddr, pullRequest)
 }
 
-func (c *defaultConsumer) makeSureStateOK() error {
-	if c.state != kernel.Running {
+func (c *defaultPullConsumer) makeSureStateOK() error {
+	if c.state != kernel.StateRunning {
 		return fmt.Errorf("the consumer state is [%d], not running", c.state)
 	}
 	return nil
 }
 
-func (c *defaultConsumer) subscriptionAutomatically(topic string) {
+func (c *defaultPullConsumer) subscriptionAutomatically(topic string) {
 	// TODO
 }
 
-func (c *defaultConsumer) nextOffsetOf(queue *kernel.MessageQueue) int64 {
+func (c *defaultPullConsumer) nextOffsetOf(queue *kernel.MessageQueue) int64 {
 	return 0
 }
 
@@ -221,14 +207,34 @@ func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data 
 	}
 }
 
-func getSubscriptionData(mq *kernel.MessageQueue, exp string) *kernel.SubscriptionData {
+func getSubscriptionData(mq *kernel.MessageQueue, selector MessageSelector) *kernel.SubscriptionData {
 	subData := &kernel.SubscriptionData{
-		Topic: mq.Topic,
+		Topic:     mq.Topic,
+		SubString: selector.Expression,
+		ExpType:   string(selector.Type),
 	}
-	if exp == "" || exp == SubAll {
-		subData.SubString = SubAll
+
+	if selector.Type != "" && selector.Type != kernel.Tags {
+		return subData
+	}
+
+	if selector.Expression == "" || selector.Expression == _SubAll {
+		subData.ExpType = kernel.Tags
+		subData.SubString = _SubAll
 	} else {
-		// TODO
+		tags := strings.Split(selector.Expression, "\\|\\|")
+		for idx := range tags {
+			trimString := strings.Trim(tags[idx], " ")
+			if trimString != "" {
+				if !subData.Tags[trimString] {
+					subData.Tags[trimString] = true
+				}
+				hCode := utils.HashString(trimString)
+				if !subData.Codes[int32(hCode)] {
+					subData.Codes[int32(hCode)] = true
+				}
+			}
+		}
 	}
 	return subData
 }

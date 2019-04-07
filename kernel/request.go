@@ -20,9 +20,12 @@ package kernel
 import "fmt"
 
 const (
-	ReqPullMessage         = int16(11)
-	ReqGetRouteInfoByTopic = int16(105)
-	ReqSendBatchMessage    = int16(320)
+	ReqPullMessage            = int16(11)
+	ReqGetConsumerListByGroup = int16(38)
+	ReqLockBatchMQ            = int16(41)
+	ReqUnlockBatchMQ          = int16(42)
+	ReqGetRouteInfoByTopic    = int16(105)
+	ReqSendBatchMessage       = int16(320)
 )
 
 type SendMessageRequest struct {
@@ -75,6 +78,16 @@ func (request *PullMessageRequest) Encode() map[string]string {
 	maps["subscription"] = request.SubExpression
 	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
 	maps["expressionType"] = request.ExpressionType
+	return maps
+}
+
+type GetConsumerList struct {
+	ConsumerGroup string `json:"consumerGroup"`
+}
+
+func (request *GetConsumerList) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.ConsumerGroup
 	return maps
 }
 

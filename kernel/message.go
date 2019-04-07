@@ -20,32 +20,32 @@ package kernel
 import "fmt"
 
 const (
-	KeySeparator                   = " "
-	Keys                           = "KEYS"
-	Tags                           = "TAGS"
-	WaitStoreMsgOk                 = "WAIT"
-	DelayTimeLevel                 = "DELAY"
-	RetryTopic                     = "RETRY_TOPIC"
-	RealTopic                      = "REAL_TOPIC"
-	RealQueueId                    = "REAL_QID"
-	TransactionPrepared            = "TRAN_MSG"
-	ProducerGroup                  = "PGROUP"
-	MinOffset                      = "MIN_OFFSET"
-	MaxOffset                      = "MAX_OFFSET"
-	BuyerId                        = "BUYER_ID"
-	OriginMessageId                = "ORIGIN_MESSAGE_ID"
-	TransferFlag                   = "TRANSFER_FLAG"
-	CorrectionFlag                 = "CORRECTION_FLAG"
-	MQ2Flag                        = "MQ2_FLAG"
-	ReconsumeTime                  = "RECONSUME_TIME"
-	MsgRegion                      = "MSG_REGION"
-	TraceSwitch                    = "TRACE_ON"
-	UniqueClientMessageIdKeyIndex  = "UNIQ_KEY"
-	MaxReconsumeTimes              = "MAX_RECONSUME_TIMES"
-	ConsumeStartTime               = "CONSUME_START_TIME"
-	TranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
-	TranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
-	CheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
+	PropertyKeySeparator                   = " "
+	PropertyKeys                           = "KEYS"
+	PropertyTags                           = "TAGS"
+	PropertyWaitStoreMsgOk                 = "WAIT"
+	PropertyDelayTimeLevel                 = "DELAY"
+	PropertyRetryTopic                     = "RETRY_TOPIC"
+	PropertyRealTopic                      = "REAL_TOPIC"
+	PropertyRealQueueId                    = "REAL_QID"
+	PropertyTransactionPrepared            = "TRAN_MSG"
+	PropertyProducerGroup                  = "PGROUP"
+	PropertyMinOffset                      = "MIN_OFFSET"
+	PropertyMaxOffset                      = "MAX_OFFSET"
+	PropertyBuyerId                        = "BUYER_ID"
+	PropertyOriginMessageId                = "ORIGIN_MESSAGE_ID"
+	PropertyTransferFlag                   = "TRANSFER_FLAG"
+	PropertyCorrectionFlag                 = "CORRECTION_FLAG"
+	PropertyMQ2Flag                        = "MQ2_FLAG"
+	PropertyReconsumeTime                  = "RECONSUME_TIME"
+	PropertyMsgRegion                      = "MSG_REGION"
+	PropertyTraceSwitch                    = "TRACE_ON"
+	PropertyUniqueClientMessageIdKeyIndex  = "UNIQ_KEY"
+	PropertyMaxReconsumeTimes              = "MAX_RECONSUME_TIMES"
+	PropertyConsumeStartTime               = "CONSUME_START_TIME"
+	PropertyTranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
+	PropertyTranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
+	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 )
 
 type Message struct {
@@ -106,7 +106,7 @@ type MessageExt struct {
 }
 
 func (msgExt *MessageExt) GetTags() string {
-	return msgExt.Properties[Tags]
+	return msgExt.Properties[PropertyTags]
 }
 
 func (msgExt *MessageExt) String() string {

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"strconv"
 	"sync"
@@ -32,24 +31,42 @@ import (
 
 const (
 	defaultTraceRegionID = "DefaultRegion"
-	tranceOff            = "false"
+
+	// tracing message switch
+	_TranceOff = "false"
+
+	// Pulling topic information interval from the named server
+	_PullNameServerInterval = 30 * time.Second
+
+	// Pulling topic information interval from the named server
+	_HeartbeatBrokerInterval = 30 * time.Second
 )
 
 var (
-	namesrvAddrs                  = os.Getenv("rocketmq.namesrv.addr")
-	clientIP                      = utils.LocalIP()
-	instanceName                  = os.Getenv("rocketmq.client.name")
-	pollNameServerInterval        = 30 * time.Second
-	heartbeatBrokerInterval       = 30 * time.Second
-	persistConsumerOffsetInterval = 5 * time.Second
-	unitMode                      = false
-	vipChannelEnabled, _          = strconv.ParseBool(os.Getenv("com.rocketmq.sendMessageWithVIPChannel"))
-	clientID                      = string(clientIP) + "@" + instanceName
+	ErrServiceState = errors.New("service state is not running, please check")
 )
 
-var (
-	ErrServiceState = errors.New("service state is not Running, please check")
-)
+type ClientOption struct {
+	NameServerAddr    string
+	ClientIP          string
+	InstanceName      string
+	UnitMode          bool
+	UnitName          string
+	VIPChannelEnabled bool
+	UseTLS            bool
+}
+
+func (opt *ClientOption) ChangeInstanceNameToPID() {
+	if opt.InstanceName == "DEFAULT" {
+		opt.InstanceName = strconv.Itoa(os.Getegid())
+	}
+}
+
+func (opt *ClientOption) String() string {
+	return fmt.Sprintf("ClientOption [NameServerAddr=%s, ClientIP=%s, InstanceName=%s, "+
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.NameServerAddr, opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.UseTLS)
+}
 
 type InnerProducer interface {
 	PublishTopicList() []string
@@ -62,15 +79,38 @@ type InnerProducer interface {
 }
 
 type InnerConsumer interface {
-	DoRebalance()
 	PersistConsumerOffset()
 	UpdateTopicSubscribeInfo(topic string, mqs []*MessageQueue)
 	IsSubscribeTopicNeedUpdate(topic string) bool
 	IsUnitMode() bool
 }
 
+type RMQClient struct {
+	option ClientOption
+}
+
+func NewRocketMQClient(option ClientOption) *RMQClient {
+	return nil
+}
+
+func (c *RMQClient) ClientID() string {
+	id := c.option.ClientIP + "@" + c.option.InstanceName
+	if c.option.UnitName != "" {
+		id += "@" + c.option.UnitName
+	}
+	return id
+}
+
+func (c *RMQClient) CheckClientInBroker() {
+
+}
+
+func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
+
+}
+
 // SendMessage with batch by sync
-func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
+func (c *RMQClient) SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
 	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
@@ -79,16 +119,16 @@ func SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, reques
 		return nil, err
 	}
 
-	return processSendResponse(brokerName, msgs, response), nil
+	return c.processSendResponse(brokerName, msgs, response), nil
 }
 
 // SendMessageAsync send message with batch by async
-func SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
+func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message, f func(result *SendResult)) error {
 	return nil
 }
 
-func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
+func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
 	err := remote.InvokeOneWay(brokerAddrs, cmd)
@@ -98,7 +138,7 @@ func SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMes
 	return nil, err
 }
 
-func processSendResponse(brokerName string, msgs []*Message, cmd *remote.RemotingCommand) *SendResult {
+func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd *remote.RemotingCommand) *SendResult {
 	var status SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -140,12 +180,12 @@ func processSendResponse(brokerName string, msgs []*Message, cmd *remote.Remotin
 		QueueOffset:   sendResponse.QueueOffset,
 		TransactionID: sendResponse.TransactionId,
 		RegionID:      regionId,
-		TraceOn:       trace != "" && trace != tranceOff,
+		TraceOn:       trace != "" && trace != _TranceOff,
 	}
 }
 
 // PullMessage with sync
-func PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
+func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
 
 	res, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
@@ -153,10 +193,10 @@ func PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRe
 		return nil, err
 	}
 
-	return processPullResponse(res)
+	return c.processPullResponse(res)
 }
 
-func processPullResponse(response *remote.RemotingCommand) (*PullResult, error) {
+func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*PullResult, error) {
 	pullResult := &PullResult{}
 	switch response.Code {
 	case ResSuccess:
@@ -164,7 +204,7 @@ func processPullResponse(response *remote.RemotingCommand) (*PullResult, error) 
 	case ResPullNotFound:
 		pullResult.Status = PullNoNewMsg
 	case ResPullRetryImmediately:
-		pullResult.Status = PullNoMatchedMsg
+		pullResult.Status = PullNoMsgMatched
 	case ResPullOffsetMoved:
 		pullResult.Status = PullOffsetIllegal
 	default:
@@ -197,27 +237,27 @@ func processPullResponse(response *remote.RemotingCommand) (*PullResult, error) 
 }
 
 // PullMessageAsync pull message async
-func PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *PullResult)) error {
+func (c *RMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *PullResult)) error {
 	return nil
 }
 
 // QueryMaxOffset with specific queueId and topic
-func QueryMaxOffset(topic string, queueId int) error {
-	return nil
+func QueryMaxOffset(topic string, queueId int) (int64, error) {
+	return 0, nil
 }
 
 // QueryConsumerOffset with specific queueId and topic of consumerGroup
-func QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) {
+func (c *RMQClient) QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) {
 	return 0, nil
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic
-func SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) {
+func (c *RMQClient) SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) {
 	return 0, nil
 }
 
 // UpdateConsumerOffset with specific queueId and topic
-func UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error {
+func (c *RMQClient) UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error {
 	return nil
 }
 
@@ -229,38 +269,30 @@ var (
 	consumerMap sync.Map
 )
 
-func CheckClientInBroker() {
+func (c *RMQClient) RegisterConsumer(group string, consumer InnerConsumer) {
 
 }
 
-func RegisterConsumer(group string, consumer InnerConsumer) {
+func (c *RMQClient) UnregisterConsumer(group string) {
 
 }
 
-func UnregisterConsumer(group string) {
+func (c *RMQClient) RegisterProducer(group string, producer InnerProducer) {
 
 }
 
-func RegisterProducer(group string, producer InnerProducer) {
+func (c *RMQClient) UnregisterProducer(group string) {
 
 }
 
-func UnregisterProducer(group string) {
-
-}
-
-func SelectProducer(group string) InnerProducer {
+func (c *RMQClient) SelectProducer(group string) InnerProducer {
 	return nil
 }
 
-func SelectConsumer(group string) InnerConsumer {
+func (c *RMQClient) SelectConsumer(group string) InnerConsumer {
 	return nil
 }
 
 func encodeMessages(message []*Message) []byte {
 	return nil
-}
-
-func sendHeartbeatToAllBroker() {
-
 }
