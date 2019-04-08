@@ -330,14 +330,14 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 		return false
 	}
 	_, exist = dc.topicSubscribeInfoTable.Load(topic)
-	return exist
+	return !exist
 }
 
 func (dc *defaultConsumer) doBalance() {
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		topic := key.(string)
 		v, exist := dc.topicSubscribeInfoTable.Load(topic)
-		if !exist {
+		if !exist {// TODO retry 的不该尝试
 			rlog.Warnf("do balance of group: %s, but topic: %s does not exist.", dc.consumerGroup, topic)
 			return true
 		}
@@ -581,6 +581,7 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*ke
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.MessageQueue, order bool) bool {
 	var changed bool
 	var mqSet map[*kernel.MessageQueue]bool // TODO
+	// TODO 什么鬼
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(*kernel.MessageQueue)
 		pq := value.(*ProcessQueue)
@@ -706,7 +707,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(kernel.ReqGetConsumerListByGroup, req, nil)
-		res, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second)
+		res, err := remote.InvokeSync(brokerAddr, cmd, 3 * time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
 			return nil
@@ -722,22 +723,22 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 	return nil
 }
 
-func buildSubscriptionData(topic, subString string, subType ExpressionType) *kernel.SubscriptionData {
+func buildSubscriptionData(topic string, selector MessageSelector) *kernel.SubscriptionData {
 	subData := &kernel.SubscriptionData{
 		Topic:     topic,
-		SubString: subString,
-		ExpType:   string(TAG),
+		SubString: selector.Expression,
+		ExpType:   string(selector.Type),
 	}
 
-	if subType != "" && subType != TAG {
+	if selector.Type != "" && selector.Type != TAG {
 		return subData
 	}
 
-	if subString == "" || subString == _SubAll {
+	if selector.Expression == "" || selector.Expression == _SubAll {
 		subData.ExpType = string(TAG)
 		subData.SubString = _SubAll
 	} else {
-		tags := strings.Split(subString, "\\|\\|")
+		tags := strings.Split(selector.Expression, "\\|\\|")
 		for idx := range tags {
 			trimString := strings.Trim(tags[idx], " ")
 			if trimString != "" {

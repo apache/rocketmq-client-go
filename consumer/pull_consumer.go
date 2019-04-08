@@ -22,12 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"strconv"
-	"strings"
 	"sync"
-	"sync/atomic"
 )
 
 type MessageSelector struct {
@@ -70,7 +66,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
 
-	data := buildSubscriptionData(mq.Topic, selector.Expression)
+	data := buildSubscriptionData(mq.Topic, selector)
 	result, err := c.pull(context.Background(), mq, data, c.nextOffsetOf(mq), numbers)
 
 	if err != nil {
@@ -194,13 +190,13 @@ func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data 
 		// TODO hook
 
 		for _, msg := range msgListFilterAgain {
-			traFlag, _ := strconv.ParseBool(msg.Properties[kernel.TransactionPrepared])
+			traFlag, _ := strconv.ParseBool(msg.Properties[kernel.PropertyTransactionPrepared])
 			if traFlag {
-				msg.TransactionId = msg.Properties[kernel.UniqueClientMessageIdKeyIndex]
+				msg.TransactionId = msg.Properties[kernel.PropertyUniqueClientMessageIdKeyIndex]
 			}
 
-			msg.Properties[kernel.MinOffset] = strconv.FormatInt(result.MinOffset, 10)
-			msg.Properties[kernel.MaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
+			msg.Properties[kernel.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
+			msg.Properties[kernel.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
 		}
 
 		result.SetMessageExts(msgListFilterAgain)

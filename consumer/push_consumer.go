@@ -46,7 +46,7 @@ const (
 type PushConsumer interface {
 	Start() error
 	Shutdown()
-	Subscribe(topic, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error
+	Subscribe(topic string, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error
 }
 
 type pushConsumer struct {
@@ -119,7 +119,8 @@ func (pc *pushConsumer) Start() error {
 		// set retry topic
 		if pc.model == Clustering {
 			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
-			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic, _SubAll, TAG ))
+			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
+				MessageSelector{TAG,_SubAll}))
 		}
 
 		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
@@ -146,14 +147,14 @@ func (pc *pushConsumer) Start() error {
 			err = errors.New("consumer group has been created")
 			return
 		}
+		pc.client.UpdateTopicRouteInfo()
+		pc.client.RebalanceImmediately()
 		pc.client.Start()
 		pc.state = kernel.StateRunning
 	})
 
-	go func() {
-		pc.client.UpdateTopicRouteInfo()
-		pc.client.RebalanceImmediately()
-	}()
+	pc.client.UpdateTopicRouteInfo()
+	pc.client.RebalanceImmediately()
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
 	return err
@@ -161,7 +162,13 @@ func (pc *pushConsumer) Start() error {
 
 func (pc *pushConsumer) Shutdown() {}
 
-func (pc *pushConsumer) Subscribe(topic, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error {
+func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector, f func(msg *kernel.Message) ConsumeResult) error {
+	if pc.state != kernel.StateCreateJust {
+		return errors.New("subscribe topic only started before")
+	}
+	data := buildSubscriptionData(topic, selector)
+	pc.subscriptionDataTable.Store(topic, data)
+	pc.subscribedTopic[topic] = ""
 	return nil
 }
 
@@ -207,23 +214,43 @@ func (pc *pushConsumer) validate() {
 
 	// TODO max goroutine
 	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
-		rlog.Fatal("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
+		if  pc.option.ConsumeConcurrentlyMaxSpan == 0 {
+			pc.option.ConsumeConcurrentlyMaxSpan = 1000
+		} else {
+			rlog.Fatal("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
+		}
 	}
 
 	if pc.option.PullThresholdForQueue < 1 || pc.option.PullThresholdForQueue > 65535 {
-		rlog.Fatal("option.PullThresholdForQueue out of range [1, 65535]")
+		if  pc.option.PullThresholdForQueue == 0 {
+			pc.option.PullThresholdForQueue = 1024
+		} else {
+			rlog.Fatal("option.PullThresholdForQueue out of range [1, 65535]")
+		}
 	}
 
 	if pc.option.PullThresholdForTopic < 1 || pc.option.PullThresholdForTopic > 6553500 {
-		rlog.Fatal("option.PullThresholdForTopic out of range [1, 6553500]")
+		if  pc.option.PullThresholdForTopic == 0 {
+			pc.option.PullThresholdForTopic = 102400
+		} else {
+			rlog.Fatal("option.PullThresholdForTopic out of range [1, 6553500]")
+		}
 	}
 
 	if pc.option.PullThresholdSizeForQueue < 1 || pc.option.PullThresholdSizeForQueue > 1024 {
-		rlog.Fatal("option.PullThresholdSizeForQueue out of range [1, 1024]")
+		if  pc.option.PullThresholdSizeForQueue == 0 {
+			pc.option.PullThresholdSizeForQueue = 512
+		} else {
+			rlog.Fatal("option.PullThresholdSizeForQueue out of range [1, 1024]")
+		}
 	}
 
 	if pc.option.PullThresholdSizeForTopic < 1 || pc.option.PullThresholdSizeForTopic > 102400 {
-		rlog.Fatal("option.PullThresholdSizeForTopic out of range [1, 102400]")
+		if  pc.option.PullThresholdSizeForTopic == 0 {
+			pc.option.PullThresholdSizeForTopic = 51200
+		} else {
+			rlog.Fatal("option.PullThresholdSizeForTopic out of range [1, 102400]")
+		}
 	}
 
 	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535 {
@@ -231,11 +258,19 @@ func (pc *pushConsumer) validate() {
 	}
 
 	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
-		rlog.Fatal("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
+		if  pc.option.ConsumeMessageBatchMaxSize == 0 {
+			pc.option.ConsumeMessageBatchMaxSize = 512
+		} else {
+			rlog.Fatal("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
+		}
 	}
 
 	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
-		rlog.Fatal("option.PullBatchSize out of range [1, 1024]")
+		if  pc.option.PullBatchSize == 0 {
+			pc.option.PullBatchSize = 1
+		} else {
+			rlog.Fatal("option.PullBatchSize out of range [1, 1024]")
+		}
 	}
 }
 

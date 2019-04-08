@@ -25,6 +25,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -105,8 +106,8 @@ type RMQClient struct {
 var clientMap sync.Map
 
 func GetOrNewRocketMQClient(option ClientOption) *RMQClient {
-
-	return nil
+	// TODO
+	return &RMQClient{option: option}
 }
 
 func (c *RMQClient) Start() {
@@ -142,7 +143,8 @@ func (c *RMQClient) Start() {
 	go func() {
 		for {
 			c.RebalanceImmediately()
-			time.Sleep(_RebalanceInterval)
+			time.Sleep(time.Second)
+			rlog.Info("xxxxxxxx")
 		}
 	}()
 }
@@ -182,7 +184,9 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 		consumer := value.(InnerConsumer)
 		list := consumer.SubscriptionDataList()
 		for idx := range list {
-			subscribedTopicSet[list[idx].Topic] = true
+			if !strings.HasPrefix(list[idx].Topic, RetryGroupTopicPrefix) {
+				subscribedTopicSet[list[idx].Topic] = true
+			}
 		}
 		return true
 	})
@@ -345,6 +349,7 @@ func (c *RMQClient) UpdateConsumerOffset(consumerGroup, topic string, queue int,
 }
 
 func (c *RMQClient) RegisterConsumer(group string, consumer InnerConsumer) error {
+	c.consumerMap.Store(group, consumer)
 	return nil
 }
 
@@ -408,6 +413,7 @@ func (c *RMQClient) UpdateSubscribeInfo(topic string, data *TopicRouteData) {
 	}
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
+		// TODO
 		consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
 		return true
 	})

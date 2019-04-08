@@ -95,8 +95,11 @@ func UpdateTopicRouteInfo(topic string) *TopicRouteData {
 		return nil
 	}
 
-	oldRouteData, _ := routeDataMap.Load(topic)
-	changed := topicRouteDataIsChange(oldRouteData.(*TopicRouteData), routeData)
+	oldRouteData, exist := routeDataMap.Load(topic)
+	changed := true
+	if exist {
+		changed = topicRouteDataIsChange(oldRouteData.(*TopicRouteData), routeData)
+	}
 
 	if changed {
 		routeDataMap.Store(topic, routeData)
