@@ -33,22 +33,22 @@ const (
 	// If any consumer is alive in a machine room, the message queue of the broker which is deployed in the same machine
 	// should only be allocated to those. Otherwise, those message queues can be shared along all consumers since there are
 	// no alive consumer to monopolize them.
-	StrategyMachineNearby   = AllocateStrategy("MachineNearby")
+	StrategyMachineNearby = AllocateStrategy("MachineNearby")
 
 	// Average Hashing queue algorithm
-	StrategyAveragely       = AllocateStrategy("Averagely")
+	StrategyAveragely = AllocateStrategy("Averagely")
 
 	// Cycle average Hashing queue algorithm
 	StrategyAveragelyCircle = AllocateStrategy("AveragelyCircle")
 
 	// Use Message Queue specified
-	StrategyConfig          = AllocateStrategy("Config")
+	StrategyConfig = AllocateStrategy("Config")
 
 	// Computer room Hashing queue algorithm, such as Alipay logic room
-	StrategyMachineRoom     = AllocateStrategy("MachineRoom")
+	StrategyMachineRoom = AllocateStrategy("MachineRoom")
 
 	// Consistent Hashing queue algorithm
-	StrategyConsistentHash  = AllocateStrategy("ConsistentHash")
+	StrategyConsistentHash = AllocateStrategy("ConsistentHash")
 )
 
 func allocateByAveragely(consumerGroup, currentCID string, mqAll []*kernel.MessageQueue,
@@ -57,7 +57,7 @@ func allocateByAveragely(consumerGroup, currentCID string, mqAll []*kernel.Messa
 		return nil
 	}
 	var (
-		find bool
+		find  bool
 		index int
 	)
 
@@ -82,7 +82,7 @@ func allocateByAveragely(consumerGroup, currentCID string, mqAll []*kernel.Messa
 		averageSize = 1
 	} else {
 		if mod > 0 && index < mod {
-			averageSize = mqSize / cidSize +1
+			averageSize = mqSize/cidSize + 1
 		} else {
 			averageSize = mqSize / cidSize
 		}
@@ -92,15 +92,15 @@ func allocateByAveragely(consumerGroup, currentCID string, mqAll []*kernel.Messa
 	if mod > 0 && index < mod {
 		startIndex = index * averageSize
 	} else {
-		startIndex = index * averageSize + mod
+		startIndex = index*averageSize + mod
 	}
 
-	num := utils.MinInt(averageSize, mqSize - startIndex)
+	num := utils.MinInt(averageSize, mqSize-startIndex)
 	result := make([]*kernel.MessageQueue, num)
 	for i := 0; i < num; i++ {
-		result[i] = mqAll[(startIndex + i) % mqSize]
+		result[i] = mqAll[(startIndex+i)%mqSize]
 	}
-	return nil
+	return result
 }
 
 // TODO

@@ -53,8 +53,8 @@ var (
 
 	//publishInfoMap sync.Map
 	//subscribeInfoMap sync.Map
-	routeDataMap   sync.Map
-	lockNamesrv    sync.Mutex
+	routeDataMap sync.Map
+	lockNamesrv  sync.Mutex
 )
 
 // key is topic, value is TopicPublishInfo
@@ -103,9 +103,10 @@ func UpdateTopicRouteInfo(topic string) *TopicRouteData {
 
 	if changed {
 		routeDataMap.Store(topic, routeData)
-		rlog.Infof("the topic[%s] route info changed, old[%v] ,new[%s]", topic, oldRouteData, routeData)
+		rlog.Infof("the topic [%s] route info changed, old %v ,new %s", topic,
+			oldRouteData, routeData.String())
 		for _, brokerData := range routeData.BrokerDataList {
-			brokerAddressesMap.Store(brokerData.BrokerName, brokerData.BrokerAddresses)
+			brokerAddressesMap.Store(brokerData.BrokerName, brokerData)
 		}
 	}
 
@@ -154,18 +155,20 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 		found      = false
 	)
 
-	addrs, exist := brokerAddressesMap.Load(brokerName)
+	v, exist := brokerAddressesMap.Load(brokerName)
 
-	if exist {
-		for k, v := range addrs.(map[int64]string) {
-			if v != "" {
-				found = true
-				if k != MasterId {
-					slave = true
-				}
-				brokerAddr = v
-				break
+	if !exist {
+		return nil
+	}
+	data := v.(*BrokerData)
+	for k, v := range data.BrokerAddresses {
+		if v != "" {
+			found = true
+			if k != MasterId {
+				slave = true
 			}
+			brokerAddr = v
+			break
 		}
 	}
 
@@ -200,14 +203,14 @@ func FetchSubscribeMessageQueues(topic string) ([]*MessageQueue, error) {
 	return mqs, nil
 }
 
-func findBrokerVersion(brokerName, brokerAddr string) int {
+func findBrokerVersion(brokerName, brokerAddr string) int32 {
 	versions, exist := brokerVersionMap.Load(brokerName)
 
 	if !exist {
 		return 0
 	}
 
-	v, exist := versions.(map[string]int)[brokerAddr]
+	v, exist := versions.(map[string]int32)[brokerAddr]
 
 	if exist {
 		return v
@@ -393,6 +396,11 @@ func (routeData *TopicRouteData) clone() *TopicRouteData {
 
 func (routeData *TopicRouteData) equals(data *TopicRouteData) bool {
 	return false
+}
+
+func (routeData *TopicRouteData) String() string {
+	data, _ := json.Marshal(routeData)
+	return string(data)
 }
 
 // QueueData QueueData

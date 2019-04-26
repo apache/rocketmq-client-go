@@ -117,8 +117,8 @@ func (c *RMQClient) Start() {
 	// schedule update route info
 	go func() {
 		// delay
-		time.Sleep( 50 * time.Millisecond)
-		for  {
+		time.Sleep(50 * time.Millisecond)
+		for {
 			c.UpdateTopicRouteInfo()
 			time.Sleep(_PullNameServerInterval)
 		}
@@ -129,7 +129,7 @@ func (c *RMQClient) Start() {
 
 	// schedule persist offset
 	go func() {
-		time.Sleep( 10 * time.Second)
+		time.Sleep(10 * time.Second)
 		for {
 			c.consumerMap.Range(func(key, value interface{}) bool {
 				consumer := value.(InnerConsumer)
@@ -144,17 +144,16 @@ func (c *RMQClient) Start() {
 		for {
 			c.RebalanceImmediately()
 			time.Sleep(time.Second)
-			rlog.Info("xxxxxxxx")
 		}
 	}()
 }
 
 func (c *RMQClient) ClientID() string {
-	id := c.option.ClientIP + "@" + c.option.InstanceName
-	if c.option.UnitName != "" {
-		id += "@" + c.option.UnitName
-	}
-	return id
+	//id := c.option.ClientIP + "@" + c.option.InstanceName
+	//if c.option.UnitName != "" {
+	//	id += "@" + c.option.UnitName
+	//}
+	return "127.0.0.1:10911@DEFAULT"
 }
 
 func (c *RMQClient) CheckClientInBroker() {
@@ -162,7 +161,59 @@ func (c *RMQClient) CheckClientInBroker() {
 }
 
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
+	hbData := &heartbeatData{
+		ClientId: c.ClientID(),
+	}
+	pData := make([]producerData, 0)
+	c.producerMap.Range(func(key, value interface{}) bool {
+		pData = append(pData, producerData(key.(string)))
+		return true
+	})
 
+	cData := make([]consumerData, 0)
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		cData = append(cData, consumerData{
+			GroupName:         key.(string),
+			CType:             "PUSH",
+			MessageModel:      "CLUSTERING",
+			Where:             "CONSUME_FROM_FIRST_OFFSET",
+			UnitMode:          consumer.IsUnitMode(),
+			SubscriptionDatas: consumer.SubscriptionDataList(),
+		})
+		return true
+	})
+	hbData.ProducerDatas = pData
+	hbData.ConsumerDatas = cData
+	if len(pData) == 0 && len(cData) == 0 {
+		rlog.Warn("sending heartbeat, but no consumer and no producer")
+		return
+	}
+	brokerAddressesMap.Range(func(key, value interface{}) bool {
+		brokerName := key.(string)
+		data := value.(*BrokerData)
+		for id, addr := range data.BrokerAddresses {
+			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
+			response, err := remote.InvokeSync(addr, cmd, 3*time.Second)
+			if err != nil {
+				rlog.Warnf("send heart beat to broker error: %s", err.Error())
+				return true
+			}
+			if response.Code == ResSuccess {
+				v, exist := brokerVersionMap.Load(brokerName)
+				var m map[string]int32
+				if exist {
+					m = v.(map[string]int32)
+				} else {
+					m = make(map[string]int32, 4)
+					brokerVersionMap.Store(brokerName, m)
+				}
+				m[brokerName] = int32(response.Version)
+				rlog.Infof("send heart beat to broker[%s %s %s] success", brokerName, id, addr)
+			}
+		}
+		return true
+	})
 }
 
 func (c *RMQClient) UpdateTopicRouteInfo() {
@@ -274,7 +325,6 @@ func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd 
 // PullMessage with sync
 func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-
 	res, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		return nil, err
@@ -354,15 +404,12 @@ func (c *RMQClient) RegisterConsumer(group string, consumer InnerConsumer) error
 }
 
 func (c *RMQClient) UnregisterConsumer(group string) {
-
 }
 
 func (c *RMQClient) RegisterProducer(group string, producer InnerProducer) {
-
 }
 
 func (c *RMQClient) UnregisterProducer(group string) {
-
 }
 
 func (c *RMQClient) SelectProducer(group string) InnerProducer {
@@ -388,7 +435,7 @@ func (c *RMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
 	c.producerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerProducer)
 		publishInfo := routeData2PublishInfo(topic, data)
-		publishInfo.HaveTopicRouterInfo  = true
+		publishInfo.HaveTopicRouterInfo = true
 		consumer.UpdateTopicPublishInfo(topic, publishInfo)
 		return true
 	})
@@ -437,11 +484,11 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue
 	for idx := range data.QueueDataList {
 		qd := data.QueueDataList[idx]
 		if queueIsReadable(qd.Perm) {
-			for i := 0; i < qd.ReadQueueNums; i++  {
+			for i := 0; i < qd.ReadQueueNums; i++ {
 				list = append(list, &MessageQueue{
-					Topic: topic,
+					Topic:      topic,
 					BrokerName: qd.BrokerName,
-					QueueId: i,
+					QueueId:    i,
 				})
 			}
 		}

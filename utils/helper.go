@@ -102,10 +102,6 @@ func UnCompress(data []byte) []byte {
 	return data
 }
 
-func IsArrayEmpty(i interface{}) bool {
-	arr, ok := i.([]interface{})
-	if !ok {
-		return true
-	}
-	return arr == nil || len(arr) == 0
+func IsArrayEmpty(i ...interface{}) bool {
+	return i == nil || len(i) == 0
 }

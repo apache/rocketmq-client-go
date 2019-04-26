@@ -20,7 +20,9 @@ package kernel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 )
 
@@ -236,7 +238,7 @@ func (mq *MessageQueue) Equals(queue *MessageQueue) bool {
 type FindBrokerResult struct {
 	BrokerAddr    string
 	Slave         bool
-	BrokerVersion int
+	BrokerVersion int32
 }
 
 type (
@@ -266,16 +268,26 @@ type SubscriptionData struct {
 }
 
 type consumerData struct {
-	groupName         string
-	cType             consumeType
-	messageModel      string
-	where             string
-	subscriptionDatas []SubscriptionData
-	unitMode          bool
+	GroupName         string              `json:"groupName"`
+	CType             consumeType         `json:"consumeType"`
+	MessageModel      string              `json:"messageModel"`
+	Where             string              `json:"consumeFromWhere"`
+	SubscriptionDatas []*SubscriptionData `json:"subscriptionDataSet"`
+	UnitMode          bool                `json:"unitMode"`
 }
 
 type heartbeatData struct {
-	clientId      string
-	producerDatas []producerData
-	consumerDatas []consumerData
+	ClientId      string         `json:"clientID"`
+	ProducerDatas []producerData `json:"producerDataSet"`
+	ConsumerDatas []consumerData `json:"consumerDataSet"`
+}
+
+func (data *heartbeatData) encode() []byte {
+	d, err := json.Marshal(data)
+	if err != nil {
+		rlog.Errorf("marshal heartbeatData error: %s", err.Error())
+		return nil
+	}
+	rlog.Info(string(d))
+	return d
 }

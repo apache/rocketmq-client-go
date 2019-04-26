@@ -31,7 +31,6 @@ func HashString(s string) int {
 	return h
 }
 
-
 func StrJoin(str, key string, value interface{}) string {
 	if key == "" || value == "" {
 		return str

@@ -43,13 +43,13 @@ var (
 
 func NewConsumer(config ConsumerOption) *defaultPullConsumer {
 	return &defaultPullConsumer{
-		config: config,
+		option: config,
 	}
 }
 
 type defaultPullConsumer struct {
 	state     kernel.ServiceState
-	config    ConsumerOption
+	option    ConsumerOption
 	client    *kernel.RMQClient
 	GroupName string
 	Model     MessageModel
@@ -128,16 +128,16 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue,
 		sysFlag = clearCommitOffsetFlag(sysFlag)
 	}
 	pullRequest := &kernel.PullMessageRequest{
-		ConsumerGroup: c.GroupName,
-		Topic:         mq.Topic,
-		QueueId:       int32(mq.QueueId),
-		QueueOffset:   offset,
-		MaxMsgNums:    int32(numbers),
-		SysFlag:       sysFlag,
-		CommitOffset:  0,
-		//SuspendTimeoutMillis: c.config.brokerSuspendMaxTimeMillis,
-		SubExpression:  data.SubString,
-		ExpressionType: string(data.ExpType),
+		ConsumerGroup:        c.GroupName,
+		Topic:                mq.Topic,
+		QueueId:              int32(mq.QueueId),
+		QueueOffset:          offset,
+		MaxMsgNums:           int32(numbers),
+		SysFlag:              sysFlag,
+		CommitOffset:         0,
+		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
+		SubExpression:        data.SubString,
+		ExpressionType:       string(data.ExpType),
 	}
 
 	if data.ExpType == string(TAG) {
@@ -163,12 +163,6 @@ func (c *defaultPullConsumer) subscriptionAutomatically(topic string) {
 
 func (c *defaultPullConsumer) nextOffsetOf(queue *kernel.MessageQueue) int64 {
 	return 0
-}
-
-func toMessage(messageExts []*kernel.MessageExt) []*kernel.Message {
-	msgs := make([]*kernel.Message, 0)
-
-	return msgs
 }
 
 func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data *kernel.SubscriptionData) {

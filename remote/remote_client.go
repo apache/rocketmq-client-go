@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"io"
 	"net"
 	"sync"
@@ -164,22 +165,26 @@ func connect(addr string) (net.Conn, error) {
 
 func receiveResponse(r net.Conn) {
 	scanner := createScanner(r)
-	for scanner.Scan() {
+	for {
+		scanner.Scan()
 		receivedRemotingCommand, err := decode(scanner.Bytes())
 		if err != nil {
 			closeConnection(r)
+			rlog.Error(err.Error())
 			break
 		}
 		if receivedRemotingCommand.isResponseType() {
-			resp, ok := responseTable.Load(receivedRemotingCommand.Opaque)
-			if ok {
+			resp, exist := responseTable.Load(receivedRemotingCommand.Opaque)
+			if exist {
 				responseTable.Delete(receivedRemotingCommand.Opaque)
 				responseFuture := resp.(*ResponseFuture)
-				responseFuture.ResponseCommand = receivedRemotingCommand
-				responseFuture.executeInvokeCallback()
-				if responseFuture.Done != nil {
-					responseFuture.Done <- true
-				}
+				go func() {
+					responseFuture.ResponseCommand = receivedRemotingCommand
+					responseFuture.executeInvokeCallback()
+					if responseFuture.Done != nil {
+						responseFuture.Done <- true
+					}
+				}()
 			}
 		} else {
 			// todo handler request from peer
@@ -190,10 +195,20 @@ func receiveResponse(r net.Conn) {
 func createScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
 	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
+		defer func() {
+			if err := recover(); err != nil {
+				rlog.Errorf("panic: %v", err)
+			}
+		}()
 		if !atEOF {
 			if len(data) >= 4 {
 				var length int32
-				binary.Read(bytes.NewReader(data[0:4]), binary.BigEndian, &length)
+				err := binary.Read(bytes.NewReader(data[0:4]), binary.BigEndian, &length)
+				if err != nil {
+					rlog.Errorf("split data error: %s", err.Error())
+					return 0, nil, err
+				}
+
 				if int(length)+4 <= len(data) {
 					return int(length) + 4, data[4 : length+4], nil
 				}

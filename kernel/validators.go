@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	_ValidPattern = "^[%|a-zA-Z0-9_-]+$"
+	_ValidPattern       = "^[%|a-zA-Z0-9_-]+$"
 	_CharacterMaxLength = 255
 )
 

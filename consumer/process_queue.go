@@ -18,6 +18,7 @@ limitations under the License.
 package consumer
 
 import (
+	"container/list"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"sync"
 	"time"
@@ -31,7 +32,7 @@ const (
 
 type ProcessQueue struct {
 	mutex                      sync.RWMutex
-	msgCache                   sync.Map // sorted
+	msgCache                   list.List // sorted
 	cachedMsgCount             int
 	cachedMsgSize              int64
 	consumeLock                sync.Mutex
@@ -45,6 +46,7 @@ type ProcessQueue struct {
 	lastLockTime               time.Time
 	consuming                  bool
 	msgAccCnt                  int64
+	once                       sync.Once
 }
 
 func (pq *ProcessQueue) isPullExpired() bool {
@@ -52,13 +54,47 @@ func (pq *ProcessQueue) isPullExpired() bool {
 }
 
 func (pq *ProcessQueue) getMaxSpan() int {
-	return 0
+	return pq.msgCache.Len()
 }
 
-func (pq *ProcessQueue) putMessage(messages []*kernel.MessageExt) bool {
-	return true
+func (pq *ProcessQueue) putMessage(messages []*kernel.MessageExt) {
+	pq.once.Do(func() {
+		pq.msgCache.Init()
+	})
+	localList := list.New()
+	for idx := range messages {
+		localList.PushBack(messages[idx])
+	}
+	pq.mutex.Lock()
+	pq.msgCache.PushBackList(localList)
+	pq.mutex.Unlock()
 }
 
-func (pq *ProcessQueue) removeMessage(number int) int64 {
-	return 0
+func (pq *ProcessQueue) removeMessage(number int) int {
+	i := 0
+	pq.mutex.Lock()
+	for ; i < number && pq.msgCache.Len() > 0; i++ {
+		pq.msgCache.Remove(pq.msgCache.Front())
+	}
+	pq.mutex.Unlock()
+	return i
+}
+
+func (pq *ProcessQueue) takeMessages(number int) []*kernel.MessageExt {
+	for pq.msgCache.Len() == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	result := make([]*kernel.MessageExt, number)
+	i := 0
+	pq.mutex.Lock()
+	for ; i < number; i++ {
+		e := pq.msgCache.Front()
+		if e == nil {
+			break
+		}
+		result[i] = e.Value.(*kernel.MessageExt)
+		pq.msgCache.Remove(e)
+	}
+	pq.mutex.Unlock()
+	return result[:i]
 }

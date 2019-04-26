@@ -19,6 +19,7 @@ package consumer
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
@@ -186,7 +187,8 @@ type PullRequest struct {
 }
 
 func (pr *PullRequest) String() string {
-	return ""
+	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: %d]",
+		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
 }
 
 type ConsumerOption struct {
@@ -256,11 +258,8 @@ type ConsumerOption struct {
 	// TODO traceDispatcher
 }
 
-type ConfigOfPushConfig struct {
-}
-
+// TODO hook
 type defaultConsumer struct {
-	// TODO hook
 	/**
 	 * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
 	 * load balance. It's required and needs to be globally unique.
@@ -275,13 +274,13 @@ type defaultConsumer struct {
 	consumeOrderly bool
 	fromWhere      ConsumeFromWhere
 
-	cType  ConsumeType
-	client *kernel.RMQClient
-	mqChanged     func(topic string, mqAll, mqDivided []*kernel.MessageQueue)
-	state  kernel.ServiceState
-	pause  bool
-	once   sync.Once
-	option ConsumerOption
+	cType     ConsumeType
+	client    *kernel.RMQClient
+	mqChanged func(topic string, mqAll, mqDivided []*kernel.MessageQueue)
+	state     kernel.ServiceState
+	pause     bool
+	once      sync.Once
+	option    ConsumerOption
 	// key: int, hash(*kernel.MessageQueue)
 	// value: *processQueue
 	processQueueTable sync.Map
@@ -301,7 +300,8 @@ type defaultConsumer struct {
 func (dc *defaultConsumer) persistConsumerOffset() {
 	err := dc.makeSureStateOK()
 	if err != nil {
-		// TODO
+		rlog.Errorf("consumer state error: %s", err.Error())
+		return
 	}
 	mqs := make([]*kernel.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
@@ -336,15 +336,18 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 func (dc *defaultConsumer) doBalance() {
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		topic := key.(string)
+		if strings.HasPrefix(topic, kernel.RetryGroupTopicPrefix) {
+			return true
+		}
 		v, exist := dc.topicSubscribeInfoTable.Load(topic)
-		if !exist {// TODO retry 的不该尝试
+		if !exist {
 			rlog.Warnf("do balance of group: %s, but topic: %s does not exist.", dc.consumerGroup, topic)
 			return true
 		}
 		mqs := v.([]*kernel.MessageQueue)
 		switch dc.model {
 		case BroadCasting:
-			changed := dc.updateProcessQueueTable(topic, mqs, dc.consumeOrderly)
+			changed := dc.updateProcessQueueTable(topic, mqs)
 			if changed {
 				dc.mqChanged(topic, mqs, mqs)
 				rlog.Infof("messageQueueChanged, Group: %s, Topic: %s, MessageQueues: %v",
@@ -357,7 +360,7 @@ func (dc *defaultConsumer) doBalance() {
 					dc.consumerGroup, topic)
 				return true
 			}
-			mqAll := make([]*kernel.MessageQueue, 0)
+			mqAll := make([]*kernel.MessageQueue, len(mqs))
 			copy(mqAll, mqs)
 			sort.Strings(cidAll)
 			sort.SliceStable(mqAll, func(i, j int) bool {
@@ -373,7 +376,7 @@ func (dc *defaultConsumer) doBalance() {
 				return (mqAll[i].QueueId - mqAll[j].QueueId) > 0
 			})
 			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
-			changed := dc.updateProcessQueueTable(topic, allocateResult, dc.consumeOrderly)
+			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
 				rlog.Infof("do balance result changed, allocateMessageQueueStrategyName=%s, group=%s, "+
@@ -388,7 +391,7 @@ func (dc *defaultConsumer) doBalance() {
 }
 
 func (dc *defaultConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
-	result := make([]*kernel.SubscriptionData, 0 )
+	result := make([]*kernel.SubscriptionData, 0)
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		result = append(result, value.(*kernel.SubscriptionData))
 		return true
@@ -578,10 +581,13 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*ke
 	return result
 }
 
-func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.MessageQueue, order bool) bool {
+func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.MessageQueue) bool {
 	var changed bool
-	var mqSet map[*kernel.MessageQueue]bool // TODO
-	// TODO 什么鬼
+	mqSet := make(map[*kernel.MessageQueue]bool)
+	for idx := range mqs {
+		mqSet[mqs[idx]] = true
+	}
+	// TODO
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(*kernel.MessageQueue)
 		pq := value.(*ProcessQueue)
@@ -608,17 +614,17 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 
 	if dc.cType == _PushConsume {
 		for mq := range mqSet {
-			if order && !dc.lock(mq) {
+			if dc.consumeOrderly && !dc.lock(mq) {
 				rlog.Warnf("do defaultConsumer, Group:%s add a new mq failed, %s, because lock failed",
 					dc.consumerGroup, mq.String())
 				continue
 			}
 			dc.storage.remove(mq)
 			nextOffset := dc.computePullFromWhere(mq)
-			if nextOffset > 0 {
+			if nextOffset >= 0 {
 				_, exist := dc.processQueueTable.Load(mq)
 				if exist {
-					rlog.Infof("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
+					rlog.Debugf("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
 				} else {
 					rlog.Infof("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
 					pq := &ProcessQueue{}
@@ -707,7 +713,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(kernel.ReqGetConsumerListByGroup, req, nil)
-		res, err := remote.InvokeSync(brokerAddr, cmd, 3 * time.Second) // TODO 超时机制有问题
+		res, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
 			return nil

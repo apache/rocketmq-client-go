@@ -38,18 +38,18 @@ type OffsetStore interface {
 type localFileOffsetStore struct {
 }
 
-func (local *localFileOffsetStore) load() {}
-func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {}
-func (local *localFileOffsetStore) remove(mq *kernel.MessageQueue) {}
-func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {return 0}
+func (local *localFileOffsetStore) load()                                                           {}
+func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue)                              {}
+func (local *localFileOffsetStore) remove(mq *kernel.MessageQueue)                                  {}
+func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int64                  { return 0 }
 func (local *localFileOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {}
 
 type remoteBrokerOffsetStore struct {
-
 }
 
-func (remote *remoteBrokerOffsetStore) load() {}
-func (remote *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue) {}
-func (remote *remoteBrokerOffsetStore) remove(mq *kernel.MessageQueue) {}
-func (remote *remoteBrokerOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {return 0}
-func (remote *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {}
+func (remote *remoteBrokerOffsetStore) load()                                          {}
+func (remote *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue)             {}
+func (remote *remoteBrokerOffsetStore) remove(mq *kernel.MessageQueue)                 {}
+func (remote *remoteBrokerOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 { return 0 }
+func (remote *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
+}
