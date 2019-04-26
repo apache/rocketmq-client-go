@@ -22,7 +22,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"net"
 	"os"
 	"sync"
@@ -99,14 +98,10 @@ func ClassLoaderID() int32 {
 	return 0
 }
 
-// HashString hashes a string to a unique hashcode.
-func HashString(s string) int {
-	if s == "" {
-		return 0
-	}
-	return int(crc32.ChecksumIEEE([]byte(s)))
-}
-
 func UnCompress(data []byte) []byte {
 	return data
+}
+
+func IsArrayEmpty(i ...interface{}) bool {
+	return i == nil || len(i) == 0
 }

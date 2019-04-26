@@ -17,42 +17,30 @@ limitations under the License.
 
 package kernel
 
-const (
-	permPriority = 0x1 << 3
-	permRead     = 0x1 << 2
-	permWrite    = 0x1 << 1
-	permInherit  = 0x1 << 0
+import (
+	"github.com/apache/rocketmq-client-go/rlog"
+	"regexp"
 )
 
-func queueIsReadable(perm int) bool {
-	return (perm & permRead) == permRead
-}
+const (
+	_ValidPattern       = "^[%|a-zA-Z0-9_-]+$"
+	_CharacterMaxLength = 255
+)
 
-func queueIsWriteable(perm int) bool {
-	return (perm & permWrite) == permWrite
-}
+var (
+	_Pattern, _ = regexp.Compile("_ValidPattern")
+)
 
-func queueIsInherited(perm int) bool {
-	return (perm & permInherit) == permInherit
-}
-
-func perm2string(perm int) string {
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = '-'
+func ValidateGroup(group string) {
+	if group == "" {
+		rlog.Fatal("consumerGroup is empty")
 	}
 
-	if queueIsReadable(perm) {
-		bytes[0] = 'R'
-	}
+	//if !_Pattern.Match([]byte(group)) {
+	//	rlog.Fatalf("the specified group[%s] contains illegal characters, allowing only %s", group, _ValidPattern)
+	//}
 
-	if queueIsWriteable(perm) {
-		bytes[1] = 'W'
+	if len(group) > _CharacterMaxLength {
+		rlog.Fatal("the specified group is longer than group max length 255.")
 	}
-
-	if queueIsInherited(perm) {
-		bytes[2] = 'X'
-	}
-
-	return string(bytes)
 }

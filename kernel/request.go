@@ -17,12 +17,19 @@ limitations under the License.
 
 package kernel
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 const (
-	ReqPullMessage         = int16(11)
-	ReqGetRouteInfoByTopic = int16(105)
-	ReqSendBatchMessage    = int16(320)
+	ReqPullMessage            = int16(11)
+	ReqHeartBeat              = int16(34)
+	ReqGetConsumerListByGroup = int16(38)
+	ReqLockBatchMQ            = int16(41)
+	ReqUnlockBatchMQ          = int16(42)
+	ReqGetRouteInfoByTopic    = int16(105)
+	ReqSendBatchMessage       = int16(320)
 )
 
 type SendMessageRequest struct {
@@ -49,24 +56,24 @@ func (request *SendMessageRequest) Decode(properties map[string]string) error {
 }
 
 type PullMessageRequest struct {
-	ConsumerGroup        string `json:"consumerGroup"`
-	Topic                string `json:"topic"`
-	QueueId              int32  `json:"queueId"`
-	QueueOffset          int64  `json:"queueOffset"`
-	MaxMsgNums           int32  `json:"maxMsgNums"`
-	SysFlag              int32  `json:"sysFlag"`
-	CommitOffset         int64  `json:"commitOffset"`
-	SuspendTimeoutMillis int64  `json:"suspendTimeoutMillis"`
-	SubExpression        string `json:"subscription"`
-	SubVersion           int64  `json:"subVersion"`
-	ExpressionType       string `json:"expressionType"`
+	ConsumerGroup        string        `json:"consumerGroup"`
+	Topic                string        `json:"topic"`
+	QueueId              int32         `json:"queueId"`
+	QueueOffset          int64         `json:"queueOffset"`
+	MaxMsgNums           int32         `json:"maxMsgNums"`
+	SysFlag              int32         `json:"sysFlag"`
+	CommitOffset         int64         `json:"commitOffset"`
+	SuspendTimeoutMillis time.Duration `json:"suspendTimeoutMillis"`
+	SubExpression        string        `json:"subscription"`
+	SubVersion           int64         `json:"subVersion"`
+	ExpressionType       string        `json:"expressionType"`
 }
 
 func (request *PullMessageRequest) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
-	maps["queueId"] = fmt.Sprintf("%d", request.QueueOffset)
+	maps["queueId"] = fmt.Sprintf("%d", request.QueueId)
 	maps["queueOffset"] = fmt.Sprintf("%d", request.QueueOffset)
 	maps["maxMsgNums"] = fmt.Sprintf("%d", request.MaxMsgNums)
 	maps["sysFlag"] = fmt.Sprintf("%d", request.SysFlag)
@@ -75,6 +82,16 @@ func (request *PullMessageRequest) Encode() map[string]string {
 	maps["subscription"] = request.SubExpression
 	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
 	maps["expressionType"] = request.ExpressionType
+	return maps
+}
+
+type GetConsumerList struct {
+	ConsumerGroup string `json:"consumerGroup"`
+}
+
+func (request *GetConsumerList) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.ConsumerGroup
 	return maps
 }
 

@@ -15,44 +15,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package main
 
-const (
-	permPriority = 0x1 << 3
-	permRead     = 0x1 << 2
-	permWrite    = 0x1 << 1
-	permInherit  = 0x1 << 0
+import (
+	"fmt"
+	"github.com/apache/rocketmq-client-go/consumer"
+	"github.com/apache/rocketmq-client-go/kernel"
+	"os"
+	"time"
 )
 
-func queueIsReadable(perm int) bool {
-	return (perm & permRead) == permRead
-}
-
-func queueIsWriteable(perm int) bool {
-	return (perm & permWrite) == permWrite
-}
-
-func queueIsInherited(perm int) bool {
-	return (perm & permInherit) == permInherit
-}
-
-func perm2string(perm int) string {
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = '-'
+func main() {
+	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
+		ConsumerModel: consumer.Clustering,
+		FromWhere:     consumer.ConsumeFromFirstOffset,
+	})
+	err := c.Subscribe("testTopic", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
+		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
+		fmt.Println(msgs)
+		return consumer.ConsumeSuccess, nil
+	})
+	if err != nil {
+		fmt.Println(err.Error())
 	}
-
-	if queueIsReadable(perm) {
-		bytes[0] = 'R'
+	err = c.Start()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(-1)
 	}
-
-	if queueIsWriteable(perm) {
-		bytes[1] = 'W'
-	}
-
-	if queueIsInherited(perm) {
-		bytes[2] = 'X'
-	}
-
-	return string(bytes)
+	time.Sleep(time.Hour)
 }
