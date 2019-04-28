@@ -21,6 +21,6 @@ import "github.com/apache/rocketmq-client-go/rlog"
 
 func CheckError(action string, err error) {
 	if err != nil {
-		rlog.Errorf("call %s error: %s", action, err.Error())
+		rlog.Errorf("%s error: %s", action, err.Error())
 	}
 }

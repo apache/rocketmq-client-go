@@ -19,12 +19,16 @@ package consumer
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/tidwall/gjson"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 type readType int
@@ -96,26 +100,13 @@ func (local *localFileOffsetStore) load() {
 
 func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {
 	if t == _ReadFromMemory || t == _ReadMemoryThenStore {
-		off := local.readFromMemory(mq)
+		off := readFromMemory(local.OffsetTable, mq)
 		if off >= 0 || (off == -1 && t == _ReadFromMemory) {
 			return off
 		}
 	}
 	local.load()
-	return local.readFromMemory(mq)
-}
-
-func (local *localFileOffsetStore) readFromMemory(mq *kernel.MessageQueue) int64 {
-	localOffset, exist := local.OffsetTable[mq.Topic]
-	if !exist {
-		return -1
-	}
-	off, exist := localOffset[mq.QueueId]
-	if !exist {
-		return -1
-	}
-
-	return off.Offset
+	return readFromMemory(local.OffsetTable, mq)
 }
 
 func (local *localFileOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
@@ -167,7 +158,7 @@ func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {
 		offsets[off.QueueID] = off
 	}
 	data, _ := json.Marshal(s)
-	utils.WriteToFile(local.path, data)
+	utils.CheckError(fmt.Sprintf("persist offset to %s", local.path), utils.WriteToFile(local.path, data))
 }
 
 func (local *localFileOffsetStore) remove(mq *kernel.MessageQueue) {
@@ -175,24 +166,137 @@ func (local *localFileOffsetStore) remove(mq *kernel.MessageQueue) {
 }
 
 type remoteBrokerOffsetStore struct {
+	group string
+	OffsetTable map[string]map[int]*queueOffset `json:"OffsetTable"`
 }
 
 func (remote *remoteBrokerOffsetStore) load() {
-
+	// unsupported
 }
 
 func (remote *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue) {
+	if len(mqs) == 0 {
+		return
+	}
+	for idx := range mqs {
+		mq := mqs[idx]
+		offsets, exist := remote.OffsetTable[mq.Topic]
+		if !exist {
+			continue
+		}
+		off, exist := offsets[mq.QueueId]
+		if !exist {
+			continue
+		}
 
+		err := updateConsumeOffsetToBroker(remote.group, mq.Topic, off)
+		if err != nil {
+			rlog.Warnf("update offset to broker error: %s, group: %s, queue: %s, offset: %d",
+				err.Error(), remote.group, mq.String(), off.Offset)
+			continue
+		}
+	}
 }
 
 func (remote *remoteBrokerOffsetStore) remove(mq *kernel.MessageQueue) {
-
+	// todo refactor
 }
 
 func (remote *remoteBrokerOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {
-	return 0
+	if t == _ReadFromMemory || t == _ReadMemoryThenStore {
+		off := readFromMemory(remote.OffsetTable, mq)
+		if off >= 0 || (off == -1 && t == _ReadFromMemory) {
+			return off
+		}
+	}
+	off, err := fetchConsumeOffsetFromBroker(remote.group, mq)
+	if err != nil {
+		rlog.Errorf("fetch offset of %s error: %s", mq.String(), err.Error())
+		return -1
+	}
+	remote.update(mq, off, false)
+	return off
 }
 
 func (remote *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
+	localOffset, exist := remote.OffsetTable[mq.Topic]
+	if !exist {
+		localOffset = make(map[int]*queueOffset)
+		remote.OffsetTable[mq.Topic] = localOffset
+	}
+	q, exist := localOffset[mq.QueueId]
+	if !exist {
+		q = &queueOffset{
+			QueueID: mq.QueueId,
+			Broker:  mq.BrokerName,
+		}
+		localOffset[mq.QueueId] = q
+	}
+	if increaseOnly {
+		if q.Offset < offset {
+			q.Offset = offset
+		}
+	} else {
+		q.Offset = offset
+	}
+}
 
+func readFromMemory(table map[string]map[int]*queueOffset, mq *kernel.MessageQueue) int64 {
+	localOffset, exist := table[mq.Topic]
+	if !exist {
+		return -1
+	}
+	off, exist := localOffset[mq.QueueId]
+	if !exist {
+		return -1
+	}
+
+	return off.Offset
+}
+
+func fetchConsumeOffsetFromBroker(group string, mq *kernel.MessageQueue) (int64, error) {
+	broker := kernel.FindBrokerAddrByName(mq.BrokerName)
+	if broker == "" {
+		kernel.UpdateTopicRouteInfo(mq.Topic)
+		broker = kernel.FindBrokerAddrByName(mq.BrokerName)
+	}
+	if broker == "" {
+		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
+	}
+	queryOffsetRequest := &kernel.QueryConsumerOffsetRequest{
+		ConsumerGroup: group,
+		Topic: mq.Topic,
+		QueueId: mq.QueueId,
+	}
+	cmd := remote.NewRemotingCommand(kernel.ReqQueryConsumerOffset, queryOffsetRequest, nil)
+	res, err := remote.InvokeSync(broker, cmd, 3 * time.Second)
+	if err != nil {
+		return -1, err
+	}
+	if res.Code != kernel.ResSuccess {
+		return -2, fmt.Errorf("broker response code: %d, remarks: %s", res.Code, res.Remark)
+	}
+
+	result := gjson.ParseBytes(res.Body)
+	return result.Get("offset").Int(), nil
+}
+
+func updateConsumeOffsetToBroker(group, topic string, queue *queueOffset) error {
+	broker := kernel.FindBrokerAddrByName(queue.Broker)
+	if broker == "" {
+		kernel.UpdateTopicRouteInfo(topic)
+		broker = kernel.FindBrokerAddrByName(queue.Broker)
+	}
+	if broker == "" {
+		return fmt.Errorf("broker: %s address not found", queue.Broker)
+	}
+
+	updateOffsetRequest := &kernel.UpdateConsumerOffsetRequest{
+		ConsumerGroup: group,
+		Topic: topic,
+		QueueId: queue.QueueID,
+		CommitOffset: queue.Offset,
+	}
+	cmd := remote.NewRemotingCommand(kernel.ReqQueryConsumerOffset, updateOffsetRequest, nil)
+	return remote.InvokeOneWay(broker, cmd, 5 * time.Second)
 }

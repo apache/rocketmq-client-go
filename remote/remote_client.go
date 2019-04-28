@@ -116,7 +116,7 @@ func InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Durat
 
 }
 
-func InvokeOneWay(addr string, request *RemotingCommand) error {
+func InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
 	conn, err := connect(addr)
 	if err != nil {
 		return err

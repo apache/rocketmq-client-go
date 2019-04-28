@@ -549,7 +549,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(kernel.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := remote.InvokeOneWay(addr, request)
+		err := remote.InvokeOneWay(addr, request, 3 * time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker with oneway: %s error %s", addr, err.Error())
 		}

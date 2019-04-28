@@ -261,7 +261,7 @@ func TestInvokeOneWay(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := InvokeOneWay(":3000", clientSendRemtingCommand)
+		err := InvokeOneWay(":3000", clientSendRemtingCommand, 3 * time.Second)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		}

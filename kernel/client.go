@@ -269,7 +269,7 @@ func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerNam
 func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := remote.InvokeOneWay(brokerAddrs, cmd)
+	err := remote.InvokeOneWay(brokerAddrs, cmd, 3 * time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with oneway error: %v", err)
 	}

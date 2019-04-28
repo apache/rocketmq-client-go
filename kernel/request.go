@@ -19,11 +19,13 @@ package kernel
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
 const (
 	ReqPullMessage            = int16(11)
+	ReqQueryConsumerOffset = int16(14)
 	ReqHeartBeat              = int16(34)
 	ReqGetConsumerListByGroup = int16(38)
 	ReqLockBatchMQ            = int16(41)
@@ -103,7 +105,15 @@ type GetMaxOffsetRequest struct {
 type QueryConsumerOffsetRequest struct {
 	ConsumerGroup string `json:"consumerGroup"`
 	Topic         string `json:"topic"`
-	QueueId       int32  `json:"queueId"`
+	QueueId       int  `json:"queueId"`
+}
+
+func (request *QueryConsumerOffsetRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.ConsumerGroup
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	return maps
 }
 
 type SearchOffsetRequest struct {
@@ -115,8 +125,17 @@ type SearchOffsetRequest struct {
 type UpdateConsumerOffsetRequest struct {
 	ConsumerGroup string `json:"consumerGroup"`
 	Topic         string `json:"topic"`
-	QueueId       int32  `json:"queueId"`
+	QueueId       int  `json:"queueId"`
 	CommitOffset  int64  `json:"commitOffset"`
+}
+
+func (request *UpdateConsumerOffsetRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.ConsumerGroup
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	maps["commitOffset"] = strconv.FormatInt(request.CommitOffset,10)
+	return maps
 }
 
 type GetRouteInfoRequest struct {
