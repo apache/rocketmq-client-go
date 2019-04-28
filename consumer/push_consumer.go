@@ -118,8 +118,8 @@ func (pc *pushConsumer) Start() error {
 		pc.state = kernel.StateStartFailed
 		pc.validate()
 
-		// set retry topic
 		if pc.model == Clustering {
+			// set retry topic
 			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
 			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
 				MessageSelector{TAG, _SubAll}))
@@ -130,7 +130,7 @@ func (pc *pushConsumer) Start() error {
 			pc.option.ChangeInstanceNameToPID()
 			pc.storage = &remoteBrokerOffsetStore{}
 		} else {
-			pc.storage = &localFileOffsetStore{}
+			pc.storage = NewLocalFileOffsetStore(pc.consumerGroup, pc.client.ClientID())
 		}
 		pc.storage.load()
 		go func() {
