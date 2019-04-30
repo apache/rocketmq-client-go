@@ -101,63 +101,66 @@ type RMQClient struct {
 
 	// group -> InnerConsumer
 	consumerMap sync.Map
+	once        sync.Once
 }
 
 var clientMap sync.Map
 
 func GetOrNewRocketMQClient(option ClientOption) *RMQClient {
-	// TODO
-	return &RMQClient{option: option}
+	client := &RMQClient{option: option}
+	actual, _ := clientMap.LoadOrStore(client.ClientID(), client)
+	return actual.(*RMQClient)
 }
 
 func (c *RMQClient) Start() {
-	// TODO fetchNameServerAddr
-	go func() {}()
+	c.once.Do(func() {
+		// TODO fetchNameServerAddr
+		go func() {}()
 
-	// schedule update route info
-	go func() {
-		// delay
-		time.Sleep(50 * time.Millisecond)
-		for {
-			c.UpdateTopicRouteInfo()
-			time.Sleep(_PullNameServerInterval)
-		}
-	}()
+		// schedule update route info
+		go func() {
+			// delay
+			time.Sleep(50 * time.Millisecond)
+			for {
+				c.UpdateTopicRouteInfo()
+				time.Sleep(_PullNameServerInterval)
+			}
+		}()
 
-	// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
-	go func() {}()
+		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
+		go func() {}()
 
-	// schedule persist offset
-	go func() {
-		time.Sleep(10 * time.Second)
-		for {
-			c.consumerMap.Range(func(key, value interface{}) bool {
-				consumer := value.(InnerConsumer)
-				consumer.PersistConsumerOffset()
-				return true
-			})
-			time.Sleep(_PersistOffset)
-		}
-	}()
+		// schedule persist offset
+		go func() {
+			time.Sleep(10 * time.Second)
+			for {
+				c.consumerMap.Range(func(key, value interface{}) bool {
+					consumer := value.(InnerConsumer)
+					consumer.PersistConsumerOffset()
+					return true
+				})
+				time.Sleep(_PersistOffset)
+			}
+		}()
 
-	go func() {
-		for {
-			c.RebalanceImmediately()
-			time.Sleep(time.Second)
-		}
-	}()
+		go func() {
+			for {
+				c.RebalanceImmediately()
+				time.Sleep(time.Second)
+			}
+		}()
+	})
 }
 
 func (c *RMQClient) ClientID() string {
-	//id := c.option.ClientIP + "@" + c.option.InstanceName
-	//if c.option.UnitName != "" {
-	//	id += "@" + c.option.UnitName
-	//}
-	return "127.0.0.1:10911@DEFAULT"
+	id := c.option.ClientIP + "@" + c.option.InstanceName
+	if c.option.UnitName != "" {
+		id += "@" + c.option.UnitName
+	}
+	return id
 }
 
 func (c *RMQClient) CheckClientInBroker() {
-
 }
 
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
@@ -269,7 +272,7 @@ func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerNam
 func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := remote.InvokeOneWay(brokerAddrs, cmd)
+	err := remote.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with oneway error: %v", err)
 	}
@@ -379,18 +382,59 @@ func (c *RMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, re
 }
 
 // QueryMaxOffset with specific queueId and topic
-func QueryMaxOffset(topic string, queueId int) (int64, error) {
-	return 0, nil
+func QueryMaxOffset(mq *MessageQueue) (int64, error) {
+	brokerAddr := FindBrokerAddrByName(mq.BrokerName)
+	if brokerAddr == "" {
+		UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = FindBrokerAddrByName(mq.Topic)
+	}
+	if brokerAddr == "" {
+		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
+	}
+
+	request := &GetMaxOffsetRequest{
+		Topic:   mq.Topic,
+		QueueId: mq.QueueId,
+	}
+
+	cmd := remote.NewRemotingCommand(ReqGetMaxOffset, request, nil)
+	response, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	if err != nil {
+		return -1, err
+	}
+
+	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
 // QueryConsumerOffset with specific queueId and topic of consumerGroup
-func (c *RMQClient) QueryConsumerOffset(consumerGroup, topic string, queue int) (int64, error) {
+func (c *RMQClient) QueryConsumerOffset(consumerGroup, mq *MessageQueue) (int64, error) {
 	return 0, nil
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic
-func (c *RMQClient) SearchOffsetByTimestamp(topic string, queue int, timestamp int64) (int64, error) {
-	return 0, nil
+func SearchOffsetByTimestamp(mq *MessageQueue, timestamp int64) (int64, error) {
+	brokerAddr := FindBrokerAddrByName(mq.BrokerName)
+	if brokerAddr == "" {
+		UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = FindBrokerAddrByName(mq.Topic)
+	}
+	if brokerAddr == "" {
+		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
+	}
+
+	request := &SearchOffsetRequest{
+		Topic:     mq.Topic,
+		QueueId:   mq.QueueId,
+		Timestamp: timestamp,
+	}
+
+	cmd := remote.NewRemotingCommand(ReqSearchOffsetByTimestamp, request, nil)
+	response, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	if err != nil {
+		return -1, err
+	}
+
+	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
 // UpdateConsumerOffset with specific queueId and topic

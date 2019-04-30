@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"math"
@@ -53,13 +52,6 @@ type PushConsumer interface {
 
 type pushConsumer struct {
 	*defaultConsumer
-	/**
-	 * Backtracking consumption time with second precision. Time format is
-	 * 20131223171201<br>
-	 * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
-	 * Default backtracking consumption time Half an hour ago.
-	 */
-	ConsumeTimestamp             time.Duration
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
 	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
@@ -97,9 +89,8 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 	}
 
 	p := &pushConsumer{
-		defaultConsumer:  dc,
-		ConsumeTimestamp: 30 * time.Minute,
-		subscribedTopic:  make(map[string]string, 0),
+		defaultConsumer: dc,
+		subscribedTopic: make(map[string]string, 0),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -118,8 +109,8 @@ func (pc *pushConsumer) Start() error {
 		pc.state = kernel.StateStartFailed
 		pc.validate()
 
-		// set retry topic
 		if pc.model == Clustering {
+			// set retry topic
 			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
 			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
 				MessageSelector{TAG, _SubAll}))
@@ -128,9 +119,9 @@ func (pc *pushConsumer) Start() error {
 		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
 		if pc.model == Clustering {
 			pc.option.ChangeInstanceNameToPID()
-			pc.storage = &remoteBrokerOffsetStore{}
+			pc.storage = NewRemoteOffsetStore(pc.consumerGroup)
 		} else {
-			pc.storage = &localFileOffsetStore{}
+			pc.storage = NewLocalFileOffsetStore(pc.consumerGroup, pc.client.ClientID())
 		}
 		pc.storage.load()
 		go func() {
@@ -139,7 +130,6 @@ func (pc *pushConsumer) Start() error {
 			for {
 				pr := <-pc.prCh
 				go func() {
-					fmt.Println(pr.String())
 					pc.pullMessage(&pr)
 				}()
 			}
@@ -417,7 +407,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			QueueOffset:    request.nextOffset,
 			MaxMsgNums:     pc.option.PullBatchSize,
 			SysFlag:        sysFlag,
-			CommitOffset:   0,
+			CommitOffset:   commitOffsetValue,
 			SubExpression:  _SubAll,
 			ExpressionType: string(TAG), // TODO
 		}
@@ -428,7 +418,6 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		//	pullRequest.SubVersion = data.SubVersion
 		//}
 
-		//ch := make(chan *kernel.PullResult)
 		brokerResult := tryFindBroker(request.mq)
 		if brokerResult == nil {
 			rlog.Warnf("no broker found for %s", request.mq.String())
@@ -437,13 +426,13 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 		result, err := pc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
 		if err != nil {
-			rlog.Warnf("pull message from %s error: %s", "127.0.0.1:10911", err.Error())
+			rlog.Warnf("pull message from %s error: %s", brokerResult.BrokerAddr, err.Error())
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
 
 		if result.Status == kernel.PullBrokerTimeout {
-			rlog.Warnf("pull broker: %s timeout", "127.0.0.1:10911")
+			rlog.Warnf("pull broker: %s timeout", brokerResult.BrokerAddr)
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
@@ -486,7 +475,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				rlog.Warnf("fix the pull request offset: %s", request.String())
 			}()
 		default:
-			rlog.Warnf("")
+			rlog.Warnf("unknown pull status: %v", result.Status)
 			sleepTime = _PullDelayTimeWhenError
 		}
 	}

@@ -64,20 +64,26 @@ func (pq *ProcessQueue) putMessage(messages []*kernel.MessageExt) {
 	localList := list.New()
 	for idx := range messages {
 		localList.PushBack(messages[idx])
+		pq.queueOffsetMax = messages[idx].QueueOffset
 	}
 	pq.mutex.Lock()
 	pq.msgCache.PushBackList(localList)
 	pq.mutex.Unlock()
 }
 
-func (pq *ProcessQueue) removeMessage(number int) int {
-	i := 0
+func (pq *ProcessQueue) removeMessage(number int) int64 {
+	result := pq.queueOffsetMax + 1
 	pq.mutex.Lock()
-	for ; i < number && pq.msgCache.Len() > 0; i++ {
-		pq.msgCache.Remove(pq.msgCache.Front())
+	for i := 0; i < number && pq.msgCache.Len() > 0; i++ {
+		head := pq.msgCache.Front()
+		pq.msgCache.Remove(head)
+		result = head.Value.(*kernel.MessageExt).QueueOffset
 	}
 	pq.mutex.Unlock()
-	return i
+	if pq.msgCache.Len() > 0 {
+		result = pq.msgCache.Front().Value.(*kernel.MessageExt).QueueOffset
+	}
+	return result
 }
 
 func (pq *ProcessQueue) takeMessages(number int) []*kernel.MessageExt {

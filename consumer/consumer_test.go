@@ -15,33 +15,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package consumer
 
 import (
-	"fmt"
-	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"os"
+	"github.com/stretchr/testify/assert"
+	"testing"
 	"time"
 )
 
-func main() {
-	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
-		ConsumerModel: consumer.Clustering,
-		FromWhere:     consumer.ConsumeFromFirstOffset,
-	})
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Println(msgs)
-		return consumer.ConsumeSuccess, nil
-	})
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	err = c.Start()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-	time.Sleep(time.Hour)
+func TestParseTimestamp(t *testing.T) {
+	layout := "20060102150405"
+	timestamp, err := time.ParseInLocation(layout, "20190430193409", time.Local)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(1556624049), timestamp.Unix())
 }

@@ -193,6 +193,14 @@ func (pr *PullRequest) String() string {
 
 type ConsumerOption struct {
 	kernel.ClientOption
+	/**
+	 * Backtracking consumption time with second precision. Time format is
+	 * 20131223171201<br>
+	 * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
+	 * Default backtracking consumption time Half an hour ago.
+	 */
+	ConsumeTimestamp string
+
 	// The socket timeout in milliseconds
 	ConsumerPullTimeout time.Duration
 
@@ -549,7 +557,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(kernel.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := remote.InvokeOneWay(addr, request)
+		err := remote.InvokeOneWay(addr, request, 3*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker with oneway: %s error %s", addr, err.Error())
 		}
@@ -581,6 +589,7 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*ke
 	return result
 }
 
+// TODO 问题不少 需要再好好对一下
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.MessageQueue) bool {
 	var changed bool
 	mqSet := make(map[*kernel.MessageQueue]bool)
@@ -614,6 +623,10 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 
 	if dc.cType == _PushConsume {
 		for mq := range mqSet {
+			_, exist := dc.processQueueTable.Load(mq)
+			if exist {
+				continue
+			}
 			if dc.consumeOrderly && !dc.lock(mq) {
 				rlog.Warnf("do defaultConsumer, Group:%s add a new mq failed, %s, because lock failed",
 					dc.consumerGroup, mq.String())
@@ -669,13 +682,17 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 		case ConsumeFromLastOffset:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
-					lastOffset, err := kernel.QueryMaxOffset(mq.Topic, mq.QueueId)
+					lastOffset = 0
+				} else {
+					lastOffset, err := kernel.QueryMaxOffset(mq)
 					if err == nil {
 						result = lastOffset
 					} else {
 						rlog.Warnf("query max offset of: [%s:%d] error, %s", mq.Topic, mq.QueueId, err.Error())
 					}
 				}
+			} else {
+				result = -1
 			}
 		case ConsumeFromFirstOffset:
 			if lastOffset == -1 {
@@ -684,14 +701,25 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 		case ConsumeFromTimestamp:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
-					lastOffset, err := kernel.QueryMaxOffset(mq.Topic, mq.QueueId)
+					lastOffset, err := kernel.QueryMaxOffset(mq)
 					if err == nil {
 						result = lastOffset
 					} else {
+						result = -1
 						rlog.Warnf("query max offset of: [%s:%d] error, %s", mq.Topic, mq.QueueId, err.Error())
 					}
 				} else {
-					// TODO parse timestamp
+					t, err := time.Parse("20060102150405", dc.option.ConsumeTimestamp)
+					if err != nil {
+						result = -1
+					} else {
+						lastOffset, err := kernel.SearchOffsetByTimestamp(mq, t.Unix())
+						if err != nil {
+							result = -1
+						} else {
+							result = lastOffset
+						}
+					}
 				}
 			}
 		default:

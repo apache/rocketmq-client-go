@@ -15,33 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package utils
 
-import (
-	"fmt"
-	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"os"
-	"time"
-)
+import "github.com/apache/rocketmq-client-go/rlog"
 
-func main() {
-	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
-		ConsumerModel: consumer.Clustering,
-		FromWhere:     consumer.ConsumeFromFirstOffset,
-	})
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Println(msgs)
-		return consumer.ConsumeSuccess, nil
-	})
+func CheckError(action string, err error) {
 	if err != nil {
-		fmt.Println(err.Error())
+		rlog.Errorf("%s error: %s", action, err.Error())
 	}
-	err = c.Start()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-	time.Sleep(time.Hour)
 }

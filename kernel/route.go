@@ -138,7 +138,7 @@ func FindBrokerAddrByTopic(topic string) string {
 	return addr
 }
 
-func FindBrokerAddressInPublish(brokerName string) string {
+func FindBrokerAddrByName(brokerName string) string {
 	bd, exist := brokerAddressesMap.Load(brokerName)
 
 	if !exist {
