@@ -113,10 +113,6 @@ func UpdateTopicRouteInfo(topic string) *TopicRouteData {
 	return routeData.clone()
 }
 
-func FindBrokerAddrByName(brokerName string) string {
-	return ""
-}
-
 func FindBrokerAddrByTopic(topic string) string {
 	v, exist := routeDataMap.Load(topic)
 	if !exist {
@@ -142,7 +138,7 @@ func FindBrokerAddrByTopic(topic string) string {
 	return addr
 }
 
-func FindBrokerAddressInPublish(brokerName string) string {
+func FindBrokerAddrByName(brokerName string) string {
 	bd, exist := brokerAddressesMap.Load(brokerName)
 
 	if !exist {

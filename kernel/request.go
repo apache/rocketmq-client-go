@@ -24,14 +24,17 @@ import (
 )
 
 const (
-	ReqPullMessage            = int16(11)
-	ReqQueryConsumerOffset = int16(14)
-	ReqHeartBeat              = int16(34)
-	ReqGetConsumerListByGroup = int16(38)
-	ReqLockBatchMQ            = int16(41)
-	ReqUnlockBatchMQ          = int16(42)
-	ReqGetRouteInfoByTopic    = int16(105)
-	ReqSendBatchMessage       = int16(320)
+	ReqPullMessage             = int16(11)
+	ReqQueryConsumerOffset     = int16(14)
+	ReqUpdateConsumerOffset    = int16(15)
+	ReqSearchOffsetByTimestamp = int16(30)
+	ReqGetMaxOffset            = int16(30)
+	ReqHeartBeat               = int16(34)
+	ReqGetConsumerListByGroup  = int16(38)
+	ReqLockBatchMQ             = int16(41)
+	ReqUnlockBatchMQ           = int16(42)
+	ReqGetRouteInfoByTopic     = int16(105)
+	ReqSendBatchMessage        = int16(320)
 )
 
 type SendMessageRequest struct {
@@ -99,13 +102,20 @@ func (request *GetConsumerList) Encode() map[string]string {
 
 type GetMaxOffsetRequest struct {
 	Topic   string `json:"topic"`
-	QueueId int32  `json:"queueId"`
+	QueueId int    `json:"queueId"`
+}
+
+func (request *GetMaxOffsetRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	return maps
 }
 
 type QueryConsumerOffsetRequest struct {
 	ConsumerGroup string `json:"consumerGroup"`
 	Topic         string `json:"topic"`
-	QueueId       int  `json:"queueId"`
+	QueueId       int    `json:"queueId"`
 }
 
 func (request *QueryConsumerOffsetRequest) Encode() map[string]string {
@@ -118,14 +128,22 @@ func (request *QueryConsumerOffsetRequest) Encode() map[string]string {
 
 type SearchOffsetRequest struct {
 	Topic     string `json:"topic"`
-	QueueId   int32  `json:"queueId"`
+	QueueId   int    `json:"queueId"`
 	Timestamp int64  `json:"timestamp"`
+}
+
+func (request *SearchOffsetRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["Topic"] = request.Topic
+	maps["QueueId"] = strconv.Itoa(request.QueueId)
+	maps["timestamp"] = strconv.FormatInt(request.Timestamp, 10)
+	return maps
 }
 
 type UpdateConsumerOffsetRequest struct {
 	ConsumerGroup string `json:"consumerGroup"`
 	Topic         string `json:"topic"`
-	QueueId       int  `json:"queueId"`
+	QueueId       int    `json:"queueId"`
 	CommitOffset  int64  `json:"commitOffset"`
 }
 
@@ -134,7 +152,7 @@ func (request *UpdateConsumerOffsetRequest) Encode() map[string]string {
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
-	maps["commitOffset"] = strconv.FormatInt(request.CommitOffset,10)
+	maps["commitOffset"] = strconv.FormatInt(request.CommitOffset, 10)
 	return maps
 }
 
