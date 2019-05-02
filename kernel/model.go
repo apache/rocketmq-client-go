@@ -242,7 +242,7 @@ type FindBrokerResult struct {
 }
 
 type (
-	// groupName of producer
+	// groupName of consumer
 	producerData string
 
 	consumeType string

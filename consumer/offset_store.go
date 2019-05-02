@@ -110,7 +110,7 @@ func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int
 }
 
 func (local *localFileOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
-	rlog.Infof("update offset: %s to %d", mq, offset)
+	rlog.Debugf("update offset: %s to %d", mq, offset)
 	localOffset, exist := local.OffsetTable[mq.Topic]
 	if !exist {
 		localOffset = make(map[int]*queueOffset)
@@ -205,7 +205,7 @@ func (remote *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue) {
 			rlog.Warnf("update offset to broker error: %s, group: %s, queue: %s, offset: %d",
 				err.Error(), remote.group, mq.String(), off.Offset)
 		} else {
-			rlog.Infof("update offset to broker success, group: %s, topic: %s, queue: %v", remote.group, mq.Topic, off)
+			rlog.Debugf("update offset to broker success, group: %s, topic: %s, queue: %v", remote.group, mq.Topic, off)
 		}
 	}
 }
@@ -255,7 +255,7 @@ func (remote *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset in
 	}
 	q, exist := localOffset[mq.QueueId]
 	if !exist {
-		rlog.Infof("new queueOffset: %d, off: %d", mq.QueueId, offset)
+		rlog.Infof("add a new queue: %s, off: %d", mq.String(), offset)
 		q = &queueOffset{
 			QueueID: mq.QueueId,
 			Broker:  mq.BrokerName,

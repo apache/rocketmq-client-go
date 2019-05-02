@@ -46,7 +46,7 @@ func (e rmqError) Error() string {
 	case ErrMallocFailed:
 		return "malloc memory failed"
 	case ErrProducerStartFailed:
-		return "start producer failed"
+		return "start consumer failed"
 	case ErrSendSyncFailed:
 		return "send message with sync failed"
 	case ErrSendOrderlyFailed:

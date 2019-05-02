@@ -181,7 +181,7 @@ const (
 type PullRequest struct {
 	consumerGroup string
 	mq            *kernel.MessageQueue
-	pq            *ProcessQueue
+	pq            *processQueue
 	nextOffset    int64
 	lockedFirst   bool
 }
@@ -209,7 +209,7 @@ type ConsumerOption struct {
 
 	// Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
 	// Consider the {PullBatchSize}, the instantaneous value may exceed the limit
-	PullThresholdForQueue int
+	PullThresholdForQueue int64
 
 	// Limit the cached message size on queue level, each message queue will cache at most 100 MiB messages by default,
 	// Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
@@ -436,7 +436,7 @@ func (dc *defaultConsumer) lock(mq *kernel.MessageQueue) bool {
 		_mq := lockedMQ[idx]
 		v, exist := dc.processQueueTable.Load(_mq)
 		if exist {
-			pq := v.(*ProcessQueue)
+			pq := v.(*processQueue)
 			pq.locked = true
 			pq.lastConsumeTime = time.Now()
 		}
@@ -486,7 +486,7 @@ func (dc *defaultConsumer) lockAll(mq kernel.MessageQueue) {
 			_mq := lockedMQ[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
-				pq := v.(*ProcessQueue)
+				pq := v.(*processQueue)
 				pq.locked = true
 				pq.lastConsumeTime = time.Now()
 			}
@@ -497,7 +497,7 @@ func (dc *defaultConsumer) lockAll(mq kernel.MessageQueue) {
 			if !set[_mq.HashCode()] {
 				v, exist := dc.processQueueTable.Load(_mq)
 				if exist {
-					pq := v.(*ProcessQueue)
+					pq := v.(*processQueue)
 					pq.locked = true
 					pq.lastLockTime = time.Now()
 					rlog.Warnf("the message queue: %s locked Failed, Group: %s", mq.String(), dc.consumerGroup)
@@ -527,7 +527,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 			_mq := mqs[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
-				v.(*ProcessQueue).locked = false
+				v.(*processQueue).locked = false
 				rlog.Warnf("the message queue: %s locked Failed, Group: %s", _mq.String(), dc.consumerGroup)
 			}
 		}
@@ -599,7 +599,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 	// TODO
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(*kernel.MessageQueue)
-		pq := value.(*ProcessQueue)
+		pq := value.(*processQueue)
 		if mq.Topic == topic {
 			if !mqSet[mq] {
 				pq.dropped = true
@@ -640,7 +640,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 					rlog.Debugf("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
 				} else {
 					rlog.Infof("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
-					pq := &ProcessQueue{}
+					pq := newProcessQueue()
 					dc.processQueueTable.Store(mq, pq)
 					pr := PullRequest{
 						consumerGroup: dc.consumerGroup,
@@ -660,7 +660,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 	return changed
 }
 
-func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *ProcessQueue) bool {
+func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *processQueue) bool {
 	dc.storage.persist([]*kernel.MessageQueue{mq})
 	dc.storage.remove(mq)
 	if dc.cType == _PushConsume && dc.consumeOrderly && Clustering == dc.model {
@@ -754,6 +754,10 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 		}
 		return list
 	}
+	return nil
+}
+
+func (dc *defaultConsumer) sendBack(msg *kernel.MessageExt, level int) error {
 	return nil
 }
 

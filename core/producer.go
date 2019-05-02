@@ -178,7 +178,7 @@ func (p *defaultProducer) String() string {
 	return p.config.String()
 }
 
-// Start the producer.
+// Start the consumer.
 func (p *defaultProducer) Start() error {
 	err := rmqError(C.StartProducer(p.cproduer))
 	if err != NIL {
@@ -187,7 +187,7 @@ func (p *defaultProducer) Start() error {
 	return nil
 }
 
-// Shutdown the producer.
+// Shutdown the consumer.
 func (p *defaultProducer) Shutdown() error {
 	err := rmqError(C.ShutdownProducer(p.cproduer))
 

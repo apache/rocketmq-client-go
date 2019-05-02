@@ -18,9 +18,13 @@ limitations under the License.
 package consumer
 
 import (
-	"container/list"
 	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/emirpasic/gods/maps/treemap"
+	"github.com/emirpasic/gods/utils"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,10 +34,10 @@ const (
 	_PullMaxIdleTime      = 120 * time.Second
 )
 
-type ProcessQueue struct {
+type processQueue struct {
+	msgCache                   *treemap.Map
 	mutex                      sync.RWMutex
-	msgCache                   list.List // sorted
-	cachedMsgCount             int
+	cachedMsgCount             int64
 	cachedMsgSize              int64
 	consumeLock                sync.Mutex
 	consumingMsgOrderlyTreeMap sync.Map
@@ -49,58 +53,176 @@ type ProcessQueue struct {
 	once                       sync.Once
 }
 
-func (pq *ProcessQueue) isPullExpired() bool {
-	return false
+func newProcessQueue() *processQueue {
+	pq := &processQueue{
+		msgCache:        treemap.NewWith(utils.Int64Comparator),
+		lastPullTime:    time.Now(),
+		lastConsumeTime: time.Now(),
+		lastLockTime:    time.Now(),
+	}
+	return pq
 }
 
-func (pq *ProcessQueue) getMaxSpan() int {
-	return pq.msgCache.Len()
-}
-
-func (pq *ProcessQueue) putMessage(messages []*kernel.MessageExt) {
-	pq.once.Do(func() {
-		pq.msgCache.Init()
-	})
-	localList := list.New()
+func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
+	if messages == nil || len(messages) == 0 {
+		return
+	}
+	pq.mutex.Lock()
+	validMessageCount := 0
 	for idx := range messages {
-		localList.PushBack(messages[idx])
-		pq.queueOffsetMax = messages[idx].QueueOffset
+		msg := messages[idx]
+		_, found := pq.msgCache.Get(msg.QueueOffset)
+		if found {
+			continue
+		}
+		pq.msgCache.Put(msg.QueueOffset, msg)
+		validMessageCount++
+		pq.queueOffsetMax = msg.QueueOffset
+		atomic.AddInt64(&pq.cachedMsgSize, int64(len(msg.Body)))
 	}
-	pq.mutex.Lock()
-	pq.msgCache.PushBackList(localList)
 	pq.mutex.Unlock()
+
+	atomic.AddInt64(&pq.cachedMsgCount, int64(validMessageCount))
+
+	if pq.msgCache.Size() > 0 && !pq.consuming {
+		pq.consuming = true
+	}
+
+	msg := messages[len(messages)-1]
+	maxOffset, err := strconv.ParseInt(msg.Properties[kernel.PropertyMaxOffset], 10, 64)
+	if err != nil {
+		acc := maxOffset - msg.QueueOffset
+		if acc > 0 {
+			pq.msgAccCnt = acc
+		}
+	}
 }
 
-func (pq *ProcessQueue) removeMessage(number int) int64 {
-	result := pq.queueOffsetMax + 1
+// TODO 有问题
+func (pq *processQueue) removeMessage(messages ...*kernel.MessageExt) int64 {
+	result := int64(-1)
 	pq.mutex.Lock()
-	for i := 0; i < number && pq.msgCache.Len() > 0; i++ {
-		head := pq.msgCache.Front()
-		pq.msgCache.Remove(head)
-		result = head.Value.(*kernel.MessageExt).QueueOffset
+	pq.lastConsumeTime = time.Now()
+	if !pq.msgCache.Empty() {
+		result = pq.queueOffsetMax + 1
+		removedCount := 0
+		for idx := range messages {
+			msg := messages[idx]
+			_, found := pq.msgCache.Get(msg.QueueOffset)
+			if !found {
+				continue
+			}
+			pq.msgCache.Remove(msg.QueueOffset)
+			removedCount++
+			atomic.AddInt64(&pq.cachedMsgSize, int64(-len(msg.Body)))
+		}
+		atomic.AddInt64(&pq.cachedMsgCount, int64(-removedCount))
+	}
+	if !pq.msgCache.Empty() {
+		first, _ := pq.msgCache.Min()
+		result = first.(int64)
 	}
 	pq.mutex.Unlock()
-	if pq.msgCache.Len() > 0 {
-		result = pq.msgCache.Front().Value.(*kernel.MessageExt).QueueOffset
-	}
 	return result
 }
 
-func (pq *ProcessQueue) takeMessages(number int) []*kernel.MessageExt {
-	for pq.msgCache.Len() == 0 {
+func (pq *processQueue) isLockExpired() bool {
+	return time.Now().Sub(pq.lastLockTime) > _RebalanceLockMaxTime
+}
+
+func (pq *processQueue) isPullExpired() bool {
+	return time.Now().Sub(pq.lastPullTime) > _PullMaxIdleTime
+}
+
+func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
+	if consumer.option.ConsumeOrderly {
+		return
+	}
+	var loop = 16
+	if pq.msgCache.Size() < 16 {
+		loop = pq.msgCache.Size()
+	}
+
+	for i := 0; i < loop; i++ {
+		pq.mutex.RLock()
+		if pq.msgCache.Empty() {
+			pq.mutex.RLock()
+			return
+		}
+		_, firstValue := pq.msgCache.Min()
+		msg := firstValue.(*kernel.MessageExt)
+		startTime := msg.Properties[kernel.PropertyConsumeStartTime]
+		if startTime != "" {
+			st, err := strconv.ParseInt(startTime, 10, 64)
+			if err != nil {
+				rlog.Warnf("parse message start consume time error: %s, origin str is: %s", startTime)
+				continue
+			}
+			if time.Now().Unix()-st <= int64(consumer.option.ConsumeTimeout) {
+				pq.mutex.RLock()
+				return
+			}
+		}
+		pq.mutex.RLock()
+
+		err := consumer.sendBack(msg, 3)
+		if err != nil {
+			rlog.Errorf("send message back to broker error: %s when clean expired messages", err.Error())
+			continue
+		}
+		pq.removeMessage(msg)
+	}
+}
+
+func (pq *processQueue) getMaxSpan() int {
+	if pq.msgCache.Size() == 0 {
+		return 0
+	}
+	pq.mutex.RLock()
+	firstKey, _ := pq.msgCache.Min()
+	lastKey, _ := pq.msgCache.Max()
+	pq.mutex.RUnlock()
+	return int(lastKey.(int64) - firstKey.(int64))
+}
+
+// TODO 和remove结合有问题
+func (pq *processQueue) takeMessages(number int) []*kernel.MessageExt {
+	for pq.msgCache.Empty() {
 		time.Sleep(10 * time.Millisecond)
 	}
 	result := make([]*kernel.MessageExt, number)
 	i := 0
 	pq.mutex.Lock()
 	for ; i < number; i++ {
-		e := pq.msgCache.Front()
-		if e == nil {
+		k, v := pq.msgCache.Min()
+		if v == nil {
 			break
 		}
-		result[i] = e.Value.(*kernel.MessageExt)
-		pq.msgCache.Remove(e)
+		result[i] = v.(*kernel.MessageExt)
+		pq.msgCache.Remove(k)
 	}
 	pq.mutex.Unlock()
 	return result[:i]
+}
+
+func (pq *processQueue) Min() int64 {
+	if pq.msgCache.Empty() {
+		return -1
+	}
+	k, _ := pq.msgCache.Min()
+	if k != nil {
+		return k.(int64)
+	}
+	return -1
+}
+
+func (pq *processQueue) Max() int64 {
+	if pq.msgCache.Empty() {
+		return -1
+	}
+	k, _ := pq.msgCache.Max()
+	if k != nil {
+		return k.(int64)
+	}
+	return -1
 }

@@ -189,7 +189,7 @@ func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 	hbData.ProducerDatas = pData
 	hbData.ConsumerDatas = cData
 	if len(pData) == 0 && len(cData) == 0 {
-		rlog.Warn("sending heartbeat, but no consumer and no producer")
+		rlog.Warn("sending heartbeat, but no consumer and no consumer")
 		return
 	}
 	brokerAddressesMap.Range(func(key, value interface{}) bool {

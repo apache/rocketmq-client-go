@@ -48,12 +48,12 @@ func (config *ClientConfig) String() string {
 	return str
 }
 
-// NewProducer create a new producer with config
+// NewProducer create a new consumer with config
 func NewProducer(config *ProducerConfig) (Producer, error) {
 	return newDefaultProducer(config)
 }
 
-// ProducerConfig define a producer
+// ProducerConfig define a consumer
 type ProducerConfig struct {
 	ClientConfig
 	SendMsgTimeout int

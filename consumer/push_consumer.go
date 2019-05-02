@@ -55,7 +55,7 @@ type pushConsumer struct {
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
 	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
-	submitToConsume              func(*ProcessQueue, *kernel.MessageQueue)
+	submitToConsume              func(*processQueue, *kernel.MessageQueue)
 	subscribedTopic              map[string]string
 }
 
@@ -312,8 +312,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warnf("the cached message count exceeds the threshold %d, so do flow control, "+
 					"minOffset=%d, maxOffset=%d, count=%d, size=%d MiB, pullRequest=%s, flowControlTimes=%d",
-					pc.option.PullThresholdForQueue, 0, pq.msgCache.Front().Value.(int64),
-					pq.msgCache.Back().Value.(int64),
+					pc.option.PullThresholdForQueue, 0, pq.Min(), pq.Max(),
 					pq.msgCache, cachedMessageSizeInMiB, request.String(), pc.queueFlowControlTimes)
 			}
 			pc.queueFlowControlTimes++
@@ -452,14 +451,14 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if msgFounded != nil && len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
 				increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
-				pq.putMessage(msgFounded)
+				pq.putMessage(msgFounded...)
 			}
 			if result.NextBeginOffset < prevRequestOffset || firstMsgOffset < prevRequestOffset {
 				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%s, "+
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case kernel.PullNoNewMsg:
-			rlog.Infof("Topic: %s, QueueId: %d, no more msg", request.mq.Topic, request.mq.QueueId)
+			rlog.Infof("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
 		case kernel.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
@@ -499,7 +498,7 @@ type ConsumeMessageContext struct {
 	properties map[string]string
 }
 
-func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.MessageQueue) {
+func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.MessageQueue) {
 	msgs := pq.takeMessages(32)
 	if msgs == nil {
 		return
@@ -573,7 +572,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.Mes
 					}
 				}
 
-				offset := pq.removeMessage(len(subMsgs))
+				offset := pq.removeMessage(subMsgs...)
 
 				if offset >= 0 && !pq.dropped {
 					pc.storage.update(mq, int64(offset), true)
@@ -591,5 +590,5 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.Mes
 	}
 }
 
-func (pc *pushConsumer) consumeMessageOrderly(pq *ProcessQueue, mq *kernel.MessageQueue) {
+func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *kernel.MessageQueue) {
 }
