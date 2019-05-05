@@ -26,6 +26,7 @@ import (
 	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -408,8 +409,10 @@ func (dc *defaultConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
-	// TODO log
-	return nil //dc.state == StateRunning
+	if dc.state != kernel.StateRunning {
+		return fmt.Errorf("state not running, actually: %v", dc.state)
+	}
+	return nil
 }
 
 type lockBatchRequestBody struct {
@@ -537,7 +540,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []kernel.MessageQueue {
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(kernel.ReqLockBatchMQ, nil, data)
-	response, err := remote.InvokeSync(addr, request, 1*time.Second)
+	response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
 	if err != nil {
 		rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		return nil
@@ -557,12 +560,12 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(kernel.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := remote.InvokeOneWay(addr, request, 3*time.Second)
+		err := dc.client.InvokeOneWay(addr, request, 3*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker with oneway: %s error %s", addr, err.Error())
 		}
 	} else {
-		response, err := remote.InvokeSync(addr, request, 1*time.Second)
+		response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		}
@@ -604,7 +607,8 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 			if !mqSet[mq] {
 				pq.dropped = true
 				if dc.removeUnnecessaryMessageQueue(mq, pq) {
-					delete(mqSet, mq)
+					//delete(mqSet, mq)
+					dc.processQueueTable.Delete(key)
 					changed = true
 					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s", dc.consumerGroup, mq.String())
 				}
@@ -663,9 +667,6 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *processQueue) bool {
 	dc.storage.persist([]*kernel.MessageQueue{mq})
 	dc.storage.remove(mq)
-	if dc.cType == _PushConsume && dc.consumeOrderly && Clustering == dc.model {
-		// TODO
-	}
 	return true
 }
 
@@ -684,7 +685,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
 					lastOffset = 0
 				} else {
-					lastOffset, err := kernel.QueryMaxOffset(mq)
+					lastOffset, err := dc.queryMaxOffset(mq)
 					if err == nil {
 						result = lastOffset
 					} else {
@@ -701,7 +702,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 		case ConsumeFromTimestamp:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
-					lastOffset, err := kernel.QueryMaxOffset(mq)
+					lastOffset, err := dc.queryMaxOffset(mq)
 					if err == nil {
 						result = lastOffset
 					} else {
@@ -713,7 +714,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 					if err != nil {
 						result = -1
 					} else {
-						lastOffset, err := kernel.SearchOffsetByTimestamp(mq, t.Unix())
+						lastOffset, err := dc.searchOffsetByTimestamp(mq, t.Unix())
 						if err != nil {
 							result = -1
 						} else {
@@ -741,7 +742,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(kernel.ReqGetConsumerListByGroup, req, nil)
-		res, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
+		res, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
 			return nil
@@ -759,6 +760,57 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 
 func (dc *defaultConsumer) sendBack(msg *kernel.MessageExt, level int) error {
 	return nil
+}
+
+// QueryMaxOffset with specific queueId and topic
+func (dc *defaultConsumer) queryMaxOffset(mq *kernel.MessageQueue) (int64, error) {
+	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	if brokerAddr == "" {
+		kernel.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = kernel.FindBrokerAddrByName(mq.Topic)
+	}
+	if brokerAddr == "" {
+		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
+	}
+
+	request := &kernel.GetMaxOffsetRequest{
+		Topic:   mq.Topic,
+		QueueId: mq.QueueId,
+	}
+
+	cmd := remote.NewRemotingCommand(kernel.ReqGetMaxOffset, request, nil)
+	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	if err != nil {
+		return -1, err
+	}
+
+	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+}
+
+// SearchOffsetByTimestamp with specific queueId and topic
+func (dc *defaultConsumer) searchOffsetByTimestamp(mq *kernel.MessageQueue, timestamp int64) (int64, error) {
+	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	if brokerAddr == "" {
+		kernel.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = kernel.FindBrokerAddrByName(mq.Topic)
+	}
+	if brokerAddr == "" {
+		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
+	}
+
+	request := &kernel.SearchOffsetRequest{
+		Topic:     mq.Topic,
+		QueueId:   mq.QueueId,
+		Timestamp: timestamp,
+	}
+
+	cmd := remote.NewRemotingCommand(kernel.ReqSearchOffsetByTimestamp, request, nil)
+	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	if err != nil {
+		return -1, err
+	}
+
+	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
 func buildSubscriptionData(topic string, selector MessageSelector) *kernel.SubscriptionData {

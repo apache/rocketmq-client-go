@@ -22,6 +22,7 @@ import (
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,9 +31,13 @@ func main() {
 		ConsumerModel: consumer.Clustering,
 		FromWhere:     consumer.ConsumeFromFirstOffset,
 	})
+	var count int64
 	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
 		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Println(msgs)
+		c := atomic.AddInt64(&count, int64(len(msgs)))
+		if c%1000 == 0 {
+			fmt.Println(c)
+		}
 		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {

@@ -42,6 +42,7 @@ const (
 
 var (
 	ErrTopicNotExist = errors.New("topic not exist")
+	nameSrvClient    = remote.NewRemotingClient()
 )
 
 var (
@@ -223,7 +224,7 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 		Topic: topic,
 	}
 	rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-	response, err := remote.InvokeSync(getNameServerAddress(), rc, requestTimeout)
+	response, err := nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
 
 	if err != nil {
 		return nil, err
@@ -395,7 +396,25 @@ func (routeData *TopicRouteData) clone() *TopicRouteData {
 }
 
 func (routeData *TopicRouteData) equals(data *TopicRouteData) bool {
-	return false
+	if len(routeData.BrokerDataList) != len(data.BrokerDataList) {
+		return false
+	}
+	if len(routeData.QueueDataList) != len(data.QueueDataList) {
+		return false
+	}
+
+	for idx := range routeData.BrokerDataList {
+		if !routeData.BrokerDataList[idx].Equals(data.BrokerDataList[idx]) {
+			return false
+		}
+	}
+
+	for idx := range routeData.QueueDataList {
+		if !routeData.QueueDataList[idx].Equals(data.QueueDataList[idx]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (routeData *TopicRouteData) String() string {
@@ -412,10 +431,52 @@ type QueueData struct {
 	TopicSynFlag   int    `json:"topicSynFlag"`
 }
 
+func (q *QueueData) Equals(qd *QueueData) bool {
+	if q.BrokerName != qd.BrokerName {
+		return false
+	}
+
+	if q.ReadQueueNums != qd.ReadQueueNums {
+		return false
+	}
+
+	if q.WriteQueueNums != qd.WriteQueueNums {
+		return false
+	}
+
+	if q.Perm != qd.Perm {
+		return false
+	}
+
+	if q.TopicSynFlag != qd.TopicSynFlag {
+		return false
+	}
+
+	return true
+}
+
 // BrokerData BrokerData
 type BrokerData struct {
 	Cluster             string           `json:"cluster"`
 	BrokerName          string           `json:"brokerName"`
 	BrokerAddresses     map[int64]string `json:"brokerAddrs"`
 	brokerAddressesLock sync.RWMutex
+}
+
+func (b *BrokerData) Equals(bd *BrokerData) bool {
+	if b.Cluster != bd.Cluster {
+		return false
+	}
+
+	if b.BrokerName != bd.BrokerName {
+		return false
+	}
+
+	for k, v := range b.BrokerAddresses {
+		if bd.BrokerAddresses[k] != v {
+			return false
+		}
+	}
+
+	return true
 }

@@ -50,7 +50,8 @@ type processQueue struct {
 	lastLockTime               time.Time
 	consuming                  bool
 	msgAccCnt                  int64
-	once                       sync.Once
+	lockConsume                sync.Mutex
+	msgCh                      chan []*kernel.MessageExt
 }
 
 func newProcessQueue() *processQueue {
@@ -59,6 +60,7 @@ func newProcessQueue() *processQueue {
 		lastPullTime:    time.Now(),
 		lastConsumeTime: time.Now(),
 		lastLockTime:    time.Now(),
+		msgCh:           make(chan []*kernel.MessageExt, 32),
 	}
 	return pq
 }
@@ -68,6 +70,7 @@ func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
 		return
 	}
 	pq.mutex.Lock()
+	pq.msgCh <- messages // 放锁外面会挂
 	validMessageCount := 0
 	for idx := range messages {
 		msg := messages[idx]
@@ -98,7 +101,6 @@ func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
 	}
 }
 
-// TODO 有问题
 func (pq *processQueue) removeMessage(messages ...*kernel.MessageExt) int64 {
 	result := int64(-1)
 	pq.mutex.Lock()
@@ -175,17 +177,20 @@ func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
 }
 
 func (pq *processQueue) getMaxSpan() int {
+	pq.mutex.RLock()
+	defer pq.mutex.RUnlock()
 	if pq.msgCache.Size() == 0 {
 		return 0
 	}
-	pq.mutex.RLock()
 	firstKey, _ := pq.msgCache.Min()
 	lastKey, _ := pq.msgCache.Max()
-	pq.mutex.RUnlock()
 	return int(lastKey.(int64) - firstKey.(int64))
 }
 
-// TODO 和remove结合有问题
+func (pq *processQueue) getMessages() []*kernel.MessageExt {
+	return <-pq.msgCh
+}
+
 func (pq *processQueue) takeMessages(number int) []*kernel.MessageExt {
 	for pq.msgCache.Empty() {
 		time.Sleep(10 * time.Millisecond)
@@ -225,4 +230,12 @@ func (pq *processQueue) Max() int64 {
 		return k.(int64)
 	}
 	return -1
+}
+
+func (pq *processQueue) clear() {
+	pq.mutex.Lock()
+	pq.msgCache.Clear()
+	pq.cachedMsgCount = 0
+	pq.cachedMsgSize = 0
+	pq.queueOffsetMax = 0
 }
