@@ -22,8 +22,6 @@ import (
 )
 
 type Logger interface {
-	Print(i ...interface{})
-	Printf(format string, args ...interface{})
 	Debug(i ...interface{})
 	Debugf(format string, args ...interface{})
 	Info(i ...interface{})
@@ -40,14 +38,6 @@ var rLog Logger = logrus.New()
 
 func SetLogger(log Logger) {
 	rLog = log
-}
-
-func Print(i ...interface{}) {
-	rLog.Print(i...)
-}
-
-func Printf(format string, args ...interface{}) {
-	rLog.Printf(format, args...)
 }
 
 func Debug(i ...interface{}) {

@@ -15,44 +15,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package consumer
 
-const (
-	permPriority = 0x1 << 3
-	permRead     = 0x1 << 2
-	permWrite    = 0x1 << 1
-	permInherit  = 0x1 << 0
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+	"time"
 )
 
-func queueIsReadable(perm int) bool {
-	return (perm & permRead) == permRead
-}
-
-func queueIsWriteable(perm int) bool {
-	return (perm & permWrite) == permWrite
-}
-
-func queueIsInherited(perm int) bool {
-	return (perm & permInherit) == permInherit
-}
-
-func perm2string(perm int) string {
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = '-'
-	}
-
-	if queueIsReadable(perm) {
-		bytes[0] = 'R'
-	}
-
-	if queueIsWriteable(perm) {
-		bytes[1] = 'W'
-	}
-
-	if queueIsInherited(perm) {
-		bytes[2] = 'X'
-	}
-
-	return string(bytes)
+func TestParseTimestamp(t *testing.T) {
+	layout := "20060102150405"
+	timestamp, err := time.ParseInLocation(layout, "20190430193409", time.Local)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(1556624049), timestamp.Unix())
 }
