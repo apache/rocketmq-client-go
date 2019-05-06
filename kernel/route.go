@@ -58,6 +58,40 @@ var (
 	lockNamesrv  sync.Mutex
 )
 
+func cleanOfflineBroker() {
+	// TODO optimize
+	lockNamesrv.Lock()
+	brokerAddressesMap.Range(func(key, value interface{}) bool {
+		brokerName := key.(string)
+		bd := value.(*BrokerData)
+		for k, v := range bd.BrokerAddresses {
+			isBrokerAddrExistInTopicRoute := false
+			routeDataMap.Range(func(key, value interface{}) bool {
+				trd := value.(*TopicRouteData)
+				for idx := range trd.BrokerDataList {
+					for _, v1 := range trd.BrokerDataList[idx].BrokerAddresses {
+						if v1 == v {
+							isBrokerAddrExistInTopicRoute = true
+							return false
+						}
+					}
+				}
+				return true
+			})
+			if !isBrokerAddrExistInTopicRoute {
+				delete(bd.BrokerAddresses, k)
+				rlog.Infof("the broker: [name=%s, ID=%d, addr=%s,] is offline, remove it", brokerName, k, v)
+			}
+		}
+		if len(bd.BrokerAddresses) == 0 {
+			brokerAddressesMap.Delete(brokerName)
+			rlog.Infof("the broker [name=%s] name's host is offline, remove it", brokerName)
+		}
+		return true
+	})
+	lockNamesrv.Unlock()
+}
+
 // key is topic, value is TopicPublishInfo
 type TopicPublishInfo struct {
 	OrderTopic          bool
