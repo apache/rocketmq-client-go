@@ -121,7 +121,7 @@ func UpdateTopicRouteInfo(topic string) {
 	publishInfo.HaveTopicRouterInfo = true
 
 	old, _ := publishInfoMap.Load(topic)
-	publishInfoMap.Store(topic, publishInfoMap)
+	publishInfoMap.Store(topic, publishInfo)
 	if old != nil {
 		rlog.Infof("Old TopicPublishInfo [%s] removed.", old)
 	}
@@ -135,6 +135,16 @@ func FindBrokerAddressInPublish(brokerName string) string {
 	}
 
 	return bd.(*BrokerData).BrokerAddresses[MasterId]
+}
+
+func FindTopicPublishInfo(topic string) *TopicPublishInfo {
+	tpi, exist := publishInfoMap.Load(topic)
+	if exist {
+		if tpi.(*TopicPublishInfo).isOK() {
+			return tpi.(*TopicPublishInfo)
+		}
+	}
+	return nil
 }
 
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {

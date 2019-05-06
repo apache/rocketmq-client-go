@@ -20,6 +20,7 @@ package kernel
 import "fmt"
 
 const (
+	ReqSendMessage         = int16(10)
 	ReqPullMessage         = int16(11)
 	ReqGetRouteInfoByTopic = int16(105)
 	ReqSendBatchMessage    = int16(320)
@@ -38,6 +39,7 @@ type SendMessageRequest struct {
 	ReconsumeTimes        int    `json:"reconsumeTimes"`
 	UnitMode              bool   `json:"unitMode"`
 	MaxReconsumeTimes     int    `json:"maxReconsumeTimes"`
+	Batch                 bool   `json:"batch"`
 }
 
 func (request *SendMessageRequest) Encode() map[string]string {
