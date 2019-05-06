@@ -37,6 +37,7 @@ type Producer interface {
 }
 
 type defaultProducer struct {
+	client    *kernel.RMQClient
 	state  kernel.ServiceState
 	config ProducerConfig
 }
@@ -63,7 +64,7 @@ func (c *defaultProducer) Send(msg *kernel.Message) (*kernel.SendResult, error) 
 				continue
 			}
 
-			brokerAddress := kernel.FindBrokerAddressInPublish(messageQueue.BrokerName)
+			brokerAddress := kernel.FindBrokerAddrByName(messageQueue.BrokerName)
 			if brokerAddress == "" {
 				break
 			}
@@ -89,12 +90,12 @@ func (c *defaultProducer) Send(msg *kernel.Message) (*kernel.SendResult, error) 
 func sendKernel(brokerAddress string, receive *defaultProducer, msg *kernel.Message, sendMsg *kernel.SendMessageRequest, messageQueue *kernel.MessageQueue) (*kernel.SendResult, error) {
 	switch receive.config.CommunicationType{
 	case common.SYNC:
-		return kernel.SendMessageSync(context.Background(), brokerAddress, messageQueue.BrokerName, sendMsg, []*kernel.Message{msg})
+		return receive.client.SendMessageSync(context.Background(), brokerAddress, messageQueue.BrokerName, sendMsg, []*kernel.Message{msg})
 	case common.ASYNC:
 		//kernel.SendMessageAsync()
 		return nil,nil
 	case common.ONEWAY:
-		return kernel.SendMessageOneWay(context.Background(), brokerAddress, sendMsg, []*kernel.Message{msg})
+		return receive.client.SendMessageOneWay(context.Background(), brokerAddress, sendMsg, []*kernel.Message{msg})
 	default:
 		return nil,nil
 	}
@@ -177,7 +178,7 @@ func getMessageQueue(tpInfo *kernel.TopicPublishInfo) *kernel.MessageQueue {
 }
 
 func (c *defaultProducer) Start() {
-	c.state = kernel.Running
+	c.state = kernel.StateRunning
 }
 
 func NewProducer(config ProducerConfig) Producer {
