@@ -15,44 +15,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package utils
 
-const (
-	permPriority = 0x1 << 3
-	permRead     = 0x1 << 2
-	permWrite    = 0x1 << 1
-	permInherit  = 0x1 << 0
-)
+import "fmt"
 
-func queueIsReadable(perm int) bool {
-	return (perm & permRead) == permRead
+// HashString hashes a string to a unique hashcode.
+func HashString(s string) int {
+	val := []byte(s)
+	var h int
+
+	for idx := range val {
+		h = 31*h + int(val[idx])
+	}
+
+	return h
 }
 
-func queueIsWriteable(perm int) bool {
-	return (perm & permWrite) == permWrite
-}
-
-func queueIsInherited(perm int) bool {
-	return (perm & permInherit) == permInherit
-}
-
-func perm2string(perm int) string {
-	bytes := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		bytes[i] = '-'
+func StrJoin(str, key string, value interface{}) string {
+	if key == "" || value == "" {
+		return str
 	}
 
-	if queueIsReadable(perm) {
-		bytes[0] = 'R'
-	}
-
-	if queueIsWriteable(perm) {
-		bytes[1] = 'W'
-	}
-
-	if queueIsInherited(perm) {
-		bytes[2] = 'X'
-	}
-
-	return string(bytes)
+	return str + key + ": " + fmt.Sprint(value) + ", "
 }
