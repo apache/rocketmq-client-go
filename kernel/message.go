@@ -54,6 +54,7 @@ type Message struct {
 	Flag          int32
 	Properties    map[string]string
 	TransactionId string
+	Batch         bool
 }
 
 func NewMessage(topic string, body []byte) *Message {

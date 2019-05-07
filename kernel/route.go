@@ -51,7 +51,7 @@ var (
 	// brokerName -> map[string]int32
 	brokerVersionMap sync.Map
 
-	//publishInfoMap sync.Map
+	publishInfoMap sync.Map
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
@@ -146,6 +146,16 @@ func FindBrokerAddrByName(brokerName string) string {
 	}
 
 	return bd.(*BrokerData).BrokerAddresses[MasterId]
+}
+
+func FindTopicPublishInfo(topic string) *TopicPublishInfo {
+	tpi, exist := publishInfoMap.Load(topic)
+	if exist {
+		if tpi.(*TopicPublishInfo).isOK() {
+			return tpi.(*TopicPublishInfo)
+		}
+	}
+	return nil
 }
 
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {

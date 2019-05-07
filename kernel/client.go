@@ -18,6 +18,7 @@ limitations under the License.
 package kernel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -253,7 +254,7 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 // SendMessage with batch by sync
 func (c *RMQClient) SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
-	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
+	cmd := getRemotingCommand(request, msgs)
 	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with sync error: %v", err)
@@ -261,6 +262,14 @@ func (c *RMQClient) SendMessageSync(ctx context.Context, brokerAddrs, brokerName
 	}
 
 	return c.processSendResponse(brokerName, msgs, response), nil
+}
+
+func getRemotingCommand(request *SendMessageRequest,  msgs []*Message) *remote.RemotingCommand {
+	if request.Batch {
+		return remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
+	} else {
+		return remote.NewRemotingCommand(ReqSendMessage, request, encodeMessages(msgs))
+	}
 }
 
 // SendMessageAsync send message with batch by async
@@ -541,5 +550,10 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue
 }
 
 func encodeMessages(message []*Message) []byte {
-	return nil
+	var buffer bytes.Buffer
+	index := 0
+	for index < len(message){
+		buffer.Write(message[index].Body)
+	}
+	return buffer.Bytes()
 }
