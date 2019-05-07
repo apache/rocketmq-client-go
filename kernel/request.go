@@ -24,6 +24,7 @@ import (
 )
 
 const (
+	ReqSendMessage              = int16(10)
 	ReqPullMessage              = int16(11)
 	ReqQueryConsumerOffset      = int16(14)
 	ReqUpdateConsumerOffset     = int16(15)
@@ -55,6 +56,7 @@ type SendMessageRequest struct {
 	ReconsumeTimes        int    `json:"reconsumeTimes"`
 	UnitMode              bool   `json:"unitMode"`
 	MaxReconsumeTimes     int    `json:"maxReconsumeTimes"`
+	Batch                 bool   `json:"batch"`
 }
 
 func (request *SendMessageRequest) Encode() map[string]string {
