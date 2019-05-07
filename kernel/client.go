@@ -47,7 +47,7 @@ const (
 	_PersistOffset = 5 * time.Second
 
 	// Rebalance interval
-	_RebalanceInterval = 20 * time.Millisecond
+	_RebalanceInterval = 100 * time.Millisecond
 )
 
 var (
@@ -82,7 +82,6 @@ type InnerProducer interface {
 	IsPublishTopicNeedUpdate(topic string) bool
 	GetCheckListener() func(msg *MessageExt)
 	GetTransactionListener() TransactionListener
-	//CheckTransactionState()
 	isUnitMode() bool
 }
 
@@ -103,13 +102,25 @@ type RMQClient struct {
 	// group -> InnerConsumer
 	consumerMap sync.Map
 	once        sync.Once
+
+	remoteClient *remote.RemotingClient
 }
 
 var clientMap sync.Map
 
 func GetOrNewRocketMQClient(option ClientOption) *RMQClient {
-	client := &RMQClient{option: option}
-	actual, _ := clientMap.LoadOrStore(client.ClientID(), client)
+	client := &RMQClient{
+		option:       option,
+		remoteClient: remote.NewRemotingClient(),
+	}
+	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
+	if !loaded {
+		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand) *remote.RemotingCommand {
+			rlog.Infof("receive broker's notification, the consumer group: %s", req.ExtFields["consumerGroup"])
+			client.RebalanceImmediately()
+			return nil
+		})
+	}
 	return actual.(*RMQClient)
 }
 
@@ -129,7 +140,13 @@ func (c *RMQClient) Start() {
 		}()
 
 		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
-		go func() {}()
+		go func() {
+			for {
+				cleanOfflineBroker()
+				c.SendHeartbeatToAllBrokerWithLock()
+				time.Sleep(_HeartbeatBrokerInterval)
+			}
+		}()
 
 		// schedule persist offset
 		go func() {
@@ -147,7 +164,7 @@ func (c *RMQClient) Start() {
 		go func() {
 			for {
 				c.RebalanceImmediately()
-				time.Sleep(time.Second)
+				time.Sleep(_RebalanceInterval)
 			}
 		}()
 	})
@@ -161,9 +178,20 @@ func (c *RMQClient) ClientID() string {
 	return id
 }
 
+func (c *RMQClient) InvokeSync(addr string, request *remote.RemotingCommand,
+	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
+	return c.remoteClient.InvokeSync(addr, request, timeoutMillis)
+}
+
+func (c *RMQClient) InvokeOneWay(addr string, request *remote.RemotingCommand,
+	timeoutMillis time.Duration) error {
+	return c.remoteClient.InvokeOneWay(addr, request, timeoutMillis)
+}
+
 func (c *RMQClient) CheckClientInBroker() {
 }
 
+// TODO
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 	hbData := &heartbeatData{
 		ClientId: c.ClientID(),
@@ -190,7 +218,7 @@ func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 	hbData.ProducerDatas = pData
 	hbData.ConsumerDatas = cData
 	if len(pData) == 0 && len(cData) == 0 {
-		rlog.Warn("sending heartbeat, but no consumer and no producer")
+		rlog.Info("sending heartbeat, but no consumer and no consumer")
 		return
 	}
 	brokerAddressesMap.Range(func(key, value interface{}) bool {
@@ -198,7 +226,7 @@ func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
-			response, err := remote.InvokeSync(addr, cmd, 3*time.Second)
+			response, err := c.remoteClient.InvokeSync(addr, cmd, 3*time.Second)
 			if err != nil {
 				rlog.Warnf("send heart beat to broker error: %s", err.Error())
 				return true
@@ -213,7 +241,7 @@ func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 					brokerVersionMap.Store(brokerName, m)
 				}
 				m[brokerName] = int32(response.Version)
-				rlog.Infof("send heart beat to broker[%s %s %s] success", brokerName, id, addr)
+				rlog.Infof("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
 			}
 		}
 		return true
@@ -255,7 +283,7 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 func (c *RMQClient) SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := getRemotingCommand(request, msgs)
-	response, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	response, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with sync error: %v", err)
 		return nil, err
@@ -281,7 +309,7 @@ func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerNam
 func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*Message) (*SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := remote.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
+	err := c.remoteClient.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with oneway error: %v", err)
 	}
@@ -337,7 +365,7 @@ func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd 
 // PullMessage with sync
 func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := remote.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -387,67 +415,6 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*Pull
 
 // PullMessageAsync pull message async
 func (c *RMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *PullResult)) error {
-	return nil
-}
-
-// QueryMaxOffset with specific queueId and topic
-func QueryMaxOffset(mq *MessageQueue) (int64, error) {
-	brokerAddr := FindBrokerAddrByName(mq.BrokerName)
-	if brokerAddr == "" {
-		UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = FindBrokerAddrByName(mq.Topic)
-	}
-	if brokerAddr == "" {
-		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
-	}
-
-	request := &GetMaxOffsetRequest{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
-	}
-
-	cmd := remote.NewRemotingCommand(ReqGetMaxOffset, request, nil)
-	response, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second)
-	if err != nil {
-		return -1, err
-	}
-
-	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
-}
-
-// QueryConsumerOffset with specific queueId and topic of consumerGroup
-func (c *RMQClient) QueryConsumerOffset(consumerGroup, mq *MessageQueue) (int64, error) {
-	return 0, nil
-}
-
-// SearchOffsetByTimestamp with specific queueId and topic
-func SearchOffsetByTimestamp(mq *MessageQueue, timestamp int64) (int64, error) {
-	brokerAddr := FindBrokerAddrByName(mq.BrokerName)
-	if brokerAddr == "" {
-		UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = FindBrokerAddrByName(mq.Topic)
-	}
-	if brokerAddr == "" {
-		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
-	}
-
-	request := &SearchOffsetRequest{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
-	}
-
-	cmd := remote.NewRemotingCommand(ReqSearchOffsetByTimestamp, request, nil)
-	response, err := remote.InvokeSync(brokerAddr, cmd, 3*time.Second)
-	if err != nil {
-		return -1, err
-	}
-
-	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
-}
-
-// UpdateConsumerOffset with specific queueId and topic
-func (c *RMQClient) UpdateConsumerOffset(consumerGroup, topic string, queue int, offset int64) error {
 	return nil
 }
 

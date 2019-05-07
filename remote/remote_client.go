@@ -85,14 +85,37 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 	}
 }
 
-func InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
-	conn, err := connect(addr)
+type ClientRequestFunc func(remotingCommand *RemotingCommand) (responseCommand *RemotingCommand)
+
+type TcpOption struct {
+	// TODO
+}
+
+type RemotingClient struct {
+	responseTable   sync.Map
+	connectionTable sync.Map
+	option          TcpOption
+	processors      map[int16]ClientRequestFunc
+}
+
+func NewRemotingClient() *RemotingClient {
+	return &RemotingClient{
+		processors: make(map[int16]ClientRequestFunc),
+	}
+}
+
+func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
+	c.processors[code] = f
+}
+
+func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
+	conn, err := c.connect(addr)
 	if err != nil {
 		return nil, err
 	}
 	resp := NewResponseFuture(request.Opaque, timeoutMillis, nil)
-	responseTable.Store(resp.Opaque, resp)
-	err = sendRequest(conn, request)
+	c.responseTable.Store(resp.Opaque, resp)
+	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
@@ -100,14 +123,14 @@ func InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Durati
 	return resp.waitResponse()
 }
 
-func InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
-	conn, err := connect(addr)
+func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
+	conn, err := c.connect(addr)
 	if err != nil {
 		return err
 	}
 	resp := NewResponseFuture(request.Opaque, timeoutMillis, callback)
-	responseTable.Store(resp.Opaque, resp)
-	err = sendRequest(conn, request)
+	c.responseTable.Store(resp.Opaque, resp)
+	err = c.sendRequest(conn, request)
 	if err != nil {
 		return err
 	}
@@ -116,26 +139,21 @@ func InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Durat
 
 }
 
-func InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
-	conn, err := connect(addr)
+func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
+	conn, err := c.connect(addr)
 	if err != nil {
 		return err
 	}
-	return sendRequest(conn, request)
+	return c.sendRequest(conn, request)
 }
 
-var (
-	responseTable   sync.Map
-	connectionTable sync.Map
-)
-
-func ScanResponseTable() {
+func (c *RemotingClient) ScanResponseTable() {
 	rfs := make([]*ResponseFuture, 0)
-	responseTable.Range(func(key, value interface{}) bool {
+	c.responseTable.Range(func(key, value interface{}) bool {
 		if resp, ok := value.(*ResponseFuture); ok {
 			if (resp.BeginTimestamp + int64(resp.TimeoutMillis) + 1000) <= time.Now().Unix()*1000 {
 				rfs = append(rfs, resp)
-				responseTable.Delete(key)
+				c.responseTable.Delete(key)
 			}
 		}
 		return true
@@ -146,11 +164,11 @@ func ScanResponseTable() {
 	}
 }
 
-func connect(addr string) (net.Conn, error) {
+func (c *RemotingClient) connect(addr string) (net.Conn, error) {
 	//it needs additional locker.
 	connectionLocker.Lock()
 	defer connectionLocker.Unlock()
-	conn, ok := connectionTable.Load(addr)
+	conn, ok := c.connectionTable.Load(addr)
 	if ok {
 		return conn.(net.Conn), nil
 	}
@@ -158,28 +176,27 @@ func connect(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	connectionTable.Store(addr, tcpConn)
-	go receiveResponse(tcpConn)
+	c.connectionTable.Store(addr, tcpConn)
+	go c.receiveResponse(tcpConn)
 	return tcpConn, nil
 }
 
-func receiveResponse(r net.Conn) {
-	scanner := createScanner(r)
-	for {
-		scanner.Scan()
-		receivedRemotingCommand, err := decode(scanner.Bytes())
+func (c *RemotingClient) receiveResponse(r net.Conn) {
+	scanner := c.createScanner(r)
+	for scanner.Scan() {
+		cmd, err := decode(scanner.Bytes())
 		if err != nil {
-			closeConnection(r)
-			rlog.Error(err.Error())
+			c.closeConnection(r)
+			rlog.Errorf("decode RemotingCommand error: %s", err.Error())
 			break
 		}
-		if receivedRemotingCommand.isResponseType() {
-			resp, exist := responseTable.Load(receivedRemotingCommand.Opaque)
+		if cmd.isResponseType() {
+			resp, exist := c.responseTable.Load(cmd.Opaque)
 			if exist {
-				responseTable.Delete(receivedRemotingCommand.Opaque)
+				c.responseTable.Delete(cmd.Opaque)
 				responseFuture := resp.(*ResponseFuture)
 				go func() {
-					responseFuture.ResponseCommand = receivedRemotingCommand
+					responseFuture.ResponseCommand = cmd
 					responseFuture.executeInvokeCallback()
 					if responseFuture.Done != nil {
 						responseFuture.Done <- true
@@ -187,12 +204,30 @@ func receiveResponse(r net.Conn) {
 				}()
 			}
 		} else {
-			// todo handler request from peer
+			f := c.processors[cmd.Code]
+			if f != nil {
+				go func() { // 单个goroutine会造成死锁
+					res := f(cmd)
+					if res != nil {
+						err := c.sendRequest(r, cmd)
+						if err != nil {
+							rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
+						}
+					}
+				}()
+			} else {
+				rlog.Warnf("receive broker's requests, but no func to handle, code is: %d", cmd.Code)
+			}
 		}
+	}
+	if scanner.Err() != nil {
+		rlog.Errorf("net: %s scanner exit, err: %s.", r.RemoteAddr().String(), scanner.Err())
+	} else {
+		rlog.Infof("net: %s scanner exit.", r.RemoteAddr().String())
 	}
 }
 
-func createScanner(r io.Reader) *bufio.Scanner {
+func (c *RemotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
 	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		defer func() {
@@ -219,27 +254,26 @@ func createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func sendRequest(conn net.Conn, request *RemotingCommand) error {
+func (c *RemotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
 	content, err := encode(request)
 	if err != nil {
 		return err
 	}
 	_, err = conn.Write(content)
 	if err != nil {
-		closeConnection(conn)
+		c.closeConnection(conn)
 		return err
 	}
 	return nil
 }
 
-func closeConnection(toCloseConn net.Conn) {
-	connectionTable.Range(func(key, value interface{}) bool {
+func (c *RemotingClient) closeConnection(toCloseConn net.Conn) {
+	c.connectionTable.Range(func(key, value interface{}) bool {
 		if value == toCloseConn {
-			connectionTable.Delete(key)
+			c.connectionTable.Delete(key)
 			return false
 		} else {
 			return true
 		}
-
 	})
 }

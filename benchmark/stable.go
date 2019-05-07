@@ -145,13 +145,13 @@ func (stp *stableTestProducer) run(args []string) {
 		ClientConfig: rocketmq.ClientConfig{GroupID: stp.groupID, NameServer: stp.nameSrv},
 	})
 	if err != nil {
-		fmt.Printf("new producer error:%s\n", err)
+		fmt.Printf("new consumer error:%s\n", err)
 		return
 	}
 
 	err = p.Start()
 	if err != nil {
-		fmt.Printf("start producer error:%s\n", err)
+		fmt.Printf("start consumer error:%s\n", err)
 		return
 	}
 	defer p.Shutdown()
@@ -256,7 +256,7 @@ func (stc *stableTestConsumer) pullMessage() {
 }
 
 func init() {
-	// producer
+	// consumer
 	name := "stableTestProducer"
 	p := &stableTestProducer{stableTest: &stableTest{}}
 	p.buildFlags(name)

@@ -42,6 +42,7 @@ const (
 
 var (
 	ErrTopicNotExist = errors.New("topic not exist")
+	nameSrvClient    = remote.NewRemotingClient()
 )
 
 var (
@@ -56,6 +57,40 @@ var (
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
 )
+
+func cleanOfflineBroker() {
+	// TODO optimize
+	lockNamesrv.Lock()
+	brokerAddressesMap.Range(func(key, value interface{}) bool {
+		brokerName := key.(string)
+		bd := value.(*BrokerData)
+		for k, v := range bd.BrokerAddresses {
+			isBrokerAddrExistInTopicRoute := false
+			routeDataMap.Range(func(key, value interface{}) bool {
+				trd := value.(*TopicRouteData)
+				for idx := range trd.BrokerDataList {
+					for _, v1 := range trd.BrokerDataList[idx].BrokerAddresses {
+						if v1 == v {
+							isBrokerAddrExistInTopicRoute = true
+							return false
+						}
+					}
+				}
+				return true
+			})
+			if !isBrokerAddrExistInTopicRoute {
+				delete(bd.BrokerAddresses, k)
+				rlog.Infof("the broker: [name=%s, ID=%d, addr=%s,] is offline, remove it", brokerName, k, v)
+			}
+		}
+		if len(bd.BrokerAddresses) == 0 {
+			brokerAddressesMap.Delete(brokerName)
+			rlog.Infof("the broker [name=%s] name's host is offline, remove it", brokerName)
+		}
+		return true
+	})
+	lockNamesrv.Unlock()
+}
 
 // key is topic, value is TopicPublishInfo
 type TopicPublishInfo struct {
@@ -233,7 +268,7 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 		Topic: topic,
 	}
 	rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-	response, err := remote.InvokeSync(getNameServerAddress(), rc, requestTimeout)
+	response, err := nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
 
 	if err != nil {
 		return nil, err
@@ -405,7 +440,25 @@ func (routeData *TopicRouteData) clone() *TopicRouteData {
 }
 
 func (routeData *TopicRouteData) equals(data *TopicRouteData) bool {
-	return false
+	if len(routeData.BrokerDataList) != len(data.BrokerDataList) {
+		return false
+	}
+	if len(routeData.QueueDataList) != len(data.QueueDataList) {
+		return false
+	}
+
+	for idx := range routeData.BrokerDataList {
+		if !routeData.BrokerDataList[idx].Equals(data.BrokerDataList[idx]) {
+			return false
+		}
+	}
+
+	for idx := range routeData.QueueDataList {
+		if !routeData.QueueDataList[idx].Equals(data.QueueDataList[idx]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (routeData *TopicRouteData) String() string {
@@ -422,10 +475,52 @@ type QueueData struct {
 	TopicSynFlag   int    `json:"topicSynFlag"`
 }
 
+func (q *QueueData) Equals(qd *QueueData) bool {
+	if q.BrokerName != qd.BrokerName {
+		return false
+	}
+
+	if q.ReadQueueNums != qd.ReadQueueNums {
+		return false
+	}
+
+	if q.WriteQueueNums != qd.WriteQueueNums {
+		return false
+	}
+
+	if q.Perm != qd.Perm {
+		return false
+	}
+
+	if q.TopicSynFlag != qd.TopicSynFlag {
+		return false
+	}
+
+	return true
+}
+
 // BrokerData BrokerData
 type BrokerData struct {
 	Cluster             string           `json:"cluster"`
 	BrokerName          string           `json:"brokerName"`
 	BrokerAddresses     map[int64]string `json:"brokerAddrs"`
 	brokerAddressesLock sync.RWMutex
+}
+
+func (b *BrokerData) Equals(bd *BrokerData) bool {
+	if b.Cluster != bd.Cluster {
+		return false
+	}
+
+	if b.BrokerName != bd.BrokerName {
+		return false
+	}
+
+	for k, v := range b.BrokerAddresses {
+		if bd.BrokerAddresses[k] != v {
+			return false
+		}
+	}
+
+	return true
 }

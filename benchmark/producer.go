@@ -108,7 +108,7 @@ type producer struct {
 
 func init() {
 	p := &producer{}
-	flags := flag.NewFlagSet("producer", flag.ExitOnError)
+	flags := flag.NewFlagSet("consumer", flag.ExitOnError)
 	p.flags = flags
 
 	flags.StringVar(&p.topic, "t", "", "topic name")
@@ -118,7 +118,7 @@ func init() {
 	flags.IntVar(&p.testMinutes, "m", 10, "test minutes")
 	flags.IntVar(&p.bodySize, "s", 32, "body size")
 
-	registerCommand("producer", p)
+	registerCommand("consumer", p)
 }
 
 func (bp *producer) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan struct{}) {
@@ -126,14 +126,14 @@ func (bp *producer) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan 
 		ClientConfig: rocketmq.ClientConfig{GroupID: bp.groupID, NameServer: bp.nameSrv},
 	})
 	if err != nil {
-		fmt.Printf("new producer error:%s\n", err)
+		fmt.Printf("new consumer error:%s\n", err)
 		return
 	}
 
 	p.Start()
 	defer p.Shutdown()
 
-	topic, tag := bp.topic, "benchmark-producer"
+	topic, tag := bp.topic, "benchmark-consumer"
 
 AGAIN:
 	select {

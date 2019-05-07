@@ -22,6 +22,7 @@ import (
 	"errors"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"math"
 	"strconv"
 	"time"
@@ -55,11 +56,13 @@ type pushConsumer struct {
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
 	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
-	submitToConsume              func(*ProcessQueue, *kernel.MessageQueue)
+	submitToConsume              func(*processQueue, *kernel.MessageQueue)
 	subscribedTopic              map[string]string
 }
 
 func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
+	opt.InstanceName = "DEFAULT"
+	opt.ClientIP = utils.LocalIP()
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,
 		cType:          _PushConsume,
@@ -119,11 +122,10 @@ func (pc *pushConsumer) Start() error {
 		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
 		if pc.model == Clustering {
 			pc.option.ChangeInstanceNameToPID()
-			pc.storage = NewRemoteOffsetStore(pc.consumerGroup)
+			pc.storage = NewRemoteOffsetStore(pc.consumerGroup, pc.client)
 		} else {
 			pc.storage = NewLocalFileOffsetStore(pc.consumerGroup, pc.client.ClientID())
 		}
-		pc.storage.load()
 		go func() {
 			// todo start clean msg expired
 			// TODO quit
@@ -263,7 +265,7 @@ func (pc *pushConsumer) validate() {
 
 	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
 		if pc.option.PullBatchSize == 0 {
-			pc.option.PullBatchSize = 1
+			pc.option.PullBatchSize = 32
 		} else {
 			rlog.Fatal("option.PullBatchSize out of range [1, 1024]")
 		}
@@ -293,7 +295,6 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		sleepTime = pc.option.PullInterval
 		pq.lastPullTime = time.Now()
 		err := pc.makeSureStateOK()
-		rlog.Debugf("pull MessageQueue: %d", request.mq.QueueId)
 		if err != nil {
 			rlog.Warnf("consumer state error: %s", err.Error())
 			sleepTime = _PullDelayTimeWhenError
@@ -312,8 +313,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warnf("the cached message count exceeds the threshold %d, so do flow control, "+
 					"minOffset=%d, maxOffset=%d, count=%d, size=%d MiB, pullRequest=%s, flowControlTimes=%d",
-					pc.option.PullThresholdForQueue, 0, pq.msgCache.Front().Value.(int64),
-					pq.msgCache.Back().Value.(int64),
+					pc.option.PullThresholdForQueue, 0, pq.Min(), pq.Max(),
 					pq.msgCache, cachedMessageSizeInMiB, request.String(), pc.queueFlowControlTimes)
 			}
 			pc.queueFlowControlTimes++
@@ -325,8 +325,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warnf("the cached message size exceeds the threshold %d MiB, so do flow control, "+
 					"minOffset=%d, maxOffset=%d, count=%d, size=%d MiB, pullRequest=%s, flowControlTimes=%d",
-					pc.option.PullThresholdSizeForQueue, 0, //processQueue.getMsgTreeMap().firstKey(),
-					0, // TODO processQueue.getMsgTreeMap().lastKey(),
+					pc.option.PullThresholdSizeForQueue, pq.Min(), pq.Max(),
 					pq.msgCache, cachedMessageSizeInMiB, request.String(), pc.queueFlowControlTimes)
 			}
 			pc.queueFlowControlTimes++
@@ -338,12 +337,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if pq.getMaxSpan() > pc.option.ConsumeConcurrentlyMaxSpan {
 
 				if pc.queueMaxSpanFlowControlTimes%1000 == 0 {
-					rlog.Warnf("the queue's messages, span too long, so do flow control, minOffset=%d, "+
-						"maxOffset=%d, maxSpan=%d, pullRequest=%s, flowControlTimes=%d",
-						0, //processQueue.getMsgTreeMap().firstKey(),
-						0, // processQueue.getMsgTreeMap().lastKey(),
-						pq.getMaxSpan(),
-						request.String(), pc.queueMaxSpanFlowControlTimes)
+					rlog.Warnf("the queue's messages, span too long, limit=%d, so do flow control, minOffset=%d, "+
+						"maxOffset=%d, maxSpan=%d, pullRequest=%s, flowControlTimes=%d", pc.option.ConsumeConcurrentlyMaxSpan,
+						pq.Min(), pq.Max(), pq.getMaxSpan(), request.String(), pc.queueMaxSpanFlowControlTimes)
 				}
 				sleepTime = _PullDelayTimeWhenFlowControl
 				goto NEXT
@@ -452,14 +448,14 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			if msgFounded != nil && len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
 				increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
-				pq.putMessage(msgFounded)
+				pq.putMessage(msgFounded...)
 			}
 			if result.NextBeginOffset < prevRequestOffset || firstMsgOffset < prevRequestOffset {
 				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%s, "+
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case kernel.PullNoNewMsg:
-			rlog.Infof("Topic: %s, QueueId: %d, no more msg", request.mq.Topic, request.mq.QueueId)
+			rlog.Debugf("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
 		case kernel.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
@@ -489,6 +485,87 @@ func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *kernel.
 	return true
 }
 
+func (pc *pushConsumer) suspend() {
+	pc.pause = true
+	rlog.Infof("suspend consumer: %s", pc.consumerGroup)
+}
+
+func (pc *pushConsumer) resume() {
+	pc.pause = false
+	pc.doBalance()
+	rlog.Infof("resume consumer: %s", pc.consumerGroup)
+}
+
+func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]int64) {
+	//topic := cmd.ExtFields["topic"]
+	//group := cmd.ExtFields["group"]
+	//if topic == "" || group == "" {
+	//	rlog.Warnf("received reset offset command from: %s, but missing params.", from)
+	//	return
+	//}
+	//t, err := strconv.ParseInt(cmd.ExtFields["timestamp"], 10, 64)
+	//if err != nil {
+	//	rlog.Warnf("received reset offset command from: %s, but parse time error: %s", err.Error())
+	//	return
+	//}
+	//rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
+	//	from, topic, group, t)
+	//
+	//offsetTable := make(map[kernel.MessageQueue]int64, 0)
+	//err = json.Unmarshal(cmd.Body, &offsetTable)
+	//if err != nil {
+	//	rlog.Warnf("received reset offset command from: %s, but parse offset table: %s", err.Error())
+	//	return
+	//}
+	//v, exist := c.consumerMap.Load(group)
+	//if !exist {
+	//	rlog.Infof("[reset-offset] consumer dose not exist. group=%s", group)
+	//	return
+	//}
+
+	set := make(map[int]*kernel.MessageQueue, 0)
+	for k := range table {
+		set[k.HashCode()] = &k
+	}
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		mqHash := value.(int)
+		pq := value.(*processQueue)
+		if set[mqHash] != nil {
+			pq.dropped = true
+			pq.clear()
+		}
+		return true
+	})
+	time.Sleep(10 * time.Second)
+	v, exist := pc.topicSubscribeInfoTable.Load(topic)
+	if !exist {
+		return
+	}
+	queuesOfTopic := v.(map[int]*kernel.MessageQueue)
+	for k := range queuesOfTopic {
+		q := set[k]
+		if q != nil {
+			pc.storage.update(q, table[*q], false)
+			v, exist := pc.processQueueTable.Load(k)
+			if !exist {
+				continue
+			}
+			pq := v.(*processQueue)
+			pc.removeUnnecessaryMessageQueue(q, pq)
+			delete(queuesOfTopic, k)
+		}
+	}
+}
+
+func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *processQueue) bool {
+	pc.defaultConsumer.removeUnnecessaryMessageQueue(mq, pq)
+	if !pc.consumeOrderly || Clustering != pc.model {
+		return true
+	}
+	// TODO orderly
+	return true
+}
+
 type ConsumeMessageContext struct {
 	consumerGroup string
 	msgs          []*kernel.MessageExt
@@ -499,8 +576,8 @@ type ConsumeMessageContext struct {
 	properties map[string]string
 }
 
-func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.MessageQueue) {
-	msgs := pq.takeMessages(32)
+func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.MessageQueue) {
+	msgs := pq.getMessages()
 	if msgs == nil {
 		return
 	}
@@ -573,7 +650,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.Mes
 					}
 				}
 
-				offset := pq.removeMessage(len(subMsgs))
+				offset := pq.removeMessage(subMsgs...)
 
 				if offset >= 0 && !pq.dropped {
 					pc.storage.update(mq, int64(offset), true)
@@ -591,5 +668,5 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *ProcessQueue, mq *kernel.Mes
 	}
 }
 
-func (pc *pushConsumer) consumeMessageOrderly(pq *ProcessQueue, mq *kernel.MessageQueue) {
+func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *kernel.MessageQueue) {
 }

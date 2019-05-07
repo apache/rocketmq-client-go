@@ -17,9 +17,7 @@
 
 package rlog
 
-import (
-	"github.com/sirupsen/logrus"
-)
+import "github.com/sirupsen/logrus"
 
 type Logger interface {
 	Debug(i ...interface{})
@@ -34,7 +32,13 @@ type Logger interface {
 	Fatalf(format string, args ...interface{})
 }
 
-var rLog Logger = logrus.New()
+var rLog Logger
+
+func init() {
+	r := logrus.New()
+	//r.SetLevel(logrus.DebugLevel)
+	rLog = r
+}
 
 func SetLogger(log Logger) {
 	rLog = log
