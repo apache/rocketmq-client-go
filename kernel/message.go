@@ -51,7 +51,7 @@ const (
 type Message struct {
 	Topic         string
 	Body          []byte
-	Flag          int
+	Flag          int32
 	Properties    map[string]string
 	TransactionId string
 	Batch         bool

@@ -451,7 +451,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				pq.putMessage(msgFounded...)
 			}
 			if result.NextBeginOffset < prevRequestOffset || firstMsgOffset < prevRequestOffset {
-				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%s, "+
+				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%d, "+
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case kernel.PullNoNewMsg:

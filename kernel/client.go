@@ -114,6 +114,7 @@ type RMQClient struct {
 	once        sync.Once
 
 	remoteClient *remote.RemotingClient
+	hbMutex      sync.Mutex
 }
 
 var clientMap sync.Map
@@ -203,6 +204,8 @@ func (c *RMQClient) CheckClientInBroker() {
 
 // TODO
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
+	c.hbMutex.Lock()
+	defer c.hbMutex.Unlock()
 	hbData := &heartbeatData{
 		ClientId: c.ClientID(),
 	}

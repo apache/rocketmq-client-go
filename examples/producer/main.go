@@ -35,9 +35,9 @@ func main() {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
-	for i := 0; i < 64000; i++ {
+	for i := 0; i < 10000; i++ {
 		res, err := p.SendSync(context.Background(), &kernel.Message{
-			Topic: "test",
+			Topic: "wwf_test1",
 			Body:  []byte("Hello RocketMQ Go Client!"),
 		})
 

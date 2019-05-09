@@ -49,7 +49,7 @@ type SendMessageRequest struct {
 	QueueId           int    `json:"queueId"`
 	SysFlag           int    `json:"sysFlag"`
 	BornTimestamp     int64  `json:"bornTimestamp"`
-	Flag              int    `json:"flag"`
+	Flag              int32  `json:"flag"`
 	Properties        string `json:"properties"`
 	ReconsumeTimes    int    `json:"reconsumeTimes"`
 	UnitMode          bool   `json:"unitMode"`
