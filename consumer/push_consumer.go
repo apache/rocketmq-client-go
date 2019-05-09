@@ -607,12 +607,14 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 			groupTopic := kernel.RetryGroupTopicPrefix + pc.consumerGroup
 			for idx := range subMsgs {
 				msg := subMsgs[idx]
-				retryTopic := msg.Properties[kernel.PropertyRetryTopic]
-				if retryTopic == "" && groupTopic == msg.Topic {
-					msg.Topic = retryTopic
+				if msg.Properties != nil {
+					retryTopic := msg.Properties[kernel.PropertyRetryTopic]
+					if retryTopic == "" && groupTopic == msg.Topic {
+						msg.Topic = retryTopic
+					}
+					subMsgs[idx].Properties[kernel.PropertyConsumeStartTime] = strconv.FormatInt(
+						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
-				subMsgs[idx].Properties[kernel.PropertyConsumeStartTime] = strconv.FormatInt(
-					beginTime.UnixNano()/int64(time.Millisecond), 10)
 			}
 			result, err := pc.consume(ctx, subMsgs)
 			consumeRT := time.Now().Sub(beginTime)
