@@ -27,11 +27,12 @@ import (
 
 func main() {
 	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
-		ConsumerModel: consumer.Clustering,
-		FromWhere:     consumer.ConsumeFromFirstOffset,
+		NameServerAddr: "127.0.0.1:9876",
+		ConsumerModel:  consumer.Clustering,
+		FromWhere:      consumer.ConsumeFromFirstOffset,
 	})
 	//var count int64
-	err := c.Subscribe("wwf_test1", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
+	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
 		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
 		//c := atomic.AddInt64(&count, int64(len(msgs)))
 		//if c%1000 == 0 {

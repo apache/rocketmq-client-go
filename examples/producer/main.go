@@ -27,6 +27,7 @@ import (
 
 func main() {
 	opt := producer.ProducerOptions{
+		NameServerAddr:           "127.0.0.1:9876",
 		RetryTimesWhenSendFailed: 2,
 	}
 	p := producer.NewProducer(opt)
@@ -35,9 +36,9 @@ func main() {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 		res, err := p.SendSync(context.Background(), &kernel.Message{
-			Topic: "wwf_test1",
+			Topic: "test",
 			Body:  []byte("Hello RocketMQ Go Client!"),
 		})
 

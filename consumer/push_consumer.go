@@ -24,6 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"math"
+	"os"
 	"strconv"
 	"time"
 )
@@ -63,6 +64,13 @@ type pushConsumer struct {
 func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 	opt.InstanceName = "DEFAULT"
 	opt.ClientIP = utils.LocalIP()
+	if opt.NameServerAddr == "" {
+		rlog.Fatal("opt.NameServerAddr can't be empty")
+	}
+	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	if err != nil {
+		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
+	}
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,
 		cType:          _PushConsume,

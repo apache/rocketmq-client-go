@@ -25,6 +25,7 @@ import (
 	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
 	"math/rand"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,8 @@ import (
 )
 
 const (
+	EnvNameServerAddr = "NAMESRV_ADDR"
+
 	requestTimeout   = 3 * time.Second
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
@@ -367,7 +370,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 }
 
 func getNameServerAddress() string {
-	return "127.0.0.1:9876"
+	return os.Getenv(EnvNameServerAddr)
 }
 
 // TopicRouteData TopicRouteData

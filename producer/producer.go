@@ -24,6 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,13 @@ type Producer interface {
 func NewProducer(opt ProducerOptions) Producer {
 	if opt.RetryTimesWhenSendFailed == 0 {
 		opt.RetryTimesWhenSendFailed = 2
+	}
+	if opt.NameServerAddr == "" {
+		rlog.Fatal("opt.NameServerAddr can't be empty")
+	}
+	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	if err != nil {
+		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
 	}
 	return &defaultProducer{
 		group:   "default",
@@ -57,6 +65,7 @@ type defaultProducer struct {
 
 type ProducerOptions struct {
 	kernel.ClientOption
+	NameServerAddr           string
 	GroupName                string
 	RetryTimesWhenSendFailed int
 	UnitMode                 bool

@@ -82,8 +82,8 @@ func (opt *ClientOption) ChangeInstanceNameToPID() {
 }
 
 func (opt *ClientOption) String() string {
-	return fmt.Sprintf("ClientOption [NameServerAddr=%s, ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.NameServerAddr, opt.ClientIP,
+	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.ClientIP,
 		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.UseTLS)
 }
 

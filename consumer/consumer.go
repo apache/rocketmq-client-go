@@ -194,6 +194,8 @@ func (pr *PullRequest) String() string {
 
 type ConsumerOption struct {
 	kernel.ClientOption
+	NameServerAddr string
+
 	/**
 	 * Backtracking consumption time with second precision. Time format is
 	 * 20131223171201<br>
