@@ -25,6 +25,7 @@ import (
 	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
 	"math/rand"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,8 @@ import (
 )
 
 const (
+	EnvNameServerAddr = "NAMESRV_ADDR"
+
 	requestTimeout   = 3 * time.Second
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
@@ -52,7 +55,6 @@ var (
 	// brokerName -> map[string]int32
 	brokerVersionMap sync.Map
 
-	publishInfoMap sync.Map
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
@@ -181,16 +183,6 @@ func FindBrokerAddrByName(brokerName string) string {
 	}
 
 	return bd.(*BrokerData).BrokerAddresses[MasterId]
-}
-
-func FindTopicPublishInfo(topic string) *TopicPublishInfo {
-	tpi, exist := publishInfoMap.Load(topic)
-	if exist {
-		if tpi.(*TopicPublishInfo).isOK() {
-			return tpi.(*TopicPublishInfo)
-		}
-	}
-	return nil
 }
 
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
@@ -378,7 +370,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 }
 
 func getNameServerAddress() string {
-	return "127.0.0.1:9876"
+	return os.Getenv(EnvNameServerAddr)
 }
 
 // TopicRouteData TopicRouteData

@@ -18,35 +18,38 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/producer"
 	"os"
-	"time"
 )
 
 func main() {
-	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
-		NameServerAddr: "127.0.0.1:9876",
-		ConsumerModel:  consumer.Clustering,
-		FromWhere:      consumer.ConsumeFromFirstOffset,
-	})
-	//var count int64
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
-		//c := atomic.AddInt64(&count, int64(len(msgs)))
-		//if c%1000 == 0 {
-		fmt.Println(msgs)
-		//}
-		return consumer.ConsumeSuccess, nil
-	})
-	if err != nil {
-		fmt.Println(err.Error())
+	opt := producer.ProducerOptions{
+		NameServerAddr:           "127.0.0.1:9876",
+		RetryTimesWhenSendFailed: 2,
 	}
-	err = c.Start()
+	p := producer.NewProducer(opt)
+	err := p.Start()
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
+		fmt.Printf("start producer error: %s", err.Error())
+		os.Exit(1)
 	}
-	time.Sleep(time.Hour)
+	for i := 0; i < 1000; i++ {
+		res, err := p.SendSync(context.Background(), &kernel.Message{
+			Topic: "test",
+			Body:  []byte("Hello RocketMQ Go Client!"),
+		})
+
+		if err != nil {
+			fmt.Printf("send message error: %s\n", err)
+		} else {
+			fmt.Printf("send message success: result=%s\n", res.String())
+		}
+	}
+	err = p.Shutdown()
+	if err != nil {
+		fmt.Printf("shundown producer error: %s", err.Error())
+	}
 }

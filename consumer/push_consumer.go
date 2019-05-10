@@ -24,6 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"math"
+	"os"
 	"strconv"
 	"time"
 )
@@ -63,6 +64,13 @@ type pushConsumer struct {
 func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 	opt.InstanceName = "DEFAULT"
 	opt.ClientIP = utils.LocalIP()
+	if opt.NameServerAddr == "" {
+		rlog.Fatal("opt.NameServerAddr can't be empty")
+	}
+	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	if err != nil {
+		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
+	}
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,
 		cType:          _PushConsume,
@@ -451,7 +459,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				pq.putMessage(msgFounded...)
 			}
 			if result.NextBeginOffset < prevRequestOffset || firstMsgOffset < prevRequestOffset {
-				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%s, "+
+				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%d, "+
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case kernel.PullNoNewMsg:
@@ -607,12 +615,14 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 			groupTopic := kernel.RetryGroupTopicPrefix + pc.consumerGroup
 			for idx := range subMsgs {
 				msg := subMsgs[idx]
-				retryTopic := msg.Properties[kernel.PropertyRetryTopic]
-				if retryTopic == "" && groupTopic == msg.Topic {
-					msg.Topic = retryTopic
+				if msg.Properties != nil {
+					retryTopic := msg.Properties[kernel.PropertyRetryTopic]
+					if retryTopic == "" && groupTopic == msg.Topic {
+						msg.Topic = retryTopic
+					}
+					subMsgs[idx].Properties[kernel.PropertyConsumeStartTime] = strconv.FormatInt(
+						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
-				subMsgs[idx].Properties[kernel.PropertyConsumeStartTime] = strconv.FormatInt(
-					beginTime.UnixNano()/int64(time.Millisecond), 10)
 			}
 			result, err := pc.consume(ctx, subMsgs)
 			consumeRT := time.Now().Sub(beginTime)

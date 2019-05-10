@@ -44,23 +44,34 @@ const (
 )
 
 type SendMessageRequest struct {
-	ProducerGroup         string `json:"producerGroup"`
-	Topic                 string `json:"topic"`
-	DefaultTopic          string `json:"defaultTopic"`
-	DefaultTopicQueueNums int    `json:"defaultTopicQueueNums"`
-	QueueId               int32  `json:"queueId"`
-	SysFlag               int    `json:"sysFlag"`
-	BornTimestamp         int64  `json:"bornTimestamp"`
-	Flag                  int    `json:"flag"`
-	Properties            string `json:"properties"`
-	ReconsumeTimes        int    `json:"reconsumeTimes"`
-	UnitMode              bool   `json:"unitMode"`
-	MaxReconsumeTimes     int    `json:"maxReconsumeTimes"`
-	Batch                 bool   `json:"batch"`
+	ProducerGroup     string `json:"producerGroup"`
+	Topic             string `json:"topic"`
+	QueueId           int    `json:"queueId"`
+	SysFlag           int    `json:"sysFlag"`
+	BornTimestamp     int64  `json:"bornTimestamp"`
+	Flag              int32  `json:"flag"`
+	Properties        string `json:"properties"`
+	ReconsumeTimes    int    `json:"reconsumeTimes"`
+	UnitMode          bool   `json:"unitMode"`
+	MaxReconsumeTimes int    `json:"maxReconsumeTimes"`
+	Batch             bool
 }
 
 func (request *SendMessageRequest) Encode() map[string]string {
-	return nil
+	maps := make(map[string]string)
+	maps["producerGroup"] = request.ProducerGroup
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	maps["sysFlag"] = fmt.Sprintf("%d", request.SysFlag)
+	maps["bornTimestamp"] = strconv.FormatInt(request.BornTimestamp, 10)
+	maps["flag"] = fmt.Sprintf("%d", request.Flag)
+	maps["reconsumeTimes"] = strconv.Itoa(request.ReconsumeTimes)
+	maps["unitMode"] = strconv.FormatBool(request.UnitMode)
+	maps["maxReconsumeTimes"] = strconv.Itoa(request.MaxReconsumeTimes)
+	maps["defaultTopic"] = "TBW102"
+	maps["defaultTopicQueueNums"] = "4"
+	maps["batch"] = strconv.FormatBool(request.Batch)
+	return maps
 }
 
 func (request *SendMessageRequest) Decode(properties map[string]string) error {

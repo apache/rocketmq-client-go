@@ -52,7 +52,18 @@ const (
 
 var (
 	ErrServiceState = errors.New("service state is not running, please check")
+
+	_VIPChannelEnable = false
 )
+
+func init() {
+	if os.Getenv("com.rocketmq.sendMessageWithVIPChannel") != "" {
+		value, err := strconv.ParseBool(os.Getenv("com.rocketmq.sendMessageWithVIPChannel"))
+		if err == nil {
+			_VIPChannelEnable = value
+		}
+	}
+}
 
 type ClientOption struct {
 	NameServerAddr    string
@@ -71,8 +82,8 @@ func (opt *ClientOption) ChangeInstanceNameToPID() {
 }
 
 func (opt *ClientOption) String() string {
-	return fmt.Sprintf("ClientOption [NameServerAddr=%s, ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.NameServerAddr, opt.ClientIP,
+	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.ClientIP,
 		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.UseTLS)
 }
 
@@ -80,9 +91,8 @@ type InnerProducer interface {
 	PublishTopicList() []string
 	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
 	IsPublishTopicNeedUpdate(topic string) bool
-	GetCheckListener() func(msg *MessageExt)
-	GetTransactionListener() TransactionListener
-	isUnitMode() bool
+	//GetTransactionListener() TransactionListener
+	IsUnitMode() bool
 }
 
 type InnerConsumer interface {
@@ -104,6 +114,7 @@ type RMQClient struct {
 	once        sync.Once
 
 	remoteClient *remote.RemotingClient
+	hbMutex      sync.Mutex
 }
 
 var clientMap sync.Map
@@ -193,6 +204,8 @@ func (c *RMQClient) CheckClientInBroker() {
 
 // TODO
 func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
+	c.hbMutex.Lock()
+	defer c.hbMutex.Unlock()
 	hbData := &heartbeatData{
 		ClientId: c.ClientID(),
 	}
@@ -279,27 +292,6 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 	}
 }
 
-// SendMessage with batch by sync
-func (c *RMQClient) SendMessageSync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
-	msgs []*Message) (*SendResult, error) {
-	cmd := getRemotingCommand(request, msgs)
-	response, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 3*time.Second)
-	if err != nil {
-		rlog.Warnf("send messages with sync error: %v", err)
-		return nil, err
-	}
-
-	return c.processSendResponse(brokerName, msgs, response), nil
-}
-
-func getRemotingCommand(request *SendMessageRequest,  msgs []*Message) *remote.RemotingCommand {
-	if request.Batch {
-		return remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	} else {
-		return remote.NewRemotingCommand(ReqSendMessage, request, encodeMessages(msgs))
-	}
-}
-
 // SendMessageAsync send message with batch by async
 func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
 	msgs []*Message, f func(result *SendResult)) error {
@@ -316,7 +308,7 @@ func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd *remote.RemotingCommand) *SendResult {
+func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, msgs ...*Message) *SendResult {
 	var status SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -331,9 +323,6 @@ func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd 
 		// TODO process unknown code
 	}
 
-	sendResponse := &SendMessageResponse{}
-	sendResponse.Decode(cmd.ExtFields)
-
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
 		msgIDs = append(msgIDs, msgs[i].Properties[PropertyUniqueClientMessageIdKeyIndex])
@@ -346,19 +335,21 @@ func (c *RMQClient) processSendResponse(brokerName string, msgs []*Message, cmd 
 		regionId = defaultTraceRegionID
 	}
 
+	qId, _ := strconv.Atoi(cmd.ExtFields["queueId"])
+	off, _ := strconv.ParseInt(cmd.ExtFields["queueOffset"], 10, 64)
 	return &SendResult{
 		Status:      status,
-		MsgIDs:      msgIDs,
-		OffsetMsgID: sendResponse.MsgId,
+		MsgID:       cmd.ExtFields["msgId"],
+		OffsetMsgID: cmd.ExtFields["msgId"],
 		MessageQueue: &MessageQueue{
 			Topic:      msgs[0].Topic,
 			BrokerName: brokerName,
-			QueueId:    int(sendResponse.QueueId),
+			QueueId:    qId,
 		},
-		QueueOffset:   sendResponse.QueueOffset,
-		TransactionID: sendResponse.TransactionId,
-		RegionID:      regionId,
-		TraceOn:       trace != "" && trace != _TranceOff,
+		QueueOffset: off,
+		//TransactionID: sendResponse.TransactionId,
+		RegionID: regionId,
+		TraceOn:  trace != "" && trace != _TranceOff,
 	}
 }
 
@@ -427,6 +418,7 @@ func (c *RMQClient) UnregisterConsumer(group string) {
 }
 
 func (c *RMQClient) RegisterProducer(group string, producer InnerProducer) {
+	c.producerMap.Store(group, producer)
 }
 
 func (c *RMQClient) UnregisterProducer(group string) {
@@ -453,10 +445,10 @@ func (c *RMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
 		return
 	}
 	c.producerMap.Range(func(key, value interface{}) bool {
-		consumer := value.(InnerProducer)
+		p := value.(InnerProducer)
 		publishInfo := routeData2PublishInfo(topic, data)
 		publishInfo.HaveTopicRouterInfo = true
-		consumer.UpdateTopicPublishInfo(topic, publishInfo)
+		p.UpdateTopicPublishInfo(topic, publishInfo)
 		return true
 	})
 }
@@ -464,8 +456,8 @@ func (c *RMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
 func (c *RMQClient) isNeedUpdatePublishInfo(topic string) bool {
 	var result bool
 	c.producerMap.Range(func(key, value interface{}) bool {
-		consumer := value.(InnerProducer)
-		if consumer.IsPublishTopicNeedUpdate(topic) {
+		p := value.(InnerProducer)
+		if p.IsPublishTopicNeedUpdate(topic) {
 			result = true
 			return false
 		}
@@ -519,8 +511,24 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue
 func encodeMessages(message []*Message) []byte {
 	var buffer bytes.Buffer
 	index := 0
-	for index < len(message){
+	for index < len(message) {
 		buffer.Write(message[index].Body)
 	}
 	return buffer.Bytes()
+}
+
+func brokerVIPChannel(brokerAddr string) string {
+	if !_VIPChannelEnable {
+		return brokerAddr
+	}
+	var brokerAddrNew strings.Builder
+	ipAndPort := strings.Split(brokerAddr, ":")
+	port, err := strconv.Atoi(ipAndPort[1])
+	if err != nil {
+		return ""
+	}
+	brokerAddrNew.WriteString(ipAndPort[0])
+	brokerAddrNew.WriteString(":")
+	brokerAddrNew.WriteString(strconv.Itoa(port - 2))
+	return brokerAddrNew.String()
 }

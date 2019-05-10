@@ -42,7 +42,7 @@ const (
 // SendResult RocketMQ send result
 type SendResult struct {
 	Status        SendStatus
-	MsgIDs        []string
+	MsgID         string
 	MessageQueue  *MessageQueue
 	QueueOffset   int64
 	TransactionID string
@@ -54,7 +54,7 @@ type SendResult struct {
 // SendResult send message result to string(detail result)
 func (result *SendResult) String() string {
 	return fmt.Sprintf("SendResult [sendStatus=%d, msgIds=%s, offsetMsgId=%s, queueOffset=%d, messageQueue=%s]",
-		result.Status, result.MsgIDs, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
+		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
 }
 
 // PullStatus pull status
