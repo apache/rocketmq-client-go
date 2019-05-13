@@ -25,7 +25,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
 )
 
 type stableTest struct {
@@ -237,20 +236,20 @@ func (stc *stableTestConsumer) pullMessage() {
 	//for _, mq := range mqs {
 	//	offset := stc.offsets[mq.ID]
 	//	pr := stc.c.Pull(mq, stc.expression, offset, 32)
-		//fmt.Printf("pull from %s, offset:%d, count:%+v\n", mq.String(), offset, len(pr.Messages))
-		//
-		//switch pr.Status {
-		//case rocketmq.PullNoNewMsg:
-		//	stc.offsets[mq.ID] = 0 // pull from the begin
-		//case rocketmq.PullFound:
-		//	fallthrough
-		//case rocketmq.PullNoMatchedMsg:
-		//	fallthrough
-		//case rocketmq.PullOffsetIllegal:
-		//	stc.offsets[mq.ID] = pr.NextBeginOffset
-		//case rocketmq.PullBrokerTimeout:
-		//	fmt.Println("broker timeout occur")
-		//}
+	//fmt.Printf("pull from %s, offset:%d, count:%+v\n", mq.String(), offset, len(pr.Messages))
+	//
+	//switch pr.Status {
+	//case rocketmq.PullNoNewMsg:
+	//	stc.offsets[mq.ID] = 0 // pull from the begin
+	//case rocketmq.PullFound:
+	//	fallthrough
+	//case rocketmq.PullNoMatchedMsg:
+	//	fallthrough
+	//case rocketmq.PullOffsetIllegal:
+	//	stc.offsets[mq.ID] = pr.NextBeginOffset
+	//case rocketmq.PullBrokerTimeout:
+	//	fmt.Println("broker timeout occur")
+	//}
 	//}
 }
 

@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
 )
 
 type statiBenchmarkProducerSnapshot struct {
@@ -133,13 +132,13 @@ func (bp *producer) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan 
 	//defer p.Shutdown()
 
 	//topic, tag := bp.topic, "benchmark-consumer"
-//
-//AGAIN:
-//	select {
-//	case <-exit:
-//		return
-//	default:
-//	}
+	//
+	//AGAIN:
+	//	select {
+	//	case <-exit:
+	//		return
+	//	default:
+	//	}
 
 	//now := time.Now()
 	//r, err := p.SendMessageSync(&rocketmq.Message{

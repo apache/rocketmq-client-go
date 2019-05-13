@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
 )
 
 type statiBenchmarkConsumerSnapshot struct {
