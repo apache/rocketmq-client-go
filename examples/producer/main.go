@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < 1000; i++ {
-		res, err := p.SendSync(context.Background(), &kernel.Message{
+		err := p.SendOneWay(context.Background(), &kernel.Message{
 			Topic: "test",
 			Body:  []byte("Hello RocketMQ Go Client!"),
 		})
@@ -45,7 +45,8 @@ func main() {
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)
 		} else {
-			fmt.Printf("send message success: result=%s\n", res.String())
+			fmt.Printf("send success: %d\n", i)
+			//fmt.Printf("send message success: result=%s\n", res.String())
 		}
 	}
 	err = p.Shutdown()

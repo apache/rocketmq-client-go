@@ -34,7 +34,7 @@ type Producer interface {
 	Start() error
 	Shutdown() error
 	SendSync(context.Context, *kernel.Message) (*kernel.SendResult, error)
-	//SendOneWay(context.Context, *kernel.Message) error
+	SendOneWay(context.Context, *kernel.Message) error
 }
 
 func NewProducer(opt ProducerOptions) Producer {
@@ -118,8 +118,39 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *kernel.Message) (*k
 	return nil, err
 }
 
-func (p *defaultProducer) SendOneWay(context.Context, string, ...*kernel.Message) error {
-	return nil
+func (p *defaultProducer) SendOneWay(ctx context.Context, msg *kernel.Message) error {
+	if msg == nil {
+		return errors.New("message is nil")
+	}
+
+	if msg.Topic == "" {
+		return errors.New("topic is nil")
+	}
+
+	retryTime := 1 + p.options.RetryTimesWhenSendFailed
+
+	var (
+		err error
+	)
+	for retryCount := 0; retryCount < retryTime; retryCount++ {
+		mq := p.selectMessageQueue(msg.Topic)
+		if mq == nil {
+			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
+			continue
+		}
+
+		addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+		if addr == "" {
+			return fmt.Errorf("topic=%s route info not found", mq.Topic)
+		}
+
+		 _err := p.client.InvokeOneWay(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		if _err != nil {
+			err = _err
+			continue
+		}
+	}
+	return err
 }
 
 func (p *defaultProducer) buildSendRequest(mq *kernel.MessageQueue, msg *kernel.Message) *remote.RemotingCommand {
