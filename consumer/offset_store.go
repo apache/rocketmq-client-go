@@ -45,7 +45,7 @@ var (
 
 func init() {
 	if _LocalOffsetStorePath == "" {
-		_LocalOffsetStorePath = filepath.Join(os.Getenv("user.home"), ".rocketmq_client_go")
+		_LocalOffsetStorePath = filepath.Join(os.Getenv("HOME"), ".rocketmq_client_go")
 	}
 }
 
@@ -59,7 +59,7 @@ type OffsetStore interface {
 type localFileOffsetStore struct {
 	group       string
 	path        string
-	OffsetTable map[string]map[int]*queueOffset `json:"OffsetTable"`
+	OffsetTable map[string]map[int]*queueOffset
 	// mutex for offset file
 	mutex sync.Mutex
 }
@@ -83,6 +83,10 @@ func (local *localFileOffsetStore) load() {
 	local.mutex.Lock()
 	defer local.mutex.Unlock()
 	data, err := utils.FileReadAll(local.path)
+	if os.IsNotExist(err) {
+		local.OffsetTable = make(map[string]map[int]*queueOffset)
+		return
+	}
 	if err != nil {
 		data, err = utils.FileReadAll(filepath.Join(local.path, ".bak"))
 	}
@@ -90,7 +94,14 @@ func (local *localFileOffsetStore) load() {
 		rlog.Debugf("load local offset: %s error: %s", local.path, err.Error())
 		return
 	}
-	err = json.Unmarshal(data, local)
+	datas := make(map[string]map[int]*queueOffset)
+
+	err = json.Unmarshal(data, &datas)
+	if datas != nil {
+		local.OffsetTable = datas
+	} else {
+		local.OffsetTable = make(map[string]map[int]*queueOffset)
+	}
 	if err != nil {
 		rlog.Debugf("unmarshal local offset: %s error: %s", local.path, err.Error())
 		return
@@ -136,9 +147,6 @@ func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {
 	if len(mqs) == 0 {
 		return
 	}
-	s := new(struct {
-		OffsetTable map[string]map[int]*queueOffset `json:"offsetTable"`
-	})
 	table := make(map[string]map[int]*queueOffset)
 	for idx := range mqs {
 		mq := mqs[idx]
@@ -154,10 +162,12 @@ func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {
 		offsets, exist = table[mq.Topic]
 		if !exist {
 			offsets = make(map[int]*queueOffset)
+			table[mq.Topic] = offsets
 		}
 		offsets[off.QueueID] = off
 	}
-	data, _ := json.Marshal(s)
+
+	data, _ := json.Marshal(table)
 	utils.CheckError(fmt.Sprintf("persist offset to %s", local.path), utils.WriteToFile(local.path, data))
 }
 

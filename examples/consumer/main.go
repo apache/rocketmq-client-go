@@ -31,13 +31,9 @@ func main() {
 		ConsumerModel:  consumer.Clustering,
 		FromWhere:      consumer.ConsumeFromFirstOffset,
 	})
-	//var count int64
 	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
 		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
-		//c := atomic.AddInt64(&count, int64(len(msgs)))
-		//if c%1000 == 0 {
 		fmt.Println(msgs)
-		//}
 		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {

@@ -161,7 +161,7 @@ func (c *RMQClient) Start() {
 
 		// schedule persist offset
 		go func() {
-			time.Sleep(10 * time.Second)
+			//time.Sleep(10 * time.Second)
 			for {
 				c.consumerMap.Range(func(key, value interface{}) bool {
 					consumer := value.(InnerConsumer)

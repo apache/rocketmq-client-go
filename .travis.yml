@@ -38,4 +38,3 @@ before_script:
 script:
   - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
-  - go test ./core

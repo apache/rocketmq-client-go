@@ -18,6 +18,7 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,8 +41,26 @@ func FileReadAll(path string) ([]byte, error) {
 	return data, nil
 }
 
+func MakeFileIfNotExist(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err = os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
+		}
+	}
+	if !info.IsDir() {
+		return errors.New(path + " is a file")
+	}
+	return nil
+}
+
 func WriteToFile(path string, data []byte) error {
-	tmpFile, err := os.Create(filepath.Join(path, ".tmp"))
+	if err := MakeFileIfNotExist(filepath.Dir(path)); err != nil {
+		return err
+	}
+	tmpFile, err := os.Create(path + ".tmp")
 	if err != nil {
 		return err
 	}
@@ -53,7 +72,7 @@ func WriteToFile(path string, data []byte) error {
 
 	prevContent, err := FileReadAll(path)
 	if err == nil {
-		bakFile, err := os.Create(filepath.Join(path, ".bak"))
+		bakFile, err := os.Create(path + ".bak")
 		_, err = bakFile.Write(prevContent)
 		if err != nil {
 			return err
@@ -61,5 +80,5 @@ func WriteToFile(path string, data []byte) error {
 		CheckError(fmt.Sprintf("close %s", bakFile.Name()), bakFile.Close())
 	}
 	CheckError(fmt.Sprintf("remove %s", path), os.Remove(path))
-	return os.Rename(filepath.Join(path, ".tmp"), path)
+	return os.Rename(path+".tmp", path)
 }

@@ -153,7 +153,6 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 		pc.client.UpdateTopicRouteInfo()
-		pc.client.RebalanceImmediately()
 		pc.client.Start()
 		pc.state = kernel.StateRunning
 	})
