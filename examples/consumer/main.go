@@ -26,9 +26,9 @@ import (
 )
 
 func main() {
-	c := consumer.NewPushConsumer("testGroup123", consumer.ConsumerOption{
+	c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
 		NameServerAddr: "127.0.0.1:9876",
-		ConsumerModel:  consumer.BroadCasting,
+		ConsumerModel:  consumer.Clustering,
 		FromWhere:      consumer.ConsumeFromFirstOffset,
 	})
 	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,

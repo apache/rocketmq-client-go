@@ -384,7 +384,7 @@ func (dc *defaultConsumer) doBalance() {
 				if v != 0 {
 					return v > 0
 				}
-				return (mqAll[i].QueueId - mqAll[j].QueueId) > 0
+				return (mqAll[i].QueueId - mqAll[j].QueueId) < 0
 			})
 			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
