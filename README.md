@@ -2,21 +2,25 @@
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![TravisCI](https://travis-ci.org/apache/rocketmq-client-python.svg)](https://travis-ci.org/apache/rocketmq-client-go)
 
-* The client is using cgo to call [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), which has been proven robust and widely adopted within Alibaba Group by many business units for more than three years.
+The RocketMQ Client in pure go, the project is developing, **there is no any guarantee in production environment**. in next versions,
+we will do our best to improve reliability, stability, usability and performance. the API may be changed, and more features will be added.
+there are many works need to continue in this project, like unit test, integration test, stable test, new feature,
+optimization, documents, etc. so, any contribution is very welcome. if you want do something, please browse issue list and select one,
+or create a new issue.
 
+- [2.0.0 Production Ready Road map](https://github.com/apache/rocketmq-client-go/issues/57)
+- [The alpha1 feature list](https://github.com/apache/rocketmq-client-go/issues/54)
 
 ----------
 ## Features
-At present, this SDK supports
+in 2.0.0-alpha, support:
 * sending message in synchronous mode
-* sending message in orderly mode
 * sending message in oneway mode
 * consuming message using push model
-* consuming message using pull model
 
 ----------
 ## How to use
-* Step-by-step instruction are provided in [RocketMQ Go Client Introduction](./doc/Introduction.md)
+* Step-by-step instruction are provided in [RocketMQ Go Client Introduction](docs/Introduction.md)
 * Consult [RocketMQ Quick Start](https://rocketmq.apache.org/docs/quick-start/) to setup rocketmq broker and nameserver.
 
 ----------
