@@ -1,3 +1,9 @@
+version 2.0.0-alpha1
+ * basic feature in pure go
+ * sending message in synchronous mode
+ * sending message in oneway mode
+ * consuming message using push model
+
 version 1.2.0
  * support reliable synchronous sending of messages;
  * support reliable orderly sending of messages;

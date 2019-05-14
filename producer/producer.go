@@ -144,7 +144,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *kernel.Message) e
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
-		 _err := p.client.InvokeOneWay(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		_err := p.client.InvokeOneWay(addr, p.buildSendRequest(mq, msg), 3*time.Second)
 		if _err != nil {
 			err = _err
 			continue

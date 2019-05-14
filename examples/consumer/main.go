@@ -39,6 +39,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+	// Note: start after subscribe
 	err = c.Start()
 	if err != nil {
 		fmt.Println(err.Error())
