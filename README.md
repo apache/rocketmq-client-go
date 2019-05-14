@@ -13,7 +13,7 @@ or create a new issue.
 
 ----------
 ## Features
-in 2.0.0-alpha, support:
+in 2.0.0-alpha1, support:
 * sending message in synchronous mode
 * sending message in oneway mode
 * consuming message using push model
