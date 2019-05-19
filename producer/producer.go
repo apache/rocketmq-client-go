@@ -24,6 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/remote"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -37,7 +38,10 @@ type Producer interface {
 	SendOneWay(context.Context, *kernel.Message) error
 }
 
-func NewProducer(opt ProducerOptions) Producer {
+func NewProducer(opt ProducerOptions) (Producer, error) {
+	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
+		return nil, err
+	}
 	if opt.RetryTimesWhenSendFailed == 0 {
 		opt.RetryTimesWhenSendFailed = 2
 	}
@@ -52,7 +56,7 @@ func NewProducer(opt ProducerOptions) Producer {
 		group:   "default",
 		client:  kernel.GetOrNewRocketMQClient(opt.ClientOption),
 		options: opt,
-	}
+	}, nil
 }
 
 type defaultProducer struct {

@@ -47,7 +47,7 @@ const (
 	_PersistOffset = 5 * time.Second
 
 	// Rebalance interval
-	_RebalanceInterval = 100 * time.Millisecond
+	_RebalanceInterval = 10 * time.Second
 )
 
 var (
@@ -179,6 +179,10 @@ func (c *RMQClient) Start() {
 			}
 		}()
 	})
+}
+
+func (c *RMQClient) Shutdown() {
+	// TODO
 }
 
 func (c *RMQClient) ClientID() string {
@@ -441,6 +445,9 @@ func (c *RMQClient) RebalanceImmediately() {
 }
 
 func (c *RMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
+	if data == nil {
+		return
+	}
 	if !c.isNeedUpdatePublishInfo(topic) {
 		return
 	}
@@ -467,6 +474,9 @@ func (c *RMQClient) isNeedUpdatePublishInfo(topic string) bool {
 }
 
 func (c *RMQClient) UpdateSubscribeInfo(topic string, data *TopicRouteData) {
+	if data == nil {
+		return
+	}
 	if !c.isNeedUpdateSubscribeInfo(topic) {
 		return
 	}
