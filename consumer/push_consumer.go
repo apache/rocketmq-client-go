@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
@@ -61,7 +62,10 @@ type pushConsumer struct {
 	subscribedTopic              map[string]string
 }
 
-func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
+func NewPushConsumer(consumerGroup string, opt ConsumerOption) (PushConsumer, error) {
+	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
+		return nil, err
+	}
 	opt.InstanceName = "DEFAULT"
 	opt.ClientIP = utils.LocalIP()
 	if opt.NameServerAddr == "" {
@@ -109,7 +113,7 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) PushConsumer {
 	} else {
 		p.submitToConsume = p.consumeMessageCurrently
 	}
-	return p
+	return p, nil
 }
 
 func (pc *pushConsumer) Start() error {
@@ -158,6 +162,13 @@ func (pc *pushConsumer) Start() error {
 	})
 
 	pc.client.UpdateTopicRouteInfo()
+	for k := range pc.subscribedTopic {
+		_, exist := pc.topicSubscribeInfoTable.Load(k)
+		if !exist {
+			pc.client.Shutdown()
+			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
+		}
+	}
 	pc.client.RebalanceImmediately()
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()

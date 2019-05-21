@@ -30,7 +30,7 @@ func main() {
 		NameServerAddr:           "127.0.0.1:9876",
 		RetryTimesWhenSendFailed: 2,
 	}
-	p := producer.NewProducer(opt)
+	p, _ := producer.NewProducer(opt)
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())
