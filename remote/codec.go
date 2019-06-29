@@ -58,10 +58,11 @@ type CustomHeader interface {
 
 func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingCommand {
 	cmd := &RemotingCommand{
-		Code:    code,
-		Version: _Version,
-		Opaque:  atomic.AddInt32(&opaque, 1),
-		Body:    body,
+		Code:     code,
+		Version:  _Version,
+		Opaque:   atomic.AddInt32(&opaque, 1),
+		Body:     body,
+		Language: _LanguageCode,
 	}
 
 	if header != nil {
