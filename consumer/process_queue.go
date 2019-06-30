@@ -66,7 +66,7 @@ func newProcessQueue() *processQueue {
 }
 
 func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
-	if messages == nil || len(messages) == 0 {
+	if len(messages) == 0 {
 		return
 	}
 	pq.mutex.Lock()
@@ -129,11 +129,11 @@ func (pq *processQueue) removeMessage(messages ...*kernel.MessageExt) int64 {
 }
 
 func (pq *processQueue) isLockExpired() bool {
-	return time.Now().Sub(pq.lastLockTime) > _RebalanceLockMaxTime
+	return time.Since(pq.lastLockTime) > _RebalanceLockMaxTime
 }
 
 func (pq *processQueue) isPullExpired() bool {
-	return time.Now().Sub(pq.lastPullTime) > _PullMaxIdleTime
+	return time.Since(pq.lastPullTime) > _PullMaxIdleTime
 }
 
 func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {

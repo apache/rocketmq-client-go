@@ -137,7 +137,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue,
 		CommitOffset:         0,
 		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
 		SubExpression:        data.SubString,
-		ExpressionType:       string(data.ExpType),
+		ExpressionType:       data.ExpType,
 	}
 
 	if data.ExpType == string(TAG) {

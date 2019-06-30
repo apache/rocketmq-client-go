@@ -105,7 +105,7 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) (PushConsumer, er
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
-		subscribedTopic: make(map[string]string, 0),
+		subscribedTopic: make(map[string]string),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -458,12 +458,12 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
-			rt := time.Now().Sub(beginTime)
+			rt := time.Since(beginTime)
 			increasePullRT(pc.consumerGroup, request.mq.Topic, rt)
 
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)
-			if msgFounded != nil && len(msgFounded) != 0 {
+			if len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
 				increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
 				pq.putMessage(msgFounded...)
@@ -541,7 +541,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]
 	//	return
 	//}
 
-	set := make(map[int]*kernel.MessageQueue, 0)
+	set := make(map[int]*kernel.MessageQueue)
 	for k := range table {
 		set[k.HashCode()] = &k
 	}
@@ -635,7 +635,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 				}
 			}
 			result, err := pc.consume(ctx, subMsgs)
-			consumeRT := time.Now().Sub(beginTime)
+			consumeRT := time.Since(beginTime)
 			if err != nil {
 				ctx.properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
@@ -673,7 +673,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 				offset := pq.removeMessage(subMsgs...)
 
 				if offset >= 0 && !pq.dropped {
-					pc.storage.update(mq, int64(offset), true)
+					pc.storage.update(mq, offset, true)
 				}
 				if len(msgBackFailed) > 0 {
 					subMsgs = msgBackFailed

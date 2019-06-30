@@ -326,7 +326,7 @@ func (dc *defaultConsumer) updateTopicSubscribeInfo(topic string, mqs []*kernel.
 	_, exist := dc.subscriptionDataTable.Load(topic)
 	// does subscribe, if true, replace it
 	if exist {
-		mqSet := make(map[int]*kernel.MessageQueue, 0)
+		mqSet := make(map[int]*kernel.MessageQueue)
 		for idx := range mqs {
 			mq := mqs[idx]
 			mqSet[mq.HashCode()] = mq
@@ -486,7 +486,7 @@ func (dc *defaultConsumer) lockAll(mq kernel.MessageQueue) {
 			MQs:           mqs,
 		}
 		lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
-		set := make(map[int]bool, 0)
+		set := make(map[int]bool)
 		for idx := range lockedMQ {
 			_mq := lockedMQ[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
@@ -578,7 +578,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 }
 
 func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*kernel.MessageQueue {
-	result := make(map[string][]*kernel.MessageQueue, 0)
+	result := make(map[string][]*kernel.MessageQueue)
 
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(*kernel.MessageQueue)

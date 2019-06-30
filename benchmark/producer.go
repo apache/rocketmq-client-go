@@ -221,8 +221,8 @@ func (bp *producer) run(args []string) {
 	}
 
 	// snapshot
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		ticker := time.NewTicker(time.Second)
 		for {
@@ -237,8 +237,8 @@ func (bp *producer) run(args []string) {
 	}()
 
 	// print statistic
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		ticker := time.NewTicker(time.Second * 10)
 		for {
