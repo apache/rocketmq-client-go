@@ -19,10 +19,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/kernel"
 	"os"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/consumer"
+	"github.com/apache/rocketmq-client-go/kernel"
 )
 
 func main() {

@@ -21,9 +21,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
 	"strconv"
 	"sync"
+
+	"github.com/apache/rocketmq-client-go/kernel"
 )
 
 type MessageSelector struct {
