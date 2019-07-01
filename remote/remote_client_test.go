@@ -42,7 +42,7 @@ func TestNewResponseFuture(t *testing.T) {
 			future.TimeoutMillis, time.Duration(1000))
 	}
 	if future.callback != nil {
-		t.Errorf("wrong ResponseFuture's callback. want=<nil>, got=%v", future.callback)
+		t.Errorf("wrong ResponseFuture's callback. want=<nil>, got!=<nil>")
 	}
 	if future.Done == nil {
 		t.Errorf("wrong ResponseFuture's Done. want=<channel>, got=<nil>")
@@ -129,15 +129,28 @@ func TestCreateScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to encode RemotingCommand. %s", err)
 	}
+	client := NewRemotingClient()
 	reader := bytes.NewReader(content)
-	scanner := createScanner(reader)
+	scanner := client.createScanner(reader)
 	for scanner.Scan() {
 		rcr, err := decode(scanner.Bytes())
 		if err != nil {
 			t.Fatalf("failedd to decode RemotingCommand from scanner")
 		}
-		if !reflect.DeepEqual(*r, *rcr) {
-			t.Fatal("decoded RemotingCommand not equal to the original one")
+		if r.Code != rcr.Code {
+			t.Fatalf("wrong Code. want=%d, got=%d", r.Code, rcr.Code)
+		}
+		if r.Version != rcr.Version {
+			t.Fatalf("wrong Version. want=%d, got=%d", r.Version, rcr.Version)
+		}
+		if r.Opaque != rcr.Opaque {
+			t.Fatalf("wrong Opaque. want=%d, got=%d", r.Opaque, rcr.Opaque)
+		}
+		if r.Flag != rcr.Flag {
+			t.Fatalf("wrong flag. want=%d, got=%d", r.Opaque, rcr.Opaque)
+		}
+		if !reflect.DeepEqual(r.ExtFields, rcr.ExtFields) {
+			t.Fatalf("wrong extFields. want=%v, got=%v", r.ExtFields, rcr.ExtFields)
 		}
 	}
 }
@@ -149,8 +162,9 @@ func TestInvokeSync(t *testing.T) {
 	serverSendRemotingCommand.Flag = ResponseType
 	var wg sync.WaitGroup
 	wg.Add(1)
+	client := NewRemotingClient()
 	go func() {
-		receiveCommand, err := InvokeSync(":3000",
+		receiveCommand, err := client.InvokeSync(":3000",
 			clientSendRemtingCommand, time.Duration(1000))
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
@@ -173,7 +187,7 @@ func TestInvokeSync(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		scanner := createScanner(conn)
+		scanner := client.createScanner(conn)
 		for scanner.Scan() {
 			receivedRemotingCommand, err := decode(scanner.Bytes())
 			if err != nil {
@@ -205,9 +219,13 @@ func TestInvokeAsync(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+	client := NewRemotingClient()
 	go func() {
-		err := InvokeAsync(":3000", clientSendRemtingCommand,
+		time.Sleep(1 * time.Second)
+		t.Logf("invoke async method")
+		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
 			time.Duration(1000), func(r *ResponseFuture) {
+				t.Logf("invoke async callback")
 				if string(r.ResponseCommand.Body) != "Welcome native" {
 					t.Errorf("wrong responseCommand.Body. want=%s, got=%s",
 						"Welcome native", string(r.ResponseCommand.Body))
@@ -231,8 +249,9 @@ func TestInvokeAsync(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		scanner := createScanner(conn)
+		scanner := client.createScanner(conn)
 		for scanner.Scan() {
+			t.Logf("receive request.")
 			receivedRemotingCommand, err := decode(scanner.Bytes())
 			if err != nil {
 				t.Errorf("failed to decode RemotingCommnad. %s", err)
@@ -241,18 +260,22 @@ func TestInvokeAsync(t *testing.T) {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
 					clientSendRemtingCommand.Code)
 			}
+			t.Logf("encoding response")
 			body, err := encode(serverSendRemotingCommand)
 			if err != nil {
 				t.Fatalf("failed to encode RemotingCommand")
 			}
 			_, err = conn.Write(body)
+			t.Logf("sent response")
 			if err != nil {
 				t.Fatalf("failed to write body to conneciton.")
 			}
-			return
+			goto done
 		}
 	}
-	wg.Done()
+done:
+
+	wg.Wait()
 }
 
 func TestInvokeOneWay(t *testing.T) {
@@ -260,8 +283,9 @@ func TestInvokeOneWay(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+	client := NewRemotingClient()
 	go func() {
-		err := InvokeOneWay(":3000", clientSendRemtingCommand, 3*time.Second)
+		err := client.InvokeOneWay(":3000", clientSendRemtingCommand, 3*time.Second)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		}
@@ -279,7 +303,7 @@ func TestInvokeOneWay(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		scanner := createScanner(conn)
+		scanner := client.createScanner(conn)
 		for scanner.Scan() {
 			receivedRemotingCommand, err := decode(scanner.Bytes())
 			if err != nil {
