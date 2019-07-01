@@ -83,14 +83,29 @@ func Test_decode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("encode RemotingCommand to bytes fail: %v", err)
 		}
-
+		bs = bs[4:]
 		decodedRc, err := decode(bs)
 		if err != nil {
 			t.Fatalf("decode bytes to RemotingCommand fail: %v", err)
 		}
 
-		if !reflect.DeepEqual(*rc, *decodedRc) {
-			t.Fatal("decoded RemotingCommand not equal to the original one")
+		if rc.Code != decodedRc.Code {
+			t.Fatalf("wrong Code. want=%d, got=%d", rc.Code, decodedRc.Code)
+		}
+		if rc.Version != decodedRc.Version {
+			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
+		}
+		if rc.Opaque != decodedRc.Opaque {
+			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+		}
+		if rc.Remark != decodedRc.Remark {
+			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
+		}
+		if rc.Flag != decodedRc.Flag {
+			t.Fatalf("wrong flag. want=%d, got=%d", rc.Flag, decodedRc.Flag)
+		}
+		if !reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
+			t.Fatalf("wrong extFields, want=%v, got=%v", rc.ExtFields, decodedRc.ExtFields)
 		}
 	}
 }
@@ -102,7 +117,7 @@ func Benchmark_decode(b *testing.B) {
 		b.Fatalf("encode RemotingCommand to bytes fail: %v", err)
 	}
 	b.ResetTimer()
-
+	bs = bs[4:]
 	for i := 0; i < b.N; i++ {
 		if _, err := decode(bs); err != nil {
 			b.Fatalf("decode bytes to RemotingCommand fail: %v", err)
@@ -145,14 +160,23 @@ func Test_jsonCodec_decodeHeader(t *testing.T) {
 			t.Fatalf("decode header with jsonCodec fail: %v", err)
 		}
 
-		if rc.Code != decodedRc.Code ||
-			rc.Language != decodedRc.Language ||
-			rc.Version != decodedRc.Version ||
-			rc.Opaque != rc.Opaque ||
-			rc.Flag != rc.Flag ||
-			rc.Remark != rc.Remark ||
-			!reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
-			t.Fatal("decoded RemotingCommand not equal to the original one")
+		if rc.Code != decodedRc.Code {
+			t.Fatalf("wrong Code. want=%d, got=%d", rc.Code, decodedRc.Code)
+		}
+		if rc.Version != decodedRc.Version {
+			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
+		}
+		if rc.Opaque != decodedRc.Opaque {
+			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+		}
+		if rc.Remark != decodedRc.Remark {
+			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
+		}
+		if rc.Flag != decodedRc.Flag {
+			t.Fatalf("wrong flag. want=%d, got=%d", rc.Flag, decodedRc.Flag)
+		}
+		if !reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
+			t.Fatalf("wrong extFields, want=%v, got=%v", rc.ExtFields, decodedRc.ExtFields)
 		}
 	}
 }
@@ -206,16 +230,25 @@ func Test_rmqCodec_decodeHeader(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode header with rmqCodec fail: %v", err)
 		}
-
-		if rc.Code != decodedRc.Code ||
-			rc.Language != decodedRc.Language ||
-			rc.Version != decodedRc.Version ||
-			rc.Opaque != rc.Opaque ||
-			rc.Flag != rc.Flag ||
-			rc.Remark != rc.Remark ||
-			!reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
-			t.Fatal("decoded RemotingCommand not equal to the original one")
+		if rc.Code != decodedRc.Code {
+			t.Fatalf("wrong Code. want=%d, got=%d", rc.Code, decodedRc.Code)
 		}
+		if rc.Version != decodedRc.Version {
+			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
+		}
+		if rc.Opaque != decodedRc.Opaque {
+			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+		}
+		if rc.Remark != decodedRc.Remark {
+			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
+		}
+		if rc.Flag != decodedRc.Flag {
+			t.Fatalf("wrong flag. want=%d, got=%d", rc.Flag, decodedRc.Flag)
+		}
+		if !reflect.DeepEqual(rc.ExtFields, decodedRc.ExtFields) {
+			t.Fatalf("wrong extFields, want=%v, got=%v", rc.ExtFields, decodedRc.ExtFields)
+		}
+
 	}
 }
 
@@ -246,15 +279,13 @@ func TestCommandJsonEncodeDecode(t *testing.T) {
 			t.Errorf("failed to encode remotingCommand, result is empty.")
 		}
 	}
+	cmdData = cmdData[4:]
 	newCmd, err := decode(cmdData)
 	if err != nil {
 		t.Errorf("failed to decode remoting in JSON. %s", err)
 	}
 	if newCmd.Code != cmd.Code {
 		t.Errorf("wrong command code. want=%d, got=%d", cmd.Code, newCmd.Code)
-	}
-	if newCmd.Language != cmd.Language {
-		t.Errorf("wrong command language. want=%d, got=%d", cmd.Language, newCmd.Language)
 	}
 	if newCmd.Version != cmd.Version {
 		t.Errorf("wrong command version. want=%d, got=%d", cmd.Version, newCmd.Version)
@@ -282,6 +313,7 @@ func TestCommandRocketMQEncodeDecode(t *testing.T) {
 			t.Errorf("failed to encode remotingCommand, result is empty.")
 		}
 	}
+	cmdData = cmdData[4:]
 	newCmd, err := decode(cmdData)
 	if err != nil {
 		t.Errorf("failed to decode remoting in JSON. %s", err)
