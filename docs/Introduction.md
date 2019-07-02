@@ -20,8 +20,8 @@ rlog.SetLogger(Logger)
 Producer interface {
 	Start() error
 	Shutdown() error
-	SendSync(context.Context, *kernel.Message) (*kernel.SendResult, error)
-	SendOneWay(context.Context, *kernel.Message) error
+	SendSync(context.Context, *primitive.Message) (*kernel.SendResult, error)
+	SendOneWay(context.Context, *primitive.Message) error
 }
 ```
 
@@ -42,7 +42,7 @@ err := p.Start()
 
 - send message with sync
 ```go
-result, err := p.SendSync(context.Background(), &kernel.Message{
+result, err := p.SendSync(context.Background(), &primitive.Message{
     Topic: "test",
     Body:  []byte("Hello RocketMQ Go Client!"),
 })
@@ -52,7 +52,7 @@ result, err := p.SendSync(context.Background(), &kernel.Message{
 
 - or send message with oneway
 ```go 
-err := p.SendOneWay(context.Background(), &kernel.Message{
+err := p.SendOneWay(context.Background(), &primitive.Message{
     Topic: "test",
     Body:  []byte("Hello RocketMQ Go Client!"),
 })
@@ -68,7 +68,7 @@ PushConsumer interface {
 	Start() error
 	Shutdown()
 	Subscribe(topic string, selector MessageSelector,
-		f func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)) error
+		f func(*ConsumeMessageContext, []*primitive.MessageExt) (ConsumeResult, error)) error
 }
 ```
 
@@ -85,7 +85,7 @@ c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
 - Subscribe a topic(only support one topic now), and define your consuming function
 ```go
 err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-    msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
+    msgs []*primitive.MessageExt) (consumer.ConsumeResult, error) {
     fmt.Println(msgs)
     return consumer.ConsumeSuccess, nil
 })
