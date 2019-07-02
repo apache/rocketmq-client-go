@@ -86,7 +86,8 @@ func ChainInterceptor(p *defaultProducer) {
 }
 
 // getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
+func
+getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
@@ -214,7 +215,8 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 	return err
 }
 
-func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue, msg *primitive.Message) *remote.RemotingCommand {
+func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
+	msg *primitive.Message) *remote.RemotingCommand {
 	req := &kernel.SendMessageRequest{
 		ProducerGroup:  p.group,
 		Topic:          mq.Topic,
