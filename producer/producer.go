@@ -21,14 +21,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/remote"
-	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 type Producer interface {
@@ -38,41 +39,72 @@ type Producer interface {
 	SendOneWay(context.Context, *kernel.Message) error
 }
 
-func NewProducer(opt ProducerOptions) (Producer, error) {
-	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
+// NewProducer create a producer to the given target. By  default, the retry times for send operation is 2,
+// and u can modify by WithRetry().
+// TODO: opt 需要拆分成必要参数 和 opts.
+func NewProducer(nameServerAddr string, opts ...Option) (Producer, error) {
+	if err := utils.VerifyIP(nameServerAddr); err != nil {
 		return nil, err
 	}
-	if opt.RetryTimesWhenSendFailed == 0 {
-		opt.RetryTimesWhenSendFailed = 2
+
+	if nameServerAddr == "" {
+		rlog.Fatal("nameServerAddr can't be empty")
 	}
-	if opt.NameServerAddr == "" {
-		rlog.Fatal("opt.NameServerAddr can't be empty")
-	}
-	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
 	if err != nil {
 		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
 	}
-	return &defaultProducer{
+
+	popts := defaultOptions()
+	for _, opt := range opts {
+		opt.apply(&popts)
+	}
+	popts.NameServerAddr = nameServerAddr
+
+	producer := &defaultProducer{
 		group:   "default",
-		client:  kernel.GetOrNewRocketMQClient(opt.ClientOption),
-		options: opt,
-	}, nil
+		client:  kernel.GetOrNewRocketMQClient(popts.ClientOption),
+		options: popts,
+	}
+
+	ChainInterceptor(producer)
+
+	return producer, nil
+}
+
+// ChainInterceptor chain list of interceptor as one interceptor
+func ChainInterceptor(p *defaultProducer) {
+	interceptors := p.options.interceptors
+	switch len(interceptors) {
+	case 0:
+		p.interceptor = nil
+	case 1:
+		p.interceptor = interceptors[0]
+	default:
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker Invoker) error {
+			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
+		}
+	}
+}
+
+// getChainedInterceptor recursively generate the chained invoker.
+func getChainedInterceptor(interceptors []Interceptor, cur int, finalInvoker Invoker) Invoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
 }
 
 type defaultProducer struct {
 	group       string
 	client      *kernel.RMQClient
 	state       kernel.ServiceState
-	options     ProducerOptions
+	options     Options
 	publishInfo sync.Map
-}
 
-type ProducerOptions struct {
-	kernel.ClientOption
-	NameServerAddr           string
-	GroupName                string
-	RetryTimesWhenSendFailed int
-	UnitMode                 bool
+	interceptor Interceptor
 }
 
 func (p *defaultProducer) Start() error {
@@ -95,11 +127,28 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *kernel.Message) (*k
 		return nil, errors.New("topic is nil")
 	}
 
+	if p.interceptor != nil {
+		var (
+			reply *kernel.SendResult
+		)
+		err := p.interceptor(ctx, msg, reply, func(ctx context.Context, req, reply interface{}) error {
+			reply, err := p.sendSync(ctx, msg)
+			return err
+		})
+		return reply, err
+	}
+
+	return p.sendSync(ctx, msg)
+}
+
+func (p *defaultProducer) sendSync(ctx context.Context, msg *kernel.Message) (*kernel.SendResult, error) {
+
 	retryTime := 1 + p.options.RetryTimesWhenSendFailed
 
 	var (
 		err error
 	)
+
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg.Topic)
 		if mq == nil {
@@ -131,6 +180,16 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *kernel.Message) e
 		return errors.New("topic is nil")
 	}
 
+	if p.interceptor != nil {
+		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.SendOneWay(ctx, msg)
+		})
+	}
+
+	return p.sendOneWay(ctx, msg)
+}
+
+func (p *defaultProducer) sendOneWay(ctx context.Context, msg *kernel.Message) error {
 	retryTime := 1 + p.options.RetryTimesWhenSendFailed
 
 	var (

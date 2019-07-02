@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-	opt := producer.ProducerOptions{
+	opt := producer.Options{
 		NameServerAddr:           "127.0.0.1:9876",
 		RetryTimesWhenSendFailed: 2,
 	}
