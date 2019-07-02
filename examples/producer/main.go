@@ -20,13 +20,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/producer"
+	"github.com/apache/rocketmq-client-go/internal/producer"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"os"
 )
 
 func main() {
-	opt := producer.ProducerOptions{
+	opt := primitive.ProducerOptions{
 		NameServerAddr:           "127.0.0.1:9876",
 		RetryTimesWhenSendFailed: 2,
 	}
@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < 1000; i++ {
-		res, err := p.SendSync(context.Background(), &kernel.Message{
+		res, err := p.SendSync(context.Background(), &primitive.Message{
 			Topic: "test",
 			Body:  []byte("Hello RocketMQ Go Client!"),
 		})

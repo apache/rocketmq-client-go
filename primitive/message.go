@@ -15,9 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package primitive
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/apache/rocketmq-client-go/utils"
+)
 
 const (
 	PropertyKeySeparator                   = " "
@@ -117,4 +120,29 @@ func (msgExt *MessageExt) String() string {
 		msgExt.StoreSize, msgExt.QueueOffset, msgExt.SysFlag, msgExt.BornTimestamp, msgExt.BornHost,
 		msgExt.StoreTimestamp, msgExt.StoreHost, msgExt.CommitLogOffset, msgExt.BodyCRC, msgExt.ReconsumeTimes,
 		msgExt.PreparedTransactionOffset)
+}
+
+// MessageQueue message queue
+type MessageQueue struct {
+	Topic      string `json:"topic"`
+	BrokerName string `json:"brokerName"`
+	QueueId    int    `json:"queueId"`
+}
+
+func (mq *MessageQueue) String() string {
+	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
+}
+
+func (mq *MessageQueue) HashCode() int {
+	result := 1
+	result = 31*result + utils.HashString(mq.BrokerName)
+	result = 31*result + mq.QueueId
+	result = 31*result + utils.HashString(mq.Topic)
+
+	return result
+}
+
+func (mq *MessageQueue) Equals(queue *MessageQueue) bool {
+	// TODO
+	return true
 }
