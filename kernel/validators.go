@@ -18,8 +18,9 @@ limitations under the License.
 package kernel
 
 import (
-	"github.com/apache/rocketmq-client-go/rlog"
 	"regexp"
+
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 const (
