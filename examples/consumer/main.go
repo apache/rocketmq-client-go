@@ -32,9 +32,9 @@ func main() {
 		FromWhere:      primitive.ConsumeFromFirstOffset,
 	})
 	err := c.Subscribe("test", primitive.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-		msgs []*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
 		fmt.Println(msgs)
-		return consumer.ConsumeSuccess, nil
+		return primitive.ConsumeSuccess, nil
 	})
 	if err != nil {
 		fmt.Println(err.Error())

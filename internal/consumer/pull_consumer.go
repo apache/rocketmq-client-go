@@ -80,11 +80,11 @@ func (c *defaultPullConsumer) SubscribeWithChan(topic, selector primitive.Messag
 
 // SubscribeWithFunc ack automatic
 func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector primitive.MessageSelector,
-	f func(msg *primitive.Message) ConsumeResult) error {
+	f func(msg *primitive.Message) primitive.ConsumeResult) error {
 	return nil
 }
 
-func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) {
+func (c *defaultPullConsumer) ACK(msg *primitive.Message, result primitive.ConsumeResult) {
 
 }
 
