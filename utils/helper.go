@@ -57,8 +57,8 @@ func MessageClientID() string {
 
 func updateTimestamp() {
 	year, month := time.Now().Year(), time.Now().Month()
-	startTimestamp = int64(time.Date(year, month, 1, 0, 0, 0, 0, time.Local).Unix())
-	nextTimestamp = int64(time.Date(year, month, 1, 0, 0, 0, 0, time.Local).AddDate(0, 1, 0).Unix())
+	startTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).Unix()
+	nextTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).AddDate(0, 1, 0).Unix()
 }
 
 func GetAddressByBytes(data []byte) string {
@@ -78,5 +78,5 @@ func UnCompress(data []byte) []byte {
 }
 
 func IsArrayEmpty(i ...interface{}) bool {
-	return i == nil || len(i) == 0
+	return len(i) == 0
 }

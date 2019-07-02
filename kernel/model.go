@@ -201,7 +201,7 @@ func createMessageId(addr []byte, offset int64) string {
 }
 
 func parseProperties(data []byte) map[string]string {
-	return make(map[string]string, 0)
+	return make(map[string]string)
 }
 
 func toMessages(messageExts []*MessageExt) []*Message {

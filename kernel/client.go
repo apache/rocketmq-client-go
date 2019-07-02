@@ -266,7 +266,7 @@ func (c *RMQClient) SendHeartbeatToAllBrokerWithLock() {
 }
 
 func (c *RMQClient) UpdateTopicRouteInfo() {
-	publishTopicSet := make(map[string]bool, 0)
+	publishTopicSet := make(map[string]bool)
 	c.producerMap.Range(func(key, value interface{}) bool {
 		producer := value.(InnerProducer)
 		list := producer.PublishTopicList()
@@ -279,7 +279,7 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 		c.UpdatePublishInfo(topic, UpdateTopicRouteInfo(topic))
 	}
 
-	subscribedTopicSet := make(map[string]bool, 0)
+	subscribedTopicSet := make(map[string]bool)
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
 		list := consumer.SubscriptionDataList()
