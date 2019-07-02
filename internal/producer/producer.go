@@ -86,8 +86,7 @@ func ChainInterceptor(p *defaultProducer) {
 }
 
 // getChainedInterceptor recursively generate the chained invoker.
-func
-getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
+func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
