@@ -73,20 +73,27 @@ func (r *ResponseFuture) isTimeout() bool {
 }
 
 func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
+	var (
+		cmd *RemotingCommand
+		err error
+	)
+	timer := time.NewTimer(r.TimeoutMillis * time.Millisecond)
 	for {
 		select {
 		case <-r.Done:
-			if r.Err != nil {
-				return nil, r.Err
-			}
-			return r.ResponseCommand, nil
-		case <-time.After(r.TimeoutMillis * time.Millisecond):
-			return nil, ErrRequestTimeout
+			cmd, err = r.ResponseCommand, r.Err
+			goto done
+		case <-timer.C:
+			err = ErrRequestTimeout
+			goto done
 		}
 	}
+done:
+	timer.Stop()
+	return cmd, err
 }
 
-type ClientRequestFunc func(remotingCommand *RemotingCommand) (responseCommand *RemotingCommand)
+type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
 
 type TcpOption struct {
 	// TODO
@@ -117,6 +124,7 @@ func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 	resp := NewResponseFuture(request.Opaque, timeoutMillis, nil)
 	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
+	defer c.responseTable.Delete(request.Opaque)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +218,7 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 				go func() { // 单个goroutine会造成死锁
 					res := f(cmd)
 					if res != nil {
-						err := c.sendRequest(r, cmd)
+						err := c.sendRequest(r, res)
 						if err != nil {
 							rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
 						}
