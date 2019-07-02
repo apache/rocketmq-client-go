@@ -42,7 +42,7 @@ type Producer interface {
 // NewProducer create a producer to the given target. By  default, the retry times for send operation is 2,
 // and u can modify by WithRetry().
 // TODO: opt 需要拆分成必要参数 和 opts.
-func NewProducer(nameServerAddr string, opts ...Option) (Producer, error) {
+func NewProducer(nameServerAddr string, opts ...*Option) (Producer, error) {
 	if err := utils.VerifyIP(nameServerAddr); err != nil {
 		return nil, err
 	}

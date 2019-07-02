@@ -20,17 +20,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/apache/rocketmq-client-go/kernel"
 	"github.com/apache/rocketmq-client-go/producer"
-	"os"
 )
 
 func main() {
-	opt := producer.Options{
-		NameServerAddr:           "127.0.0.1:9876",
-		RetryTimesWhenSendFailed: 2,
-	}
-	p, _ := producer.NewProducer(opt)
+	nameServerAddr := "127.0.0.1:9876"
+	p, _ := producer.NewProducer(nameServerAddr, producer.WithRetry(2))
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())
