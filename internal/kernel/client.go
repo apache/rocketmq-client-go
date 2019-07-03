@@ -349,6 +349,7 @@ func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request
 }
 
 func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*primitive.PullResult, error) {
+
 	pullResult := &primitive.PullResult{}
 	switch response.Code {
 	case ResSuccess:
@@ -383,6 +384,8 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*prim
 		pullResult.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
 	}
 
+	//response.Body
+	//pullResult.messageExts
 	//pullResult.messageExts = decodeMessage(response.Body) TODO parse in top
 
 	return pullResult, nil

@@ -454,6 +454,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
+
 		result, err := pc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
 		if err != nil {
 			rlog.Warnf("pull message from %s error: %s", brokerResult.BrokerAddr, err.Error())
