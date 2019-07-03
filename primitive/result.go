@@ -74,7 +74,11 @@ type PullResult struct {
 	MaxOffset            int64
 	Status               PullStatus
 	SuggestWhichBrokerId int64
+
+	// messageExts message info
 	messageExts          []*MessageExt
+	//
+	body []byte
 }
 
 func (result *PullResult) GetMessageExts() []*MessageExt {
@@ -92,11 +96,19 @@ func (result *PullResult) GetMessages() []*Message {
 	return toMessages(result.messageExts)
 }
 
+func (result *PullResult) SetBody(data []byte) {
+	result.body = data
+}
+
+func (result *PullResult) GetBody() []byte {
+	return result.body
+}
+
 func (result *PullResult) String() string {
 	return ""
 }
 
-func decodeMessage(data []byte) []*MessageExt {
+func DecodeMessage(data []byte) []*MessageExt {
 	msgs := make([]*MessageExt, 0)
 	buf := bytes.NewBuffer(data)
 	count := 0

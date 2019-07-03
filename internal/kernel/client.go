@@ -364,31 +364,31 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*prim
 		return nil, fmt.Errorf("unknown Response Code: %d, remark: %s", response.Code, response.Remark)
 	}
 
-	v, exist := response.ExtFields["maxOffset"]
-	if exist {
-		pullResult.MaxOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["minOffset"]
-	if exist {
-		pullResult.MinOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["nextBeginOffset"]
-	if exist {
-		pullResult.NextBeginOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["suggestWhichBrokerId"]
-	if exist {
-		pullResult.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	//response.Body
-	//pullResult.messageExts
-	//pullResult.messageExts = decodeMessage(response.Body) TODO parse in top
+	c.decodeCommandCustomHeader(pullResult, response)
 
 	return pullResult, nil
+}
+
+func (c *RMQClient) decodeCommandCustomHeader(pr *primitive.PullResult, cmd *remote.RemotingCommand) {
+	v, exist := cmd.ExtFields["maxOffset"]
+	if exist {
+		pr.MaxOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["minOffset"]
+	if exist {
+		pr.MinOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["nextBeginOffset"]
+	if exist {
+		pr.NextBeginOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["suggestWhichBrokerId"]
+	if exist {
+		pr.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
+	}
 }
 
 // PullMessageAsync pull message async

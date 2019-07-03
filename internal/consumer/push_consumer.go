@@ -478,6 +478,8 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			rt := time.Now().Sub(beginTime)
 			increasePullRT(pc.consumerGroup, request.mq.Topic, rt)
 
+			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
+
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)
 			if msgFounded != nil && len(msgFounded) != 0 {
