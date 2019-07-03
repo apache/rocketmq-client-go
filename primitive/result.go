@@ -15,15 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package primitive
 
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 
-	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 )
 
@@ -209,86 +207,4 @@ func toMessages(messageExts []*MessageExt) []*Message {
 	msgs := make([]*Message, 0)
 
 	return msgs
-}
-
-// MessageQueue message queue
-type MessageQueue struct {
-	Topic      string `json:"topic"`
-	BrokerName string `json:"brokerName"`
-	QueueId    int    `json:"queueId"`
-}
-
-func (mq *MessageQueue) String() string {
-	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
-}
-
-func (mq *MessageQueue) HashCode() int {
-	result := 1
-	result = 31*result + utils.HashString(mq.BrokerName)
-	result = 31*result + mq.QueueId
-	result = 31*result + utils.HashString(mq.Topic)
-
-	return result
-}
-
-func (mq *MessageQueue) Equals(queue *MessageQueue) bool {
-	// TODO
-	return true
-}
-
-type FindBrokerResult struct {
-	BrokerAddr    string
-	Slave         bool
-	BrokerVersion int32
-}
-
-type (
-	// groupName of consumer
-	producerData string
-
-	consumeType string
-
-	ServiceState int
-)
-
-const (
-	StateCreateJust ServiceState = iota
-	StateStartFailed
-	StateRunning
-	StateShutdown
-)
-
-type SubscriptionData struct {
-	ClassFilterMode bool
-	Topic           string
-	SubString       string
-	Tags            map[string]bool
-	Codes           map[int32]bool
-	SubVersion      int64
-	ExpType         string
-}
-
-type consumerData struct {
-	GroupName         string              `json:"groupName"`
-	CType             consumeType         `json:"consumeType"`
-	MessageModel      string              `json:"messageModel"`
-	Where             string              `json:"consumeFromWhere"`
-	SubscriptionDatas []*SubscriptionData `json:"subscriptionDataSet"`
-	UnitMode          bool                `json:"unitMode"`
-}
-
-type heartbeatData struct {
-	ClientId      string         `json:"clientID"`
-	ProducerDatas []producerData `json:"producerDataSet"`
-	ConsumerDatas []consumerData `json:"consumerDataSet"`
-}
-
-func (data *heartbeatData) encode() []byte {
-	d, err := json.Marshal(data)
-	if err != nil {
-		rlog.Errorf("marshal heartbeatData error: %s", err.Error())
-		return nil
-	}
-	rlog.Info(string(d))
-	return d
 }

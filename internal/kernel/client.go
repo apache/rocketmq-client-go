@@ -28,7 +28,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
 
@@ -66,28 +67,6 @@ func init() {
 	}
 }
 
-type ClientOption struct {
-	NameServerAddr    string
-	ClientIP          string
-	InstanceName      string
-	UnitMode          bool
-	UnitName          string
-	VIPChannelEnabled bool
-	UseTLS            bool
-}
-
-func (opt *ClientOption) ChangeInstanceNameToPID() {
-	if opt.InstanceName == "DEFAULT" {
-		opt.InstanceName = strconv.Itoa(os.Getegid())
-	}
-}
-
-func (opt *ClientOption) String() string {
-	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.ClientIP,
-		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.UseTLS)
-}
-
 type InnerProducer interface {
 	PublishTopicList() []string
 	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
@@ -98,7 +77,7 @@ type InnerProducer interface {
 
 type InnerConsumer interface {
 	PersistConsumerOffset()
-	UpdateTopicSubscribeInfo(topic string, mqs []*MessageQueue)
+	UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue)
 	IsSubscribeTopicNeedUpdate(topic string) bool
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
@@ -106,7 +85,7 @@ type InnerConsumer interface {
 }
 
 type RMQClient struct {
-	option ClientOption
+	option primitive.ClientOption
 	// group -> InnerProducer
 	producerMap sync.Map
 
@@ -120,7 +99,7 @@ type RMQClient struct {
 
 var clientMap sync.Map
 
-func GetOrNewRocketMQClient(option ClientOption) *RMQClient {
+func GetOrNewRocketMQClient(option primitive.ClientOption) *RMQClient {
 	client := &RMQClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),
@@ -299,12 +278,12 @@ func (c *RMQClient) UpdateTopicRouteInfo() {
 
 // SendMessageAsync send message with batch by async
 func (c *RMQClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
-	msgs []*Message, f func(result *SendResult)) error {
+	msgs []*primitive.Message, f func(result *primitive.SendResult)) error {
 	return nil
 }
 
 func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
-	msgs []*Message) (*SendResult, error) {
+	msgs []*primitive.Message) (*primitive.SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
 	err := c.remoteClient.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
@@ -313,28 +292,28 @@ func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, msgs ...*Message) *SendResult {
-	var status SendStatus
+func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, msgs ...*primitive.Message) *primitive.SendResult {
+	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
-		status = SendFlushDiskTimeout
+		status = primitive.SendFlushDiskTimeout
 	case ResFlushSlaveTimeout:
-		status = SendFlushSlaveTimeout
+		status = primitive.SendFlushSlaveTimeout
 	case ResSlaveNotAvailable:
-		status = SendSlaveNotAvailable
+		status = primitive.SendSlaveNotAvailable
 	case ResSuccess:
-		status = SendOK
+		status = primitive.SendOK
 	default:
 		// TODO process unknown code
 	}
 
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
-		msgIDs = append(msgIDs, msgs[i].Properties[PropertyUniqueClientMessageIdKeyIndex])
+		msgIDs = append(msgIDs, msgs[i].Properties[primitive.PropertyUniqueClientMessageIdKeyIndex])
 	}
 
-	regionId := cmd.ExtFields[PropertyMsgRegion]
-	trace := cmd.ExtFields[PropertyTraceSwitch]
+	regionId := cmd.ExtFields[primitive.PropertyMsgRegion]
+	trace := cmd.ExtFields[primitive.PropertyTraceSwitch]
 
 	if regionId == "" {
 		regionId = defaultTraceRegionID
@@ -342,11 +321,11 @@ func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 
 	qId, _ := strconv.Atoi(cmd.ExtFields["queueId"])
 	off, _ := strconv.ParseInt(cmd.ExtFields["queueOffset"], 10, 64)
-	return &SendResult{
+	return &primitive.SendResult{
 		Status:      status,
 		MsgID:       cmd.ExtFields["msgId"],
 		OffsetMsgID: cmd.ExtFields["msgId"],
-		MessageQueue: &MessageQueue{
+		MessageQueue: &primitive.MessageQueue{
 			Topic:      msgs[0].Topic,
 			BrokerName: brokerName,
 			QueueId:    qId,
@@ -359,7 +338,7 @@ func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 }
 
 // PullMessage with sync
-func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*PullResult, error) {
+func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
 	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
@@ -369,17 +348,17 @@ func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request
 	return c.processPullResponse(res)
 }
 
-func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*PullResult, error) {
-	pullResult := &PullResult{}
+func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*primitive.PullResult, error) {
+	pullResult := &primitive.PullResult{}
 	switch response.Code {
 	case ResSuccess:
-		pullResult.Status = PullFound
+		pullResult.Status = primitive.PullFound
 	case ResPullNotFound:
-		pullResult.Status = PullNoNewMsg
+		pullResult.Status = primitive.PullNoNewMsg
 	case ResPullRetryImmediately:
-		pullResult.Status = PullNoMsgMatched
+		pullResult.Status = primitive.PullNoMsgMatched
 	case ResPullOffsetMoved:
-		pullResult.Status = PullOffsetIllegal
+		pullResult.Status = primitive.PullOffsetIllegal
 	default:
 		return nil, fmt.Errorf("unknown Response Code: %d, remark: %s", response.Code, response.Remark)
 	}
@@ -404,13 +383,13 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*Pull
 		pullResult.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
 	}
 
-	pullResult.messageExts = decodeMessage(response.Body)
+	//pullResult.messageExts = decodeMessage(response.Body) TODO parse in top
 
 	return pullResult, nil
 }
 
 // PullMessageAsync pull message async
-func (c *RMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *PullResult)) error {
+func (c *RMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *primitive.PullResult)) error {
 	return nil
 }
 
@@ -502,13 +481,13 @@ func (c *RMQClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
-func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue {
-	list := make([]*MessageQueue, 0)
+func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
+	list := make([]*primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {
 		qd := data.QueueDataList[idx]
 		if queueIsReadable(qd.Perm) {
 			for i := 0; i < qd.ReadQueueNums; i++ {
-				list = append(list, &MessageQueue{
+				list = append(list, &primitive.MessageQueue{
 					Topic:      topic,
 					BrokerName: qd.BrokerName,
 					QueueId:    i,
@@ -519,7 +498,7 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*MessageQueue
 	return list
 }
 
-func encodeMessages(message []*Message) []byte {
+func encodeMessages(message []*primitive.Message) []byte {
 	var buffer bytes.Buffer
 	index := 0
 	for index < len(message) {

@@ -26,7 +26,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 )
@@ -39,31 +40,28 @@ import (
 // See quick start/Consumer in the example module for a typical usage.
 //
 // <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
-type ConsumeResult int
 
 const (
-	Mb                           = 1024 * 1024
-	ConsumeSuccess ConsumeResult = iota
-	ConsumeRetryLater
+	Mb = 1024 * 1024
 )
 
 type PushConsumer interface {
 	Start() error
 	Shutdown()
-	Subscribe(topic string, selector MessageSelector,
-		f func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)) error
+	Subscribe(topic string, selector primitive.MessageSelector,
+		f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
 }
 
 type pushConsumer struct {
 	*defaultConsumer
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
-	consume                      func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)
-	submitToConsume              func(*processQueue, *kernel.MessageQueue)
+	consume                      func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
+	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
 }
 
-func NewPushConsumer(consumerGroup string, opt ConsumerOption) (PushConsumer, error) {
+func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOption) (PushConsumer, error) {
 	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
 		return nil, err
 	}
@@ -87,23 +85,10 @@ func NewPushConsumer(consumerGroup string, opt ConsumerOption) (PushConsumer, er
 		option:         opt,
 	}
 
-	switch opt.Strategy {
-	case StrategyAveragely:
-		dc.allocate = allocateByAveragely
-	case StrategyAveragelyCircle:
-		dc.allocate = allocateByAveragelyCircle
-	case StrategyConfig:
-		dc.allocate = allocateByConfig
-	case StrategyConsistentHash:
-		dc.allocate = allocateByConsistentHash
-	case StrategyMachineNearby:
-		dc.allocate = allocateByMachineNearby
-	case StrategyMachineRoom:
-		dc.allocate = allocateByMachineRoom
-	default:
-		dc.allocate = allocateByAveragely
+	if opt.Strategy == nil {
+		opt.Strategy = primitive.AllocateByAveragely
 	}
-
+	dc.allocate = opt.Strategy
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
@@ -125,15 +110,15 @@ func (pc *pushConsumer) Start() error {
 		pc.state = kernel.StateStartFailed
 		pc.validate()
 
-		if pc.model == Clustering {
+		if pc.model == primitive.Clustering {
 			// set retry topic
 			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
 			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
-				MessageSelector{TAG, _SubAll}))
+				primitive.MessageSelector{primitive.TAG, _SubAll}))
 		}
 
 		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
-		if pc.model == Clustering {
+		if pc.model == primitive.Clustering {
 			pc.option.ChangeInstanceNameToPID()
 			pc.storage = NewRemoteOffsetStore(pc.consumerGroup, pc.client)
 		} else {
@@ -178,8 +163,8 @@ func (pc *pushConsumer) Start() error {
 
 func (pc *pushConsumer) Shutdown() {}
 
-func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
-	f func(*ConsumeMessageContext, []*kernel.MessageExt) (ConsumeResult, error)) error {
+func (pc *pushConsumer) Subscribe(topic string, selector primitive.MessageSelector,
+	f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
 	if pc.state != kernel.StateCreateJust {
 		return errors.New("subscribe topic only started before")
 	}
@@ -198,7 +183,7 @@ func (pc *pushConsumer) PersistConsumerOffset() {
 	pc.defaultConsumer.persistConsumerOffset()
 }
 
-func (pc *pushConsumer) UpdateTopicSubscribeInfo(topic string, mqs []*kernel.MessageQueue) {
+func (pc *pushConsumer) UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
 	pc.defaultConsumer.updateTopicSubscribeInfo(topic, mqs)
 }
 
@@ -214,7 +199,7 @@ func (pc *pushConsumer) IsUnitMode() bool {
 	return pc.unitMode
 }
 
-func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*kernel.MessageQueue) {
+func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
 	// TODO
 }
 
@@ -400,7 +385,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			subExpression      string
 		)
 
-		if pc.model == Clustering {
+		if pc.model == primitive.Clustering {
 			commitOffsetValue = pc.storage.read(request.mq, _ReadFromMemory)
 			if commitOffsetValue > 0 {
 				commitOffsetEnable = true
@@ -424,7 +409,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SysFlag:        sysFlag,
 			CommitOffset:   commitOffsetValue,
 			SubExpression:  _SubAll,
-			ExpressionType: string(TAG), // TODO
+			ExpressionType: string(primitive.TAG), // TODO
 		}
 		//
 		//if data.ExpType == string(TAG) {
@@ -446,14 +431,14 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if result.Status == kernel.PullBrokerTimeout {
+		if result.Status == primitive.PullBrokerTimeout {
 			rlog.Warnf("pull broker: %s timeout", brokerResult.BrokerAddr)
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
 
 		switch result.Status {
-		case kernel.PullFound:
+		case primitive.PullFound:
 			rlog.Debugf("Topic: %s, QueueId: %d found messages: %d", request.mq.Topic, request.mq.QueueId,
 				len(result.GetMessageExts()))
 			prevRequestOffset := request.nextOffset
@@ -473,19 +458,19 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				rlog.Warnf("[BUG] pull message result maybe data wrong, [nextBeginOffset=%d, "+
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
-		case kernel.PullNoNewMsg:
+		case primitive.PullNoNewMsg:
 			rlog.Debugf("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
-		case kernel.PullNoMsgMatched:
+		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
-		case kernel.PullOffsetIllegal:
+		case primitive.PullOffsetIllegal:
 			rlog.Warnf("the pull request offset illegal, {} {}", request.String(), result.String())
 			request.nextOffset = result.NextBeginOffset
 			pq.dropped = true
 			go func() {
 				time.Sleep(10 * time.Second)
 				pc.storage.update(request.mq, request.nextOffset, false)
-				pc.storage.persist([]*kernel.MessageQueue{request.mq})
+				pc.storage.persist([]*primitive.MessageQueue{request.mq})
 				pc.storage.remove(request.mq)
 				rlog.Warnf("fix the pull request offset: %s", request.String())
 			}()
@@ -500,7 +485,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *kernel.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *primitive.MessageExt) bool {
 	return true
 }
 
@@ -515,7 +500,7 @@ func (pc *pushConsumer) resume() {
 	rlog.Infof("resume consumer: %s", pc.consumerGroup)
 }
 
-func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]int64) {
+func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQueue]int64) {
 	//topic := cmd.ExtFields["topic"]
 	//group := cmd.ExtFields["group"]
 	//if topic == "" || group == "" {
@@ -530,7 +515,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]
 	//rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
 	//	from, topic, group, t)
 	//
-	//offsetTable := make(map[kernel.MessageQueue]int64, 0)
+	//offsetTable := make(map[primitive.MessageQueue]int64, 0)
 	//err = json.Unmarshal(cmd.Body, &offsetTable)
 	//if err != nil {
 	//	rlog.Warnf("received reset offset command from: %s, but parse offset table: %s", err.Error())
@@ -542,7 +527,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]
 	//	return
 	//}
 
-	set := make(map[int]*kernel.MessageQueue, 0)
+	set := make(map[int]*primitive.MessageQueue, 0)
 	for k := range table {
 		set[k.HashCode()] = &k
 	}
@@ -560,7 +545,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]
 	if !exist {
 		return
 	}
-	queuesOfTopic := v.(map[int]*kernel.MessageQueue)
+	queuesOfTopic := v.(map[int]*primitive.MessageQueue)
 	for k := range queuesOfTopic {
 		q := set[k]
 		if q != nil {
@@ -576,9 +561,9 @@ func (pc *pushConsumer) resetOffset(topic string, table map[kernel.MessageQueue]
 	}
 }
 
-func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *processQueue) bool {
+func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue, pq *processQueue) bool {
 	pc.defaultConsumer.removeUnnecessaryMessageQueue(mq, pq)
-	if !pc.consumeOrderly || Clustering != pc.model {
+	if !pc.consumeOrderly || primitive.Clustering != pc.model {
 		return true
 	}
 	// TODO orderly
@@ -587,21 +572,21 @@ func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, p
 
 type ConsumeMessageContext struct {
 	consumerGroup string
-	msgs          []*kernel.MessageExt
-	mq            *kernel.MessageQueue
+	msgs          []*primitive.MessageExt
+	mq            *primitive.MessageQueue
 	success       bool
 	status        string
 	// mqTractContext
 	properties map[string]string
 }
 
-func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.MessageQueue) {
+func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
 		return
 	}
 	for count := 0; count < len(msgs); count++ {
-		var subMsgs []*kernel.MessageExt
+		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
 			subMsgs = msgs[count:]
 			count = len(msgs)
@@ -627,11 +612,11 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 			for idx := range subMsgs {
 				msg := subMsgs[idx]
 				if msg.Properties != nil {
-					retryTopic := msg.Properties[kernel.PropertyRetryTopic]
+					retryTopic := msg.Properties[primitive.PropertyRetryTopic]
 					if retryTopic == "" && groupTopic == msg.Topic {
 						msg.Topic = retryTopic
 					}
-					subMsgs[idx].Properties[kernel.PropertyConsumeStartTime] = strconv.FormatInt(
+					subMsgs[idx].Properties[primitive.PropertyConsumeStartTime] = strconv.FormatInt(
 						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
 			}
@@ -641,7 +626,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 				ctx.properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
 				ctx.properties["ConsumeContextType"] = "TIMEOUT"
-			} else if result == ConsumeSuccess {
+			} else if result == primitive.ConsumeSuccess {
 				ctx.properties["ConsumeContextType"] = "SUCCESS"
 			} else {
 				ctx.properties["ConsumeContextType"] = "RECONSUME_LATER"
@@ -651,12 +636,12 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 			increaseConsumeRT(pc.consumerGroup, mq.Topic, consumeRT)
 
 			if !pq.dropped {
-				msgBackFailed := make([]*kernel.MessageExt, 0)
-				if result == ConsumeSuccess {
+				msgBackFailed := make([]*primitive.MessageExt, 0)
+				if result == primitive.ConsumeSuccess {
 					increaseConsumeOKTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
 				} else {
 					increaseConsumeFailedTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
-					if pc.model == BroadCasting {
+					if pc.model == primitive.BroadCasting {
 						for i := 0; i < len(msgs); i++ {
 							rlog.Warnf("BROADCASTING, the message=%s consume failed, drop it, {}", subMsgs[i])
 						}
@@ -689,5 +674,5 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *kernel.Mes
 	}
 }
 
-func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *kernel.MessageQueue) {
+func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.MessageQueue) {
 }

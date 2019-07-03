@@ -26,8 +26,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 )
@@ -35,11 +36,11 @@ import (
 type Producer interface {
 	Start() error
 	Shutdown() error
-	SendSync(context.Context, *kernel.Message) (*kernel.SendResult, error)
-	SendOneWay(context.Context, *kernel.Message) error
+	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
+	SendOneWay(context.Context, *primitive.Message) error
 }
 
-func NewProducer(opt ProducerOptions) (Producer, error) {
+func NewProducer(opt primitive.ProducerOptions) (Producer, error) {
 	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
 		return nil, err
 	}
@@ -64,16 +65,8 @@ type defaultProducer struct {
 	group       string
 	client      *kernel.RMQClient
 	state       kernel.ServiceState
-	options     ProducerOptions
+	options     primitive.ProducerOptions
 	publishInfo sync.Map
-}
-
-type ProducerOptions struct {
-	kernel.ClientOption
-	NameServerAddr           string
-	GroupName                string
-	RetryTimesWhenSendFailed int
-	UnitMode                 bool
 }
 
 func (p *defaultProducer) Start() error {
@@ -87,7 +80,7 @@ func (p *defaultProducer) Shutdown() error {
 	return nil
 }
 
-func (p *defaultProducer) SendSync(ctx context.Context, msg *kernel.Message) (*kernel.SendResult, error) {
+func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
 	if msg == nil {
 		return nil, errors.New("message is nil")
 	}
@@ -123,7 +116,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *kernel.Message) (*k
 	return nil, err
 }
 
-func (p *defaultProducer) SendOneWay(ctx context.Context, msg *kernel.Message) error {
+func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
 	if msg == nil {
 		return errors.New("message is nil")
 	}
@@ -158,7 +151,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *kernel.Message) e
 	return err
 }
 
-func (p *defaultProducer) buildSendRequest(mq *kernel.MessageQueue, msg *kernel.Message) *remote.RemotingCommand {
+func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue, msg *primitive.Message) *remote.RemotingCommand {
 	req := &kernel.SendMessageRequest{
 		ProducerGroup:  p.group,
 		Topic:          mq.Topic,
@@ -174,7 +167,7 @@ func (p *defaultProducer) buildSendRequest(mq *kernel.MessageQueue, msg *kernel.
 	return remote.NewRemotingCommand(kernel.ReqSendMessage, req, msg.Body)
 }
 
-func (p *defaultProducer) selectMessageQueue(topic string) *kernel.MessageQueue {
+func (p *defaultProducer) selectMessageQueue(topic string) *primitive.MessageQueue {
 	v, exist := p.publishInfo.Load(topic)
 
 	if !exist {
