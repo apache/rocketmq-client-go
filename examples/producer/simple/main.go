@@ -26,6 +26,7 @@ import (
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
+// Package main implements a simple producer to send message.
 func main() {
 	nameServerAddr := "127.0.0.1:9876"
 	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2))
