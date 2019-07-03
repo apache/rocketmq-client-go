@@ -37,7 +37,7 @@ var (
 	queueCounterTable sync.Map
 )
 
-func NewConsumer(config primitive.ConsumerOption) *defaultPullConsumer {
+func NewConsumer(config primitive.ConsumerOptions) *defaultPullConsumer {
 	return &defaultPullConsumer{
 		option: config,
 	}
@@ -45,7 +45,7 @@ func NewConsumer(config primitive.ConsumerOption) *defaultPullConsumer {
 
 type defaultPullConsumer struct {
 	state     kernel.ServiceState
-	option    primitive.ConsumerOption
+	option    primitive.ConsumerOptions
 	client    *kernel.RMQClient
 	GroupName string
 	Model     primitive.MessageModel

@@ -60,7 +60,7 @@ type pushConsumer struct {
 	subscribedTopic              map[string]string
 }
 
-func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOption) (PushConsumer, error) {
+func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOptions) (PushConsumer, error) {
 	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
 		return nil, err
 	}

@@ -98,7 +98,7 @@ type defaultConsumer struct {
 	state     kernel.ServiceState
 	pause     bool
 	once      sync.Once
-	option    primitive.ConsumerOption
+	option    primitive.ConsumerOptions
 	// key: int, hash(*primitive.MessageQueue)
 	// value: *processQueue
 	processQueueTable sync.Map

@@ -19,14 +19,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/internal/consumer"
-	"github.com/apache/rocketmq-client-go/primitive"
 	"os"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/internal/consumer"
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", primitive.ConsumerOption{
+	c, _ := consumer.NewPushConsumer("testGroup", primitive.ConsumerOptions{
 		NameServerAddr: "127.0.0.1:9876",
 		ConsumerModel:  primitive.Clustering,
 		FromWhere:      primitive.ConsumeFromFirstOffset,

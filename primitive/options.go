@@ -25,7 +25,7 @@ import (
 )
 
 type ProducerOptions struct {
-	Interceptors []Interceptor
+	Interceptors []PInterceptor
 
 	ClientOption
 	NameServerAddr           string
@@ -52,7 +52,7 @@ func NewOption(f func(options *ProducerOptions)) *ProducerOption {
 }
 
 // WithInterceptor returns a ProducerOption that specifies the interceptor for producer.
-func WithInterceptor(f Interceptor) *ProducerOption {
+func WithInterceptor(f PInterceptor) *ProducerOption {
 	return NewOption(func(options *ProducerOptions) {
 		options.Interceptors = append(options.Interceptors, f)
 	})
@@ -61,7 +61,7 @@ func WithInterceptor(f Interceptor) *ProducerOption {
 // WithChainInterceptor returns a ProducerOption that specifies the chained interceptor for producer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
-func WithChainInterceptor(fs ...Interceptor) *ProducerOption {
+func WithChainInterceptor(fs ...PInterceptor) *ProducerOption {
 	return NewOption(func(options *ProducerOptions) {
 		options.Interceptors = append(options.Interceptors, fs...)
 	})
@@ -75,7 +75,7 @@ func WithRetry(retries int) *ProducerOption {
 	})
 }
 
-type ConsumerOption struct {
+type ConsumerOptions struct {
 	ClientOption
 	NameServerAddr string
 

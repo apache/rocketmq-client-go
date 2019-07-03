@@ -79,14 +79,14 @@ func ChainInterceptor(p *defaultProducer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.PInvoker) error {
 			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
 
 // getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
+func getChainedInterceptor(interceptors []primitive.PInterceptor, cur int, finalInvoker primitive.PInvoker) primitive.PInvoker {
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
@@ -102,7 +102,7 @@ type defaultProducer struct {
 	options     primitive.ProducerOptions
 	publishInfo sync.Map
 
-	interceptor primitive.Interceptor
+	interceptor primitive.PInterceptor
 }
 
 func (p *defaultProducer) Start() error {

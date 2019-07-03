@@ -19,29 +19,29 @@ package primitive
 
 import "context"
 
-// Invoker finish a send invoke on producer.
-type Invoker func(ctx context.Context, req, reply interface{}) error
+// PInvoker finish a send invoke on producer.
+type PInvoker func(ctx context.Context, req, reply interface{}) error
 
-// Interceptor intercepts the execution of a send invoke on producer.
-type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
+// PInterceptor intercepts the execution of a send invoke on producer.
+type PInterceptor func(ctx context.Context, req, reply interface{}, next PInvoker) error
 
 // RetryInterceptor retry when send failed.
-func RetryInterceptor() Interceptor {
-	return func(ctx context.Context, req, reply interface{}, next Invoker) error {
+func RetryInterceptor() PInterceptor {
+	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }
 
 // TimeoutInterceptor add a timeout listener in case of operation timeout.
-func TimeoutInterceptor() Interceptor {
-	return func(ctx context.Context, req, reply interface{}, next Invoker) error {
+func TimeoutInterceptor() PInterceptor {
+	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }
 
 // LogInterceptor log a send invoke.
-func LogInterceptor() Interceptor {
-	return func(ctx context.Context, req, reply interface{}, next Invoker) error {
+func LogInterceptor() PInterceptor {
+	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }

@@ -54,8 +54,8 @@ func main() {
 	}
 }
 
-func UserFirstInterceptor() primitive.Interceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
+func UserFirstInterceptor() primitive.PInterceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
 		fmt.Printf("user first interceptor before invoke: req:%v, reply: %v\n", req, reply)
 		err := next(ctx, req, reply)
 		fmt.Printf("user first interceptor after invoke: req: %v, reply: %v \n", req, reply)
@@ -63,8 +63,8 @@ func UserFirstInterceptor() primitive.Interceptor {
 	}
 }
 
-func UserSecondInterceptor() primitive.Interceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
+func UserSecondInterceptor() primitive.PInterceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
 		fmt.Printf("user second interceptor before invoke: req: %v, reply: %v\n", req, reply)
 		err := next(ctx, req, reply)
 		fmt.Printf("user second interceptor after invoke: req: %v, reply: %v \n", req, reply)
