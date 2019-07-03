@@ -49,7 +49,7 @@ func LogPInterceptor() PInterceptor {
 }
 
 // CInviker finish a message invoke on consumer
-type CInvoker func(ctx *ConsumeMessageContext, msgs []*MessageExt, reply ConsumeResult) error
+type CInvoker func(ctx *ConsumeMessageContext, msgs []*MessageExt) (ConsumeResult, error)
 
 // CInterceptor intercepts the invoke of a consume on messages.
-type CInterceptor func(ctx *ConsumeMessageContext, msgs []*MessageExt, reply ConsumeResult, next CInvoker) error
+type CInterceptor func(ctx *ConsumeMessageContext, msgs []*MessageExt, next CInvoker) (ConsumeResult, error)

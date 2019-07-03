@@ -116,8 +116,8 @@ func ChainInterceptor(p *pushConsumer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult, invoker primitive.CInvoker) error {
-			return interceptors[0](ctx, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
+		p.interceptor = func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, invoker primitive.CInvoker) (primitive.ConsumeResult, error) {
+			return interceptors[0](ctx, msgs, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
@@ -127,8 +127,8 @@ func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, final
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
-	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
-		return interceptors[cur+1](ctx, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
+		return interceptors[cur+1](ctx, msgs, getChainedInterceptor(interceptors, cur+1, finalInvoker))
 	}
 }
 
@@ -481,7 +481,6 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
 
 			msgFounded := result.GetMessageExts()
-			fmt.Printf("messages: %v\n", msgFounded)
 			firstMsgOffset := int64(math.MaxInt64)
 			if msgFounded != nil && len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
@@ -609,7 +608,6 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 	if msgs == nil {
 		return
 	}
-	fmt.Printf("consume message currently\n")
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
@@ -647,20 +645,13 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			}
 			var result primitive.ConsumeResult
 
-
 			var err error
 			if pc.interceptor == nil {
 				result, err = pc.consume(ctx, subMsgs)
 			} else {
-				fmt.Printf("before interceptor \n")
-				err = pc.interceptor(ctx, subMsgs, result, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
-					fmt.Printf("pc consume.\n")
-					reply, err := pc.consume(ctx, subMsgs)
-					// TODO: better solution
-					result = reply
-					return err
+				result, err = pc.interceptor(ctx, subMsgs, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
+					return pc.consume(ctx, subMsgs)
 				})
-				fmt.Printf("after interceptor \n")
 			}
 
 			consumeRT := time.Now().Sub(beginTime)
