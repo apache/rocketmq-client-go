@@ -22,14 +22,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 const (
@@ -291,7 +292,7 @@ func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, msgs ...*primitive.Message) *primitive.SendResult {
+func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
 	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -320,20 +321,20 @@ func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 
 	qId, _ := strconv.Atoi(cmd.ExtFields["queueId"])
 	off, _ := strconv.ParseInt(cmd.ExtFields["queueOffset"], 10, 64)
-	return &primitive.SendResult{
-		Status:      status,
-		MsgID:       cmd.ExtFields["msgId"],
-		OffsetMsgID: cmd.ExtFields["msgId"],
-		MessageQueue: &primitive.MessageQueue{
-			Topic:      msgs[0].Topic,
-			BrokerName: brokerName,
-			QueueId:    qId,
-		},
-		QueueOffset: off,
-		//TransactionID: sendResponse.TransactionId,
-		RegionID: regionId,
-		TraceOn:  trace != "" && trace != _TranceOff,
+
+	resp.Status = status
+	resp.MsgID = cmd.ExtFields["msgId"]
+	resp.OffsetMsgID = cmd.ExtFields["msgId"]
+	resp.MessageQueue = &primitive.MessageQueue{
+		Topic:      msgs[0].Topic,
+		BrokerName: brokerName,
+		QueueId:    qId,
 	}
+	resp.QueueOffset = off
+	//TransactionID: sendResponse.TransactionId,
+	resp.RegionID = regionId
+	resp.TraceOn = trace != "" && trace != _TranceOff
+
 }
 
 // PullMessage with sync

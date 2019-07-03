@@ -30,8 +30,7 @@ import (
 func main() {
 	nameServerAddr := "127.0.0.1:9876"
 	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2),
-		primitive.WithChainInterceptor(UserFirstInterceptor()))
-		//primitive.WithChainInterceptor(UserFirstInterceptor(), UserSecondInterceptor()))
+		primitive.WithChainInterceptor(UserFirstInterceptor(), UserSecondInterceptor()))
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())

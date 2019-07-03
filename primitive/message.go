@@ -130,6 +130,9 @@ type MessageQueue struct {
 }
 
 func (mq *MessageQueue) String() string {
+	if mq == nil {
+		return fmt.Sprintf("MessageQueue is nil")
+	}
 	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
 }
 

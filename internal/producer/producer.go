@@ -125,21 +125,27 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 		return nil, errors.New("topic is nil")
 	}
 
+	resp := new(primitive.SendResult)
 	if p.interceptor != nil {
-		var (
-			reply *primitive.SendResult
-		)
-		err := p.interceptor(ctx, msg, reply, func(ctx context.Context, req, reply interface{}) error {
-			reply, err := p.sendSync(ctx, msg)
+		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
+			var err error
+			realReq := req.(*primitive.Message)
+			realReply := reply.(*primitive.SendResult)
+			err = p.sendSync(ctx, realReq, realReply)
+			fmt.Printf("result: %v \n", reply)
 			return err
 		})
-		return reply, err
+		if resp == nil {
+			fmt.Printf("reply is nil \n")
+		}
+		return resp, err
 	}
 
-	return p.sendSync(ctx, msg)
+	p.sendSync(ctx, msg, resp)
+	return resp, nil
 }
 
-func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, resp *primitive.SendResult) error {
 
 	retryTime := 1 + p.options.RetryTimesWhenSendFailed
 
@@ -156,7 +162,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message) 
 
 		addr := kernel.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
-			return nil, fmt.Errorf("topic=%s route info not found", mq.Topic)
+			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
 		res, _err := p.client.InvokeSync(addr, p.buildSendRequest(mq, msg), 3*time.Second)
@@ -164,9 +170,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message) 
 			err = _err
 			continue
 		}
-		return p.client.ProcessSendResponse(mq.BrokerName, res, msg), nil
+		p.client.ProcessSendResponse(mq.BrokerName, res, resp, msg)
+		return nil
 	}
-	return nil, err
+	return err
 }
 
 func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
