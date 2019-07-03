@@ -18,48 +18,36 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+
+	"github.com/apache/rocketmq-client-go/internal/producer"
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
-type Message struct{
-	Topic string
-	Body []byte
-	switcher bool
-}
-
-func doInt(resp interface{}) {
-	resp = &Message{
-		Topic: "hahha",
-		Body: []byte("heiya heiya"),
-	}
-}
-
-func doStruct(resp *Message) {
-	resp = &Message{
-		Topic: "hahha",
-		Body: []byte("heiya heiya"),
-	}
-}
-
-func doField(resp *Message) {
-	resp.Topic = "haha"
-	resp.Body = []byte("lalal")
-	resp.switcher = true
-}
-
 func main() {
-	r := new(Message)
-	doInt(r)
-	fmt.Printf("after interface, msg: %v\n", r)
+	nameServerAddr := "127.0.0.1:9876"
+	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2))
+	err := p.Start()
+	if err != nil {
+		fmt.Printf("start producer error: %s", err.Error())
+		os.Exit(1)
+	}
+	for i := 0; i < 1000; i++ {
+		res, err := p.SendSync(context.Background(), &primitive.Message{
+			Topic: "test",
+			Body:  []byte("Hello RocketMQ Go Client!"),
+		})
 
-	r1 := new(Message)
-	doStruct(r1)
-	fmt.Printf("after struct, msg: %v\n", r1)
-
-	r2 := new(Message)
-	doField(r2)
-	fmt.Printf("after field. msg: %v\n", r2)
+		if err != nil {
+			fmt.Printf("send message error: %s\n", err)
+		} else {
+			fmt.Printf("send message success: result=%s\n", res.String())
+		}
+	}
+	err = p.Shutdown()
+	if err != nil {
+		fmt.Printf("shundown producer error: %s", err.Error())
+	}
 }
-
-
-
