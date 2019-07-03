@@ -17,7 +17,9 @@ limitations under the License.
 
 package primitive
 
-import "context"
+import (
+	"context"
+)
 
 // PInvoker finish a send invoke on producer.
 type PInvoker func(ctx context.Context, req, reply interface{}) error
@@ -46,4 +48,8 @@ func LogPInterceptor() PInterceptor {
 	}
 }
 
+// CInviker finish a message invoke on consumer
+type CInvoker func(ctx *ConsumeMessageContext, msgs []*MessageExt, reply ConsumeResult) error
 
+// CInterceptor intercepts the invoke of a consume on messages.
+type CInterceptor func(ctx *ConsumeMessageContext, msgs []*MessageExt, reply ConsumeResult, next CInvoker) error

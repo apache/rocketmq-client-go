@@ -55,10 +55,10 @@ func (result *SendResult) String() string {
 		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
 }
 
-// PullStatus pull status
+// PullStatus pull Status
 type PullStatus int
 
-// predefined pull status
+// predefined pull Status
 const (
 	PullFound PullStatus = iota
 	PullNoNewMsg

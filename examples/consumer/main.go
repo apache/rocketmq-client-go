@@ -32,7 +32,7 @@ func main() {
 		ConsumerModel:  primitive.Clustering,
 		FromWhere:      primitive.ConsumeFromFirstOffset,
 	})
-	err := c.Subscribe("test", primitive.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
+	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
 		fmt.Println(msgs)
 		return primitive.ConsumeSuccess, nil

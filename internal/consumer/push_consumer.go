@@ -21,14 +21,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/internal/kernel"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"math"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 // In most scenarios, this is the mostly recommended usage to consume messages.
@@ -48,28 +49,30 @@ type PushConsumer interface {
 	Start() error
 	Shutdown()
 	Subscribe(topic string, selector primitive.MessageSelector,
-		f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
+		f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
 }
 
 type pushConsumer struct {
 	*defaultConsumer
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
-	consume                      func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
+	consume                      func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
+
+	interceptor primitive.CInterceptor
 }
 
-func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOptions) (PushConsumer, error) {
-	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
+func NewPushConsumer(consumerGroup string, opts primitive.ConsumerOptions) (PushConsumer, error) {
+	if err := utils.VerifyIP(opts.NameServerAddr); err != nil {
 		return nil, err
 	}
-	opt.InstanceName = "DEFAULT"
-	opt.ClientIP = utils.LocalIP()
-	if opt.NameServerAddr == "" {
-		rlog.Fatal("opt.NameServerAddr can't be empty")
+	opts.InstanceName = "DEFAULT"
+	opts.ClientIP = utils.LocalIP()
+	if opts.NameServerAddr == "" {
+		rlog.Fatal("opts.NameServerAddr can't be empty")
 	}
-	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	err := os.Setenv(kernel.EnvNameServerAddr, opts.NameServerAddr)
 	if err != nil {
 		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
 	}
@@ -78,16 +81,16 @@ func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOptions) (PushC
 		cType:          _PushConsume,
 		state:          kernel.StateCreateJust,
 		prCh:           make(chan PullRequest, 4),
-		model:          opt.ConsumerModel,
-		consumeOrderly: opt.ConsumeOrderly,
-		fromWhere:      opt.FromWhere,
-		option:         opt,
+		model:          opts.ConsumerModel,
+		consumeOrderly: opts.ConsumeOrderly,
+		fromWhere:      opts.FromWhere,
+		option:         opts,
 	}
 
-	if opt.Strategy == nil {
-		opt.Strategy = primitive.AllocateByAveragely
+	if opts.Strategy == nil {
+		opts.Strategy = primitive.AllocateByAveragely
 	}
-	dc.allocate = opt.Strategy
+	dc.allocate = opts.Strategy
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
@@ -98,7 +101,35 @@ func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOptions) (PushC
 	} else {
 		p.submitToConsume = p.consumeMessageCurrently
 	}
+
+	ChainInterceptor(p)
+
 	return p, nil
+}
+
+// ChainInterceptor chain list of interceptor as one interceptor
+func ChainInterceptor(p *pushConsumer) {
+	interceptors := p.option.Interceptors
+	switch len(interceptors) {
+	case 0:
+		p.interceptor = nil
+	case 1:
+		p.interceptor = interceptors[0]
+	default:
+		p.interceptor = func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult, invoker primitive.CInvoker) error {
+			return interceptors[0](ctx, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
+		}
+	}
+}
+
+// getChainedInterceptor recursively generate the chained invoker.
+func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, finalInvoker primitive.CInvoker) primitive.CInvoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
+		return interceptors[cur+1](ctx, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
 }
 
 func (pc *pushConsumer) Start() error {
@@ -163,7 +194,7 @@ func (pc *pushConsumer) Start() error {
 func (pc *pushConsumer) Shutdown() {}
 
 func (pc *pushConsumer) Subscribe(topic string, selector primitive.MessageSelector,
-	f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
+	f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
 	if pc.state != kernel.StateCreateJust {
 		return errors.New("subscribe topic only started before")
 	}
@@ -484,7 +515,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *primitive.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(ctx *primitive.ConsumeMessageContext, msg *primitive.MessageExt) bool {
 	return true
 }
 
@@ -569,16 +600,6 @@ func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue
 	return true
 }
 
-type ConsumeMessageContext struct {
-	consumerGroup string
-	msgs          []*primitive.MessageExt
-	mq            *primitive.MessageQueue
-	success       bool
-	status        string
-	// mqTractContext
-	properties map[string]string
-}
-
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
@@ -602,8 +623,8 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				return
 			}
 
-			ctx := &ConsumeMessageContext{
-				properties: make(map[string]string),
+			ctx := &primitive.ConsumeMessageContext{
+				Properties: make(map[string]string),
 			}
 			// TODO hook
 			beginTime := time.Now()
@@ -619,16 +640,21 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
 			}
-			result, err := pc.consume(ctx, subMsgs)
+			var result primitive.ConsumeResult
+			err := pc.interceptor(ctx, subMsgs, result, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
+				reply, err := pc.consume(ctx, subMsgs)
+				return err
+			})
+
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				ctx.properties["ConsumeContextType"] = "EXCEPTION"
+				ctx.Properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
-				ctx.properties["ConsumeContextType"] = "TIMEOUT"
+				ctx.Properties["ConsumeContextType"] = "TIMEOUT"
 			} else if result == primitive.ConsumeSuccess {
-				ctx.properties["ConsumeContextType"] = "SUCCESS"
+				ctx.Properties["ConsumeContextType"] = "SUCCESS"
 			} else {
-				ctx.properties["ConsumeContextType"] = "RECONSUME_LATER"
+				ctx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
 			}
 
 			// TODO hook

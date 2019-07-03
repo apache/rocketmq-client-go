@@ -135,7 +135,7 @@ type ConsumerOptions struct {
 
 	// Max re-consume times. -1 means 16 times.
 	//
-	// If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
+	// If messages are re-consumed more than {@link #maxReconsumeTimes} before Success, it's be directed to a deletion
 	// queue waiting.
 	MaxReconsumeTimes int
 
@@ -150,6 +150,8 @@ type ConsumerOptions struct {
 	ConsumeOrderly bool
 	FromWhere      ConsumeFromWhere
 	// TODO traceDispatcher
+
+	Interceptors []CInterceptor
 }
 
 func (opt *ClientOption) ChangeInstanceNameToPID() {
