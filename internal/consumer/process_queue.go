@@ -18,7 +18,7 @@ limitations under the License.
 package consumer
 
 import (
-	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/utils"
@@ -51,7 +51,7 @@ type processQueue struct {
 	consuming                  bool
 	msgAccCnt                  int64
 	lockConsume                sync.Mutex
-	msgCh                      chan []*kernel.MessageExt
+	msgCh                      chan []*primitive.MessageExt
 }
 
 func newProcessQueue() *processQueue {
@@ -60,13 +60,13 @@ func newProcessQueue() *processQueue {
 		lastPullTime:    time.Now(),
 		lastConsumeTime: time.Now(),
 		lastLockTime:    time.Now(),
-		msgCh:           make(chan []*kernel.MessageExt, 32),
+		msgCh:           make(chan []*primitive.MessageExt, 32),
 	}
 	return pq
 }
 
-func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
-	if len(messages) == 0 {
+func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
+	if messages == nil || len(messages) == 0 {
 		return
 	}
 	pq.mutex.Lock()
@@ -92,7 +92,7 @@ func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
 	}
 
 	msg := messages[len(messages)-1]
-	maxOffset, err := strconv.ParseInt(msg.Properties[kernel.PropertyMaxOffset], 10, 64)
+	maxOffset, err := strconv.ParseInt(msg.Properties[primitive.PropertyMaxOffset], 10, 64)
 	if err != nil {
 		acc := maxOffset - msg.QueueOffset
 		if acc > 0 {
@@ -101,7 +101,7 @@ func (pq *processQueue) putMessage(messages ...*kernel.MessageExt) {
 	}
 }
 
-func (pq *processQueue) removeMessage(messages ...*kernel.MessageExt) int64 {
+func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 	result := int64(-1)
 	pq.mutex.Lock()
 	pq.lastConsumeTime = time.Now()
@@ -129,11 +129,11 @@ func (pq *processQueue) removeMessage(messages ...*kernel.MessageExt) int64 {
 }
 
 func (pq *processQueue) isLockExpired() bool {
-	return time.Since(pq.lastLockTime) > _RebalanceLockMaxTime
+	return time.Now().Sub(pq.lastLockTime) > _RebalanceLockMaxTime
 }
 
 func (pq *processQueue) isPullExpired() bool {
-	return time.Since(pq.lastPullTime) > _PullMaxIdleTime
+	return time.Now().Sub(pq.lastPullTime) > _PullMaxIdleTime
 }
 
 func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
@@ -152,8 +152,8 @@ func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
 			return
 		}
 		_, firstValue := pq.msgCache.Min()
-		msg := firstValue.(*kernel.MessageExt)
-		startTime := msg.Properties[kernel.PropertyConsumeStartTime]
+		msg := firstValue.(*primitive.MessageExt)
+		startTime := msg.Properties[primitive.PropertyConsumeStartTime]
 		if startTime != "" {
 			st, err := strconv.ParseInt(startTime, 10, 64)
 			if err != nil {
@@ -187,15 +187,15 @@ func (pq *processQueue) getMaxSpan() int {
 	return int(lastKey.(int64) - firstKey.(int64))
 }
 
-func (pq *processQueue) getMessages() []*kernel.MessageExt {
+func (pq *processQueue) getMessages() []*primitive.MessageExt {
 	return <-pq.msgCh
 }
 
-func (pq *processQueue) takeMessages(number int) []*kernel.MessageExt {
+func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
 	for pq.msgCache.Empty() {
 		time.Sleep(10 * time.Millisecond)
 	}
-	result := make([]*kernel.MessageExt, number)
+	result := make([]*primitive.MessageExt, number)
 	i := 0
 	pq.mutex.Lock()
 	for ; i < number; i++ {
@@ -203,7 +203,7 @@ func (pq *processQueue) takeMessages(number int) []*kernel.MessageExt {
 		if v == nil {
 			break
 		}
-		result[i] = v.(*kernel.MessageExt)
+		result[i] = v.(*primitive.MessageExt)
 		pq.msgCache.Remove(k)
 	}
 	pq.mutex.Unlock()

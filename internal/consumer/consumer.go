@@ -20,8 +20,9 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
@@ -53,135 +54,18 @@ const (
 	_PersistConsumerOffsetInterval = 5 * time.Second
 )
 
-// Message model defines the way how messages are delivered to each consumer clients.
-// </p>
-//
-// RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
-// the same {@link #consumerGroup} would only consume shards of the messages subscribed, which achieves load
-// balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
-// separately.
-// </p>
-//
-// This field defaults to clustering.
-type MessageModel int
-
-const (
-	BroadCasting MessageModel = iota
-	Clustering
-)
-
-func (mode MessageModel) String() string {
-	switch mode {
-	case BroadCasting:
-		return "BroadCasting"
-	case Clustering:
-		return "Clustering"
-	default:
-		return "Unknown"
-	}
-}
-
-// Consuming point on consumer booting.
-// </p>
-//
-// There are three consuming points:
-// <ul>
-// <li>
-// <code>CONSUME_FROM_LAST_OFFSET</code>: consumer clients pick up where it stopped previously.
-// If it were a newly booting up consumer client, according aging of the consumer group, there are two
-// cases:
-// <ol>
-// <li>
-// if the consumer group is created so recently that the earliest message being subscribed has yet
-// expired, which means the consumer group represents a lately launched business, consuming will
-// start from the very beginning;
-// </li>
-// <li>
-// if the earliest message being subscribed has expired, consuming will start from the latest
-// messages, meaning messages born prior to the booting timestamp would be ignored.
-// </li>
-// </ol>
-// </li>
-// <li>
-// <code>CONSUME_FROM_FIRST_OFFSET</code>: Consumer client will start from earliest messages available.
-// </li>
-// <li>
-// <code>CONSUME_FROM_TIMESTAMP</code>: Consumer client will start from specified timestamp, which means
-// messages born prior to {@link #consumeTimestamp} will be ignored
-// </li>
-// </ul>
-type ConsumeFromWhere int
-
-const (
-	ConsumeFromLastOffset ConsumeFromWhere = iota
-	ConsumeFromFirstOffset
-	ConsumeFromTimestamp
-)
-
 type ConsumeType string
 
 const (
 	_PullConsume = ConsumeType("pull")
 	_PushConsume = ConsumeType("push")
-)
 
-type ExpressionType string
-
-const (
-	/**
-	 * <ul>
-	 * Keywords:
-	 * <li>{@code AND, OR, NOT, BETWEEN, IN, TRUE, FALSE, IS, NULL}</li>
-	 * </ul>
-	 * <p/>
-	 * <ul>
-	 * Data type:
-	 * <li>Boolean, like: TRUE, FALSE</li>
-	 * <li>String, like: 'abc'</li>
-	 * <li>Decimal, like: 123</li>
-	 * <li>Float number, like: 3.1415</li>
-	 * </ul>
-	 * <p/>
-	 * <ul>
-	 * Grammar:
-	 * <li>{@code AND, OR}</li>
-	 * <li>{@code >, >=, <, <=, =}</li>
-	 * <li>{@code BETWEEN A AND B}, equals to {@code >=A AND <=B}</li>
-	 * <li>{@code NOT BETWEEN A AND B}, equals to {@code >B OR <A}</li>
-	 * <li>{@code IN ('a', 'b')}, equals to {@code ='a' OR ='b'}, this operation only support String type.</li>
-	 * <li>{@code IS NULL}, {@code IS NOT NULL}, check parameter whether is null, or not.</li>
-	 * <li>{@code =TRUE}, {@code =FALSE}, check parameter whether is true, or false.</li>
-	 * </ul>
-	 * <p/>
-	 * <p>
-	 * Example:
-	 * (a > 10 AND a < 100) OR (b IS NOT NULL AND b=TRUE)
-	 * </p>
-	 */
-	SQL92 = ExpressionType("SQL92")
-
-	/**
-	 * Only support or operation such as
-	 * "tag1 || tag2 || tag3", <br>
-	 * If null or * expression, meaning subscribe all.
-	 */
-	TAG = ExpressionType("TAG")
-)
-
-func IsTagType(exp string) bool {
-	if exp == "" || exp == "TAG" {
-		return true
-	}
-	return false
-}
-
-const (
 	_SubAll = "*"
 )
 
 type PullRequest struct {
 	consumerGroup string
-	mq            *kernel.MessageQueue
+	mq            *primitive.MessageQueue
 	pq            *processQueue
 	nextOffset    int64
 	lockedFirst   bool
@@ -190,83 +74,6 @@ type PullRequest struct {
 func (pr *PullRequest) String() string {
 	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: %d]",
 		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
-}
-
-type ConsumerOption struct {
-	kernel.ClientOption
-	NameServerAddr string
-
-	/**
-	 * Backtracking consumption time with second precision. Time format is
-	 * 20131223171201<br>
-	 * Implying Seventeen twelve and 01 seconds on December 23, 2013 year<br>
-	 * Default backtracking consumption time Half an hour ago.
-	 */
-	ConsumeTimestamp string
-
-	// The socket timeout in milliseconds
-	ConsumerPullTimeout time.Duration
-
-	// Concurrently max span offset.it has no effect on sequential consumption
-	ConsumeConcurrentlyMaxSpan int
-
-	// Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
-	// Consider the {PullBatchSize}, the instantaneous value may exceed the limit
-	PullThresholdForQueue int64
-
-	// Limit the cached message size on queue level, each message queue will cache at most 100 MiB messages by default,
-	// Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
-	//
-	// The size of a message only measured by message body, so it's not accurate
-	PullThresholdSizeForQueue int
-
-	// Flow control threshold on topic level, default value is -1(Unlimited)
-	//
-	// The value of {@code pullThresholdForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdForTopic} if it is't unlimited
-	//
-	// For example, if the value of pullThresholdForTopic is 1000 and 10 message queues are assigned to this consumer,
-	// then pullThresholdForQueue will be set to 100
-	PullThresholdForTopic int
-
-	// Limit the cached message size on topic level, default value is -1 MiB(Unlimited)
-	//
-	// The value of {@code pullThresholdSizeForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdSizeForTopic} if it is't unlimited
-	//
-	// For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
-	// assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
-	PullThresholdSizeForTopic int
-
-	// Message pull Interval
-	PullInterval time.Duration
-
-	// Batch consumption size
-	ConsumeMessageBatchMaxSize int
-
-	// Batch pull size
-	PullBatchSize int32
-
-	// Whether update subscription relationship when every pull
-	PostSubscriptionWhenPull bool
-
-	// Max re-consume times. -1 means 16 times.
-	//
-	// If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
-	// queue waiting.
-	MaxReconsumeTimes int
-
-	// Suspending pulling time for cases requiring slow pulling like flow-control scenario.
-	SuspendCurrentQueueTimeMillis time.Duration
-
-	// Maximum amount of time a message may block the consuming thread.
-	ConsumeTimeout time.Duration
-
-	ConsumerModel  MessageModel
-	Strategy       AllocateStrategy
-	ConsumeOrderly bool
-	FromWhere      ConsumeFromWhere
-	// TODO traceDispatcher
 }
 
 // TODO hook
@@ -279,25 +86,25 @@ type defaultConsumer struct {
 	 * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
 	 */
 	consumerGroup  string
-	model          MessageModel
-	allocate       func(string, string, []*kernel.MessageQueue, []string) []*kernel.MessageQueue
+	model          primitive.MessageModel
+	allocate       func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
 	unitMode       bool
 	consumeOrderly bool
-	fromWhere      ConsumeFromWhere
+	fromWhere      primitive.ConsumeFromWhere
 
 	cType     ConsumeType
 	client    *kernel.RMQClient
-	mqChanged func(topic string, mqAll, mqDivided []*kernel.MessageQueue)
+	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
 	state     kernel.ServiceState
 	pause     bool
 	once      sync.Once
-	option    ConsumerOption
-	// key: int, hash(*kernel.MessageQueue)
+	option    primitive.ConsumerOption
+	// key: int, hash(*primitive.MessageQueue)
 	// value: *processQueue
 	processQueueTable sync.Map
 
 	// key: topic(string)
-	// value: map[int]*kernel.MessageQueue
+	// value: map[int]*primitive.MessageQueue
 	topicSubscribeInfoTable sync.Map
 
 	// key: topic
@@ -314,19 +121,19 @@ func (dc *defaultConsumer) persistConsumerOffset() {
 		rlog.Errorf("consumer state error: %s", err.Error())
 		return
 	}
-	mqs := make([]*kernel.MessageQueue, 0)
+	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mqs = append(mqs, key.(*kernel.MessageQueue))
+		mqs = append(mqs, key.(*primitive.MessageQueue))
 		return true
 	})
 	dc.storage.persist(mqs)
 }
 
-func (dc *defaultConsumer) updateTopicSubscribeInfo(topic string, mqs []*kernel.MessageQueue) {
+func (dc *defaultConsumer) updateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
 	_, exist := dc.subscriptionDataTable.Load(topic)
 	// does subscribe, if true, replace it
 	if exist {
-		mqSet := make(map[int]*kernel.MessageQueue)
+		mqSet := make(map[int]*primitive.MessageQueue, 0)
 		for idx := range mqs {
 			mq := mqs[idx]
 			mqSet[mq.HashCode()] = mq
@@ -355,23 +162,23 @@ func (dc *defaultConsumer) doBalance() {
 			rlog.Warnf("do balance of group: %s, but topic: %s does not exist.", dc.consumerGroup, topic)
 			return true
 		}
-		mqs := v.([]*kernel.MessageQueue)
+		mqs := v.([]*primitive.MessageQueue)
 		switch dc.model {
-		case BroadCasting:
+		case primitive.BroadCasting:
 			changed := dc.updateProcessQueueTable(topic, mqs)
 			if changed {
 				dc.mqChanged(topic, mqs, mqs)
 				rlog.Infof("messageQueueChanged, Group: %s, Topic: %s, MessageQueues: %v",
 					dc.consumerGroup, topic, mqs)
 			}
-		case Clustering:
+		case primitive.Clustering:
 			cidAll := dc.findConsumerList(topic)
 			if cidAll == nil {
 				rlog.Warnf("do balance for Group: %s, Topic: %s get consumer id list failed",
 					dc.consumerGroup, topic)
 				return true
 			}
-			mqAll := make([]*kernel.MessageQueue, len(mqs))
+			mqAll := make([]*primitive.MessageQueue, len(mqs))
 			copy(mqAll, mqs)
 			sort.Strings(cidAll)
 			sort.SliceStable(mqAll, func(i, j int) bool {
@@ -390,9 +197,9 @@ func (dc *defaultConsumer) doBalance() {
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
-				rlog.Infof("do balance result changed, allocateMessageQueueStrategyName=%s, group=%s, "+
+				rlog.Infof("do balance result changed, group=%s, "+
 					"topic=%s, clientId=%s, mqAllSize=%d, cidAllSize=%d, rebalanceResultSize=%d, "+
-					"rebalanceResultSet=%v", string(dc.option.Strategy), dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
+					"rebalanceResultSet=%v", dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
 					len(cidAll), len(allocateResult), allocateResult)
 
 			}
@@ -418,12 +225,12 @@ func (dc *defaultConsumer) makeSureStateOK() error {
 }
 
 type lockBatchRequestBody struct {
-	ConsumerGroup string                 `json:"consumerGroup"`
-	ClientId      string                 `json:"clientId"`
-	MQs           []*kernel.MessageQueue `json:"mqSet"`
+	ConsumerGroup string                    `json:"consumerGroup"`
+	ClientId      string                    `json:"clientId"`
+	MQs           []*primitive.MessageQueue `json:"mqSet"`
 }
 
-func (dc *defaultConsumer) lock(mq *kernel.MessageQueue) bool {
+func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 	brokerResult := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, kernel.MasterId, true)
 
 	if brokerResult == nil {
@@ -433,7 +240,7 @@ func (dc *defaultConsumer) lock(mq *kernel.MessageQueue) bool {
 	body := &lockBatchRequestBody{
 		ConsumerGroup: dc.consumerGroup,
 		ClientId:      dc.client.ClientID(),
-		MQs:           []*kernel.MessageQueue{mq},
+		MQs:           []*primitive.MessageQueue{mq},
 	}
 	lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
 	var lockOK bool
@@ -453,7 +260,7 @@ func (dc *defaultConsumer) lock(mq *kernel.MessageQueue) bool {
 	return lockOK
 }
 
-func (dc *defaultConsumer) unlock(mq *kernel.MessageQueue, oneway bool) {
+func (dc *defaultConsumer) unlock(mq *primitive.MessageQueue, oneway bool) {
 	brokerResult := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, kernel.MasterId, true)
 
 	if brokerResult == nil {
@@ -463,14 +270,14 @@ func (dc *defaultConsumer) unlock(mq *kernel.MessageQueue, oneway bool) {
 	body := &lockBatchRequestBody{
 		ConsumerGroup: dc.consumerGroup,
 		ClientId:      dc.client.ClientID(),
-		MQs:           []*kernel.MessageQueue{mq},
+		MQs:           []*primitive.MessageQueue{mq},
 	}
 	dc.doUnlock(brokerResult.BrokerAddr, body, oneway)
 	rlog.Warnf("unlock messageQueue. group:%s, clientId:%s, mq:%s",
 		dc.consumerGroup, dc.client.ClientID(), mq.String())
 }
 
-func (dc *defaultConsumer) lockAll(mq kernel.MessageQueue) {
+func (dc *defaultConsumer) lockAll(mq primitive.MessageQueue) {
 	mqMapSet := dc.buildProcessQueueTableByBrokerName()
 	for broker, mqs := range mqMapSet {
 		if len(mqs) == 0 {
@@ -486,7 +293,7 @@ func (dc *defaultConsumer) lockAll(mq kernel.MessageQueue) {
 			MQs:           mqs,
 		}
 		lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
-		set := make(map[int]bool)
+		set := make(map[int]bool, 0)
 		for idx := range lockedMQ {
 			_mq := lockedMQ[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
@@ -539,7 +346,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 	}
 }
 
-func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []kernel.MessageQueue {
+func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(kernel.ReqLockBatchMQ, nil, data)
 	response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
@@ -548,7 +355,7 @@ func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []ker
 		return nil
 	}
 	lockOKMQSet := struct {
-		MQs []kernel.MessageQueue `json:"lockOKMQSet"`
+		MQs []primitive.MessageQueue `json:"lockOKMQSet"`
 	}{}
 	err = json.Unmarshal(response.Body, &lockOKMQSet)
 	if err != nil {
@@ -577,14 +384,14 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	}
 }
 
-func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*kernel.MessageQueue {
-	result := make(map[string][]*kernel.MessageQueue)
+func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*primitive.MessageQueue {
+	result := make(map[string][]*primitive.MessageQueue, 0)
 
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mq := key.(*kernel.MessageQueue)
+		mq := key.(*primitive.MessageQueue)
 		mqs, exist := result[mq.BrokerName]
 		if !exist {
-			mqs = make([]*kernel.MessageQueue, 0)
+			mqs = make([]*primitive.MessageQueue, 0)
 		}
 		mqs = append(mqs, mq)
 		result[mq.BrokerName] = mqs
@@ -595,15 +402,15 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*ke
 }
 
 // TODO 问题不少 需要再好好对一下
-func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.MessageQueue) bool {
+func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
-	mqSet := make(map[*kernel.MessageQueue]bool)
+	mqSet := make(map[*primitive.MessageQueue]bool)
 	for idx := range mqs {
 		mqSet[mqs[idx]] = true
 	}
 	// TODO
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mq := key.(*kernel.MessageQueue)
+		mq := key.(*primitive.MessageQueue)
 		pq := value.(*processQueue)
 		if mq.Topic == topic {
 			if !mqSet[mq] {
@@ -666,13 +473,13 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*kernel.M
 	return changed
 }
 
-func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *kernel.MessageQueue, pq *processQueue) bool {
-	dc.storage.persist([]*kernel.MessageQueue{mq})
+func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue, pq *processQueue) bool {
+	dc.storage.persist([]*primitive.MessageQueue{mq})
 	dc.storage.remove(mq)
 	return true
 }
 
-func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
+func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
 	if dc.cType == _PullConsume {
 		return 0
 	}
@@ -682,7 +489,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 		result = lastOffset
 	} else {
 		switch dc.fromWhere {
-		case ConsumeFromLastOffset:
+		case primitive.ConsumeFromLastOffset:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
 					lastOffset = 0
@@ -697,11 +504,11 @@ func (dc *defaultConsumer) computePullFromWhere(mq *kernel.MessageQueue) int64 {
 			} else {
 				result = -1
 			}
-		case ConsumeFromFirstOffset:
+		case primitive.ConsumeFromFirstOffset:
 			if lastOffset == -1 {
 				result = 0
 			}
-		case ConsumeFromTimestamp:
+		case primitive.ConsumeFromTimestamp:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
 					lastOffset, err := dc.queryMaxOffset(mq)
@@ -760,12 +567,12 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 	return nil
 }
 
-func (dc *defaultConsumer) sendBack(msg *kernel.MessageExt, level int) error {
+func (dc *defaultConsumer) sendBack(msg *primitive.MessageExt, level int) error {
 	return nil
 }
 
 // QueryMaxOffset with specific queueId and topic
-func (dc *defaultConsumer) queryMaxOffset(mq *kernel.MessageQueue) (int64, error) {
+func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, error) {
 	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
 		kernel.UpdateTopicRouteInfo(mq.Topic)
@@ -790,7 +597,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *kernel.MessageQueue) (int64, error
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic
-func (dc *defaultConsumer) searchOffsetByTimestamp(mq *kernel.MessageQueue, timestamp int64) (int64, error) {
+func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, timestamp int64) (int64, error) {
 	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
 		kernel.UpdateTopicRouteInfo(mq.Topic)
@@ -815,19 +622,19 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *kernel.MessageQueue, time
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
-func buildSubscriptionData(topic string, selector MessageSelector) *kernel.SubscriptionData {
+func buildSubscriptionData(topic string, selector primitive.MessageSelector) *kernel.SubscriptionData {
 	subData := &kernel.SubscriptionData{
 		Topic:     topic,
 		SubString: selector.Expression,
 		ExpType:   string(selector.Type),
 	}
 
-	if selector.Type != "" && selector.Type != TAG {
+	if selector.Type != "" && selector.Type != primitive.TAG {
 		return subData
 	}
 
 	if selector.Expression == "" || selector.Expression == _SubAll {
-		subData.ExpType = string(TAG)
+		subData.ExpType = string(primitive.TAG)
 		subData.SubString = _SubAll
 	} else {
 		tags := strings.Split(selector.Expression, "\\|\\|")
@@ -847,7 +654,7 @@ func buildSubscriptionData(topic string, selector MessageSelector) *kernel.Subsc
 	return subData
 }
 
-func getNextQueueOf(topic string) *kernel.MessageQueue {
+func getNextQueueOf(topic string) *primitive.MessageQueue {
 	queues, err := kernel.FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
 		rlog.Error(err.Error())
@@ -890,7 +697,7 @@ func clearCommitOffsetFlag(sysFlag int32) int32 {
 	return sysFlag & (^0x1 << 0)
 }
 
-func tryFindBroker(mq *kernel.MessageQueue) *kernel.FindBrokerResult {
+func tryFindBroker(mq *primitive.MessageQueue) *kernel.FindBrokerResult {
 	result := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 
 	if result == nil {
@@ -903,11 +710,11 @@ var (
 	pullFromWhichNodeTable sync.Map
 )
 
-func updatePullFromWhichNode(mq *kernel.MessageQueue, brokerId int64) {
+func updatePullFromWhichNode(mq *primitive.MessageQueue, brokerId int64) {
 	pullFromWhichNodeTable.Store(mq.HashCode(), brokerId)
 }
 
-func recalculatePullFromWhichNode(mq *kernel.MessageQueue) int64 {
+func recalculatePullFromWhichNode(mq *primitive.MessageQueue) int64 {
 	v, exist := pullFromWhichNodeTable.Load(mq.HashCode())
 	if exist {
 		return v.(int64)

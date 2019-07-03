@@ -20,8 +20,9 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
-	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"os"
@@ -50,10 +51,10 @@ func init() {
 }
 
 type OffsetStore interface {
-	persist(mqs []*kernel.MessageQueue)
-	remove(mq *kernel.MessageQueue)
-	read(mq *kernel.MessageQueue, t readType) int64
-	update(mq *kernel.MessageQueue, offset int64, increaseOnly bool)
+	persist(mqs []*primitive.MessageQueue)
+	remove(mq *primitive.MessageQueue)
+	read(mq *primitive.MessageQueue, t readType) int64
+	update(mq *primitive.MessageQueue, offset int64, increaseOnly bool)
 }
 
 type localFileOffsetStore struct {
@@ -108,7 +109,7 @@ func (local *localFileOffsetStore) load() {
 	}
 }
 
-func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {
+func (local *localFileOffsetStore) read(mq *primitive.MessageQueue, t readType) int64 {
 	if t == _ReadFromMemory || t == _ReadMemoryThenStore {
 		off := readFromMemory(local.OffsetTable, mq)
 		if off >= 0 || (off == -1 && t == _ReadFromMemory) {
@@ -119,7 +120,7 @@ func (local *localFileOffsetStore) read(mq *kernel.MessageQueue, t readType) int
 	return readFromMemory(local.OffsetTable, mq)
 }
 
-func (local *localFileOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
+func (local *localFileOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
 	rlog.Debugf("update offset: %s to %d", mq, offset)
 	localOffset, exist := local.OffsetTable[mq.Topic]
 	if !exist {
@@ -143,7 +144,7 @@ func (local *localFileOffsetStore) update(mq *kernel.MessageQueue, offset int64,
 	}
 }
 
-func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {
+func (local *localFileOffsetStore) persist(mqs []*primitive.MessageQueue) {
 	if len(mqs) == 0 {
 		return
 	}
@@ -171,7 +172,7 @@ func (local *localFileOffsetStore) persist(mqs []*kernel.MessageQueue) {
 	utils.CheckError(fmt.Sprintf("persist offset to %s", local.path), utils.WriteToFile(local.path, data))
 }
 
-func (local *localFileOffsetStore) remove(mq *kernel.MessageQueue) {
+func (local *localFileOffsetStore) remove(mq *primitive.MessageQueue) {
 	// nothing to do
 }
 
@@ -190,7 +191,7 @@ func NewRemoteOffsetStore(group string, client *kernel.RMQClient) OffsetStore {
 	}
 }
 
-func (r *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue) {
+func (r *remoteBrokerOffsetStore) persist(mqs []*primitive.MessageQueue) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if len(mqs) == 0 {
@@ -217,7 +218,7 @@ func (r *remoteBrokerOffsetStore) persist(mqs []*kernel.MessageQueue) {
 	}
 }
 
-func (r *remoteBrokerOffsetStore) remove(mq *kernel.MessageQueue) {
+func (r *remoteBrokerOffsetStore) remove(mq *primitive.MessageQueue) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if mq == nil {
@@ -231,7 +232,7 @@ func (r *remoteBrokerOffsetStore) remove(mq *kernel.MessageQueue) {
 	delete(offset, mq.QueueId)
 }
 
-func (r *remoteBrokerOffsetStore) read(mq *kernel.MessageQueue, t readType) int64 {
+func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) int64 {
 	r.mutex.RLock()
 	if t == _ReadFromMemory || t == _ReadMemoryThenStore {
 		off := readFromMemory(r.OffsetTable, mq)
@@ -251,7 +252,7 @@ func (r *remoteBrokerOffsetStore) read(mq *kernel.MessageQueue, t readType) int6
 	return off
 }
 
-func (r *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset int64, increaseOnly bool) {
+func (r *remoteBrokerOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
 	rlog.Debugf("update offset: %s to %d", mq, offset)
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -278,7 +279,7 @@ func (r *remoteBrokerOffsetStore) update(mq *kernel.MessageQueue, offset int64, 
 	}
 }
 
-func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq *kernel.MessageQueue) (int64, error) {
+func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq *primitive.MessageQueue) (int64, error) {
 	broker := kernel.FindBrokerAddrByName(mq.BrokerName)
 	if broker == "" {
 		kernel.UpdateTopicRouteInfo(mq.Topic)
@@ -330,7 +331,7 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group, topic strin
 	return r.client.InvokeOneWay(broker, cmd, 5*time.Second)
 }
 
-func readFromMemory(table map[string]map[int]*queueOffset, mq *kernel.MessageQueue) int64 {
+func readFromMemory(table map[string]map[int]*queueOffset, mq *primitive.MessageQueue) int64 {
 	localOffset, exist := table[mq.Topic]
 	if !exist {
 		return -1

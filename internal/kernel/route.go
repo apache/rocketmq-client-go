@@ -20,7 +20,8 @@ package kernel
 import (
 	"encoding/json"
 	"errors"
-	"github.com/apache/rocketmq-client-go/remote"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
@@ -98,7 +99,7 @@ func cleanOfflineBroker() {
 type TopicPublishInfo struct {
 	OrderTopic          bool
 	HaveTopicRouterInfo bool
-	MqList              []*MessageQueue
+	MqList              []*primitive.MessageQueue
 	RouteData           *TopicRouteData
 	TopicQueueIndex     int32
 }
@@ -221,19 +222,19 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 	return result
 }
 
-func FetchSubscribeMessageQueues(topic string) ([]*MessageQueue, error) {
+func FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
 	routeData, err := queryTopicRouteInfoFromServer(topic)
 
 	if err != nil {
 		return nil, err
 	}
 
-	mqs := make([]*MessageQueue, 0)
+	mqs := make([]*primitive.MessageQueue, 0)
 
 	for _, qd := range routeData.QueueDataList {
 		if queueIsReadable(qd.Perm) {
 			for i := 0; i < qd.ReadQueueNums; i++ {
-				mqs = append(mqs, &MessageQueue{Topic: topic, BrokerName: qd.BrokerName, QueueId: i})
+				mqs = append(mqs, &primitive.MessageQueue{Topic: topic, BrokerName: qd.BrokerName, QueueId: i})
 			}
 		}
 	}
@@ -321,7 +322,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 			item := strings.Split(broker, ":")
 			nums, _ := strconv.Atoi(item[1])
 			for i := 0; i < nums; i++ {
-				mq := &MessageQueue{
+				mq := &primitive.MessageQueue{
 					Topic:      topic,
 					BrokerName: item[0],
 					QueueId:    i,
@@ -357,7 +358,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 		}
 
 		for i := 0; i < qd.WriteQueueNums; i++ {
-			mq := &MessageQueue{
+			mq := &primitive.MessageQueue{
 				Topic:      topic,
 				BrokerName: qd.BrokerName,
 				QueueId:    i,
@@ -394,17 +395,19 @@ func (routeData *TopicRouteData) decode(data string) error {
 		bd := &BrokerData{
 			BrokerName:      v.Get("brokerName").String(),
 			Cluster:         v.Get("cluster").String(),
-			BrokerAddresses: make(map[int64]string),
+			BrokerAddresses: make(map[int64]string, 0),
 		}
 		addrs := v.Get("brokerAddrs").String()
 		strs := strings.Split(addrs[1:len(addrs)-1], ",")
-		for _, str := range strs {
-			i := strings.Index(str, ":")
-			if i < 0 {
-				continue
+		if strs != nil {
+			for _, str := range strs {
+				i := strings.Index(str, ":")
+				if i < 0 {
+					continue
+				}
+				id, _ := strconv.ParseInt(str[0:i], 10, 64)
+				bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
 			}
-			id, _ := strconv.ParseInt(str[0:i], 10, 64)
-			bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
 		}
 		routeData.BrokerDataList[idx] = bd
 	}
@@ -418,8 +421,13 @@ func (routeData *TopicRouteData) clone() *TopicRouteData {
 		BrokerDataList: make([]*BrokerData, len(routeData.BrokerDataList)),
 	}
 
-	copy(cloned.QueueDataList, routeData.QueueDataList)
-	copy(cloned.BrokerDataList, routeData.BrokerDataList)
+	for index, value := range routeData.QueueDataList {
+		cloned.QueueDataList[index] = value
+	}
+
+	for index, value := range routeData.BrokerDataList {
+		cloned.BrokerDataList[index] = value
+	}
 
 	return cloned
 }
