@@ -34,7 +34,7 @@ func main() {
 	})
 	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println(msgs)
+		fmt.Println("subscribe callbacl: %v", msgs)
 		return primitive.ConsumeSuccess, nil
 	})
 	if err != nil {

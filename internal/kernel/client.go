@@ -365,6 +365,7 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*prim
 	}
 
 	c.decodeCommandCustomHeader(pullResult, response)
+	pullResult.SetBody(response.Body)
 
 	return pullResult, nil
 }

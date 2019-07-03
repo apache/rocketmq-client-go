@@ -481,6 +481,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
 
 			msgFounded := result.GetMessageExts()
+			fmt.Printf("messages: %v\n", msgFounded)
 			firstMsgOffset := int64(math.MaxInt64)
 			if msgFounded != nil && len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
@@ -608,6 +609,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 	if msgs == nil {
 		return
 	}
+	fmt.Printf("consume message currently\n")
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
@@ -644,10 +646,22 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				}
 			}
 			var result primitive.ConsumeResult
-			err := pc.interceptor(ctx, subMsgs, result, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
-				reply, err := pc.consume(ctx, subMsgs)
-				return err
-			})
+
+
+			var err error
+			if pc.interceptor == nil {
+				result, err = pc.consume(ctx, subMsgs)
+			} else {
+				fmt.Printf("before interceptor \n")
+				err = pc.interceptor(ctx, subMsgs, result, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply primitive.ConsumeResult) error {
+					fmt.Printf("pc consume.\n")
+					reply, err := pc.consume(ctx, subMsgs)
+					// TODO: better solution
+					result = reply
+					return err
+				})
+				fmt.Printf("after interceptor \n")
+			}
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
