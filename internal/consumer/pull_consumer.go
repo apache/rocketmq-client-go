@@ -21,27 +21,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"strconv"
 	"sync"
 )
 
-type MessageSelector struct {
-	Type       ExpressionType
-	Expression string
-}
-
 type PullConsumer interface {
 	Start()
 	Shutdown()
-	Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*kernel.PullResult, error)
+	Pull(ctx context.Context, topic string, selector primitive.MessageSelector, numbers int) (*primitive.PullResult, error)
 }
 
 var (
 	queueCounterTable sync.Map
 )
 
-func NewConsumer(config ConsumerOption) *defaultPullConsumer {
+func NewConsumer(config primitive.ConsumerOption) *defaultPullConsumer {
 	return &defaultPullConsumer{
 		option: config,
 	}
@@ -49,10 +45,10 @@ func NewConsumer(config ConsumerOption) *defaultPullConsumer {
 
 type defaultPullConsumer struct {
 	state     kernel.ServiceState
-	option    ConsumerOption
+	option    primitive.ConsumerOption
 	client    *kernel.RMQClient
 	GroupName string
-	Model     MessageModel
+	Model     primitive.MessageModel
 	UnitMode  bool
 }
 
@@ -60,7 +56,7 @@ func (c *defaultPullConsumer) Start() {
 	c.state = kernel.StateRunning
 }
 
-func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*kernel.PullResult, error) {
+func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector primitive.MessageSelector, numbers int) (*primitive.PullResult, error) {
 	mq := getNextQueueOf(topic)
 	if mq == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
@@ -78,22 +74,22 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 }
 
 // SubscribeWithChan ack manually
-func (c *defaultPullConsumer) SubscribeWithChan(topic, selector MessageSelector) (chan *kernel.Message, error) {
+func (c *defaultPullConsumer) SubscribeWithChan(topic, selector primitive.MessageSelector) (chan *primitive.Message, error) {
 	return nil, nil
 }
 
 // SubscribeWithFunc ack automatic
-func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector MessageSelector,
-	f func(msg *kernel.Message) ConsumeResult) error {
+func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector primitive.MessageSelector,
+	f func(msg *primitive.Message) primitive.ConsumeResult) error {
 	return nil
 }
 
-func (c *defaultPullConsumer) ACK(msg *kernel.Message, result ConsumeResult) {
+func (c *defaultPullConsumer) ACK(msg *primitive.Message, result primitive.ConsumeResult) {
 
 }
 
-func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue, data *kernel.SubscriptionData,
-	offset int64, numbers int) (*kernel.PullResult, error) {
+func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *kernel.SubscriptionData,
+	offset int64, numbers int) (*primitive.PullResult, error) {
 	err := c.makeSureStateOK()
 	if err != nil {
 		return nil, err
@@ -117,7 +113,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue,
 		return nil, fmt.Errorf("the broker %s does not exist", mq.BrokerName)
 	}
 
-	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
+	if (data.ExpType == string(primitive.TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
 			mq.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
@@ -140,7 +136,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *kernel.MessageQueue,
 		ExpressionType:       string(data.ExpType),
 	}
 
-	if data.ExpType == string(TAG) {
+	if data.ExpType == string(primitive.TAG) {
 		pullRequest.SubVersion = 0
 	} else {
 		pullRequest.SubVersion = data.SubVersion
@@ -161,18 +157,18 @@ func (c *defaultPullConsumer) subscriptionAutomatically(topic string) {
 	// TODO
 }
 
-func (c *defaultPullConsumer) nextOffsetOf(queue *kernel.MessageQueue) int64 {
+func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
 	return 0
 }
 
-func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data *kernel.SubscriptionData) {
+func processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *kernel.SubscriptionData) {
 	updatePullFromWhichNode(mq, result.SuggestWhichBrokerId)
 	switch result.Status {
-	case kernel.PullFound:
+	case primitive.PullFound:
 		msgs := result.GetMessageExts()
 		msgListFilterAgain := msgs
 		if len(data.Tags) > 0 && data.ClassFilterMode {
-			msgListFilterAgain = make([]*kernel.MessageExt, len(msgs))
+			msgListFilterAgain = make([]*primitive.MessageExt, len(msgs))
 			for _, msg := range msgs {
 				_, exist := data.Tags[msg.GetTags()]
 				if exist {
@@ -184,13 +180,13 @@ func processPullResult(mq *kernel.MessageQueue, result *kernel.PullResult, data 
 		// TODO hook
 
 		for _, msg := range msgListFilterAgain {
-			traFlag, _ := strconv.ParseBool(msg.Properties[kernel.PropertyTransactionPrepared])
+			traFlag, _ := strconv.ParseBool(msg.Properties[primitive.PropertyTransactionPrepared])
 			if traFlag {
-				msg.TransactionId = msg.Properties[kernel.PropertyUniqueClientMessageIdKeyIndex]
+				msg.TransactionId = msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
 			}
 
-			msg.Properties[kernel.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
-			msg.Properties[kernel.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
+			msg.Properties[primitive.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
+			msg.Properties[primitive.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
 		}
 
 		result.SetMessageExts(msgListFilterAgain)

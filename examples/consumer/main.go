@@ -19,22 +19,22 @@ package main
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/kernel"
+	"github.com/apache/rocketmq-client-go/internal/consumer"
+	"github.com/apache/rocketmq-client-go/primitive"
 	"os"
 	"time"
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
+	c, _ := consumer.NewPushConsumer("testGroup", primitive.ConsumerOption{
 		NameServerAddr: "127.0.0.1:9876",
-		ConsumerModel:  consumer.Clustering,
-		FromWhere:      consumer.ConsumeFromFirstOffset,
+		ConsumerModel:  primitive.Clustering,
+		FromWhere:      primitive.ConsumeFromFirstOffset,
 	})
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
-		msgs []*kernel.MessageExt) (consumer.ConsumeResult, error) {
+	err := c.Subscribe("test", primitive.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
+		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
 		fmt.Println(msgs)
-		return consumer.ConsumeSuccess, nil
+		return primitive.ConsumeSuccess, nil
 	})
 	if err != nil {
 		fmt.Println(err.Error())
