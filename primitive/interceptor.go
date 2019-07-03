@@ -26,22 +26,24 @@ type PInvoker func(ctx context.Context, req, reply interface{}) error
 type PInterceptor func(ctx context.Context, req, reply interface{}, next PInvoker) error
 
 // RetryInterceptor retry when send failed.
-func RetryInterceptor() PInterceptor {
+func RetryPInterceptor() PInterceptor {
 	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }
 
 // TimeoutInterceptor add a timeout listener in case of operation timeout.
-func TimeoutInterceptor() PInterceptor {
+func TimeoutPInterceptor() PInterceptor {
 	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }
 
 // LogInterceptor log a send invoke.
-func LogInterceptor() PInterceptor {
+func LogPInterceptor() PInterceptor {
 	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
 		return nil
 	}
 }
+
+
