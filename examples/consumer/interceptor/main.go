@@ -27,11 +27,9 @@ import (
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", primitive.ConsumerOptions{
-		NameServerAddr: "127.0.0.1:9876",
-		ConsumerModel:  primitive.Clustering,
-		FromWhere:      primitive.ConsumeFromFirstOffset,
-	})
+	c, _ := consumer.NewPushConsumer("testGroup", "127.0.0.1:9876",
+		primitive.WithConsumerModel(primitive.Clustering),
+		primitive.WithConsumeFromWhere(primitive.ConsumeFromFirstOffset))
 	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
 		fmt.Println("subscribe callbacl: %v", msgs)

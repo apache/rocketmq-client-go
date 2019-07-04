@@ -22,6 +22,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 type ProducerOptions struct {
@@ -152,6 +154,38 @@ type ConsumerOptions struct {
 	// TODO traceDispatcher
 
 	Interceptors []CInterceptor
+}
+
+func DefaultPushConsumerOptions() ConsumerOptions{
+	return ConsumerOptions{
+		ClientOption: ClientOption{
+			InstanceName: "DEFAULT",
+			ClientIP: utils.LocalIP(),
+		},
+		Strategy: AllocateByAveragely,
+	}
+}
+
+type ConsumerOption struct {
+	Apply func(*ConsumerOptions)
+}
+
+func NewConsumerOption(f func(*ConsumerOptions)) *ConsumerOption {
+	return &ConsumerOption{
+		Apply: f,
+	}
+}
+
+func WithConsumerModel(m MessageModel) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.ConsumerModel = m
+	})
+}
+
+func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.FromWhere = w
+	})
 }
 
 func (opt *ClientOption) ChangeInstanceNameToPID() {

@@ -63,34 +63,37 @@ type pushConsumer struct {
 	interceptor primitive.CInterceptor
 }
 
-func NewPushConsumer(consumerGroup string, opts primitive.ConsumerOptions) (PushConsumer, error) {
-	if err := utils.VerifyIP(opts.NameServerAddr); err != nil {
+func NewPushConsumer(consumerGroup string, nameServerAddr string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
+	if err := utils.VerifyIP(nameServerAddr); err != nil {
 		return nil, err
 	}
-	opts.InstanceName = "DEFAULT"
-	opts.ClientIP = utils.LocalIP()
-	if opts.NameServerAddr == "" {
+	if nameServerAddr == "" {
 		rlog.Fatal("opts.NameServerAddr can't be empty")
 	}
-	err := os.Setenv(kernel.EnvNameServerAddr, opts.NameServerAddr)
+	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
 	if err != nil {
 		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
 	}
+
+	pushOpts := primitive.DefaultPushConsumerOptions()
+	for _, op := range opts {
+		op.Apply(&pushOpts)
+	}
+
+	pushOpts.NameServerAddr = nameServerAddr
+
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,
 		cType:          _PushConsume,
 		state:          kernel.StateCreateJust,
 		prCh:           make(chan PullRequest, 4),
-		model:          opts.ConsumerModel,
-		consumeOrderly: opts.ConsumeOrderly,
-		fromWhere:      opts.FromWhere,
-		option:         opts,
+		model:          pushOpts.ConsumerModel,
+		consumeOrderly: pushOpts.ConsumeOrderly,
+		fromWhere:      pushOpts.FromWhere,
+		allocate:       pushOpts.Strategy,
+		option:         pushOpts,
 	}
 
-	if opts.Strategy == nil {
-		opts.Strategy = primitive.AllocateByAveragely
-	}
-	dc.allocate = opts.Strategy
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
