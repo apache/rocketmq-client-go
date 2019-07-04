@@ -119,8 +119,8 @@ func ChainInterceptor(p *pushConsumer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, invoker primitive.CInvoker) error {
-			return interceptors[0](ctx, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.CInvoker) error {
+			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
@@ -130,8 +130,8 @@ func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, final
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
-	return func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, ) error {
-		return interceptors[cur+1](ctx, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
 	}
 }
 
@@ -657,10 +657,15 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				ctx := context.Background()
 				ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 				ctx = primitive.WithMehod(ctx, primitive.ConsumerPush)
-				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder) error {
+
+				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
 					consumerCtx, _ := primitive.GetConsumerCtx(ctx)
-					r, e := pc.consume(consumerCtx, subMsgs)
-					reply.ConsumeResult = r
+
+					msgs := req.([]*primitive.MessageExt)
+					r, e := pc.consume(consumerCtx, msgs)
+
+					realReply := reply.(*primitive.ConsumeResultHolder)
+					realReply.ConsumeResult = r
 					return e
 				})
 				result = container.ConsumeResult

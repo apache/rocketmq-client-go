@@ -48,8 +48,10 @@ func LogPInterceptor() PInterceptor {
 	}
 }
 
-// CInvoker finish a message invoke on consumer
-type CInvoker func(ctx context.Context, msgs []*MessageExt, reply *ConsumeResultHolder) error
+// CInvoker finish a message invoke on consumer. In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
+// use type assert to get real type.
+type CInvoker func(ctx context.Context, req , reply interface{}) error
 
-// CInterceptor intercepts the invoke of a consume on messages.
-type CInterceptor func(ctx context.Context, msgs []*MessageExt, reply *ConsumeResultHolder, next CInvoker) error
+// CInterceptor intercepts the invoke of a consume on messages. In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
+// use type assert to get real type.
+type CInterceptor func(ctx context.Context, req, reply interface{}, next CInvoker) error
