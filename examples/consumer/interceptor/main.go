@@ -18,6 +18,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -49,18 +50,18 @@ func main() {
 }
 
 func UserFistInterceptor() primitive.CInterceptor {
-	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, next primitive.CInvoker) error {
+	return func(ctx context.Context, c *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, next primitive.CInvoker) error {
 		fmt.Printf("user first interceptor before invoke: %v\n", msgs)
-		e := next(ctx, msgs, reply)
+		e := next(ctx, c, msgs, reply)
 		fmt.Printf("user first interceptor after invoke: %v, result: %v\n", msgs, reply)
 		return e
 	}
 }
 
 func UserSecondInterceptor() primitive.CInterceptor {
-	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, next primitive.CInvoker)  error {
+	return func(ctx context.Context, c *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, next primitive.CInvoker)  error {
 		fmt.Printf("user second interceptor before invoke: %v\n", msgs)
-		e := next(ctx, msgs, reply)
+		e := next(ctx, c, msgs, reply)
 		fmt.Printf("user second interceptor after invoke: %v, result: %v\n", msgs, reply)
 		return e
 	}
