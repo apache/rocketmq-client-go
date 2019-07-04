@@ -29,7 +29,8 @@ import (
 func main() {
 	c, _ := consumer.NewPushConsumer("testGroup", "127.0.0.1:9876",
 		primitive.WithConsumerModel(primitive.Clustering),
-		primitive.WithConsumeFromWhere(primitive.ConsumeFromFirstOffset))
+		primitive.WithConsumeFromWhere(primitive.ConsumeFromFirstOffset),
+		primitive.WithChainConsumerInterceptor(UserFistInterceptor(), UserSecondInterceptor()))
 	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
 		fmt.Println("subscribe callbacl: %v", msgs)
@@ -45,4 +46,22 @@ func main() {
 		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
+}
+
+func UserFistInterceptor() primitive.CInterceptor {
+	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, next primitive.CInvoker) (result primitive.ConsumeResult, e error) {
+		fmt.Printf("user first interceptor before invoke: %v\n", msgs)
+		r, e := next(ctx, msgs)
+		fmt.Printf("user first interceptor after invoke: %v, result: %v\n", msgs, r)
+		return r, e
+	}
+}
+
+func UserSecondInterceptor() primitive.CInterceptor {
+	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, next primitive.CInvoker) (result primitive.ConsumeResult, e error) {
+		fmt.Printf("user second interceptor before invoke: %v\n", msgs)
+		r, e := next(ctx, msgs)
+		fmt.Printf("user second interceptor after invoke: %v, result: %v\n", msgs, r)
+		return r, e
+	}
 }

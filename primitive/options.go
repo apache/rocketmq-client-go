@@ -47,24 +47,24 @@ type ProducerOption struct {
 	Apply func(*ProducerOptions)
 }
 
-func NewOption(f func(options *ProducerOptions)) *ProducerOption {
+func NewProducerOption(f func(options *ProducerOptions)) *ProducerOption {
 	return &ProducerOption{
 		Apply: f,
 	}
 }
 
-// WithInterceptor returns a ProducerOption that specifies the interceptor for producer.
-func WithInterceptor(f PInterceptor) *ProducerOption {
-	return NewOption(func(options *ProducerOptions) {
+// WithProducerInterceptor returns a ProducerOption that specifies the interceptor for producer.
+func WithProducerInterceptor(f PInterceptor) *ProducerOption {
+	return NewProducerOption(func(options *ProducerOptions) {
 		options.Interceptors = append(options.Interceptors, f)
 	})
 }
 
-// WithChainInterceptor returns a ProducerOption that specifies the chained interceptor for producer.
+// WithChainProducerInterceptor returns a ProducerOption that specifies the chained interceptor for producer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
-func WithChainInterceptor(fs ...PInterceptor) *ProducerOption {
-	return NewOption(func(options *ProducerOptions) {
+func WithChainProducerInterceptor(fs ...PInterceptor) *ProducerOption {
+	return NewProducerOption(func(options *ProducerOptions) {
 		options.Interceptors = append(options.Interceptors, fs...)
 	})
 }
@@ -72,7 +72,7 @@ func WithChainInterceptor(fs ...PInterceptor) *ProducerOption {
 // WithRetry return a ProducerOption that specifies the retry times when send failed.
 // TODO: use retryMiddleeware instead.
 func WithRetry(retries int) *ProducerOption {
-	return  NewOption(func(options *ProducerOptions) {
+	return  NewProducerOption(func(options *ProducerOptions) {
 		options.RetryTimesWhenSendFailed = retries
 	})
 }
@@ -185,6 +185,22 @@ func WithConsumerModel(m MessageModel) *ConsumerOption {
 func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.FromWhere = w
+	})
+}
+
+// WithConsumerInterceptor returns a ConsumerOption that specifies the interceptor for consumer.
+func WithConsumerInterceptor(f PInterceptor) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.Interceptors = append(options.Interceptors, f)
+	})
+}
+
+// WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
+// The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
+// around the real call.
+func WithChainConsumerInterceptor(fs ...CInterceptor) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.Interceptors = append(options.Interceptors, fs...)
 	})
 }
 
