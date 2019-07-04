@@ -51,7 +51,8 @@ func main() {
 
 func UserFistInterceptor() primitive.CInterceptor {
 	return func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, next primitive.CInvoker) error {
-		fmt.Printf("msgCtx: %v, mehtod: %s", primitive.GetConsumerCtx(ctx), primitive.GetMethod(ctx))
+		msgCtx, _ := primitive.GetConsumerCtx(ctx)
+		fmt.Printf("msgCtx: %v, mehtod: %s", msgCtx, primitive.GetMethod(ctx))
 		fmt.Printf("user first interceptor before invoke: %v\n", msgs)
 		e := next(ctx, msgs, reply)
 		fmt.Printf("user first interceptor after invoke: %v, result: %v\n", msgs, reply)

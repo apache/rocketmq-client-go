@@ -47,10 +47,14 @@ func GetMethod(ctx context.Context) string {
 	return ctx.Value(method).(string)
 }
 
+// WithConsumerCtx set ConsumeMessageContext in PushConsumer
 func WithConsumerCtx(ctx context.Context, c *ConsumeMessageContext) context.Context {
 	return context.WithValue(ctx, msgCtx, c)
 }
 
-func GetConsumerCtx(ctx context.Context) *ConsumeMessageContext {
-	return ctx.Value(msgCtx).(*ConsumeMessageContext)
+// GetConsumerCtx get ConsumeMessageContext, only legal in PushConsumer. so should add bool return param indicate
+// whether exist.
+func GetConsumerCtx(ctx context.Context) (*ConsumeMessageContext, bool) {
+	c, exist := ctx.Value(msgCtx).(*ConsumeMessageContext)
+	return c, exist
 }
