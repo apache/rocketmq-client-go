@@ -111,7 +111,6 @@ func BenchmarkRingBySizeBufferMPMC(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				p := make([]byte, len(strconv.Itoa(i)))
 				q.ReadBySize(p, 1*time.Second)
-				fmt.Sprintf("%v", p)
 			}
 			wg.Done()
 		}()
