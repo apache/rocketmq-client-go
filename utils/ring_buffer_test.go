@@ -19,11 +19,12 @@ package utils
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRingRead(t *testing.T) {
@@ -111,7 +112,6 @@ func BenchmarkRingBySizeBufferMPMC(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				p := make([]byte, len(strconv.Itoa(i)))
 				q.ReadBySize(p, 1*time.Second)
-				fmt.Sprintf("%v", p)
 			}
 			wg.Done()
 		}()

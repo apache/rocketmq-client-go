@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"fmt"
+
 	"github.com/apache/rocketmq-client-go/utils"
 )
 

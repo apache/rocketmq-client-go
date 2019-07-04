@@ -20,16 +20,17 @@ package consumer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/internal/kernel"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 type readType int

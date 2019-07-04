@@ -20,11 +20,6 @@ package kernel
 import (
 	"encoding/json"
 	"errors"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
-	"github.com/tidwall/gjson"
 	"math/rand"
 	"os"
 	"sort"
@@ -33,6 +28,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/tidwall/gjson"
 )
 
 const (

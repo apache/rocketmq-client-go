@@ -21,10 +21,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/internal/kernel"
-	"github.com/apache/rocketmq-client-go/primitive"
 	"strconv"
 	"sync"
+
+	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 type PullConsumer interface {
