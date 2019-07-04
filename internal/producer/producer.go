@@ -133,12 +133,8 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 			realReq := req.(*primitive.Message)
 			realReply := reply.(*primitive.SendResult)
 			err = p.sendSync(ctx, realReq, realReply)
-			fmt.Printf("result: %v \n", reply)
 			return err
 		})
-		if resp == nil {
-			fmt.Printf("reply is nil \n")
-		}
 		return resp, err
 	}
 
