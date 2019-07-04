@@ -119,8 +119,8 @@ func ChainInterceptor(p *pushConsumer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx context.Context, c *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, invoker primitive.CInvoker)  error {
-			return interceptors[0](ctx, c, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
+		p.interceptor = func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, invoker primitive.CInvoker)  error {
+			return interceptors[0](ctx, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
@@ -130,8 +130,8 @@ func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, final
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
-	return func(ctx context.Context, c *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder,) error {
-		return interceptors[cur+1](ctx, c, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	return func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder,) error {
+		return interceptors[cur+1](ctx, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
 	}
 }
 
@@ -629,7 +629,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				return
 			}
 
-			ctx := &primitive.ConsumeMessageContext{
+			msgCtx := &primitive.ConsumeMessageContext{
 				Properties: make(map[string]string),
 			}
 			// TODO hook
@@ -650,11 +650,15 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			var err error
 			if pc.interceptor == nil {
-				result, err = pc.consume(ctx, subMsgs)
+				result, err = pc.consume(msgCtx, subMsgs)
 			} else {
 				var container primitive.ConsumeResultHolder
 
-				err = pc.interceptor(context.Background(), ctx, subMsgs, &container, func(ctx context.Context, consumerCtx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder)  error {
+				ctx := context.Background()
+				ctx = primitive.WithConsumerCtx(ctx, msgCtx)
+				ctx = primitive.WithMehod(ctx, primitive.ConsumerPush)
+				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder)  error {
+					consumerCtx := primitive.GetConsumerCtx(ctx)
 					r, e := pc.consume(consumerCtx, subMsgs)
 					reply.ConsumeResult = r
 					return e
@@ -664,13 +668,13 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				ctx.Properties["ConsumeContextType"] = "EXCEPTION"
+				msgCtx.Properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
-				ctx.Properties["ConsumeContextType"] = "TIMEOUT"
+				msgCtx.Properties["ConsumeContextType"] = "TIMEOUT"
 			} else if result == primitive.ConsumeSuccess {
-				ctx.Properties["ConsumeContextType"] = "SUCCESS"
+				msgCtx.Properties["ConsumeContextType"] = "SUCCESS"
 			} else {
-				ctx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
+				msgCtx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
 			}
 
 			// TODO hook
@@ -689,7 +693,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					} else {
 						for i := 0; i < len(msgs); i++ {
 							msg := msgs[i]
-							if !pc.sendMessageBack(ctx, msg) {
+							if !pc.sendMessageBack(msgCtx, msg) {
 								msg.ReconsumeTimes += 1
 								msgBackFailed = append(msgBackFailed, msg)
 							}

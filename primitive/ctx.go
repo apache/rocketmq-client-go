@@ -26,6 +26,7 @@ type CtxKey int
 
 const (
 	method CtxKey = iota
+	msgCtx
 
 
 	// method name in  producer
@@ -46,3 +47,10 @@ func GetMethod(ctx context.Context) string {
 	return ctx.Value(method).(string)
 }
 
+func WithConsumerCtx(ctx context.Context, c *ConsumeMessageContext) context.Context {
+	return context.WithValue(ctx, msgCtx, c)
+}
+
+func GetConsumerCtx(ctx context.Context) *ConsumeMessageContext {
+	return ctx.Value(msgCtx).(*ConsumeMessageContext)
+}
