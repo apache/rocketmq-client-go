@@ -19,6 +19,7 @@ package kernel
 
 import (
 	"encoding/json"
+
 	"github.com/apache/rocketmq-client-go/rlog"
 )
 
