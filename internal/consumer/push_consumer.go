@@ -119,8 +119,8 @@ func ChainInterceptor(p *pushConsumer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, invoker primitive.CInvoker) (primitive.ConsumeResult, error) {
-			return interceptors[0](ctx, msgs, getChainedInterceptor(interceptors, 0, invoker))
+		p.interceptor = func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder, invoker primitive.CInvoker)  error {
+			return interceptors[0](ctx, msgs, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
@@ -130,8 +130,8 @@ func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, final
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
-	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		return interceptors[cur+1](ctx, msgs, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	return func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder,) error {
+		return interceptors[cur+1](ctx, msgs, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
 	}
 }
 
@@ -652,10 +652,15 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			if pc.interceptor == nil {
 				result, err = pc.consume(ctx, subMsgs)
 			} else {
-				result, err = pc.interceptor(ctx, subMsgs, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-					return pc.consume(ctx, subMsgs)
+				var container primitive.ConsumeResultHolder
+				err = pc.interceptor(ctx, subMsgs, &container, func(ctx *primitive.ConsumeMessageContext, msgs []*primitive.MessageExt, reply *primitive.ConsumeResultHolder)  error {
+					r, e := pc.consume(ctx, subMsgs)
+					reply.ConsumeResult = r
+					return e
 				})
+				result = container.ConsumeResult
 			}
+			fmt.Printf("result: %v", result)
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {

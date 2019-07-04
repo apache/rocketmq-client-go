@@ -189,7 +189,7 @@ func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
 }
 
 // WithConsumerInterceptor returns a ConsumerOption that specifies the interceptor for consumer.
-func WithConsumerInterceptor(f PInterceptor) *ConsumerOption {
+func WithConsumerInterceptor(f CInterceptor) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.Interceptors = append(options.Interceptors, f)
 	})

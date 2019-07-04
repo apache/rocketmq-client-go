@@ -136,3 +136,7 @@ type ConsumeMessageContext struct {
 	// mqTractContext
 	Properties map[string]string
 }
+
+type ConsumeResultHolder struct {
+	ConsumeResult
+}
