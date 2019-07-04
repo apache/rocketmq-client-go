@@ -127,6 +127,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 
 	resp := new(primitive.SendResult)
 	if p.interceptor != nil {
+		primitive.WithMehod(ctx, primitive.SendSync)
 		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
 			var err error
 			realReq := req.(*primitive.Message)
@@ -186,6 +187,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message
 	}
 
 	if p.interceptor != nil {
+		primitive.WithMehod(ctx, primitive.SendOneway)
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.SendOneWay(ctx, msg)
 		})
