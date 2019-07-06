@@ -239,7 +239,6 @@ func MarshalPropeties(properties map[string]string) string {
 		buffer.WriteRune(nameValueSeparator)
 		buffer.WriteString(v)
 		buffer.WriteRune(propertySeparator)
-		//str += fmt.Sprintf("%s%v%s%v", k, nameValueSeparator, v, propertySeparator)
 	}
 	return buffer.String()
 }

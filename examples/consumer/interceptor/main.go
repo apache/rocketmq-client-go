@@ -54,7 +54,7 @@ func UserFistInterceptor() primitive.CInterceptor {
 		msgCtx, _ := primitive.GetConsumerCtx(ctx)
 		fmt.Printf("msgCtx: %v, mehtod: %s", msgCtx, primitive.GetMethod(ctx))
 		msgs := req.([]*primitive.MessageExt)
-		fmt.Printf("user first interceptor before invoke: %v\n", msgs[0])
+		fmt.Printf("user first interceptor before invoke: %v\n", msgs)
 		e := next(ctx, msgs, reply)
 
 		holder := reply.(*primitive.ConsumeResultHolder)
