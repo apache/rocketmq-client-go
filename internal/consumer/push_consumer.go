@@ -49,46 +49,51 @@ type PushConsumer interface {
 	Start() error
 	Shutdown()
 	Subscribe(topic string, selector primitive.MessageSelector,
-		f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
+		f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
 }
 
 type pushConsumer struct {
 	*defaultConsumer
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
-	consume                      func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
+	consume                      func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
+
+	interceptor primitive.CInterceptor
 }
 
-func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOption) (PushConsumer, error) {
-	if err := utils.VerifyIP(opt.NameServerAddr); err != nil {
+func NewPushConsumer(consumerGroup string, nameServerAddr string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
+	if err := utils.VerifyIP(nameServerAddr); err != nil {
 		return nil, err
 	}
-	opt.InstanceName = "DEFAULT"
-	opt.ClientIP = utils.LocalIP()
-	if opt.NameServerAddr == "" {
-		rlog.Fatal("opt.NameServerAddr can't be empty")
+	if nameServerAddr == "" {
+		rlog.Fatal("opts.NameServerAddr can't be empty")
 	}
-	err := os.Setenv(kernel.EnvNameServerAddr, opt.NameServerAddr)
+	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
 	if err != nil {
 		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
 	}
+
+	pushOpts := primitive.DefaultPushConsumerOptions()
+	for _, op := range opts {
+		op.Apply(&pushOpts)
+	}
+
+	pushOpts.NameServerAddr = nameServerAddr
+
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,
 		cType:          _PushConsume,
 		state:          kernel.StateCreateJust,
 		prCh:           make(chan PullRequest, 4),
-		model:          opt.ConsumerModel,
-		consumeOrderly: opt.ConsumeOrderly,
-		fromWhere:      opt.FromWhere,
-		option:         opt,
+		model:          pushOpts.ConsumerModel,
+		consumeOrderly: pushOpts.ConsumeOrderly,
+		fromWhere:      pushOpts.FromWhere,
+		allocate:       pushOpts.Strategy,
+		option:         pushOpts,
 	}
 
-	if opt.Strategy == nil {
-		opt.Strategy = primitive.AllocateByAveragely
-	}
-	dc.allocate = opt.Strategy
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
@@ -99,7 +104,35 @@ func NewPushConsumer(consumerGroup string, opt primitive.ConsumerOption) (PushCo
 	} else {
 		p.submitToConsume = p.consumeMessageCurrently
 	}
+
+	chainInterceptor(p)
+
 	return p, nil
+}
+
+// chainInterceptor chain list of interceptor as one interceptor
+func chainInterceptor(p *pushConsumer) {
+	interceptors := p.option.Interceptors
+	switch len(interceptors) {
+	case 0:
+		p.interceptor = nil
+	case 1:
+		p.interceptor = interceptors[0]
+	default:
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.CInvoker) error {
+			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
+		}
+	}
+}
+
+// getChainedInterceptor recursively generate the chained invoker.
+func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, finalInvoker primitive.CInvoker) primitive.CInvoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
 }
 
 func (pc *pushConsumer) Start() error {
@@ -164,7 +197,7 @@ func (pc *pushConsumer) Start() error {
 func (pc *pushConsumer) Shutdown() {}
 
 func (pc *pushConsumer) Subscribe(topic string, selector primitive.MessageSelector,
-	f func(*ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
+	f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
 	if pc.state != kernel.StateCreateJust {
 		return errors.New("subscribe topic only started before")
 	}
@@ -424,6 +457,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
+
 		result, err := pc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
 		if err != nil {
 			rlog.Warnf("pull message from %s error: %s", brokerResult.BrokerAddr, err.Error())
@@ -446,6 +480,8 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 			rt := time.Now().Sub(beginTime)
 			increasePullRT(pc.consumerGroup, request.mq.Topic, rt)
+
+			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
 
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)
@@ -485,7 +521,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *primitive.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(ctx *primitive.ConsumeMessageContext, msg *primitive.MessageExt) bool {
 	return true
 }
 
@@ -570,16 +606,6 @@ func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue
 	return true
 }
 
-type ConsumeMessageContext struct {
-	consumerGroup string
-	msgs          []*primitive.MessageExt
-	mq            *primitive.MessageQueue
-	success       bool
-	status        string
-	// mqTractContext
-	properties map[string]string
-}
-
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
@@ -603,8 +629,8 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				return
 			}
 
-			ctx := &ConsumeMessageContext{
-				properties: make(map[string]string),
+			msgCtx := &primitive.ConsumeMessageContext{
+				Properties: make(map[string]string),
 			}
 			// TODO hook
 			beginTime := time.Now()
@@ -620,16 +646,40 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
 			}
-			result, err := pc.consume(ctx, subMsgs)
+			var result primitive.ConsumeResult
+
+			var err error
+			if pc.interceptor == nil {
+				result, err = pc.consume(msgCtx, subMsgs)
+			} else {
+				var container primitive.ConsumeResultHolder
+
+				ctx := context.Background()
+				ctx = primitive.WithConsumerCtx(ctx, msgCtx)
+				ctx = primitive.WithMehod(ctx, primitive.ConsumerPush)
+
+				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
+					consumerCtx, _ := primitive.GetConsumerCtx(ctx)
+
+					msgs := req.([]*primitive.MessageExt)
+					r, e := pc.consume(consumerCtx, msgs)
+
+					realReply := reply.(*primitive.ConsumeResultHolder)
+					realReply.ConsumeResult = r
+					return e
+				})
+				result = container.ConsumeResult
+			}
+
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				ctx.properties["ConsumeContextType"] = "EXCEPTION"
+				msgCtx.Properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
-				ctx.properties["ConsumeContextType"] = "TIMEOUT"
+				msgCtx.Properties["ConsumeContextType"] = "TIMEOUT"
 			} else if result == primitive.ConsumeSuccess {
-				ctx.properties["ConsumeContextType"] = "SUCCESS"
+				msgCtx.Properties["ConsumeContextType"] = "SUCCESS"
 			} else {
-				ctx.properties["ConsumeContextType"] = "RECONSUME_LATER"
+				msgCtx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
 			}
 
 			// TODO hook
@@ -648,7 +698,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					} else {
 						for i := 0; i < len(msgs); i++ {
 							msg := msgs[i]
-							if !pc.sendMessageBack(ctx, msg) {
+							if !pc.sendMessageBack(msgCtx, msg) {
 								msg.ReconsumeTimes += 1
 								msgBackFailed = append(msgBackFailed, msg)
 							}

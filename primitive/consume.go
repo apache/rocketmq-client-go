@@ -4,7 +4,7 @@ package primitive
 // </p>
 //
 // RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
-// the same {@link #consumerGroup} would only consume shards of the messages subscribed, which achieves load
+// the same {@link #ConsumerGroup} would only consume shards of the messages subscribed, which achieves load
 // balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
 // separately.
 // </p>
@@ -126,3 +126,17 @@ const (
 	ConsumeSuccess ConsumeResult = iota
 	ConsumeRetryLater
 )
+
+type ConsumeMessageContext struct {
+	ConsumerGroup string
+	Msgs          []*MessageExt
+	MQ            *MessageQueue
+	Success       bool
+	Status        string
+	// mqTractContext
+	Properties map[string]string
+}
+
+type ConsumeResultHolder struct {
+	ConsumeResult
+}

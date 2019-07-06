@@ -27,14 +27,10 @@ import (
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", primitive.ConsumerOption{
-		NameServerAddr: "127.0.0.1:9876",
-		ConsumerModel:  primitive.Clustering,
-		FromWhere:      primitive.ConsumeFromFirstOffset,
-	})
-	err := c.Subscribe("test", primitive.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
+	c, _ := consumer.NewPushConsumer("testGroup", "127.0.0.1:9876")
+	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println(msgs)
+		fmt.Println("subscribe callback: %v", msgs)
 		return primitive.ConsumeSuccess, nil
 	})
 	if err != nil {
