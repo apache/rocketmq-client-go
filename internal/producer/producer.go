@@ -228,11 +228,12 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		SysFlag:        0,
 		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:           msg.Flag,
-		Properties:     propertiesToString(msg.Properties),
+		Properties:     primitive.MarshalPropeties(msg.Properties),
 		ReconsumeTimes: 0,
 		UnitMode:       p.options.UnitMode,
 		Batch:          false,
 	}
+
 	return remote.NewRemotingCommand(kernel.ReqSendMessage, req, msg.Body)
 }
 
@@ -289,13 +290,3 @@ func (p *defaultProducer) IsUnitMode() bool {
 	return false
 }
 
-func propertiesToString(properties map[string]string) string {
-	if properties == nil {
-		return ""
-	}
-	var str string
-	for k, v := range properties {
-		str += fmt.Sprintf("%s%v%s%v", k, byte(1), v, byte(2))
-	}
-	return str
-}
