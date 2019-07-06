@@ -30,7 +30,7 @@ func main() {
 	c, _ := consumer.NewPushConsumer("testGroup", "127.0.0.1:9876")
 	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
 		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println("subscribe callbacl: %v", msgs)
+		fmt.Println("subscribe callback: %v", msgs)
 		return primitive.ConsumeSuccess, nil
 	})
 	if err != nil {
