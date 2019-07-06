@@ -105,13 +105,13 @@ func NewPushConsumer(consumerGroup string, nameServerAddr string, opts ...*primi
 		p.submitToConsume = p.consumeMessageCurrently
 	}
 
-	ChainInterceptor(p)
+	chainInterceptor(p)
 
 	return p, nil
 }
 
-// ChainInterceptor chain list of interceptor as one interceptor
-func ChainInterceptor(p *pushConsumer) {
+// chainInterceptor chain list of interceptor as one interceptor
+func chainInterceptor(p *pushConsumer) {
 	interceptors := p.option.Interceptors
 	switch len(interceptors) {
 	case 0:

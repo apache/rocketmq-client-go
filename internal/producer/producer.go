@@ -65,13 +65,13 @@ func NewProducer(nameServerAddr string, opts ...*primitive.ProducerOption) (Prod
 		options: popts,
 	}
 
-	ChainInterceptor(producer)
+	chainInterceptor(producer)
 
 	return producer, nil
 }
 
-// ChainInterceptor chain list of interceptor as one interceptor
-func ChainInterceptor(p *defaultProducer) {
+// chainInterceptor chain list of interceptor as one interceptor
+func chainInterceptor(p *defaultProducer) {
 	interceptors := p.options.Interceptors
 	switch len(interceptors) {
 	case 0:
