@@ -19,6 +19,7 @@ package rocketmq
 
 import (
 	"context"
+
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 

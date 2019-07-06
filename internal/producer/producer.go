@@ -21,15 +21,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/apache/rocketmq-client-go/internal/kernel"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
-	"os"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type Producer interface {

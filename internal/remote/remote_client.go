@@ -21,11 +21,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"github.com/apache/rocketmq-client-go/rlog"
 	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 var (

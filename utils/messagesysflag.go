@@ -18,27 +18,27 @@ limitations under the License.
 package utils
 
 var (
-	COMPRESSED_FLAG = 0x1
+	CompressedFlag = 0x1
 
-	MULTI_TAGS_FLAG = 0x1 << 1
+	MultiTagsFlag = 0x1 << 1
 
-	TRANSACTION_NOT_TYPE = 0
+	TransactionNotType = 0
 
-	TRANSACTION_PREPARED_TYPE = 0x1 << 2
+	TransactionPreparedType = 0x1 << 2
 
-	TRANSACTION_COMMIT_TYPE = 0x2 << 2
+	TransactionCommitType = 0x2 << 2
 
-	TRANSACTION_ROLLBACK_TYPE = 0x3 << 2
+	TransactionRollbackType = 0x3 << 2
 )
 
 func GetTransactionValue(flag int) int {
-	return flag & TRANSACTION_ROLLBACK_TYPE
+	return flag & TransactionRollbackType
 }
 
 func ResetTransactionValue(flag int, typeFlag int) int {
-	return (flag & (^TRANSACTION_ROLLBACK_TYPE)) | typeFlag
+	return (flag & (^TransactionRollbackType)) | typeFlag
 }
 
 func ClearCompressedFlag(flag int) int {
-	return flag & (^COMPRESSED_FLAG)
+	return flag & (^CompressedFlag)
 }

@@ -18,9 +18,10 @@ limitations under the License.
 package consumer
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseTimestamp(t *testing.T) {

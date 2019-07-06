@@ -20,9 +20,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/apache/rocketmq-client-go/internal/producer"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"os"
 )
 
 func main() {
