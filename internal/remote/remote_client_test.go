@@ -19,6 +19,7 @@ package remote
 import (
 	"bytes"
 	"errors"
+	"math/rand"
 	"net"
 	"reflect"
 	"sync"
@@ -28,24 +29,24 @@ import (
 
 func TestNewResponseFuture(t *testing.T) {
 	future := NewResponseFuture(10, time.Duration(1000), nil)
-	if future.Opaque != 10 {
-		t.Errorf("wrong ResponseFuture's Opaque. want=%d, got=%d", 10, future.Opaque)
+	if future.opaque != 10 {
+		t.Errorf("wrong ResponseFuture's opaque. want=%d, got=%d", 10, future.opaque)
 	}
-	if future.SendRequestOK != false {
-		t.Errorf("wrong ResposneFutrue's SendRequestOK. want=%t, got=%t", false, future.SendRequestOK)
+	if future.sendRequestOK != false {
+		t.Errorf("wrong ResposneFutrue's sendRequestOK. want=%t, got=%t", false, future.sendRequestOK)
 	}
 	if future.Err != nil {
 		t.Errorf("wrong RespnseFuture's Err. want=<nil>, got=%v", future.Err)
 	}
-	if future.TimeoutMillis != time.Duration(1000) {
+	if future.timeout != time.Duration(1000) {
 		t.Errorf("wrong ResponseFuture's TimeoutMills. want=%d, got=%d",
-			future.TimeoutMillis, time.Duration(1000))
+			future.timeout, time.Duration(1000))
 	}
 	if future.callback != nil {
 		t.Errorf("wrong ResponseFuture's callback. want=<nil>, got!=<nil>")
 	}
-	if future.Done == nil {
-		t.Errorf("wrong ResponseFuture's Done. want=<channel>, got=<nil>")
+	if future.done == nil {
+		t.Errorf("wrong ResponseFuture's done. want=<channel>, got=<nil>")
 	}
 }
 
@@ -78,11 +79,11 @@ func TestResponseFutureTimeout(t *testing.T) {
 }
 
 func TestResponseFutureIsTimeout(t *testing.T) {
-	future := NewResponseFuture(10, time.Duration(500), nil)
+	future := NewResponseFuture(10, 500 * time.Millisecond, nil)
 	if future.isTimeout() != false {
 		t.Errorf("wrong ResponseFuture's istimeout. want=%t, got=%t", false, future.isTimeout())
 	}
-	time.Sleep(time.Duration(2000) * time.Millisecond)
+	time.Sleep(time.Duration(700) * time.Millisecond)
 	if future.isTimeout() != true {
 		t.Errorf("wrong ResponseFuture's istimeout. want=%t, got=%t", true, future.isTimeout())
 	}
@@ -90,28 +91,28 @@ func TestResponseFutureIsTimeout(t *testing.T) {
 }
 
 func TestResponseFutureWaitResponse(t *testing.T) {
-	future := NewResponseFuture(10, time.Duration(500), nil)
+	future := NewResponseFuture(10, 500 * time.Millisecond, nil)
 	if _, err := future.waitResponse(); err != ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
 			ErrRequestTimeout, err)
 	}
-	future = NewResponseFuture(10, time.Duration(500), nil)
+	future = NewResponseFuture(10, 500 * time.Millisecond, nil)
 	responseError := errors.New("response error")
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		future.Err = responseError
-		future.Done <- true
+		future.done <- true
 	}()
 	if _, err := future.waitResponse(); err != responseError {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v. got=%v",
 			responseError, err)
 	}
-	future = NewResponseFuture(10, time.Duration(500), nil)
+	future = NewResponseFuture(10, 500 * time.Millisecond, nil)
 	responseRemotingCommand := NewRemotingCommand(202, nil, nil)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		future.ResponseCommand = responseRemotingCommand
-		future.Done <- true
+		future.done <- true
 	}()
 	if r, err := future.waitResponse(); err != nil {
 		t.Errorf("wrong ResponseFuture waitResponse error: %v", err)
@@ -144,7 +145,7 @@ func TestCreateScanner(t *testing.T) {
 			t.Fatalf("wrong Version. want=%d, got=%d", r.Version, rcr.Version)
 		}
 		if r.Opaque != rcr.Opaque {
-			t.Fatalf("wrong Opaque. want=%d, got=%d", r.Opaque, rcr.Opaque)
+			t.Fatalf("wrong opaque. want=%d, got=%d", r.Opaque, rcr.Opaque)
 		}
 		if r.Flag != rcr.Flag {
 			t.Fatalf("wrong flag. want=%d, got=%d", r.Opaque, rcr.Opaque)
@@ -165,7 +166,7 @@ func TestInvokeSync(t *testing.T) {
 	client := NewRemotingClient()
 	go func() {
 		receiveCommand, err := client.InvokeSync(":3000",
-			clientSendRemtingCommand, time.Duration(1000))
+			clientSendRemtingCommand, time.Second)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		} else {
@@ -224,10 +225,10 @@ func TestInvokeAsync(t *testing.T) {
 		time.Sleep(1 * time.Second)
 		t.Logf("invoke async method")
 		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
-			time.Duration(1000), func(r *ResponseFuture) {
+			time.Second, func(r *ResponseFuture) {
 				t.Logf("invoke async callback")
 				if string(r.ResponseCommand.Body) != "Welcome native" {
-					t.Errorf("wrong responseCommand.Body. want=%s, got=%s",
+					t.Errorf("wrong ResponseCommand.Body. want=%s, got=%s",
 						"Welcome native", string(r.ResponseCommand.Body))
 				}
 				wg.Done()
@@ -317,4 +318,65 @@ func TestInvokeOneWay(t *testing.T) {
 		}
 	}
 	wg.Done()
+}
+
+
+func TestInvokeAsync2(t *testing.T) {
+	var wg sync.WaitGroup
+	cnt := 50
+	wg.Add(cnt)
+	client := NewRemotingClient()
+	for i:=0; i < cnt; i++ {
+		go func(index int) {
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+			t.Logf("[Send: %d] asychronous message", index)
+			sendRemotingCommand := randomNewRemotingCommand()
+			err := client.InvokeAsync(":3000", sendRemotingCommand, time.Second, func(r *ResponseFuture) {
+				t.Logf("[Receive: %d] asychronous message response", index)
+				if string(sendRemotingCommand.Body) != string(r.ResponseCommand.Body) {
+					t.Errorf("wrong response message. want=%s, got=%s", string(sendRemotingCommand.Body),
+						string(r.ResponseCommand.Body))
+				}
+				wg.Done()
+			})
+			if err != nil {
+				t.Errorf("failed to invokeAsync. %s", err)
+			}
+
+		}(i)
+	}
+	l, err := net.Listen("tcp", ":3000")
+	if err != nil {
+		t.Fatalf("failed to create tcp network. %s", err)
+	}
+	defer l.Close()
+	count := 0
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			t.Fatalf("failed to create connection. %s", err)
+		}
+		defer conn.Close()
+		scanner := client.createScanner(conn)
+		for scanner.Scan() {
+			t.Log("receive request")
+			r, err := decode(scanner.Bytes())
+			if err != nil {
+				t.Errorf("failed to decode RemotingCommand %s", err)
+			}
+			r.markResponseType()
+			body, _ := encode(r)
+			_, err = conn.Write(body)
+			if err != nil {
+				t.Fatalf("failed to send response %s", err)
+			}
+			count++
+			if count >= cnt {
+				goto done
+			}
+		}
+	}
+done:
+
+	wg.Wait()
 }

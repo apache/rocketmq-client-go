@@ -32,30 +32,29 @@ import (
 var (
 	//ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
-	connectionLocker  sync.Mutex
 )
 
 //ResponseFuture for
 type ResponseFuture struct {
 	ResponseCommand *RemotingCommand
-	SendRequestOK   bool
+	sendRequestOK   bool
 	Err             error
-	Opaque          int32
-	TimeoutMillis   time.Duration
+	opaque          int32
+	timeout         time.Duration
 	callback        func(*ResponseFuture)
-	BeginTimestamp  int64
-	Done            chan bool
+	beginTimestamp  time.Duration
+	done            chan bool
 	callbackOnce    sync.Once
 }
 
 //NewResponseFuture create ResponseFuture with opaque, timeout and callback
-func NewResponseFuture(opaque int32, timeoutMillis time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
+func NewResponseFuture(opaque int32, timeout time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
 	return &ResponseFuture{
-		Opaque:         opaque,
-		Done:           make(chan bool),
-		TimeoutMillis:  timeoutMillis,
+		opaque:         opaque,
+		done:           make(chan bool),
+		timeout:        timeout,
 		callback:       callback,
-		BeginTimestamp: time.Now().Unix() * 1000,
+		beginTimestamp: time.Duration(time.Now().Unix()) * time.Second,
 	}
 }
 
@@ -68,8 +67,8 @@ func (r *ResponseFuture) executeInvokeCallback() {
 }
 
 func (r *ResponseFuture) isTimeout() bool {
-	diff := time.Now().Unix()*1000 - r.BeginTimestamp
-	return diff > int64(r.TimeoutMillis)
+	elapse := time.Duration(time.Now().Unix()) * time.Second - r.beginTimestamp
+	return elapse > r.timeout
 }
 
 func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
@@ -77,18 +76,18 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 		cmd *RemotingCommand
 		err error
 	)
-	timer := time.NewTimer(r.TimeoutMillis * time.Millisecond)
+	timer := time.NewTimer(r.timeout)
 	for {
 		select {
-		case <-r.Done:
+		case <-r.done:
 			cmd, err = r.ResponseCommand, r.Err
-			goto done
+			goto exit
 		case <-timer.C:
 			err = ErrRequestTimeout
-			goto done
+			goto exit
 		}
 	}
-done:
+exit:
 	timer.Stop()
 	return cmd, err
 }
@@ -104,6 +103,8 @@ type RemotingClient struct {
 	connectionTable sync.Map
 	option          TcpOption
 	processors      map[int16]ClientRequestFunc
+	connectionLocker  sync.Mutex
+
 }
 
 func NewRemotingClient() *RemotingClient {
@@ -116,34 +117,34 @@ func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 	c.processors[code] = f
 }
 
-func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
+func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return nil, err
 	}
-	resp := NewResponseFuture(request.Opaque, timeoutMillis, nil)
-	c.responseTable.Store(resp.Opaque, resp)
-	err = c.sendRequest(conn, request)
+	resp := NewResponseFuture(request.Opaque, timeout, nil)
+	c.responseTable.Store(resp.opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
+	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
-	resp.SendRequestOK = true
+	resp.sendRequestOK = true
 	return resp.waitResponse()
 }
 
-func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
+func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return err
 	}
-	resp := NewResponseFuture(request.Opaque, timeoutMillis, callback)
-	c.responseTable.Store(resp.Opaque, resp)
+	resp := NewResponseFuture(request.Opaque, timeout, callback)
+	c.responseTable.Store(resp.opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return err
 	}
-	resp.SendRequestOK = true
+	resp.sendRequestOK = true
 	return nil
 
 }
@@ -160,7 +161,7 @@ func (c *RemotingClient) ScanResponseTable() {
 	rfs := make([]*ResponseFuture, 0)
 	c.responseTable.Range(func(key, value interface{}) bool {
 		if resp, ok := value.(*ResponseFuture); ok {
-			if (resp.BeginTimestamp + int64(resp.TimeoutMillis) + 1000) <= time.Now().Unix()*1000 {
+			if (resp.beginTimestamp + resp.timeout + time.Second) <= time.Duration(time.Now().Unix()) * time.Second {
 				rfs = append(rfs, resp)
 				c.responseTable.Delete(key)
 			}
@@ -175,8 +176,8 @@ func (c *RemotingClient) ScanResponseTable() {
 
 func (c *RemotingClient) connect(addr string) (net.Conn, error) {
 	//it needs additional locker.
-	connectionLocker.Lock()
-	defer connectionLocker.Unlock()
+	c.connectionLocker.Lock()
+	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
 	if ok {
 		return conn.(net.Conn), nil
@@ -207,8 +208,8 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 				go func() {
 					responseFuture.ResponseCommand = cmd
 					responseFuture.executeInvokeCallback()
-					if responseFuture.Done != nil {
-						responseFuture.Done <- true
+					if responseFuture.done != nil {
+						responseFuture.done <- true
 					}
 				}()
 			}
@@ -230,7 +231,7 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 		}
 	}
 	if scanner.Err() != nil {
-		rlog.Errorf("net: %s scanner exit, err: %s.", r.RemoteAddr().String(), scanner.Err())
+		rlog.Errorf("net: %s scanner exit, Err: %s.", r.RemoteAddr().String(), scanner.Err())
 	} else {
 		rlog.Infof("net: %s scanner exit.", r.RemoteAddr().String())
 	}
