@@ -292,7 +292,7 @@ func (c *RMQClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, msgs ...*primitive.Message) *primitive.SendResult {
+func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
 	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -321,20 +321,20 @@ func (c *RMQClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 
 	qId, _ := strconv.Atoi(cmd.ExtFields["queueId"])
 	off, _ := strconv.ParseInt(cmd.ExtFields["queueOffset"], 10, 64)
-	return &primitive.SendResult{
-		Status:      status,
-		MsgID:       cmd.ExtFields["msgId"],
-		OffsetMsgID: cmd.ExtFields["msgId"],
-		MessageQueue: &primitive.MessageQueue{
-			Topic:      msgs[0].Topic,
-			BrokerName: brokerName,
-			QueueId:    qId,
-		},
-		QueueOffset: off,
-		//TransactionID: sendResponse.TransactionId,
-		RegionID: regionId,
-		TraceOn:  trace != "" && trace != _TranceOff,
+
+	resp.Status = status
+	resp.MsgID = cmd.ExtFields["msgId"]
+	resp.OffsetMsgID = cmd.ExtFields["msgId"]
+	resp.MessageQueue = &primitive.MessageQueue{
+		Topic:      msgs[0].Topic,
+		BrokerName: brokerName,
+		QueueId:    qId,
 	}
+	resp.QueueOffset = off
+	//TransactionID: sendResponse.TransactionId,
+	resp.RegionID = regionId
+	resp.TraceOn = trace != "" && trace != _TranceOff
+
 }
 
 // PullMessage with sync
@@ -349,6 +349,7 @@ func (c *RMQClient) PullMessage(ctx context.Context, brokerAddrs string, request
 }
 
 func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*primitive.PullResult, error) {
+
 	pullResult := &primitive.PullResult{}
 	switch response.Code {
 	case ResSuccess:
@@ -363,29 +364,32 @@ func (c *RMQClient) processPullResponse(response *remote.RemotingCommand) (*prim
 		return nil, fmt.Errorf("unknown Response Code: %d, remark: %s", response.Code, response.Remark)
 	}
 
-	v, exist := response.ExtFields["maxOffset"]
-	if exist {
-		pullResult.MaxOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["minOffset"]
-	if exist {
-		pullResult.MinOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["nextBeginOffset"]
-	if exist {
-		pullResult.NextBeginOffset, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	v, exist = response.ExtFields["suggestWhichBrokerId"]
-	if exist {
-		pullResult.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
-	}
-
-	//pullResult.messageExts = decodeMessage(response.Body) TODO parse in top
+	c.decodeCommandCustomHeader(pullResult, response)
+	pullResult.SetBody(response.Body)
 
 	return pullResult, nil
+}
+
+func (c *RMQClient) decodeCommandCustomHeader(pr *primitive.PullResult, cmd *remote.RemotingCommand) {
+	v, exist := cmd.ExtFields["maxOffset"]
+	if exist {
+		pr.MaxOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["minOffset"]
+	if exist {
+		pr.MinOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["nextBeginOffset"]
+	if exist {
+		pr.NextBeginOffset, _ = strconv.ParseInt(v, 10, 64)
+	}
+
+	v, exist = cmd.ExtFields["suggestWhichBrokerId"]
+	if exist {
+		pr.SuggestWhichBrokerId, _ = strconv.ParseInt(v, 10, 64)
+	}
 }
 
 // PullMessageAsync pull message async

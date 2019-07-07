@@ -22,9 +22,13 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 type ProducerOptions struct {
+	Interceptors []PInterceptor
+
 	ClientOption
 	NameServerAddr           string
 	GroupName                string
@@ -32,7 +36,48 @@ type ProducerOptions struct {
 	UnitMode                 bool
 }
 
-type ConsumerOption struct {
+func DefaultProducerOptions() ProducerOptions {
+	return ProducerOptions{
+		RetryTimesWhenSendFailed:  2,
+	}
+}
+
+// ProducerOption configures how we create the producer by set ProducerOptions value.
+type ProducerOption struct {
+	Apply func(*ProducerOptions)
+}
+
+func NewProducerOption(f func(options *ProducerOptions)) *ProducerOption {
+	return &ProducerOption{
+		Apply: f,
+	}
+}
+
+// WithProducerInterceptor returns a ProducerOption that specifies the interceptor for producer.
+func WithProducerInterceptor(f PInterceptor) *ProducerOption {
+	return NewProducerOption(func(options *ProducerOptions) {
+		options.Interceptors = append(options.Interceptors, f)
+	})
+}
+
+// WithChainProducerInterceptor returns a ProducerOption that specifies the chained interceptor for producer.
+// The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
+// around the real call.
+func WithChainProducerInterceptor(fs ...PInterceptor) *ProducerOption {
+	return NewProducerOption(func(options *ProducerOptions) {
+		options.Interceptors = append(options.Interceptors, fs...)
+	})
+}
+
+// WithRetry return a ProducerOption that specifies the retry times when send failed.
+// TODO: use retryMiddleeware instead.
+func WithRetry(retries int) *ProducerOption {
+	return  NewProducerOption(func(options *ProducerOptions) {
+		options.RetryTimesWhenSendFailed = retries
+	})
+}
+
+type ConsumerOptions struct {
 	ClientOption
 	NameServerAddr string
 
@@ -92,7 +137,7 @@ type ConsumerOption struct {
 
 	// Max re-consume times. -1 means 16 times.
 	//
-	// If messages are re-consumed more than {@link #maxReconsumeTimes} before success, it's be directed to a deletion
+	// If messages are re-consumed more than {@link #maxReconsumeTimes} before Success, it's be directed to a deletion
 	// queue waiting.
 	MaxReconsumeTimes int
 
@@ -107,6 +152,56 @@ type ConsumerOption struct {
 	ConsumeOrderly bool
 	FromWhere      ConsumeFromWhere
 	// TODO traceDispatcher
+
+	Interceptors []CInterceptor
+}
+
+func DefaultPushConsumerOptions() ConsumerOptions{
+	return ConsumerOptions{
+		ClientOption: ClientOption{
+			InstanceName: "DEFAULT",
+			ClientIP: utils.LocalIP(),
+		},
+		Strategy: AllocateByAveragely,
+	}
+}
+
+type ConsumerOption struct {
+	Apply func(*ConsumerOptions)
+}
+
+func NewConsumerOption(f func(*ConsumerOptions)) *ConsumerOption {
+	return &ConsumerOption{
+		Apply: f,
+	}
+}
+
+func WithConsumerModel(m MessageModel) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.ConsumerModel = m
+	})
+}
+
+func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.FromWhere = w
+	})
+}
+
+// WithConsumerInterceptor returns a ConsumerOption that specifies the interceptor for consumer.
+func WithConsumerInterceptor(f CInterceptor) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.Interceptors = append(options.Interceptors, f)
+	})
+}
+
+// WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
+// The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
+// around the real call.
+func WithChainConsumerInterceptor(fs ...CInterceptor) *ConsumerOption {
+	return NewConsumerOption(func(options *ConsumerOptions) {
+		options.Interceptors = append(options.Interceptors, fs...)
+	})
 }
 
 func (opt *ClientOption) ChangeInstanceNameToPID() {
