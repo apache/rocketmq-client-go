@@ -48,10 +48,10 @@ var (
 	ErrTopicNotExist = errors.New("topic not exist")
 	nameSrvClient    = remote.NewRemotingClient()
 
-	nameSrvs *utils.Namesrvs
+	nameSrvs *Namesrvs
 )
 
-func RegisterNamsrv(s *utils.Namesrvs) {
+func RegisterNamsrv(s *Namesrvs) {
 	nameSrvs = s
 }
 

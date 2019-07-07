@@ -27,7 +27,6 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/kernel"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/pkg/errors"
 )
 
@@ -63,7 +62,7 @@ type pushConsumer struct {
 }
 
 func NewPushConsumer(consumerGroup string, nameServerAddrs []string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
-	srvs, err := utils.NewNamesrv(nameServerAddrs...)
+	srvs, err := kernel.NewNamesrv(nameServerAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
