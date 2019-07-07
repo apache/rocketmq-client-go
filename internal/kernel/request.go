@@ -71,6 +71,8 @@ func (request *SendMessageRequest) Encode() map[string]string {
 	maps["defaultTopic"] = "TBW102"
 	maps["defaultTopicQueueNums"] = "4"
 	maps["batch"] = strconv.FormatBool(request.Batch)
+	maps["properties"] = request.Properties
+
 	return maps
 }
 
