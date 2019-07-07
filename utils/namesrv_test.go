@@ -55,4 +55,9 @@ func TestSelector(t *testing.T) {
 	assert.Equal(t, srvs[1], namesrv.GetNamesrv())
 	assert.Equal(t, srvs[2], namesrv.GetNamesrv())
 	assert.Equal(t, srvs[3], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[1], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[2], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[3], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
 }

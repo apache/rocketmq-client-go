@@ -83,6 +83,10 @@ func (s *Namesrvs) GetNamesrv() string {
 	return addr
 }
 
+func (s *Namesrvs) Size() int {
+	return len(s.srvs)
+}
+
 func (s *Namesrvs) String() string {
 	return strings.Join(s.srvs, ";")
 }

@@ -266,10 +266,21 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 	request := &GetRouteInfoRequest{
 		Topic: topic,
 	}
-	rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-	response, err := nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
 
+	var (
+		response *remote.RemotingCommand
+		err error
+	)
+	for i := 0; i < nameSrvs.Size(); i++ {
+		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
+		response, err = nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
+
+		if err != nil {
+			continue
+		}
+	}
 	if err != nil {
+		rlog.Errorf("connect to namesrv: %v failed.", nameSrvs)
 		return nil, err
 	}
 
