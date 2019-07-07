@@ -28,7 +28,7 @@ import (
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", "127.0.0.1:9876",
+	c, _ := consumer.NewPushConsumer("testGroup", []string{"127.0.0.1:9876"},
 		primitive.WithConsumerModel(primitive.Clustering),
 		primitive.WithConsumeFromWhere(primitive.ConsumeFromFirstOffset),
 		primitive.WithChainConsumerInterceptor(UserFistInterceptor(), UserSecondInterceptor()))

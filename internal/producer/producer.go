@@ -19,9 +19,7 @@ package producer
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,6 +29,7 @@ import (
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/pkg/errors"
 )
 
 type Producer interface {
@@ -40,24 +39,18 @@ type Producer interface {
 	SendOneWay(context.Context, *primitive.Message) error
 }
 
-func NewProducer(nameServerAddr string, opts ...*primitive.ProducerOption) (Producer, error) {
-	if err := utils.VerifyIP(nameServerAddr); err != nil {
-		return nil, err
-	}
-
-	if nameServerAddr == "" {
-		rlog.Fatal("nameServerAddr can't be empty")
-	}
-	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
+func NewProducer(nameServerAddrs []string, opts ...*primitive.ProducerOption) (Producer, error) {
+	srvs, err := utils.NewNamesrv(nameServerAddrs...)
 	if err != nil {
-		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
+		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	kernel.RegisterNamsrv(srvs)
 
 	popts := primitive.DefaultProducerOptions()
 	for _, opt := range opts {
 		opt.Apply(&popts)
 	}
-	popts.NameServerAddr = nameServerAddr
+	popts.NameServerAddrs = nameServerAddrs
 
 	producer := &defaultProducer{
 		group:   "default",
@@ -289,4 +282,3 @@ func (p *defaultProducer) IsPublishTopicNeedUpdate(topic string) bool {
 func (p *defaultProducer) IsUnitMode() bool {
 	return false
 }
-

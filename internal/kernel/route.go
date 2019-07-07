@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +47,13 @@ const (
 var (
 	ErrTopicNotExist = errors.New("topic not exist")
 	nameSrvClient    = remote.NewRemotingClient()
+
+	nameSrvs *utils.Namesrvs
 )
+
+func RegisterNamsrv(s *utils.Namesrvs) {
+	nameSrvs = s
+}
 
 var (
 	// brokerName -> *BrokerData
@@ -372,7 +377,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 }
 
 func getNameServerAddress() string {
-	return os.Getenv(EnvNameServerAddr)
+	return nameSrvs.GetNamesrv()
 }
 
 // TopicRouteData TopicRouteData

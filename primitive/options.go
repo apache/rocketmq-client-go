@@ -30,7 +30,7 @@ type ProducerOptions struct {
 	Interceptors []PInterceptor
 
 	ClientOption
-	NameServerAddr           string
+	NameServerAddrs          []string
 	GroupName                string
 	RetryTimesWhenSendFailed int
 	UnitMode                 bool
@@ -79,7 +79,7 @@ func WithRetry(retries int) *ProducerOption {
 
 type ConsumerOptions struct {
 	ClientOption
-	NameServerAddr string
+	NameServerAddrs []string
 
 	/**
 	 * Backtracking consumption time with second precision. Time format is
@@ -217,7 +217,7 @@ func (opt *ClientOption) String() string {
 }
 
 type ClientOption struct {
-	NameServerAddr    string
+	NameServerAddrs   string
 	ClientIP          string
 	InstanceName      string
 	UnitMode          bool

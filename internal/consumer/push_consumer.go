@@ -19,10 +19,8 @@ package consumer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
-	"os"
 	"strconv"
 	"time"
 
@@ -30,6 +28,7 @@ import (
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/pkg/errors"
 )
 
 // In most scenarios, this is the mostly recommended usage to consume messages.
@@ -63,24 +62,19 @@ type pushConsumer struct {
 	interceptor primitive.CInterceptor
 }
 
-func NewPushConsumer(consumerGroup string, nameServerAddr string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
-	if err := utils.VerifyIP(nameServerAddr); err != nil {
-		return nil, err
-	}
-	if nameServerAddr == "" {
-		rlog.Fatal("opts.NameServerAddr can't be empty")
-	}
-	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
+func NewPushConsumer(consumerGroup string, nameServerAddrs []string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
+	srvs, err := utils.NewNamesrv(nameServerAddrs...)
 	if err != nil {
-		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
+		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	kernel.RegisterNamsrv(srvs)
 
 	pushOpts := primitive.DefaultPushConsumerOptions()
 	for _, op := range opts {
 		op.Apply(&pushOpts)
 	}
 
-	pushOpts.NameServerAddr = nameServerAddr
+	pushOpts.NameServerAddrs = nameServerAddrs
 
 	dc := &defaultConsumer{
 		consumerGroup:  consumerGroup,

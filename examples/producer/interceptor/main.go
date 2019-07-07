@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-	nameServerAddr := "127.0.0.1:9876"
+	nameServerAddr := []string{"127.0.0.1:9876"}
 	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2),
 		primitive.WithChainProducerInterceptor(UserFirstInterceptor(), UserSecondInterceptor()))
 	err := p.Start()
