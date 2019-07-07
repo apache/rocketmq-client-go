@@ -42,7 +42,7 @@ const (
 	// Pulling topic information interval from the named server
 	_PullNameServerInterval = 30 * time.Second
 
-	// Pulling topic information interval from the named server
+	// Sending heart beat interval to all broker
 	_HeartbeatBrokerInterval = 30 * time.Second
 
 	// Offset persistent interval for consumer
@@ -95,6 +95,7 @@ type RMQClient struct {
 
 	remoteClient *remote.RemotingClient
 	hbMutex      sync.Mutex
+	cancel       context.CancelFunc
 }
 
 var clientMap sync.Map
@@ -116,6 +117,8 @@ func GetOrNewRocketMQClient(option primitive.ClientOption) *RMQClient {
 }
 
 func (c *RMQClient) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
 	c.once.Do(func() {
 		// TODO fetchNameServerAddr
 		go func() {}()
@@ -124,45 +127,70 @@ func (c *RMQClient) Start() {
 		go func() {
 			// delay
 			time.Sleep(50 * time.Millisecond)
+			c.UpdateTopicRouteInfo()
 			for {
-				c.UpdateTopicRouteInfo()
-				time.Sleep(_PullNameServerInterval)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.Tick(_PullNameServerInterval):
+					c.UpdateTopicRouteInfo()
+				}
 			}
 		}()
 
 		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
 		go func() {
+			cleanOfflineBroker()
+			c.SendHeartbeatToAllBrokerWithLock()
 			for {
-				cleanOfflineBroker()
-				c.SendHeartbeatToAllBrokerWithLock()
-				time.Sleep(_HeartbeatBrokerInterval)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.Tick(_HeartbeatBrokerInterval):
+					cleanOfflineBroker()
+					c.SendHeartbeatToAllBrokerWithLock()
+				}
 			}
 		}()
 
 		// schedule persist offset
 		go func() {
-			//time.Sleep(10 * time.Second)
+			c.consumerMap.Range(func(key, value interface{}) bool {
+				consumer := value.(InnerConsumer)
+				consumer.PersistConsumerOffset()
+				return true
+			})
 			for {
-				c.consumerMap.Range(func(key, value interface{}) bool {
-					consumer := value.(InnerConsumer)
-					consumer.PersistConsumerOffset()
-					return true
-				})
-				time.Sleep(_PersistOffset)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.Tick(_PersistOffset):
+					c.consumerMap.Range(func(key, value interface{}) bool {
+						consumer := value.(InnerConsumer)
+						consumer.PersistConsumerOffset()
+						return true
+					})
+				}
 			}
 		}()
 
 		go func() {
+			c.RebalanceImmediately()
 			for {
-				c.RebalanceImmediately()
-				time.Sleep(_RebalanceInterval)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.Tick(_RebalanceInterval):
+					c.RebalanceImmediately()
+				}
 			}
 		}()
 	})
 }
 
 func (c *RMQClient) Shutdown() {
-	// TODO
+	c.remoteClient.ShutDown()
+	c.cancel()
 }
 
 func (c *RMQClient) ClientID() string {

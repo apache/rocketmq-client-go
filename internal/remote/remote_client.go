@@ -287,3 +287,15 @@ func (c *RemotingClient) closeConnection(toCloseConn net.Conn) {
 		}
 	})
 }
+
+func (c *RemotingClient) ShutDown() {
+	c.responseTable.Range(func(key, value interface{}) bool {
+		c.responseTable.Delete(key)
+		return true
+	})
+	c.connectionTable.Range(func(key, value interface{}) bool {
+		conn := value.(net.Conn)
+		conn.Close()
+		return true
+	})
+}
