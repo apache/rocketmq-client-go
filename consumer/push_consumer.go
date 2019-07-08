@@ -43,48 +43,38 @@ const (
 	Mb = 1024 * 1024
 )
 
-type PushConsumer interface {
-	Start() error
-	Shutdown()
-	Subscribe(topic string, selector primitive.MessageSelector,
-		f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error
-}
-
 type pushConsumer struct {
 	*defaultConsumer
 	queueFlowControlTimes        int
 	queueMaxSpanFlowControlTimes int
-	consume                      func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)
+	consume                      func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
 
 	interceptor primitive.Interceptor
 }
 
-func NewPushConsumer(consumerGroup string, nameServerAddrs []string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
-	srvs, err := kernel.NewNamesrv(nameServerAddrs...)
+func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
+	defaultOpts := defaultPushConsumerOptions()
+	for _, apply := range opts {
+		apply(&defaultOpts)
+	}
+	srvs, err := kernel.NewNamesrv(defaultOpts.NameServerAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
 	kernel.RegisterNamsrv(srvs)
 
-	pushOpts := primitive.DefaultPushConsumerOptions()
-	for _, op := range opts {
-		op.Apply(&pushOpts)
-	}
-
-	pushOpts.NameServerAddrs = nameServerAddrs
-
 	dc := &defaultConsumer{
-		consumerGroup:  consumerGroup,
+		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
 		state:          kernel.StateCreateJust,
 		prCh:           make(chan PullRequest, 4),
-		model:          pushOpts.ConsumerModel,
-		consumeOrderly: pushOpts.ConsumeOrderly,
-		fromWhere:      pushOpts.FromWhere,
-		allocate:       pushOpts.Strategy,
-		option:         pushOpts,
+		model:          defaultOpts.ConsumerModel,
+		consumeOrderly: defaultOpts.ConsumeOrderly,
+		fromWhere:      defaultOpts.FromWhere,
+		allocate:       defaultOpts.Strategy,
+		option:         defaultOpts,
 	}
 
 	p := &pushConsumer{
@@ -136,15 +126,15 @@ func (pc *pushConsumer) Start() error {
 		pc.state = kernel.StateStartFailed
 		pc.validate()
 
-		if pc.model == primitive.Clustering {
+		if pc.model == Clustering {
 			// set retry topic
 			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
 			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
-				primitive.MessageSelector{primitive.TAG, _SubAll}))
+				MessageSelector{TAG, _SubAll}))
 		}
 
-		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOption)
-		if pc.model == primitive.Clustering {
+		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOptions)
+		if pc.model == Clustering {
 			pc.option.ChangeInstanceNameToPID()
 			pc.storage = NewRemoteOffsetStore(pc.consumerGroup, pc.client)
 		} else {
@@ -187,10 +177,12 @@ func (pc *pushConsumer) Start() error {
 	return err
 }
 
-func (pc *pushConsumer) Shutdown() {}
+func (pc *pushConsumer) Shutdown() error {
+	return nil
+}
 
-func (pc *pushConsumer) Subscribe(topic string, selector primitive.MessageSelector,
-	f func(*primitive.ConsumeMessageContext, []*primitive.MessageExt) (primitive.ConsumeResult, error)) error {
+func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
+	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if pc.state != kernel.StateCreateJust {
 		return errors.New("subscribe topic only started before")
 	}
@@ -198,6 +190,10 @@ func (pc *pushConsumer) Subscribe(topic string, selector primitive.MessageSelect
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
 	pc.consume = f
+	return nil
+}
+
+func (pc *pushConsumer) Unsubscribe(string) error {
 	return nil
 }
 
@@ -411,7 +407,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			subExpression      string
 		)
 
-		if pc.model == primitive.Clustering {
+		if pc.model == Clustering {
 			commitOffsetValue = pc.storage.read(request.mq, _ReadFromMemory)
 			if commitOffsetValue > 0 {
 				commitOffsetEnable = true
@@ -435,7 +431,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SysFlag:        sysFlag,
 			CommitOffset:   commitOffsetValue,
 			SubExpression:  _SubAll,
-			ExpressionType: string(primitive.TAG), // TODO
+			ExpressionType: string(TAG), // TODO
 		}
 		//
 		//if data.ExpType == string(TAG) {
@@ -514,7 +510,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *primitive.ConsumeMessageContext, msg *primitive.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *primitive.MessageExt) bool {
 	return true
 }
 
@@ -544,7 +540,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	//rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
 	//	from, topic, group, t)
 	//
-	//offsetTable := make(map[primitive.MessageQueue]int64, 0)
+	//offsetTable := make(map[MessageQueue]int64, 0)
 	//err = json.Unmarshal(cmd.Body, &offsetTable)
 	//if err != nil {
 	//	rlog.Warnf("received reset offset command from: %s, but parse offset table: %s", err.Error())
@@ -574,7 +570,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	if !exist {
 		return
 	}
-	queuesOfTopic := v.(map[int]*primitive.MessageQueue)
+	queuesOfTopic := v.(map[int]primitive.MessageQueue)
 	for k := range queuesOfTopic {
 		q := set[k]
 		if q != nil {
@@ -592,7 +588,7 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 
 func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue, pq *processQueue) bool {
 	pc.defaultConsumer.removeUnnecessaryMessageQueue(mq, pq)
-	if !pc.consumeOrderly || primitive.Clustering != pc.model {
+	if !pc.consumeOrderly || Clustering != pc.model {
 		return true
 	}
 	// TODO orderly
@@ -622,9 +618,6 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				return
 			}
 
-			msgCtx := &primitive.ConsumeMessageContext{
-				Properties: make(map[string]string),
-			}
 			// TODO hook
 			beginTime := time.Now()
 			groupTopic := kernel.RetryGroupTopicPrefix + pc.consumerGroup
@@ -639,25 +632,26 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 						beginTime.UnixNano()/int64(time.Millisecond), 10)
 				}
 			}
-			var result primitive.ConsumeResult
+			var result ConsumeResult
 
 			var err error
+			msgCtx := &ConsumeMessageContext{
+				Properties: make(map[string]string),
+			}
+			ctx := context.Background()
+			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
+			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
 			if pc.interceptor == nil {
-				result, err = pc.consume(msgCtx, subMsgs)
+				result, err = pc.consume(ctx, subMsgs...)
 			} else {
-				var container primitive.ConsumeResultHolder
-
-				ctx := context.Background()
-				ctx = primitive.WithConsumerCtx(ctx, msgCtx)
-				ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
-
+				var container ConsumeResultHolder
 				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
-					consumerCtx, _ := primitive.GetConsumerCtx(ctx)
+					//consumerCtx, _ := primitive.GetConsumerCtx(ctx)
 
 					msgs := req.([]*primitive.MessageExt)
-					r, e := pc.consume(consumerCtx, msgs)
+					r, e := pc.consume(ctx, msgs...)
 
-					realReply := reply.(*primitive.ConsumeResultHolder)
+					realReply := reply.(ConsumeResultHolder)
 					realReply.ConsumeResult = r
 					return e
 				})
@@ -669,7 +663,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				msgCtx.Properties["ConsumeContextType"] = "EXCEPTION"
 			} else if consumeRT >= pc.option.ConsumeTimeout {
 				msgCtx.Properties["ConsumeContextType"] = "TIMEOUT"
-			} else if result == primitive.ConsumeSuccess {
+			} else if result == ConsumeSuccess {
 				msgCtx.Properties["ConsumeContextType"] = "SUCCESS"
 			} else {
 				msgCtx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
@@ -680,11 +674,11 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			if !pq.dropped {
 				msgBackFailed := make([]*primitive.MessageExt, 0)
-				if result == primitive.ConsumeSuccess {
+				if result == ConsumeSuccess {
 					increaseConsumeOKTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
 				} else {
 					increaseConsumeFailedTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
-					if pc.model == primitive.BroadCasting {
+					if pc.model == BroadCasting {
 						for i := 0; i < len(msgs); i++ {
 							rlog.Warnf("BROADCASTING, the message=%s consume failed, drop it, {}", subMsgs[i])
 						}

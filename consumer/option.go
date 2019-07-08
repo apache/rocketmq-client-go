@@ -18,17 +18,13 @@ limitations under the License.
 package consumer
 
 import (
-	"fmt"
+	"github.com/apache/rocketmq-client-go/internal/kernel"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/utils"
-	"os"
-	"strconv"
 	"time"
 )
 
-type ConsumerOptions struct {
-	ClientOption
-	NameServerAddrs []string
+type consumerOptions struct {
+	kernel.ClientOptions
 
 	/**
 	 * Backtracking consumption time with second precision. Time format is
@@ -96,81 +92,82 @@ type ConsumerOptions struct {
 	// Maximum amount of time a message may block the consuming thread.
 	ConsumeTimeout time.Duration
 
-	ConsumerModel  primitive.MessageModel
-	Strategy       primitive.AllocateStrategy
+	ConsumerModel  MessageModel
+	Strategy       AllocateStrategy
 	ConsumeOrderly bool
-	FromWhere      primitive.ConsumeFromWhere
-	// TODO traceDispatcher
+	FromWhere      ConsumeFromWhere
 
 	Interceptors []primitive.Interceptor
+	// TODO traceDispatcher
 }
 
-func DefaultPushConsumerOptions() ConsumerOptions {
-	return ConsumerOptions{
-		ClientOption: ClientOption{
-			InstanceName: "DEFAULT",
-			ClientIP:     utils.LocalIP(),
-		},
-		Strategy: primitive.AllocateByAveragely,
+func defaultPushConsumerOptions() consumerOptions {
+	return consumerOptions{
+		ClientOptions: kernel.DefaultClientOptions(),
+		Strategy:      AllocateByAveragely,
 	}
 }
 
-type ConsumerOption struct {
-	Apply func(*ConsumerOptions)
-}
+type Option func(*consumerOptions)
 
-func NewConsumerOption(f func(*ConsumerOptions)) *ConsumerOption {
-	return &ConsumerOption{
-		Apply: f,
-	}
-}
-
-func WithConsumerModel(m primitive.MessageModel) *ConsumerOption {
-	return NewConsumerOption(func(options *ConsumerOptions) {
+func WithConsumerModel(m MessageModel) Option {
+	return func(options *consumerOptions) {
 		options.ConsumerModel = m
-	})
+	}
 }
 
-func WithConsumeFromWhere(w primitive.ConsumeFromWhere) *ConsumerOption {
-	return NewConsumerOption(func(options *ConsumerOptions) {
+func WithConsumeFromWhere(w ConsumeFromWhere) Option {
+	return func(options *consumerOptions) {
 		options.FromWhere = w
-	})
-}
-
-// WithConsumerInterceptor returns a ConsumerOption that specifies the interceptor for consumer.
-func WithConsumerInterceptor(f primitive.Interceptor) *ConsumerOption {
-	return NewConsumerOption(func(options *ConsumerOptions) {
-		options.Interceptors = append(options.Interceptors, f)
-	})
+	}
 }
 
 // WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
-func WithChainConsumerInterceptor(fs ...primitive.Interceptor) *ConsumerOption {
-	return NewConsumerOption(func(options *ConsumerOptions) {
+func WithInterceptor(fs ...primitive.Interceptor) Option {
+	return func(options *consumerOptions) {
 		options.Interceptors = append(options.Interceptors, fs...)
-	})
-}
-
-func (opt *ClientOption) ChangeInstanceNameToPID() {
-	if opt.InstanceName == "DEFAULT" {
-		opt.InstanceName = strconv.Itoa(os.Getegid())
 	}
 }
 
-func (opt *ClientOption) String() string {
-	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, UseTLS=%v]", opt.ClientIP,
-		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.UseTLS)
+// WithGroupName set group name address
+func WithGroupName(group string) Option {
+	return func(opts *consumerOptions) {
+		if group == "" {
+			return
+		}
+		opts.GroupName = group
+	}
 }
 
-type ClientOption struct {
-	NameServerAddrs   string
-	ClientIP          string
-	InstanceName      string
-	UnitMode          bool
-	UnitName          string
-	VIPChannelEnabled bool
-	UseTLS            bool
+// WithNameServer set NameServer address, only support one NameServer cluster in alpha2
+func WithNameServer(nameServers ...[]string) Option {
+	return func(opts *consumerOptions) {
+		if len(nameServers) > 0 {
+			opts.NameServerAddrs = nameServers[0]
+		}
+	}
+}
+
+// WithACL on/off ACL
+func WithVIPChannel(enable bool) Option {
+	return func(opts *consumerOptions) {
+		opts.VIPChannelEnabled = enable
+	}
+}
+
+// WithACL on/off ACL
+func WithACL(enable bool) Option {
+	return func(opts *consumerOptions) {
+		opts.ACLEnabled = enable
+	}
+}
+
+// WithRetry return a Option that specifies the retry times when send failed.
+// TODO: use retry middleware instead
+func WithRetry(retries int) Option {
+	return func(opts *consumerOptions) {
+		opts.RetryTimes = retries
+	}
 }

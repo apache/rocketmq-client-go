@@ -31,25 +31,19 @@ import (
 type PullConsumer interface {
 	Start()
 	Shutdown()
-	Pull(ctx context.Context, topic string, selector primitive.MessageSelector, numbers int) (*primitive.PullResult, error)
+	Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error)
 }
 
 var (
 	queueCounterTable sync.Map
 )
 
-func NewConsumer(config primitive.ConsumerOptions) *defaultPullConsumer {
-	return &defaultPullConsumer{
-		option: config,
-	}
-}
-
 type defaultPullConsumer struct {
 	state     kernel.ServiceState
-	option    primitive.ConsumerOptions
+	option    consumerOptions
 	client    *kernel.RMQClient
 	GroupName string
-	Model     primitive.MessageModel
+	Model     MessageModel
 	UnitMode  bool
 }
 
@@ -57,7 +51,7 @@ func (c *defaultPullConsumer) Start() {
 	c.state = kernel.StateRunning
 }
 
-func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector primitive.MessageSelector, numbers int) (*primitive.PullResult, error) {
+func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error) {
 	mq := getNextQueueOf(topic)
 	if mq == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
@@ -75,17 +69,17 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector p
 }
 
 // SubscribeWithChan ack manually
-func (c *defaultPullConsumer) SubscribeWithChan(topic, selector primitive.MessageSelector) (chan *primitive.Message, error) {
+func (c *defaultPullConsumer) SubscribeWithChan(topic, selector MessageSelector) (chan *primitive.Message, error) {
 	return nil, nil
 }
 
 // SubscribeWithFunc ack automatic
-func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector primitive.MessageSelector,
-	f func(msg *primitive.Message) primitive.ConsumeResult) error {
+func (c *defaultPullConsumer) SubscribeWithFunc(topic, selector MessageSelector,
+	f func(msg *primitive.Message) ConsumeResult) error {
 	return nil
 }
 
-func (c *defaultPullConsumer) ACK(msg *primitive.Message, result primitive.ConsumeResult) {
+func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) {
 
 }
 
@@ -114,7 +108,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 		return nil, fmt.Errorf("the broker %s does not exist", mq.BrokerName)
 	}
 
-	if (data.ExpType == string(primitive.TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
+	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
 			mq.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
@@ -137,7 +131,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 		ExpressionType:       string(data.ExpType),
 	}
 
-	if data.ExpType == string(primitive.TAG) {
+	if data.ExpType == string(TAG) {
 		pullRequest.SubVersion = 0
 	} else {
 		pullRequest.SubVersion = data.SubVersion

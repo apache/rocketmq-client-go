@@ -19,6 +19,7 @@ package rocketmq
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/producer"
 )
@@ -38,15 +39,19 @@ func NewProducer(opts ...producer.Option) (Producer, error) {
 type PushConsumer interface {
 	Start() error
 	Shutdown() error
-	Subscribe(topic string, selector primitive.MessageSelector,
-		f func(context.Context, *primitive.MessageExt) (*primitive.ConsumeResult, error)) error
+	Subscribe(topic string, selector consumer.MessageSelector,
+		f func(context.Context, ...*primitive.MessageExt) (consumer.ConsumeResult, error)) error
 	Unsubscribe(string) error
+}
+
+func NewPushConsumer(opts ...consumer.Option) (PushConsumer, error) {
+	return consumer.NewPushConsumer(opts...)
 }
 
 type PullConsumer interface {
 	Start() error
 	Shutdown() error
-	Pull(context.Context, string, primitive.MessageSelector, int) (*primitive.PullResult, error)
+	Pull(context.Context, string, consumer.MessageSelector, int) (*primitive.PullResult, error)
 	PullFrom(context.Context, primitive.MessageQueue, int64, int) (*primitive.PullResult, error)
 	// only update in memory
 	UpdateOffset(primitive.MessageQueue, int64) error

@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-
 	"github.com/apache/rocketmq-client-go/utils"
 )
 

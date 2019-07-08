@@ -20,22 +20,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go"
 	"os"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/consumer"
+	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", []string{"127.0.0.1:9876"},
-		primitive.WithConsumerModel(primitive.Clustering),
-		primitive.WithConsumeFromWhere(primitive.ConsumeFromFirstOffset),
-		primitive.WithChainConsumerInterceptor(UserFistInterceptor(), UserSecondInterceptor()))
-	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
-		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println("subscribe callback: %v", msgs)
-		return primitive.ConsumeSuccess, nil
+	c, _ := rocketmq.NewPushConsumer(
+		consumer.WithGroupName("testGroup"),
+		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
+		consumer.WithConsumerModel(consumer.Clustering),
+		consumer.WithConsumeFromWhere(consumer.ConsumeFromFirstOffset),
+		consumer.WithInterceptor(UserFistInterceptor(), UserSecondInterceptor()))
+	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
+		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		fmt.Printf("subscribe callback: %v \n", msgs)
+		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {
 		fmt.Println(err.Error())
@@ -58,7 +61,7 @@ func UserFistInterceptor() primitive.Interceptor {
 		fmt.Printf("user first interceptor before invoke: %v\n", msgs)
 		e := next(ctx, msgs, reply)
 
-		holder := reply.(*primitive.ConsumeResultHolder)
+		holder := reply.(*consumer.ConsumeResultHolder)
 		fmt.Printf("user first interceptor after invoke: %v, result: %v\n", msgs, holder)
 		return e
 	}
@@ -69,7 +72,7 @@ func UserSecondInterceptor() primitive.Interceptor {
 		msgs := req.([]*primitive.MessageExt)
 		fmt.Printf("user second interceptor before invoke: %v\n", msgs)
 		e := next(ctx, msgs, reply)
-		holder := reply.(*primitive.ConsumeResultHolder)
+		holder := reply.(*consumer.ConsumeResultHolder)
 		fmt.Printf("user second interceptor after invoke: %v, result: %v\n", msgs, holder)
 		return e
 	}

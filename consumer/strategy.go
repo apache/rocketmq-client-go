@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package primitive
+package consumer
 
 import (
 	"github.com/apache/rocketmq-client-go/rlog"

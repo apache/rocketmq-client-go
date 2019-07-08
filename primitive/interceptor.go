@@ -25,6 +25,6 @@ import (
 type Invoker func(ctx context.Context, req, reply interface{}) error
 
 // Interceptor intercepts the invoke of a producer/consumer on messages.
-// In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
+// In PushConsumer call, the req is []*MessageExt type and the reply is ConsumeResultHolder,
 // use type assert to get real type.
 type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error

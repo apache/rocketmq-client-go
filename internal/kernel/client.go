@@ -84,8 +84,8 @@ type InnerConsumer interface {
 	IsUnitMode() bool
 }
 
-func DefaultClientOptions() *ClientOptions {
-	opts := &ClientOptions{
+func DefaultClientOptions() ClientOptions {
+	opts := ClientOptions{
 		GroupName:    "DEFAULT",
 		InstanceName: "DEFAULT",
 		RetryTimes:   3,
@@ -105,6 +105,18 @@ type ClientOptions struct {
 	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
+}
+
+func (opt *ClientOptions) ChangeInstanceNameToPID() {
+	if opt.InstanceName == "DEFAULT" {
+		opt.InstanceName = strconv.Itoa(os.Getegid())
+	}
+}
+
+func (opt *ClientOptions) String() string {
+	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, ACLEnabled=%v]", opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
 }
 
 type RMQClient struct {
@@ -508,13 +520,13 @@ func (c *RMQClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
-func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
-	list := make([]*primitive.MessageQueue, 0)
+func routeData2SubscribeInfo(topic string, data *TopicRouteData) []primitive.MessageQueue {
+	list := make([]primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {
 		qd := data.QueueDataList[idx]
 		if queueIsReadable(qd.Perm) {
 			for i := 0; i < qd.ReadQueueNums; i++ {
-				list = append(list, &primitive.MessageQueue{
+				list = append(list, primitive.MessageQueue{
 					Topic:      topic,
 					BrokerName: qd.BrokerName,
 					QueueId:    i,
