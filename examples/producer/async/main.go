@@ -31,7 +31,7 @@ import (
 // Package main implements a async producer to send message.
 func main() {
 	nameServerAddr := []string{"127.0.0.1:9876"}
-	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2))
+	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2), primitive.WithQueueSelector(primitive.NewManualQueueSelector()))
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())
@@ -44,6 +44,7 @@ func main() {
 			Topic:      "TopicTest",
 			Body:       []byte("Hello RocketMQ Go Client!"),
 			Properties: map[string]string{"id": strconv.Itoa(i)},
+			Queue:      0,
 		}, func(ctx context.Context, result *primitive.SendResult, e error) {
 			if e != nil {
 				fmt.Printf("receive message error: %s\n", err)

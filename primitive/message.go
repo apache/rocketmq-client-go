@@ -59,6 +59,10 @@ type Message struct {
 	Properties    map[string]string
 	TransactionId string
 	Batch         bool
+
+	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
+	// just ignore if not.
+	Queue         int
 }
 
 func NewMessage(topic string, body []byte) *Message {
