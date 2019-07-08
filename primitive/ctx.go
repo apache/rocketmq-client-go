@@ -31,6 +31,7 @@ const (
 	// method name in  producer
 	SendSync   = "SendSync"
 	SendOneway = "SendOneway"
+	SendAsync = "SendAsync"
 	// method name in consumer
 	ConsumerPush = "ConsumerPush"
 	ConsumerPull = "ConsumerPull"

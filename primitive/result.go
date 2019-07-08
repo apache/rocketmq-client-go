@@ -50,6 +50,7 @@ type SendResult struct {
 	OffsetMsgID   string
 	RegionID      string
 	TraceOn       bool
+	Error         error
 }
 
 // SendResult send message result to string(detail result)

@@ -213,6 +213,13 @@ func (c *RMQClient) InvokeSync(addr string, request *remote.RemotingCommand,
 	return c.remoteClient.InvokeSync(addr, request, timeoutMillis)
 }
 
+func (c *RMQClient) InvokeAsync(addr string, request *remote.RemotingCommand,
+	timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
+	return c.remoteClient.InvokeAsync(addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
+		f(future.ResponseCommand, future.Err)
+	})
+}
+
 func (c *RMQClient) InvokeOneWay(addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
 	return c.remoteClient.InvokeOneWay(addr, request, timeoutMillis)

@@ -28,7 +28,7 @@ type Producer interface {
 	Start() error
 	Shutdown() error
 	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
-	SendAsync(context.Context, func(primitive.SendResult), *primitive.Message) error
+	SendAsync(context.Context, func(context.Context, *primitive.SendResult), *primitive.Message) error
 	SendOneWay(context.Context, *primitive.Message) error
 }
 
