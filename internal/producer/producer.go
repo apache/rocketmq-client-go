@@ -193,7 +193,6 @@ func (p *defaultProducer) SendAsync(ctx context.Context, msg *primitive.Message,
 }
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
-
 	mq := p.selectMessageQueue(msg)
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
