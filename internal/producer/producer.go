@@ -31,10 +31,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+var(
+	ErrTopicEmpty = errors.New("topic is nil")
+	ErrMessageEmpty = errors.New("message is nil")
+)
+
 type Producer interface {
 	Start() error
 	Shutdown() error
 	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
+	SendAsync(context.Context, *primitive.Message, func(context.Context, *primitive.SendResult, error)) error
 	SendOneWay(context.Context, *primitive.Message) error
 }
 
@@ -108,13 +114,20 @@ func (p *defaultProducer) Shutdown() error {
 	return nil
 }
 
-func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+func (p *defaultProducer) checkMsg(msg *primitive.Message) error {
 	if msg == nil {
-		return nil, errors.New("message is nil")
+		return errors.New("message is nil")
 	}
 
 	if msg.Topic == "" {
-		return nil, errors.New("topic is nil")
+		return errors.New("topic is nil")
+	}
+	return nil
+}
+
+func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+	if err := p.checkMsg(msg); err != nil {
+		return nil, err
 	}
 
 	resp := new(primitive.SendResult)
@@ -165,13 +178,47 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
-func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
-	if msg == nil {
-		return errors.New("message is nil")
+func (p *defaultProducer) SendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+	if err := p.checkMsg(msg); err != nil {
+		return err
 	}
 
-	if msg.Topic == "" {
-		return errors.New("topic is nil")
+	if p.interceptor != nil {
+		primitive.WithMehod(ctx, primitive.SendAsync)
+
+		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, h)
+		})
+	}
+	return p.sendAsync(ctx, msg, h)
+}
+
+func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+
+	mq := p.selectMessageQueue(msg.Topic)
+	if mq == nil {
+		return errors.Errorf("the topic=%s route info not found", msg.Topic)
+	}
+
+	addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	if addr == "" {
+		return errors.Errorf("topic=%s route info not found", mq.Topic)
+	}
+
+	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, e error) {
+		if e != nil {
+			h(ctx, nil, e)
+			return
+		}
+		resp := new(primitive.SendResult)
+		p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+		h(ctx, resp, e)
+	})
+}
+
+func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
+	if err := p.checkMsg(msg); err != nil {
+		return err
 	}
 
 	if p.interceptor != nil {
