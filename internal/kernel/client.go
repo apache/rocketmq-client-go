@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -71,7 +72,6 @@ type InnerProducer interface {
 	PublishTopicList() []string
 	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
 	IsPublishTopicNeedUpdate(topic string) bool
-	//GetTransactionListener() TransactionListener
 	IsUnitMode() bool
 }
 
@@ -84,8 +84,31 @@ type InnerConsumer interface {
 	IsUnitMode() bool
 }
 
+func DefaultClientOptions() *ClientOptions {
+	opts := &ClientOptions{
+		GroupName:    "DEFAULT",
+		InstanceName: "DEFAULT",
+		RetryTimes:   3,
+		ClientIP:     utils.LocalIP(),
+	}
+	return opts
+}
+
+type ClientOptions struct {
+	GroupName         string
+	NameServerAddrs   []string
+	ClientIP          string
+	InstanceName      string
+	UnitMode          bool
+	UnitName          string
+	VIPChannelEnabled bool
+	ACLEnabled        bool
+	RetryTimes        int
+	Interceptors      []primitive.Interceptor
+}
+
 type RMQClient struct {
-	option primitive.ClientOption
+	option ClientOptions
 	// group -> InnerProducer
 	producerMap sync.Map
 
@@ -99,7 +122,7 @@ type RMQClient struct {
 
 var clientMap sync.Map
 
-func GetOrNewRocketMQClient(option primitive.ClientOption) *RMQClient {
+func GetOrNewRocketMQClient(option ClientOptions) *RMQClient {
 	client := &RMQClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),

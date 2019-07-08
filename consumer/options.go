@@ -15,67 +15,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package primitive
+package consumer
 
 import (
 	"fmt"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/apache/rocketmq-client-go/utils"
 )
-
-type ProducerOptions struct {
-	Interceptors []PInterceptor
-
-	ClientOption
-	NameServerAddrs          []string
-	GroupName                string
-	RetryTimesWhenSendFailed int
-	UnitMode                 bool
-}
-
-func DefaultProducerOptions() ProducerOptions {
-	return ProducerOptions{
-		RetryTimesWhenSendFailed:  2,
-	}
-}
-
-// ProducerOption configures how we create the producer by set ProducerOptions value.
-type ProducerOption struct {
-	Apply func(*ProducerOptions)
-}
-
-func NewProducerOption(f func(options *ProducerOptions)) *ProducerOption {
-	return &ProducerOption{
-		Apply: f,
-	}
-}
-
-// WithProducerInterceptor returns a ProducerOption that specifies the interceptor for producer.
-func WithProducerInterceptor(f PInterceptor) *ProducerOption {
-	return NewProducerOption(func(options *ProducerOptions) {
-		options.Interceptors = append(options.Interceptors, f)
-	})
-}
-
-// WithChainProducerInterceptor returns a ProducerOption that specifies the chained interceptor for producer.
-// The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
-// around the real call.
-func WithChainProducerInterceptor(fs ...PInterceptor) *ProducerOption {
-	return NewProducerOption(func(options *ProducerOptions) {
-		options.Interceptors = append(options.Interceptors, fs...)
-	})
-}
-
-// WithRetry return a ProducerOption that specifies the retry times when send failed.
-// TODO: use retryMiddleeware instead.
-func WithRetry(retries int) *ProducerOption {
-	return  NewProducerOption(func(options *ProducerOptions) {
-		options.RetryTimesWhenSendFailed = retries
-	})
-}
 
 type ConsumerOptions struct {
 	ClientOption
@@ -147,22 +96,22 @@ type ConsumerOptions struct {
 	// Maximum amount of time a message may block the consuming thread.
 	ConsumeTimeout time.Duration
 
-	ConsumerModel  MessageModel
-	Strategy       AllocateStrategy
+	ConsumerModel  primitive.MessageModel
+	Strategy       primitive.AllocateStrategy
 	ConsumeOrderly bool
-	FromWhere      ConsumeFromWhere
+	FromWhere      primitive.ConsumeFromWhere
 	// TODO traceDispatcher
 
-	Interceptors []CInterceptor
+	Interceptors []primitive.Interceptor
 }
 
-func DefaultPushConsumerOptions() ConsumerOptions{
+func DefaultPushConsumerOptions() ConsumerOptions {
 	return ConsumerOptions{
 		ClientOption: ClientOption{
 			InstanceName: "DEFAULT",
-			ClientIP: utils.LocalIP(),
+			ClientIP:     utils.LocalIP(),
 		},
-		Strategy: AllocateByAveragely,
+		Strategy: primitive.AllocateByAveragely,
 	}
 }
 
@@ -176,20 +125,20 @@ func NewConsumerOption(f func(*ConsumerOptions)) *ConsumerOption {
 	}
 }
 
-func WithConsumerModel(m MessageModel) *ConsumerOption {
+func WithConsumerModel(m primitive.MessageModel) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.ConsumerModel = m
 	})
 }
 
-func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
+func WithConsumeFromWhere(w primitive.ConsumeFromWhere) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.FromWhere = w
 	})
 }
 
 // WithConsumerInterceptor returns a ConsumerOption that specifies the interceptor for consumer.
-func WithConsumerInterceptor(f CInterceptor) *ConsumerOption {
+func WithConsumerInterceptor(f primitive.Interceptor) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.Interceptors = append(options.Interceptors, f)
 	})
@@ -198,7 +147,7 @@ func WithConsumerInterceptor(f CInterceptor) *ConsumerOption {
 // WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
-func WithChainConsumerInterceptor(fs ...CInterceptor) *ConsumerOption {
+func WithChainConsumerInterceptor(fs ...primitive.Interceptor) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.Interceptors = append(options.Interceptors, fs...)
 	})

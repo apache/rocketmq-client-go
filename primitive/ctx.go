@@ -28,17 +28,16 @@ const (
 	method CtxKey = iota
 	msgCtx
 
-
 	// method name in  producer
-	SendSync = "SendSync"
+	SendSync   = "SendSync"
 	SendOneway = "SendOneway"
 	// method name in consumer
 	ConsumerPush = "ConsumerPush"
 	ConsumerPull = "ConsumerPull"
 )
 
-// WithMehod set call method name
-func WithMehod(ctx context.Context, m string) context.Context {
+// WithMethod set call method name
+func WithMethod(ctx context.Context, m string) context.Context {
 	return context.WithValue(ctx, method, m)
 }
 

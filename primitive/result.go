@@ -80,7 +80,7 @@ type PullResult struct {
 	SuggestWhichBrokerId int64
 
 	// messageExts message info
-	messageExts          []*MessageExt
+	messageExts []*MessageExt
 	//
 	body []byte
 }
@@ -222,7 +222,7 @@ func unmarshalProperties(data []byte) map[string]string {
 	for _, item := range items {
 		kv := bytes.Split(item, []byte{nameValueSeparator})
 		if len(kv) == 2 {
-			m[ string(kv[0]) ] = string(kv[1])
+			m[string(kv[0])] = string(kv[1])
 		}
 	}
 	return m

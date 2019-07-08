@@ -269,7 +269,7 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 
 	var (
 		response *remote.RemotingCommand
-		err error
+		err      error
 	)
 	for i := 0; i < nameSrvs.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)

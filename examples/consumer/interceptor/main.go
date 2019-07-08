@@ -49,8 +49,8 @@ func main() {
 	time.Sleep(time.Hour)
 }
 
-func UserFistInterceptor() primitive.CInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.CInvoker) error {
+func UserFistInterceptor() primitive.Interceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		msgCtx, _ := primitive.GetConsumerCtx(ctx)
 		fmt.Printf("msgCtx: %v, mehtod: %s", msgCtx, primitive.GetMethod(ctx))
 
@@ -64,8 +64,8 @@ func UserFistInterceptor() primitive.CInterceptor {
 	}
 }
 
-func UserSecondInterceptor() primitive.CInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.CInvoker)  error {
+func UserSecondInterceptor() primitive.Interceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		msgs := req.([]*primitive.MessageExt)
 		fmt.Printf("user second interceptor before invoke: %v\n", msgs)
 		e := next(ctx, msgs, reply)

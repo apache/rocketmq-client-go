@@ -31,30 +31,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Producer interface {
-	Start() error
-	Shutdown() error
-	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
-	SendOneWay(context.Context, *primitive.Message) error
-}
-
-func NewProducer(nameServerAddrs []string, opts ...*primitive.ProducerOption) (Producer, error) {
-	srvs, err := kernel.NewNamesrv(nameServerAddrs...)
+func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
+	defaultOpts := defaultProducerOptions()
+	for _, apply := range opts {
+		apply(&defaultOpts)
+	}
+	srvs, err := kernel.NewNamesrv(defaultOpts.NameServerAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
 	kernel.RegisterNamsrv(srvs)
 
-	popts := primitive.DefaultProducerOptions()
-	for _, opt := range opts {
-		opt.Apply(&popts)
-	}
-	popts.NameServerAddrs = nameServerAddrs
-
 	producer := &defaultProducer{
 		group:   "default",
-		client:  kernel.GetOrNewRocketMQClient(popts.ClientOption),
-		options: popts,
+		client:  kernel.GetOrNewRocketMQClient(defaultOpts.ClientOptions),
+		options: defaultOpts,
 	}
 
 	chainInterceptor(producer)
@@ -71,14 +62,14 @@ func chainInterceptor(p *defaultProducer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.PInvoker) error {
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
 			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
 
 // getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.PInterceptor, cur int, finalInvoker primitive.PInvoker) primitive.PInvoker {
+func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
@@ -91,10 +82,10 @@ type defaultProducer struct {
 	group       string
 	client      *kernel.RMQClient
 	state       kernel.ServiceState
-	options     primitive.ProducerOptions
+	options     producerOptions
 	publishInfo sync.Map
 
-	interceptor primitive.PInterceptor
+	interceptor primitive.Interceptor
 }
 
 func (p *defaultProducer) Start() error {
@@ -119,7 +110,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 
 	resp := new(primitive.SendResult)
 	if p.interceptor != nil {
-		primitive.WithMehod(ctx, primitive.SendSync)
+		primitive.WithMethod(ctx, primitive.SendSync)
 		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
 			var err error
 			realReq := req.(*primitive.Message)
@@ -136,7 +127,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 
 func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, resp *primitive.SendResult) error {
 
-	retryTime := 1 + p.options.RetryTimesWhenSendFailed
+	retryTime := 1 + p.options.RetryTimes
 
 	var (
 		err error
@@ -165,6 +156,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
+func (p *defaultProducer) SendAsync(context.Context, func(primitive.SendResult), *primitive.Message) error {
+	return nil
+}
+
 func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
 	if msg == nil {
 		return errors.New("message is nil")
@@ -175,7 +170,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message
 	}
 
 	if p.interceptor != nil {
-		primitive.WithMehod(ctx, primitive.SendOneway)
+		primitive.WithMethod(ctx, primitive.SendOneway)
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.SendOneWay(ctx, msg)
 		})
@@ -185,7 +180,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message
 }
 
 func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message) error {
-	retryTime := 1 + p.options.RetryTimesWhenSendFailed
+	retryTime := 1 + p.options.RetryTimes
 
 	var (
 		err error

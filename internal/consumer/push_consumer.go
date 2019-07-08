@@ -58,7 +58,7 @@ type pushConsumer struct {
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
 
-	interceptor primitive.CInterceptor
+	interceptor primitive.Interceptor
 }
 
 func NewPushConsumer(consumerGroup string, nameServerAddrs []string, opts ...*primitive.ConsumerOption) (PushConsumer, error) {
@@ -112,14 +112,14 @@ func chainInterceptor(p *pushConsumer) {
 	case 1:
 		p.interceptor = interceptors[0]
 	default:
-		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.CInvoker) error {
+		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
 			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
 		}
 	}
 }
 
 // getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.CInterceptor, cur int, finalInvoker primitive.CInvoker) primitive.CInvoker {
+func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
 	if cur == len(interceptors)-1 {
 		return finalInvoker
 	}
@@ -649,7 +649,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 				ctx := context.Background()
 				ctx = primitive.WithConsumerCtx(ctx, msgCtx)
-				ctx = primitive.WithMehod(ctx, primitive.ConsumerPush)
+				ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
 
 				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
 					consumerCtx, _ := primitive.GetConsumerCtx(ctx)

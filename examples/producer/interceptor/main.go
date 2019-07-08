@@ -21,17 +21,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/producer"
 	"os"
 	"strconv"
 
-	"github.com/apache/rocketmq-client-go/internal/producer"
+	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func main() {
-	nameServerAddr := []string{"127.0.0.1:9876"}
-	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2),
-		primitive.WithChainProducerInterceptor(UserFirstInterceptor(), UserSecondInterceptor()))
+	p, _ := rocketmq.NewProducer(
+		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithRetry(2),
+		producer.WithInterceptor(UserFirstInterceptor(), UserSecondInterceptor()),
+	)
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())
@@ -40,8 +43,8 @@ func main() {
 	for i := 0; i < 10; i++ {
 		res, err := p.SendSync(context.Background(), &primitive.Message{
 			//Topic: "test",
-			Topic: "TopicTest",
-			Body:  []byte("Hello RocketMQ Go Client!"),
+			Topic:      "TopicTest",
+			Body:       []byte("Hello RocketMQ Go Client!"),
 			Properties: map[string]string{"order": strconv.Itoa(i)},
 		})
 
@@ -57,8 +60,8 @@ func main() {
 	}
 }
 
-func UserFirstInterceptor() primitive.PInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
+func UserFirstInterceptor() primitive.Interceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		fmt.Printf("user first interceptor before invoke: req:%v\n", req)
 		err := next(ctx, req, reply)
 		fmt.Printf("user first interceptor after invoke: req: %v, reply: %v \n", req, reply)
@@ -66,8 +69,8 @@ func UserFirstInterceptor() primitive.PInterceptor {
 	}
 }
 
-func UserSecondInterceptor() primitive.PInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
+func UserSecondInterceptor() primitive.Interceptor {
+	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		fmt.Printf("user second interceptor before invoke: req: %v\n", req)
 		err := next(ctx, req, reply)
 		fmt.Printf("user second interceptor after invoke: req: %v, reply: %v \n", req, reply)

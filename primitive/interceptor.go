@@ -21,37 +21,10 @@ import (
 	"context"
 )
 
-// PInvoker finish a send invoke on producer.
-type PInvoker func(ctx context.Context, req, reply interface{}) error
+// Invoker finish a message invoke on producer/consumer.
+type Invoker func(ctx context.Context, req, reply interface{}) error
 
-// PInterceptor intercepts the execution of a send invoke on producer.
-type PInterceptor func(ctx context.Context, req, reply interface{}, next PInvoker) error
-
-// RetryInterceptor retry when send failed.
-func RetryPInterceptor() PInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
-		return nil
-	}
-}
-
-// TimeoutInterceptor add a timeout listener in case of operation timeout.
-func TimeoutPInterceptor() PInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
-		return nil
-	}
-}
-
-// LogInterceptor log a send invoke.
-func LogPInterceptor() PInterceptor {
-	return func(ctx context.Context, req, reply interface{}, next PInvoker) error {
-		return nil
-	}
-}
-
-// CInvoker finish a message invoke on consumer. In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
+// Interceptor intercepts the invoke of a producer/consumer on messages.
+// In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
 // use type assert to get real type.
-type CInvoker func(ctx context.Context, req , reply interface{}) error
-
-// CInterceptor intercepts the invoke of a consume on messages. In PushConsumer call, the req is []*MessageExt type and the reply is *ConsumeResultHolder,
-// use type assert to get real type.
-type CInterceptor func(ctx context.Context, req, reply interface{}, next CInvoker) error
+type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
