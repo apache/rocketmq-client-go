@@ -21,12 +21,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/producer"
 	"os"
 	"strconv"
 
 	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/producer"
 )
 
 func main() {

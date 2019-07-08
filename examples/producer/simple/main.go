@@ -20,11 +20,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/producer"
 	"os"
 
 	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/producer"
 )
 
 // Package main implements a simple producer to send message.

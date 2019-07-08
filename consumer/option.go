@@ -18,9 +18,10 @@ limitations under the License.
 package consumer
 
 import (
+	"time"
+
 	"github.com/apache/rocketmq-client-go/internal/kernel"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"time"
 )
 
 type consumerOptions struct {

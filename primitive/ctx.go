@@ -31,11 +31,21 @@ const (
 	// method name in  producer
 	SendSync   = "SendSync"
 	SendOneway = "SendOneway"
-	SendAsync = "SendAsync"
+	SendAsync  = "SendAsync"
 	// method name in consumer
 	ConsumerPush = "ConsumerPush"
 	ConsumerPull = "ConsumerPull"
 )
+
+type ConsumeMessageContext struct {
+	ConsumerGroup string
+	Msgs          []*MessageExt
+	MQ            *MessageQueue
+	Success       bool
+	Status        string
+	// mqTractContext
+	Properties map[string]string
+}
 
 // WithMethod set call method name
 func WithMethod(ctx context.Context, m string) context.Context {

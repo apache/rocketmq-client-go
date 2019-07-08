@@ -20,7 +20,6 @@ package producer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/rlog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/kernel"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/pkg/errors"
 )
 

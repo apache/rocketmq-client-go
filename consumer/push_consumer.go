@@ -484,7 +484,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case primitive.PullNoNewMsg:
-			rlog.Debugf("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
+			rlog.Infof("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
 		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
@@ -510,7 +510,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *ConsumeMessageContext, msg *primitive.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(ctx *primitive.ConsumeMessageContext, msg *primitive.MessageExt) bool {
 	return true
 }
 
@@ -635,7 +635,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			var result ConsumeResult
 
 			var err error
-			msgCtx := &ConsumeMessageContext{
+			msgCtx := &primitive.ConsumeMessageContext{
 				Properties: make(map[string]string),
 			}
 			ctx := context.Background()

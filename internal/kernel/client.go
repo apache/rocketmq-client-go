@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 const (
@@ -527,13 +527,13 @@ func (c *RMQClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
-func routeData2SubscribeInfo(topic string, data *TopicRouteData) []primitive.MessageQueue {
-	list := make([]primitive.MessageQueue, 0)
+func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
+	list := make([]*primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {
 		qd := data.QueueDataList[idx]
 		if queueIsReadable(qd.Perm) {
 			for i := 0; i < qd.ReadQueueNums; i++ {
-				list = append(list, primitive.MessageQueue{
+				list = append(list, &primitive.MessageQueue{
 					Topic:      topic,
 					BrokerName: qd.BrokerName,
 					QueueId:    i,

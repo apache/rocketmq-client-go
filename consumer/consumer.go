@@ -191,16 +191,6 @@ const (
 	ConsumeRetryLater
 )
 
-type ConsumeMessageContext struct {
-	ConsumerGroup string
-	Msgs          []*primitive.MessageExt
-	MQ            *primitive.MessageQueue
-	Success       bool
-	Status        string
-	// mqTractContext
-	Properties map[string]string
-}
-
 type ConsumeResultHolder struct {
 	ConsumeResult
 }
