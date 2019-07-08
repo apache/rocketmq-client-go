@@ -35,64 +35,6 @@ var (
 	connectionLocker  sync.Mutex
 )
 
-//ResponseFuture for
-type ResponseFuture struct {
-	ResponseCommand *RemotingCommand
-	SendRequestOK   bool
-	Err             error
-	Opaque          int32
-	TimeoutMillis   time.Duration
-	callback        func(*ResponseFuture)
-	BeginTimestamp  int64
-	Done            chan bool
-	callbackOnce    sync.Once
-}
-
-//NewResponseFuture create ResponseFuture with opaque, timeout and callback
-func NewResponseFuture(opaque int32, timeoutMillis time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
-	return &ResponseFuture{
-		Opaque:         opaque,
-		Done:           make(chan bool),
-		TimeoutMillis:  timeoutMillis,
-		callback:       callback,
-		BeginTimestamp: time.Now().Unix() * 1000,
-	}
-}
-
-func (r *ResponseFuture) executeInvokeCallback() {
-	r.callbackOnce.Do(func() {
-		if r.callback != nil {
-			r.callback(r)
-		}
-	})
-}
-
-func (r *ResponseFuture) isTimeout() bool {
-	diff := time.Now().Unix()*1000 - r.BeginTimestamp
-	return diff > int64(r.TimeoutMillis)
-}
-
-func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
-	var (
-		cmd *RemotingCommand
-		err error
-	)
-	timer := time.NewTimer(r.TimeoutMillis * time.Millisecond)
-	for {
-		select {
-		case <-r.Done:
-			cmd, err = r.ResponseCommand, r.Err
-			goto done
-		case <-timer.C:
-			err = ErrRequestTimeout
-			goto done
-		}
-	}
-done:
-	timer.Stop()
-	return cmd, err
-}
-
 type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
 
 type TcpOption struct {
@@ -116,6 +58,7 @@ func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 	c.processors[code] = f
 }
 
+// TODO: merge sync and async model. sync should run on async model by blocking on chan
 func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
 	conn, err := c.connect(addr)
 	if err != nil {
@@ -132,6 +75,7 @@ func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 	return resp.waitResponse()
 }
 
+// InvokeAsync send request witout blocking, just return immediately.
 func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
 	conn, err := c.connect(addr)
 	if err != nil {
@@ -144,8 +88,15 @@ func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, time
 		return err
 	}
 	resp.SendRequestOK = true
+	go c.receiveAsync(resp)
 	return nil
+}
 
+func (c *RemotingClient) receiveAsync(f *ResponseFuture) {
+	_, err := f.waitResponse()
+	if err != nil {
+		f.executeInvokeCallback()
+	}
 }
 
 func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
