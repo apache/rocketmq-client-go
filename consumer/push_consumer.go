@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/pkg/errors"
@@ -59,16 +59,16 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := kernel.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
-	kernel.RegisterNamsrv(srvs)
+	internal.RegisterNamsrv(srvs)
 
 	dc := &defaultConsumer{
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
-		state:          kernel.StateCreateJust,
+		state:          internal.StateCreateJust,
 		prCh:           make(chan PullRequest, 4),
 		model:          defaultOpts.ConsumerModel,
 		consumeOrderly: defaultOpts.ConsumeOrderly,
@@ -123,17 +123,17 @@ func (pc *pushConsumer) Start() error {
 	pc.once.Do(func() {
 		rlog.Infof("the consumerGroup=%s start beginning. messageModel=%v, unitMode=%v",
 			pc.consumerGroup, pc.model, pc.unitMode)
-		pc.state = kernel.StateStartFailed
+		pc.state = internal.StateStartFailed
 		pc.validate()
 
 		if pc.model == Clustering {
 			// set retry topic
-			retryTopic := kernel.GetRetryTopic(pc.consumerGroup)
+			retryTopic := internal.GetRetryTopic(pc.consumerGroup)
 			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
 				MessageSelector{TAG, _SubAll}))
 		}
 
-		pc.client = kernel.GetOrNewRocketMQClient(pc.option.ClientOptions)
+		pc.client = internal.GetOrNewRocketMQClient(pc.option.ClientOptions)
 		if pc.model == Clustering {
 			pc.option.ChangeInstanceNameToPID()
 			pc.storage = NewRemoteOffsetStore(pc.consumerGroup, pc.client)
@@ -153,14 +153,14 @@ func (pc *pushConsumer) Start() error {
 
 		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
-			pc.state = kernel.StateCreateJust
+			pc.state = internal.StateCreateJust
 			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
 			err = errors.New("consumer group has been created")
 			return
 		}
 		pc.client.UpdateTopicRouteInfo()
 		pc.client.Start()
-		pc.state = kernel.StateRunning
+		pc.state = internal.StateRunning
 	})
 
 	pc.client.UpdateTopicRouteInfo()
@@ -183,7 +183,7 @@ func (pc *pushConsumer) Shutdown() error {
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
-	if pc.state != kernel.StateCreateJust {
+	if pc.state != internal.StateCreateJust {
 		return errors.New("subscribe topic only started before")
 	}
 	data := buildSubscriptionData(topic, selector)
@@ -213,7 +213,7 @@ func (pc *pushConsumer) IsSubscribeTopicNeedUpdate(topic string) bool {
 	return pc.defaultConsumer.isSubscribeTopicNeedUpdate(topic)
 }
 
-func (pc *pushConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
+func (pc *pushConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 	return pc.defaultConsumer.SubscriptionDataList()
 }
 
@@ -226,11 +226,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 }
 
 func (pc *pushConsumer) validate() {
-	kernel.ValidateGroup(pc.consumerGroup)
+	internal.ValidateGroup(pc.consumerGroup)
 
-	if pc.consumerGroup == kernel.DefaultConsumerGroup {
+	if pc.consumerGroup == internal.DefaultConsumerGroup {
 		// TODO FQA
-		rlog.Fatalf("consumerGroup can't equal [%s], please specify another one.", kernel.DefaultConsumerGroup)
+		rlog.Fatalf("consumerGroup can't equal [%s], please specify another one.", internal.DefaultConsumerGroup)
 	}
 
 	if len(pc.subscribedTopic) == 0 {
@@ -414,7 +414,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			}
 		}
 
-		sd := v.(*kernel.SubscriptionData)
+		sd := v.(*internal.SubscriptionData)
 		classFilter := sd.ClassFilterMode
 		if pc.option.PostSubscriptionWhenPull && classFilter {
 			subExpression = sd.SubString
@@ -422,7 +422,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		sysFlag := buildSysFlag(commitOffsetEnable, true, subExpression != "", classFilter)
 
-		pullRequest := &kernel.PullMessageRequest{
+		pullRequest := &internal.PullMessageRequest{
 			ConsumerGroup:  pc.consumerGroup,
 			Topic:          request.mq.Topic,
 			QueueId:        int32(request.mq.QueueId),
@@ -620,7 +620,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			// TODO hook
 			beginTime := time.Now()
-			groupTopic := kernel.RetryGroupTopicPrefix + pc.consumerGroup
+			groupTopic := internal.RetryGroupTopicPrefix + pc.consumerGroup
 			for idx := range subMsgs {
 				msg := subMsgs[idx]
 				if msg.Properties != nil {

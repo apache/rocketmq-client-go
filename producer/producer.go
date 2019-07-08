@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
@@ -41,15 +41,15 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := kernel.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
-	kernel.RegisterNamsrv(srvs)
+	internal.RegisterNamsrv(srvs)
 
 	producer := &defaultProducer{
 		group:   "default",
-		client:  kernel.GetOrNewRocketMQClient(defaultOpts.ClientOptions),
+		client:  internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions),
 		options: defaultOpts,
 	}
 
@@ -85,8 +85,8 @@ func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalI
 
 type defaultProducer struct {
 	group       string
-	client      *kernel.RMQClient
-	state       kernel.ServiceState
+	client      *internal.RMQClient
+	state       internal.ServiceState
 	options     producerOptions
 	publishInfo sync.Map
 
@@ -94,7 +94,7 @@ type defaultProducer struct {
 }
 
 func (p *defaultProducer) Start() error {
-	p.state = kernel.StateRunning
+	p.state = internal.StateRunning
 	p.client.RegisterProducer(p.group, p)
 	p.client.Start()
 	return nil
@@ -152,7 +152,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			continue
 		}
 
-		addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+		addr := internal.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -190,7 +190,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
 
-	addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	addr := internal.FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
@@ -235,7 +235,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			continue
 		}
 
-		addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+		addr := internal.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -251,7 +251,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
-	req := &kernel.SendMessageRequest{
+	req := &internal.SendMessageRequest{
 		ProducerGroup:  p.group,
 		Topic:          mq.Topic,
 		QueueId:        mq.QueueId,
@@ -264,14 +264,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		Batch:          false,
 	}
 
-	return remote.NewRemotingCommand(kernel.ReqSendMessage, req, msg.Body)
+	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
 }
 
 func (p *defaultProducer) selectMessageQueue(topic string) *primitive.MessageQueue {
 	v, exist := p.publishInfo.Load(topic)
 
 	if !exist {
-		p.client.UpdatePublishInfo(topic, kernel.UpdateTopicRouteInfo(topic))
+		p.client.UpdatePublishInfo(topic, internal.UpdateTopicRouteInfo(topic))
 		v, exist = p.publishInfo.Load(topic)
 	}
 
@@ -279,7 +279,7 @@ func (p *defaultProducer) selectMessageQueue(topic string) *primitive.MessageQue
 		return nil
 	}
 
-	result := v.(*kernel.TopicPublishInfo)
+	result := v.(*internal.TopicPublishInfo)
 	if result == nil || !result.HaveTopicRouterInfo {
 		return nil
 	}
@@ -300,7 +300,7 @@ func (p *defaultProducer) PublishTopicList() []string {
 	return topics
 }
 
-func (p *defaultProducer) UpdateTopicPublishInfo(topic string, info *kernel.TopicPublishInfo) {
+func (p *defaultProducer) UpdateTopicPublishInfo(topic string, info *internal.TopicPublishInfo) {
 	if topic == "" || info == nil {
 		return
 	}
@@ -312,7 +312,7 @@ func (p *defaultProducer) IsPublishTopicNeedUpdate(topic string) bool {
 	if !exist {
 		return true
 	}
-	info := v.(*kernel.TopicPublishInfo)
+	info := v.(*internal.TopicPublishInfo)
 	return info.MqList == nil || len(info.MqList) == 0
 }
 

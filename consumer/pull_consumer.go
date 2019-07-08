@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
@@ -39,16 +39,16 @@ var (
 )
 
 type defaultPullConsumer struct {
-	state     kernel.ServiceState
+	state     internal.ServiceState
 	option    consumerOptions
-	client    *kernel.RMQClient
+	client    *internal.RMQClient
 	GroupName string
 	Model     MessageModel
 	UnitMode  bool
 }
 
 func (c *defaultPullConsumer) Start() {
-	c.state = kernel.StateRunning
+	c.state = internal.StateRunning
 }
 
 func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error) {
@@ -83,7 +83,7 @@ func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) 
 
 }
 
-func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *kernel.SubscriptionData,
+func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
 	offset int64, numbers int) (*primitive.PullResult, error) {
 	err := c.makeSureStateOK()
 	if err != nil {
@@ -108,7 +108,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 		return nil, fmt.Errorf("the broker %s does not exist", mq.BrokerName)
 	}
 
-	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < kernel.V4_1_0 {
+	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < internal.V4_1_0 {
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
 			mq.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
@@ -118,7 +118,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 	if brokerResult.Slave {
 		sysFlag = clearCommitOffsetFlag(sysFlag)
 	}
-	pullRequest := &kernel.PullMessageRequest{
+	pullRequest := &internal.PullMessageRequest{
 		ConsumerGroup:        c.GroupName,
 		Topic:                mq.Topic,
 		QueueId:              int32(mq.QueueId),
@@ -142,7 +142,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 }
 
 func (c *defaultPullConsumer) makeSureStateOK() error {
-	if c.state != kernel.StateRunning {
+	if c.state != internal.StateRunning {
 		return fmt.Errorf("the consumer state is [%d], not running", c.state)
 	}
 	return nil
@@ -156,7 +156,7 @@ func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 
 	return 0
 }
 
-func processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *kernel.SubscriptionData) {
+func processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *internal.SubscriptionData) {
 	updatePullFromWhichNode(mq, result.SuggestWhichBrokerId)
 	switch result.Status {
 	case primitive.PullFound:

@@ -20,12 +20,12 @@ package consumer
 import (
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 type consumerOptions struct {
-	kernel.ClientOptions
+	internal.ClientOptions
 
 	/**
 	 * Backtracking consumption time with second precision. Time format is
@@ -104,7 +104,7 @@ type consumerOptions struct {
 
 func defaultPushConsumerOptions() consumerOptions {
 	return consumerOptions{
-		ClientOptions: kernel.DefaultClientOptions(),
+		ClientOptions: internal.DefaultClientOptions(),
 		Strategy:      AllocateByAveragely,
 	}
 }

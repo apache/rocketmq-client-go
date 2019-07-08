@@ -18,18 +18,18 @@ limitations under the License.
 package producer
 
 import (
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func defaultProducerOptions() producerOptions {
 	return producerOptions{
-		ClientOptions: kernel.DefaultClientOptions(),
+		ClientOptions: internal.DefaultClientOptions(),
 	}
 }
 
 type producerOptions struct {
-	kernel.ClientOptions
+	internal.ClientOptions
 }
 
 type Option func(*producerOptions)
