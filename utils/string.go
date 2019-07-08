@@ -18,14 +18,7 @@ limitations under the License.
 package utils
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
-	"strings"
-)
-
-var (
-	ipRegex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
 )
 
 // HashString hashes a string to a unique hashcode.
@@ -48,17 +41,3 @@ func StrJoin(str, key string, value interface{}) string {
 	return str + key + ": " + fmt.Sprint(value) + ", "
 }
 
-func VerifyIP(ip string) error {
-	if strings.Contains(ip, ";") {
-		return errors.New("multiple IP addr does not support")
-	}
-	ips := ipRegex.FindAllString(ip, -1)
-	if len(ips) == 0 {
-		return errors.New("IP addr error")
-	}
-
-	if len(ips) > 1 {
-		return errors.New("multiple IP addr does not support")
-	}
-	return nil
-}
