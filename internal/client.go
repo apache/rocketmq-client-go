@@ -86,7 +86,6 @@ type InnerConsumer interface {
 
 func DefaultClientOptions() ClientOptions {
 	opts := ClientOptions{
-		GroupName:    "DEFAULT",
 		InstanceName: "DEFAULT",
 		RetryTimes:   3,
 		ClientIP:     utils.LocalIP(),

@@ -19,6 +19,7 @@ package rocketmq
 
 import (
 	"context"
+
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/producer"
@@ -28,7 +29,7 @@ type Producer interface {
 	Start() error
 	Shutdown() error
 	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
-	SendAsync(context.Context, func(context.Context, *primitive.SendResult), *primitive.Message) error
+	SendAsync(context.Context, func(context.Context, *primitive.SendResult, error), *primitive.Message) error
 	SendOneWay(context.Context, *primitive.Message) error
 }
 
@@ -52,7 +53,7 @@ type PullConsumer interface {
 	Start() error
 	Shutdown() error
 	Pull(context.Context, string, consumer.MessageSelector, int) (*primitive.PullResult, error)
-	PullFrom(context.Context, primitive.MessageQueue, int64, int) (*primitive.PullResult, error)
+	PullFrom(context.Context, *primitive.MessageQueue, int64, int) (*primitive.PullResult, error)
 	// only update in memory
 	UpdateOffset(primitive.MessageQueue, int64) error
 	PersistOffset(context.Context) error

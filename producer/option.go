@@ -23,9 +23,11 @@ import (
 )
 
 func defaultProducerOptions() producerOptions {
-	return producerOptions{
+	opts := producerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 	}
+	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
+	return opts
 }
 
 type producerOptions struct {
@@ -45,10 +47,10 @@ func WithGroupName(group string) Option {
 }
 
 // WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers ...[]string) Option {
+func WithNameServer(nameServers []string) Option {
 	return func(opts *producerOptions) {
 		if len(nameServers) > 0 {
-			opts.NameServerAddrs = nameServers[0]
+			opts.NameServerAddrs = nameServers
 		}
 	}
 }

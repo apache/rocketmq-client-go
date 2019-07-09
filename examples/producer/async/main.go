@@ -40,9 +40,9 @@ func main() {
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		err := p.SendAsync(context.Background(), func(ctx context.Context, result *primitive.SendResult) {
-			if result.Error != nil {
-				fmt.Printf("receive message error: %s\n", result.Error)
+		err := p.SendAsync(context.Background(), func(ctx context.Context, result *primitive.SendResult, err error) {
+			if err != nil {
+				fmt.Printf("receive message error: %s\n", err)
 			} else {
 				fmt.Printf("send message success: result=%s\n", result.String())
 			}

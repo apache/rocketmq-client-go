@@ -103,10 +103,12 @@ type consumerOptions struct {
 }
 
 func defaultPushConsumerOptions() consumerOptions {
-	return consumerOptions{
+	opts := consumerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 		Strategy:      AllocateByAveragely,
 	}
+	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
+	return opts
 }
 
 type Option func(*consumerOptions)
@@ -143,10 +145,10 @@ func WithGroupName(group string) Option {
 }
 
 // WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers ...[]string) Option {
+func WithNameServer(nameServers []string) Option {
 	return func(opts *consumerOptions) {
 		if len(nameServers) > 0 {
-			opts.NameServerAddrs = nameServers[0]
+			opts.NameServerAddrs = nameServers
 		}
 	}
 }

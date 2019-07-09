@@ -168,7 +168,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
-func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context, *primitive.SendResult), msg *primitive.Message) error {
+func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context, *primitive.SendResult, error), msg *primitive.Message) error {
 	if err := p.checkMsg(msg); err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 	return p.sendAsync(ctx, msg, f)
 }
 
-func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult)) error {
+func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
 
 	mq := p.selectMessageQueue(msg.Topic)
 	if mq == nil {
@@ -195,15 +195,14 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, e error) {
+	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
 		resp := new(primitive.SendResult)
-		if e != nil {
-			resp.Error = e
-			h(ctx, nil)
+		if err != nil {
+			h(ctx, nil, err)
 		} else {
 			p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+			h(ctx, resp, nil)
 		}
-		h(ctx, resp)
 	})
 }
 
