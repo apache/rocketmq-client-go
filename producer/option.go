@@ -25,6 +25,7 @@ import (
 func defaultProducerOptions() producerOptions {
 	opts := producerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
+		Selector:      NewRoundRobinQueueSelector(),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -32,6 +33,7 @@ func defaultProducerOptions() producerOptions {
 
 type producerOptions struct {
 	internal.ClientOptions
+	Selector QueueSelector
 }
 
 type Option func(*producerOptions)
@@ -80,5 +82,11 @@ func WithRetry(retries int) Option {
 func WithInterceptor(f ...primitive.Interceptor) Option {
 	return func(opts *producerOptions) {
 		opts.Interceptors = append(opts.Interceptors, f...)
+	}
+}
+
+func WithQueueSelector(s QueueSelector) Option {
+	return func(options *producerOptions) {
+		options.Selector = s
 	}
 }
