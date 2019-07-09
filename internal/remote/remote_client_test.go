@@ -25,6 +25,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewResponseFuture(t *testing.T) {
@@ -276,6 +278,53 @@ func TestInvokeAsync(t *testing.T) {
 	}
 done:
 
+	wg.Wait()
+}
+
+func TestInvokeAsyncTimeout(t *testing.T) {
+	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
+	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
+	serverSendRemotingCommand.Flag = ResponseType
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	client := NewRemotingClient()
+
+	var clientSend sync.WaitGroup  // blocking client send message until the server listen success.
+	clientSend.Add(1)
+	go func() {
+		clientSend.Wait()
+		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
+			time.Duration(1000), func(r *ResponseFuture) {
+				assert.NotNil(t, r.Err)
+				assert.Equal(t, ErrRequestTimeout, r.Err)
+				wg.Done()
+			})
+		assert.Nil(t, err, "failed to invokeSync.")
+	}()
+
+	l, err := net.Listen("tcp", ":3000")
+	assert.Nil(t, err)
+	defer l.Close()
+	clientSend.Done()
+
+	for {
+		conn, err := l.Accept()
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		scanner := client.createScanner(conn)
+		for scanner.Scan() {
+			t.Logf("receive request.")
+			_, err := decode(scanner.Bytes())
+			assert.Nil(t, err, "failed to decode RemotingCommnad.")
+
+			time.Sleep(5 * time.Second) // force client timeout
+			goto done
+		}
+	}
+done:
 	wg.Wait()
 }
 

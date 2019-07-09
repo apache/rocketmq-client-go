@@ -19,9 +19,7 @@ package producer
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,34 +28,34 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/pkg/errors"
+)
+
+var(
+	ErrTopicEmpty = errors.New("topic is nil")
+	ErrMessageEmpty = errors.New("message is nil")
 )
 
 type Producer interface {
 	Start() error
 	Shutdown() error
 	SendSync(context.Context, *primitive.Message) (*primitive.SendResult, error)
+	SendAsync(context.Context, *primitive.Message, func(context.Context, *primitive.SendResult, error)) error
 	SendOneWay(context.Context, *primitive.Message) error
 }
 
-func NewProducer(nameServerAddr string, opts ...*primitive.ProducerOption) (Producer, error) {
-	if err := utils.VerifyIP(nameServerAddr); err != nil {
-		return nil, err
-	}
-
-	if nameServerAddr == "" {
-		rlog.Fatal("nameServerAddr can't be empty")
-	}
-	err := os.Setenv(kernel.EnvNameServerAddr, nameServerAddr)
+func NewProducer(nameServerAddrs []string, opts ...*primitive.ProducerOption) (Producer, error) {
+	srvs, err := kernel.NewNamesrv(nameServerAddrs...)
 	if err != nil {
-		rlog.Fatal("set env=EnvNameServerAddr error: %s ", err.Error())
+		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	kernel.RegisterNamsrv(srvs)
 
 	popts := primitive.DefaultProducerOptions()
 	for _, opt := range opts {
 		opt.Apply(&popts)
 	}
-	popts.NameServerAddr = nameServerAddr
+	popts.NameServerAddrs = nameServerAddrs
 
 	producer := &defaultProducer{
 		group:   "default",
@@ -116,13 +114,20 @@ func (p *defaultProducer) Shutdown() error {
 	return nil
 }
 
-func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+func (p *defaultProducer) checkMsg(msg *primitive.Message) error {
 	if msg == nil {
-		return nil, errors.New("message is nil")
+		return errors.New("message is nil")
 	}
 
 	if msg.Topic == "" {
-		return nil, errors.New("topic is nil")
+		return errors.New("topic is nil")
+	}
+	return nil
+}
+
+func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+	if err := p.checkMsg(msg); err != nil {
+		return nil, err
 	}
 
 	resp := new(primitive.SendResult)
@@ -173,13 +178,47 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
-func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
-	if msg == nil {
-		return errors.New("message is nil")
+func (p *defaultProducer) SendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+	if err := p.checkMsg(msg); err != nil {
+		return err
 	}
 
-	if msg.Topic == "" {
-		return errors.New("topic is nil")
+	if p.interceptor != nil {
+		primitive.WithMehod(ctx, primitive.SendAsync)
+
+		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, h)
+		})
+	}
+	return p.sendAsync(ctx, msg, h)
+}
+
+func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+
+	mq := p.selectMessageQueue(msg.Topic)
+	if mq == nil {
+		return errors.Errorf("the topic=%s route info not found", msg.Topic)
+	}
+
+	addr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	if addr == "" {
+		return errors.Errorf("topic=%s route info not found", mq.Topic)
+	}
+
+	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, e error) {
+		if e != nil {
+			h(ctx, nil, e)
+			return
+		}
+		resp := new(primitive.SendResult)
+		p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+		h(ctx, resp, e)
+	})
+}
+
+func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
+	if err := p.checkMsg(msg); err != nil {
+		return err
 	}
 
 	if p.interceptor != nil {
@@ -228,11 +267,12 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		SysFlag:        0,
 		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:           msg.Flag,
-		Properties:     propertiesToString(msg.Properties),
+		Properties:     primitive.MarshalPropeties(msg.Properties),
 		ReconsumeTimes: 0,
 		UnitMode:       p.options.UnitMode,
 		Batch:          false,
 	}
+
 	return remote.NewRemotingCommand(kernel.ReqSendMessage, req, msg.Body)
 }
 
@@ -287,15 +327,4 @@ func (p *defaultProducer) IsPublishTopicNeedUpdate(topic string) bool {
 
 func (p *defaultProducer) IsUnitMode() bool {
 	return false
-}
-
-func propertiesToString(properties map[string]string) string {
-	if properties == nil {
-		return ""
-	}
-	var str string
-	for k, v := range properties {
-		str += fmt.Sprintf("%s%v%s%v", k, byte(1), v, byte(2))
-	}
-	return str
 }

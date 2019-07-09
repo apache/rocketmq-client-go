@@ -34,64 +34,6 @@ var (
 	ErrRequestTimeout = errors.New("request timeout")
 )
 
-//ResponseFuture for
-type ResponseFuture struct {
-	ResponseCommand *RemotingCommand
-	sendRequestOK   bool
-	Err             error
-	opaque          int32
-	timeout         time.Duration
-	callback        func(*ResponseFuture)
-	beginTimestamp  time.Duration
-	done            chan bool
-	callbackOnce    sync.Once
-}
-
-//NewResponseFuture create ResponseFuture with opaque, timeout and callback
-func NewResponseFuture(opaque int32, timeout time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
-	return &ResponseFuture{
-		opaque:         opaque,
-		done:           make(chan bool),
-		timeout:        timeout,
-		callback:       callback,
-		beginTimestamp: time.Duration(time.Now().Unix()) * time.Second,
-	}
-}
-
-func (r *ResponseFuture) executeInvokeCallback() {
-	r.callbackOnce.Do(func() {
-		if r.callback != nil {
-			r.callback(r)
-		}
-	})
-}
-
-func (r *ResponseFuture) isTimeout() bool {
-	elapse := time.Duration(time.Now().Unix()) * time.Second - r.beginTimestamp
-	return elapse > r.timeout
-}
-
-func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
-	var (
-		cmd *RemotingCommand
-		err error
-	)
-	timer := time.NewTimer(r.timeout)
-	for {
-		select {
-		case <-r.done:
-			cmd, err = r.ResponseCommand, r.Err
-			goto exit
-		case <-timer.C:
-			err = ErrRequestTimeout
-			goto exit
-		}
-	}
-exit:
-	timer.Stop()
-	return cmd, err
-}
-
 type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
 
 type TcpOption struct {
@@ -99,12 +41,11 @@ type TcpOption struct {
 }
 
 type RemotingClient struct {
-	responseTable   sync.Map
-	connectionTable sync.Map
-	option          TcpOption
-	processors      map[int16]ClientRequestFunc
-	connectionLocker  sync.Mutex
-
+	responseTable    sync.Map
+	connectionTable  sync.Map
+	option           TcpOption
+	processors       map[int16]ClientRequestFunc
+	connectionLocker sync.Mutex
 }
 
 func NewRemotingClient() *RemotingClient {
@@ -117,7 +58,8 @@ func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 	c.processors[code] = f
 }
 
-func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+// TODO: merge sync and async model. sync should run on async model by blocking on chan
+func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return nil, err
@@ -133,7 +75,8 @@ func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 	return resp.waitResponse()
 }
 
-func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
+// InvokeAsync send request witout blocking, just return immediately.
+func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return err
@@ -144,9 +87,16 @@ func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, time
 	if err != nil {
 		return err
 	}
-	resp.sendRequestOK = true
+	resp.SendRequestOK = true
+	go c.receiveAsync(resp)
 	return nil
+}
 
+func (c *RemotingClient) receiveAsync(f *ResponseFuture) {
+	_, err := f.waitResponse()
+	if err != nil {
+		f.executeInvokeCallback()
+	}
 }
 
 func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
@@ -161,7 +111,7 @@ func (c *RemotingClient) ScanResponseTable() {
 	rfs := make([]*ResponseFuture, 0)
 	c.responseTable.Range(func(key, value interface{}) bool {
 		if resp, ok := value.(*ResponseFuture); ok {
-			if (resp.beginTimestamp + resp.timeout + time.Second) <= time.Duration(time.Now().Unix()) * time.Second {
+			if (resp.beginTimestamp + resp.timeout + time.Second) <= time.Duration(time.Now().Unix())*time.Second {
 				rfs = append(rfs, resp)
 				c.responseTable.Delete(key)
 			}

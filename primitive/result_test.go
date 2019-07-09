@@ -15,32 +15,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package primitive
 
 import (
-	"fmt"
-	"os"
-	"time"
+	"testing"
 
-	"github.com/apache/rocketmq-client-go/internal/consumer"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/stretchr/testify/assert"
 )
 
-func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", []string{"127.0.0.1:9876"})
-	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
-		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println("subscribe callback: %v", msgs)
-		return primitive.ConsumeSuccess, nil
-	})
-	if err != nil {
-		fmt.Println(err.Error())
+func Test(t *testing.T) {
+	kv := map[string]string{
+		"k1": "v1",
+		"k2": "v2",
 	}
-	// Note: start after subscribe
-	err = c.Start()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
-	}
-	time.Sleep(time.Hour)
+	str := MarshalPropeties(kv)
+	kv2 := unmarshalProperties([]byte(str))
+	assert.Equal(t, kv, kv2)
 }

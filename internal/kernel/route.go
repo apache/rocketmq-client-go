@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +47,13 @@ const (
 var (
 	ErrTopicNotExist = errors.New("topic not exist")
 	nameSrvClient    = remote.NewRemotingClient()
+
+	nameSrvs *Namesrvs
 )
+
+func RegisterNamsrv(s *Namesrvs) {
+	nameSrvs = s
+}
 
 var (
 	// brokerName -> *BrokerData
@@ -261,10 +266,21 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 	request := &GetRouteInfoRequest{
 		Topic: topic,
 	}
-	rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-	response, err := nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
 
+	var (
+		response *remote.RemotingCommand
+		err error
+	)
+	for i := 0; i < nameSrvs.Size(); i++ {
+		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
+		response, err = nameSrvClient.InvokeSync(getNameServerAddress(), rc, requestTimeout)
+
+		if err != nil {
+			continue
+		}
+	}
 	if err != nil {
+		rlog.Errorf("connect to namesrv: %v failed.", nameSrvs)
 		return nil, err
 	}
 
@@ -372,7 +388,7 @@ func routeData2PublishInfo(topic string, data *TopicRouteData) *TopicPublishInfo
 }
 
 func getNameServerAddress() string {
-	return os.Getenv(EnvNameServerAddr)
+	return nameSrvs.GetNamesrv()
 }
 
 // TopicRouteData TopicRouteData

@@ -22,13 +22,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/apache/rocketmq-client-go/internal/producer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func main() {
-	nameServerAddr := "127.0.0.1:9876"
+	nameServerAddr := []string{"127.0.0.1:9876"}
 	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2),
 		primitive.WithChainProducerInterceptor(UserFirstInterceptor(), UserSecondInterceptor()))
 	err := p.Start()
@@ -41,6 +42,7 @@ func main() {
 			//Topic: "test",
 			Topic: "TopicTest",
 			Body:  []byte("Hello RocketMQ Go Client!"),
+			Properties: map[string]string{"order": strconv.Itoa(i)},
 		})
 
 		if err != nil {
@@ -57,7 +59,7 @@ func main() {
 
 func UserFirstInterceptor() primitive.PInterceptor {
 	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
-		fmt.Printf("user first interceptor before invoke: req:%v, reply: %v\n", req, reply)
+		fmt.Printf("user first interceptor before invoke: req:%v\n", req)
 		err := next(ctx, req, reply)
 		fmt.Printf("user first interceptor after invoke: req: %v, reply: %v \n", req, reply)
 		return err
@@ -66,7 +68,7 @@ func UserFirstInterceptor() primitive.PInterceptor {
 
 func UserSecondInterceptor() primitive.PInterceptor {
 	return func(ctx context.Context, req, reply interface{}, next primitive.PInvoker) error {
-		fmt.Printf("user second interceptor before invoke: req: %v, reply: %v\n", req, reply)
+		fmt.Printf("user second interceptor before invoke: req: %v\n", req)
 		err := next(ctx, req, reply)
 		fmt.Printf("user second interceptor after invoke: req: %v, reply: %v \n", req, reply)
 		return err

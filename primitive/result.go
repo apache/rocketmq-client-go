@@ -36,6 +36,9 @@ const (
 
 	FlagCompressed = 0x1
 	MsgIdLength    = 8 + 8
+
+	propertySeparator  = '\002'
+	nameValueSeparator = '\001'
 )
 
 // SendResult RocketMQ send result
@@ -191,10 +194,11 @@ func DecodeMessage(data []byte) []*MessageExt {
 		msg.Topic = string(buf.Next(int(_byte)))
 		count += 1 + int(_byte)
 
+		// 17. properties
 		var propertiesLength int16
 		binary.Read(buf, binary.BigEndian, &propertiesLength)
 		if propertiesLength > 0 {
-			msg.Properties = parseProperties(buf.Next(int(propertiesLength)))
+			msg.Properties = unmarshalProperties(buf.Next(int(propertiesLength)))
 		}
 		count += 2 + int(propertiesLength)
 
@@ -211,8 +215,32 @@ func createMessageId(addr []byte, offset int64) string {
 	return "msgID" // TODO
 }
 
-func parseProperties(data []byte) map[string]string {
-	return make(map[string]string, 0)
+// unmarshalProperties parse data into property kv pairs.
+func unmarshalProperties(data []byte) map[string]string {
+	m := make(map[string]string)
+	items := bytes.Split(data, []byte{propertySeparator})
+	for _, item := range items {
+		kv := bytes.Split(item, []byte{nameValueSeparator})
+		if len(kv) == 2 {
+			m[ string(kv[0]) ] = string(kv[1])
+		}
+	}
+	return m
+}
+
+func MarshalPropeties(properties map[string]string) string {
+	if properties == nil {
+		return ""
+	}
+	buffer := bytes.NewBufferString("")
+
+	for k, v := range properties {
+		buffer.WriteString(k)
+		buffer.WriteRune(nameValueSeparator)
+		buffer.WriteString(v)
+		buffer.WriteRune(propertySeparator)
+	}
+	return buffer.String()
 }
 
 func toMessages(messageExts []*MessageExt) []*Message {
