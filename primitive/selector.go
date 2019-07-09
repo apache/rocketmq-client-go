@@ -28,7 +28,7 @@ type QueueSelector interface {
 	Select(*Message, int) int
 }
 
-// manualQueueSelector use the queue manually set in the provided Message's Queue  field as the queue to send.
+// manualQueueSelector use the queue manually set in the provided Message's QueueID  field as the queue to send.
 type manualQueueSelector struct{}
 
 func NewManualQueueSelector() QueueSelector {
@@ -36,7 +36,7 @@ func NewManualQueueSelector() QueueSelector {
 }
 
 func (manualQueueSelector) Select(message *Message, queues int) int {
-	return message.Queue
+	return message.QueueID
 }
 
 // randomQueueSelector choose a randome queue each time.

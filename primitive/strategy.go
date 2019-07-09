@@ -32,7 +32,7 @@ import (
 //
 // Average Hashing queue algorithm
 // Cycle average Hashing queue algorithm
-// Use Message Queue specified
+// Use Message QueueID specified
 // Computer room Hashing queue algorithm, such as Alipay logic room
 // Consistent Hashing queue algorithm
 

@@ -44,7 +44,7 @@ func main() {
 			Topic:      "TopicTest",
 			Body:       []byte("Hello RocketMQ Go Client!"),
 			Properties: map[string]string{"id": strconv.Itoa(i)},
-			Queue:      0,
+			QueueID:    0,
 		}, func(ctx context.Context, result *primitive.SendResult, e error) {
 			if e != nil {
 				fmt.Printf("receive message error: %s\n", err)
