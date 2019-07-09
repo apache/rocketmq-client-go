@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
@@ -64,6 +64,137 @@ const (
 	_SubAll = "*"
 )
 
+// Message model defines the way how messages are delivered to each consumer clients.
+// </p>
+//
+// RocketMQ supports two message models: clustering and broadcasting. If clustering is set, consumer clients with
+// the same {@link #ConsumerGroup} would only consume shards of the messages subscribed, which achieves load
+// balances; Conversely, if the broadcasting is set, each consumer client will consume all subscribed messages
+// separately.
+// </p>
+//
+// This field defaults to clustering.
+type MessageModel int
+
+const (
+	BroadCasting MessageModel = iota
+	Clustering
+)
+
+func (mode MessageModel) String() string {
+	switch mode {
+	case BroadCasting:
+		return "BroadCasting"
+	case Clustering:
+		return "Clustering"
+	default:
+		return "Unknown"
+	}
+}
+
+// Consuming point on consumer booting.
+// </p>
+//
+// There are three consuming points:
+// <ul>
+// <li>
+// <code>CONSUME_FROM_LAST_OFFSET</code>: consumer clients pick up where it stopped previously.
+// If it were a newly booting up consumer client, according aging of the consumer group, there are two
+// cases:
+// <ol>
+// <li>
+// if the consumer group is created so recently that the earliest message being subscribed has yet
+// expired, which means the consumer group represents a lately launched business, consuming will
+// start from the very beginning;
+// </li>
+// <li>
+// if the earliest message being subscribed has expired, consuming will start from the latest
+// messages, meaning messages born prior to the booting timestamp would be ignored.
+// </li>
+// </ol>
+// </li>
+// <li>
+// <code>CONSUME_FROM_FIRST_OFFSET</code>: Consumer client will start from earliest messages available.
+// </li>
+// <li>
+// <code>CONSUME_FROM_TIMESTAMP</code>: Consumer client will start from specified timestamp, which means
+// messages born prior to {@link #consumeTimestamp} will be ignored
+// </li>
+// </ul>
+type ConsumeFromWhere int
+
+const (
+	ConsumeFromLastOffset ConsumeFromWhere = iota
+	ConsumeFromFirstOffset
+	ConsumeFromTimestamp
+)
+
+type ExpressionType string
+
+const (
+	/**
+	 * <ul>
+	 * Keywords:
+	 * <li>{@code AND, OR, NOT, BETWEEN, IN, TRUE, FALSE, IS, NULL}</li>
+	 * </ul>
+	 * <p/>
+	 * <ul>
+	 * Data type:
+	 * <li>Boolean, like: TRUE, FALSE</li>
+	 * <li>String, like: 'abc'</li>
+	 * <li>Decimal, like: 123</li>
+	 * <li>Float number, like: 3.1415</li>
+	 * </ul>
+	 * <p/>
+	 * <ul>
+	 * Grammar:
+	 * <li>{@code AND, OR}</li>
+	 * <li>{@code >, >=, <, <=, =}</li>
+	 * <li>{@code BETWEEN A AND B}, equals to {@code >=A AND <=B}</li>
+	 * <li>{@code NOT BETWEEN A AND B}, equals to {@code >B OR <A}</li>
+	 * <li>{@code IN ('a', 'b')}, equals to {@code ='a' OR ='b'}, this operation only support String type.</li>
+	 * <li>{@code IS NULL}, {@code IS NOT NULL}, check parameter whether is null, or not.</li>
+	 * <li>{@code =TRUE}, {@code =FALSE}, check parameter whether is true, or false.</li>
+	 * </ul>
+	 * <p/>
+	 * <p>
+	 * Example:
+	 * (a > 10 AND a < 100) OR (b IS NOT NULL AND b=TRUE)
+	 * </p>
+	 */
+	SQL92 = ExpressionType("SQL92")
+
+	/**
+	 * Only support or operation such as
+	 * "tag1 || tag2 || tag3", <br>
+	 * If null or * expression, meaning subscribe all.
+	 */
+	TAG = ExpressionType("TAG")
+)
+
+func IsTagType(exp string) bool {
+	if exp == "" || exp == "TAG" {
+		return true
+	}
+	return false
+}
+
+type MessageSelector struct {
+	Type       ExpressionType
+	Expression string
+}
+
+type ConsumeResult int
+
+const (
+	ConsumeSuccess ConsumeResult = iota
+	ConsumeRetryLater
+)
+
+type ConsumeResultHolder struct {
+	ConsumeResult
+}
+
 type PullRequest struct {
 	consumerGroup string
 	mq            *primitive.MessageQueue
@@ -87,19 +218,19 @@ type defaultConsumer struct {
 	 * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
 	 */
 	consumerGroup  string
-	model          primitive.MessageModel
+	model          MessageModel
 	allocate       func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
 	unitMode       bool
 	consumeOrderly bool
-	fromWhere      primitive.ConsumeFromWhere
+	fromWhere      ConsumeFromWhere
 
 	cType     ConsumeType
-	client    *kernel.RMQClient
+	client    *internal.RMQClient
 	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state     kernel.ServiceState
+	state     internal.ServiceState
 	pause     bool
 	once      sync.Once
-	option    primitive.ConsumerOptions
+	option    consumerOptions
 	// key: int, hash(*primitive.MessageQueue)
 	// value: *processQueue
 	processQueueTable sync.Map
@@ -155,7 +286,7 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 func (dc *defaultConsumer) doBalance() {
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		topic := key.(string)
-		if strings.HasPrefix(topic, kernel.RetryGroupTopicPrefix) {
+		if strings.HasPrefix(topic, internal.RetryGroupTopicPrefix) {
 			return true
 		}
 		v, exist := dc.topicSubscribeInfoTable.Load(topic)
@@ -165,14 +296,14 @@ func (dc *defaultConsumer) doBalance() {
 		}
 		mqs := v.([]*primitive.MessageQueue)
 		switch dc.model {
-		case primitive.BroadCasting:
+		case BroadCasting:
 			changed := dc.updateProcessQueueTable(topic, mqs)
 			if changed {
 				dc.mqChanged(topic, mqs, mqs)
 				rlog.Infof("messageQueueChanged, Group: %s, Topic: %s, MessageQueues: %v",
 					dc.consumerGroup, topic, mqs)
 			}
-		case primitive.Clustering:
+		case Clustering:
 			cidAll := dc.findConsumerList(topic)
 			if cidAll == nil {
 				rlog.Warnf("do balance for Group: %s, Topic: %s get consumer id list failed",
@@ -209,17 +340,17 @@ func (dc *defaultConsumer) doBalance() {
 	})
 }
 
-func (dc *defaultConsumer) SubscriptionDataList() []*kernel.SubscriptionData {
-	result := make([]*kernel.SubscriptionData, 0)
+func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
+	result := make([]*internal.SubscriptionData, 0)
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
-		result = append(result, value.(*kernel.SubscriptionData))
+		result = append(result, value.(*internal.SubscriptionData))
 		return true
 	})
 	return result
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
-	if dc.state != kernel.StateRunning {
+	if dc.state != internal.StateRunning {
 		return fmt.Errorf("state not running, actually: %v", dc.state)
 	}
 	return nil
@@ -232,7 +363,7 @@ type lockBatchRequestBody struct {
 }
 
 func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
-	brokerResult := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, kernel.MasterId, true)
+	brokerResult := internal.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
 
 	if brokerResult == nil {
 		return false
@@ -262,7 +393,7 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 }
 
 func (dc *defaultConsumer) unlock(mq *primitive.MessageQueue, oneway bool) {
-	brokerResult := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, kernel.MasterId, true)
+	brokerResult := internal.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
 
 	if brokerResult == nil {
 		return
@@ -284,7 +415,7 @@ func (dc *defaultConsumer) lockAll(mq primitive.MessageQueue) {
 		if len(mqs) == 0 {
 			continue
 		}
-		brokerResult := kernel.FindBrokerAddressInSubscribe(broker, kernel.MasterId, true)
+		brokerResult := internal.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
 		if brokerResult == nil {
 			continue
 		}
@@ -326,7 +457,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 		if len(mqs) == 0 {
 			continue
 		}
-		brokerResult := kernel.FindBrokerAddressInSubscribe(broker, kernel.MasterId, true)
+		brokerResult := internal.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
 		if brokerResult == nil {
 			continue
 		}
@@ -349,7 +480,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
 	data, _ := json.Marshal(body)
-	request := remote.NewRemotingCommand(kernel.ReqLockBatchMQ, nil, data)
+	request := remote.NewRemotingCommand(internal.ReqLockBatchMQ, nil, data)
 	response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
 	if err != nil {
 		rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
@@ -368,7 +499,7 @@ func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []pri
 
 func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, oneway bool) {
 	data, _ := json.Marshal(body)
-	request := remote.NewRemotingCommand(kernel.ReqUnlockBatchMQ, nil, data)
+	request := remote.NewRemotingCommand(internal.ReqUnlockBatchMQ, nil, data)
 	if oneway {
 		err := dc.client.InvokeOneWay(addr, request, 3*time.Second)
 		if err != nil {
@@ -379,7 +510,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 		if err != nil {
 			rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		}
-		if response.Code != kernel.ResSuccess {
+		if response.Code != internal.ResSuccess {
 			// TODO error
 		}
 	}
@@ -490,9 +621,9 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 		result = lastOffset
 	} else {
 		switch dc.fromWhere {
-		case primitive.ConsumeFromLastOffset:
+		case ConsumeFromLastOffset:
 			if lastOffset == -1 {
-				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
+				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
 					lastOffset = 0
 				} else {
 					lastOffset, err := dc.queryMaxOffset(mq)
@@ -505,13 +636,13 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 			} else {
 				result = -1
 			}
-		case primitive.ConsumeFromFirstOffset:
+		case ConsumeFromFirstOffset:
 			if lastOffset == -1 {
 				result = 0
 			}
-		case primitive.ConsumeFromTimestamp:
+		case ConsumeFromTimestamp:
 			if lastOffset == -1 {
-				if strings.HasPrefix(mq.Topic, kernel.RetryGroupTopicPrefix) {
+				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
 					lastOffset, err := dc.queryMaxOffset(mq)
 					if err == nil {
 						result = lastOffset
@@ -541,17 +672,17 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 }
 
 func (dc *defaultConsumer) findConsumerList(topic string) []string {
-	brokerAddr := kernel.FindBrokerAddrByTopic(topic)
+	brokerAddr := internal.FindBrokerAddrByTopic(topic)
 	if brokerAddr == "" {
-		kernel.UpdateTopicRouteInfo(topic)
-		brokerAddr = kernel.FindBrokerAddrByTopic(topic)
+		internal.UpdateTopicRouteInfo(topic)
+		brokerAddr = internal.FindBrokerAddrByTopic(topic)
 	}
 
 	if brokerAddr != "" {
-		req := &kernel.GetConsumerList{
+		req := &internal.GetConsumerList{
 			ConsumerGroup: dc.consumerGroup,
 		}
-		cmd := remote.NewRemotingCommand(kernel.ReqGetConsumerListByGroup, req, nil)
+		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
 		res, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
@@ -574,21 +705,21 @@ func (dc *defaultConsumer) sendBack(msg *primitive.MessageExt, level int) error 
 
 // QueryMaxOffset with specific queueId and topic
 func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, error) {
-	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	brokerAddr := internal.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
-		kernel.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = kernel.FindBrokerAddrByName(mq.Topic)
+		internal.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = internal.FindBrokerAddrByName(mq.Topic)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
 	}
 
-	request := &kernel.GetMaxOffsetRequest{
+	request := &internal.GetMaxOffsetRequest{
 		Topic:   mq.Topic,
 		QueueId: mq.QueueId,
 	}
 
-	cmd := remote.NewRemotingCommand(kernel.ReqGetMaxOffset, request, nil)
+	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
 	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
@@ -599,22 +730,22 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 
 // SearchOffsetByTimestamp with specific queueId and topic
 func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, timestamp int64) (int64, error) {
-	brokerAddr := kernel.FindBrokerAddrByName(mq.BrokerName)
+	brokerAddr := internal.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
-		kernel.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = kernel.FindBrokerAddrByName(mq.Topic)
+		internal.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = internal.FindBrokerAddrByName(mq.Topic)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
 	}
 
-	request := &kernel.SearchOffsetRequest{
+	request := &internal.SearchOffsetRequest{
 		Topic:     mq.Topic,
 		QueueId:   mq.QueueId,
 		Timestamp: timestamp,
 	}
 
-	cmd := remote.NewRemotingCommand(kernel.ReqSearchOffsetByTimestamp, request, nil)
+	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
 	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
@@ -623,19 +754,19 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
-func buildSubscriptionData(topic string, selector primitive.MessageSelector) *kernel.SubscriptionData {
-	subData := &kernel.SubscriptionData{
+func buildSubscriptionData(topic string, selector MessageSelector) *internal.SubscriptionData {
+	subData := &internal.SubscriptionData{
 		Topic:     topic,
 		SubString: selector.Expression,
 		ExpType:   string(selector.Type),
 	}
 
-	if selector.Type != "" && selector.Type != primitive.TAG {
+	if selector.Type != "" && selector.Type != TAG {
 		return subData
 	}
 
 	if selector.Expression == "" || selector.Expression == _SubAll {
-		subData.ExpType = string(primitive.TAG)
+		subData.ExpType = string(TAG)
 		subData.SubString = _SubAll
 	} else {
 		tags := strings.Split(selector.Expression, "\\|\\|")
@@ -656,7 +787,7 @@ func buildSubscriptionData(topic string, selector primitive.MessageSelector) *ke
 }
 
 func getNextQueueOf(topic string) *primitive.MessageQueue {
-	queues, err := kernel.FetchSubscribeMessageQueues(topic)
+	queues, err := internal.FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
 		rlog.Error(err.Error())
 		return nil
@@ -698,13 +829,13 @@ func clearCommitOffsetFlag(sysFlag int32) int32 {
 	return sysFlag & (^0x1 << 0)
 }
 
-func tryFindBroker(mq *primitive.MessageQueue) *kernel.FindBrokerResult {
-	result := kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+func tryFindBroker(mq *primitive.MessageQueue) *internal.FindBrokerResult {
+	result := internal.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 
 	if result == nil {
-		kernel.UpdateTopicRouteInfo(mq.Topic)
+		internal.UpdateTopicRouteInfo(mq.Topic)
 	}
-	return kernel.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+	return internal.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 }
 
 var (
@@ -720,5 +851,5 @@ func recalculatePullFromWhichNode(mq *primitive.MessageQueue) int64 {
 	if exist {
 		return v.(int64)
 	}
-	return kernel.MasterId
+	return internal.MasterId
 }

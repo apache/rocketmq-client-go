@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package internal
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 )
 
 const (
@@ -71,7 +72,6 @@ type InnerProducer interface {
 	PublishTopicList() []string
 	UpdateTopicPublishInfo(topic string, info *TopicPublishInfo)
 	IsPublishTopicNeedUpdate(topic string) bool
-	//GetTransactionListener() TransactionListener
 	IsUnitMode() bool
 }
 
@@ -84,8 +84,42 @@ type InnerConsumer interface {
 	IsUnitMode() bool
 }
 
+func DefaultClientOptions() ClientOptions {
+	opts := ClientOptions{
+		InstanceName: "DEFAULT",
+		RetryTimes:   3,
+		ClientIP:     utils.LocalIP(),
+	}
+	return opts
+}
+
+type ClientOptions struct {
+	GroupName         string
+	NameServerAddrs   []string
+	ClientIP          string
+	InstanceName      string
+	UnitMode          bool
+	UnitName          string
+	VIPChannelEnabled bool
+	ACLEnabled        bool
+	RetryTimes        int
+	Interceptors      []primitive.Interceptor
+}
+
+func (opt *ClientOptions) ChangeInstanceNameToPID() {
+	if opt.InstanceName == "DEFAULT" {
+		opt.InstanceName = strconv.Itoa(os.Getegid())
+	}
+}
+
+func (opt *ClientOptions) String() string {
+	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, ACLEnabled=%v]", opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
+}
+
 type RMQClient struct {
-	option primitive.ClientOption
+	option ClientOptions
 	// group -> InnerProducer
 	producerMap sync.Map
 
@@ -100,7 +134,7 @@ type RMQClient struct {
 
 var clientMap sync.Map
 
-func GetOrNewRocketMQClient(option primitive.ClientOption) *RMQClient {
+func GetOrNewRocketMQClient(option ClientOptions) *RMQClient {
 	client := &RMQClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),

@@ -15,34 +15,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package internal
 
 const (
-	ResSuccess              = int16(0)
-	ResFlushDiskTimeout     = int16(10)
-	ResSlaveNotAvailable    = int16(11)
-	ResFlushSlaveTimeout    = int16(12)
-	ResTopicNotExist        = int16(17)
-	ResPullNotFound         = int16(19)
-	ResPullRetryImmediately = int16(20)
-	ResPullOffsetMoved      = int16(21)
+	permPriority = 0x1 << 3
+	permRead     = 0x1 << 2
+	permWrite    = 0x1 << 1
+	permInherit  = 0x1 << 0
 )
 
-type SendMessageResponse struct {
-	MsgId         string
-	QueueId       int32
-	QueueOffset   int64
-	TransactionId string
-	MsgRegion     string
+func queueIsReadable(perm int) bool {
+	return (perm & permRead) == permRead
 }
 
-func (response *SendMessageResponse) Decode(properties map[string]string) {
-
+func queueIsWriteable(perm int) bool {
+	return (perm & permWrite) == permWrite
 }
 
-type PullMessageResponse struct {
-	SuggestWhichBrokerId int64
-	NextBeginOffset      int64
-	MinOffset            int64
-	MaxOffset            int64
+func queueIsInherited(perm int) bool {
+	return (perm & permInherit) == permInherit
+}
+
+func perm2string(perm int) string {
+	bytes := make([]byte, 3)
+	for i := 0; i < 3; i++ {
+		bytes[i] = '-'
+	}
+
+	if queueIsReadable(perm) {
+		bytes[0] = 'R'
+	}
+
+	if queueIsWriteable(perm) {
+		bytes[1] = 'W'
+	}
+
+	if queueIsInherited(perm) {
+		bytes[2] = 'X'
+	}
+
+	return string(bytes)
 }

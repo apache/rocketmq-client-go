@@ -15,13 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package internal
 
-const (
-	RetryGroupTopicPrefix = "%RETRY%"
-	DefaultConsumerGroup  = "DEFAULT_CONSUMER"
-)
-
-func GetRetryTopic(group string) string {
-	return RetryGroupTopicPrefix + group
+type TransactionListener interface {
 }

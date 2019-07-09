@@ -15,33 +15,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package producer
 
 import (
-	"regexp"
+	"testing"
 
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	_ValidPattern       = "^[%|a-zA-Z0-9_-]+$"
-	_CharacterMaxLength = 255
-)
+func TestRoundRobin(t *testing.T) {
+	queues := 10
+	s := NewRoundRobinQueueSelector()
 
-var (
-	_Pattern, _ = regexp.Compile(_ValidPattern)
-)
-
-func ValidateGroup(group string) {
-	if group == "" {
-		rlog.Fatal("consumerGroup is empty")
+	m := &Message{
+		Topic: "test",
 	}
+	mrr := &Message{
+		Topic: "rr",
+	}
+	for i := 0; i < 100; i++ {
+		q := s.Select(m, queues)
+		assert.Equal(t, (i+1)%queues, q, "i: %d", i)
 
-	//if !_Pattern.Match([]byte(group)) {
-	//	rlog.Fatalf("the specified group[%s] contains illegal characters, allowing only %s", group, _ValidPattern)
-	//}
-
-	if len(group) > _CharacterMaxLength {
-		rlog.Fatal("the specified group is longer than group max length 255.")
+		qrr := s.Select(mrr, queues)
+		assert.Equal(t, (i+1)%queues, qrr, "i: %d", i)
 	}
 }

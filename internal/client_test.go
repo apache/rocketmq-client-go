@@ -15,16 +15,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package primitive
+package internal
 
 import (
 	"context"
+	"testing"
 )
 
-// Invoker finish a message invoke on producer/consumer.
-type Invoker func(ctx context.Context, req, reply interface{}) error
+func TestRMQClient_PullMessage(t *testing.T) {
+	client := GetOrNewRocketMQClient(ClientOption{})
+	req := &PullMessageRequest{
+		ConsumerGroup:  "testGroup",
+		Topic:          "wenfeng",
+		QueueId:        0,
+		QueueOffset:    0,
+		MaxMsgNums:     32,
+		SysFlag:        0x1 << 2,
+		SubExpression:  "*",
+		ExpressionType: "TAG",
+	}
+	res, err := client.PullMessage(context.Background(), "127.0.0.1:10911", req)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
 
-// Interceptor intercepts the invoke of a producer/consumer on messages.
-// In PushConsumer call, the req is []*MessageExt type and the reply is ConsumeResultHolder,
-// use type assert to get real type.
-type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
+	for _, a := range res.GetMessageExts() {
+		t.Log(string(a.Body))
+	}
+}
