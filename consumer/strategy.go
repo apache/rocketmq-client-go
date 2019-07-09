@@ -15,9 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package primitive
+package consumer
 
 import (
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
 )
@@ -36,10 +37,10 @@ import (
 // Computer room Hashing queue algorithm, such as Alipay logic room
 // Consistent Hashing queue algorithm
 
-type AllocateStrategy func(string, string, []*MessageQueue, []string) []*MessageQueue
+type AllocateStrategy func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
 
-func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	if currentCID == "" || utils.IsArrayEmpty(mqAll) || utils.IsArrayEmpty(cidAll) {
 		return nil
 	}
@@ -83,7 +84,7 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*MessageQueue
 	}
 
 	num := utils.MinInt(averageSize, mqSize-startIndex)
-	result := make([]*MessageQueue, num)
+	result := make([]*primitive.MessageQueue, num)
 	for i := 0; i < num; i++ {
 		result[i] = mqAll[(startIndex+i)%mqSize]
 	}
@@ -91,27 +92,27 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*MessageQueue
 }
 
 // TODO
-func AllocateByMachineNearby(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByMachineNearby(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }
 
-func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }
 
-func AllocateByConfig(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByConfig(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }
 
-func AllocateByMachineRoom(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByMachineRoom(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }
 
-func AllocateByConsistentHash(consumerGroup, currentCID string, mqAll []*MessageQueue,
-	cidAll []string) []*MessageQueue {
+func AllocateByConsistentHash(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }

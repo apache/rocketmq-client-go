@@ -15,17 +15,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package primitive
+package producer
 
 import (
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 type QueueSelector interface {
-	Select(*Message, int) int
+	Select(*primitive.Message, int) int
 }
 
 // manualQueueSelector use the queue manually set in the provided Message's QueueID  field as the queue to send.
@@ -35,11 +37,11 @@ func NewManualQueueSelector() QueueSelector {
 	return new(manualQueueSelector)
 }
 
-func (manualQueueSelector) Select(message *Message, queues int) int {
+func (manualQueueSelector) Select(message *primitive.Message, queues int) int {
 	return message.QueueID
 }
 
-// randomQueueSelector choose a randome queue each time.
+// randomQueueSelector choose a random queue each time.
 type randomQueueSelector struct {
 	rander *rand.Rand
 }
@@ -50,25 +52,25 @@ func NewRandomQueueSelector() QueueSelector {
 	return s
 }
 
-func (r randomQueueSelector) Select(message *Message, queues int) int {
+func (r randomQueueSelector) Select(message *primitive.Message, queues int) int {
 	return r.rander.Intn(queues)
 }
 
-// roundrobinQueueSelector choose the queue by roundrobin.
-type roundrobinQueueSelector struct {
+// roundRobinQueueSelector choose the queue by roundRobin.
+type roundRobinQueueSelector struct {
 	sync.Locker
 	indexer map[string]*int32
 }
 
 func NewRoundRobinQueueSelector() QueueSelector {
-	s := &roundrobinQueueSelector{
+	s := &roundRobinQueueSelector{
 		Locker:  new(sync.Mutex),
 		indexer: map[string]*int32{},
 	}
 	return s
 }
 
-func (r *roundrobinQueueSelector) Select(message *Message, queues int) int {
+func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues int) int {
 	t := message.Topic
 	if _, exist := r.indexer[t]; !exist {
 		r.Lock()

@@ -290,7 +290,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 	wg.Add(1)
 	client := NewRemotingClient()
 
-	var clientSend sync.WaitGroup  // blocking client send message until the server listen success.
+	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()

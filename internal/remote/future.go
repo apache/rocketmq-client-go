@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-// ResponseFuture 
+// ResponseFuture
 type ResponseFuture struct {
 	ResponseCommand *RemotingCommand
 	SendRequestOK   bool

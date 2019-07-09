@@ -20,7 +20,7 @@ rlog.SetLogger(Logger)
 Producer interface {
 	Start() error
 	Shutdown() error
-	SendSync(context.Context, *primitive.Message) (*kernel.SendResult, error)
+	SendSync(context.Context, *primitive.Message) (*internal.SendResult, error)
 	SendOneWay(context.Context, *primitive.Message) error
 }
 ```

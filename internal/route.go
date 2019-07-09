@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kernel
+package internal
 
 import (
 	"encoding/json"
@@ -269,7 +269,7 @@ func queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
 
 	var (
 		response *remote.RemotingCommand
-		err error
+		err      error
 	)
 	for i := 0; i < nameSrvs.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)

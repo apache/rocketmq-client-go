@@ -40,4 +40,3 @@ func StrJoin(str, key string, value interface{}) string {
 
 	return str + key + ": " + fmt.Sprint(value) + ", "
 }
-

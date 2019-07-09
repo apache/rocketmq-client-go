@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/kernel"
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
@@ -180,11 +180,11 @@ func (local *localFileOffsetStore) remove(mq *primitive.MessageQueue) {
 type remoteBrokerOffsetStore struct {
 	group       string
 	OffsetTable map[string]map[int]*queueOffset `json:"OffsetTable"`
-	client      *kernel.RMQClient
+	client      *internal.RMQClient
 	mutex       sync.RWMutex
 }
 
-func NewRemoteOffsetStore(group string, client *kernel.RMQClient) OffsetStore {
+func NewRemoteOffsetStore(group string, client *internal.RMQClient) OffsetStore {
 	return &remoteBrokerOffsetStore{
 		group:       group,
 		client:      client,
@@ -281,25 +281,25 @@ func (r *remoteBrokerOffsetStore) update(mq *primitive.MessageQueue, offset int6
 }
 
 func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq *primitive.MessageQueue) (int64, error) {
-	broker := kernel.FindBrokerAddrByName(mq.BrokerName)
+	broker := internal.FindBrokerAddrByName(mq.BrokerName)
 	if broker == "" {
-		kernel.UpdateTopicRouteInfo(mq.Topic)
-		broker = kernel.FindBrokerAddrByName(mq.BrokerName)
+		internal.UpdateTopicRouteInfo(mq.Topic)
+		broker = internal.FindBrokerAddrByName(mq.BrokerName)
 	}
 	if broker == "" {
 		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
 	}
-	queryOffsetRequest := &kernel.QueryConsumerOffsetRequest{
+	queryOffsetRequest := &internal.QueryConsumerOffsetRequest{
 		ConsumerGroup: group,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
 	}
-	cmd := remote.NewRemotingCommand(kernel.ReqQueryConsumerOffset, queryOffsetRequest, nil)
+	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
 	res, err := r.client.InvokeSync(broker, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
-	if res.Code != kernel.ResSuccess {
+	if res.Code != internal.ResSuccess {
 		return -2, fmt.Errorf("broker response code: %d, remarks: %s", res.Code, res.Remark)
 	}
 
@@ -313,22 +313,22 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 }
 
 func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group, topic string, queue *queueOffset) error {
-	broker := kernel.FindBrokerAddrByName(queue.Broker)
+	broker := internal.FindBrokerAddrByName(queue.Broker)
 	if broker == "" {
-		kernel.UpdateTopicRouteInfo(topic)
-		broker = kernel.FindBrokerAddrByName(queue.Broker)
+		internal.UpdateTopicRouteInfo(topic)
+		broker = internal.FindBrokerAddrByName(queue.Broker)
 	}
 	if broker == "" {
 		return fmt.Errorf("broker: %s address not found", queue.Broker)
 	}
 
-	updateOffsetRequest := &kernel.UpdateConsumerOffsetRequest{
+	updateOffsetRequest := &internal.UpdateConsumerOffsetRequest{
 		ConsumerGroup: group,
 		Topic:         topic,
 		QueueId:       queue.QueueID,
 		CommitOffset:  queue.Offset,
 	}
-	cmd := remote.NewRemotingCommand(kernel.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
+	cmd := remote.NewRemotingCommand(internal.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
 	return r.client.InvokeOneWay(broker, cmd, 5*time.Second)
 }
 

@@ -22,14 +22,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apache/rocketmq-client-go/internal/producer"
+	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/producer"
 )
 
 // Package main implements a simple producer to send message.
 func main() {
-	nameServerAddr := []string{"127.0.0.1:9876"}
-	p, _ := producer.NewProducer(nameServerAddr, primitive.WithRetry(2))
+	p, _ := rocketmq.NewProducer(
+		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithRetry(2),
+	)
 	err := p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())

@@ -18,20 +18,25 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/consumer"
+	"github.com/apache/rocketmq-client-go"
+	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func main() {
-	c, _ := consumer.NewPushConsumer("testGroup", []string{"127.0.0.1:9876"})
-	err := c.Subscribe("TopicTest", primitive.MessageSelector{}, func(ctx *primitive.ConsumeMessageContext,
-		msgs []*primitive.MessageExt) (primitive.ConsumeResult, error) {
-		fmt.Println("subscribe callback: %v", msgs)
-		return primitive.ConsumeSuccess, nil
+	c, _ := rocketmq.NewPushConsumer(
+		consumer.WithGroupName("testGroup"),
+		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
+	)
+	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
+		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		fmt.Printf("subscribe callback: %v \n", msgs)
+		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {
 		fmt.Println(err.Error())
