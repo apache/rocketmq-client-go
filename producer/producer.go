@@ -33,6 +33,7 @@ import (
 var (
 	ErrTopicEmpty   = errors.New("topic is nil")
 	ErrMessageEmpty = errors.New("message is nil")
+	ErrNotRunning   = errors.New("producer not started")
 )
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
@@ -84,7 +85,7 @@ func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalI
 
 type defaultProducer struct {
 	group       string
-	client      *internal.RMQClient
+	client      internal.RMQClient
 	state       internal.ServiceState
 	options     producerOptions
 	publishInfo sync.Map
@@ -100,10 +101,16 @@ func (p *defaultProducer) Start() error {
 }
 
 func (p *defaultProducer) Shutdown() error {
+	p.state = internal.StateShutdown
+	p.client.Shutdown()
 	return nil
 }
 
 func (p *defaultProducer) checkMsg(msg *primitive.Message) error {
+	if p.state != internal.StateRunning {
+		return ErrNotRunning
+	}
+
 	if msg == nil {
 		return errors.New("message is nil")
 	}
@@ -242,6 +249,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			err = _err
 			continue
 		}
+		return nil
 	}
 	return err
 }

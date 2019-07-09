@@ -42,8 +42,8 @@ func main() {
 	}
 	for i := 0; i < 10; i++ {
 		res, err := p.SendSync(context.Background(), &primitive.Message{
-			//Topic: "test",
-			Topic:      "TopicTest",
+			Topic: "test",
+			//Topic:      "TopicTest",
 			Body:       []byte("Hello RocketMQ Go Client!"),
 			Properties: map[string]string{"order": strconv.Itoa(i)},
 		})
