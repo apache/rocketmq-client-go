@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/kernel"
@@ -156,7 +155,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	)
 
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg.Topic)
+		mq := p.selectMessageQueue(msg)
 		if mq == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
@@ -194,8 +193,7 @@ func (p *defaultProducer) SendAsync(ctx context.Context, msg *primitive.Message,
 }
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
-
-	mq := p.selectMessageQueue(msg.Topic)
+	mq := p.selectMessageQueue(msg)
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
@@ -238,7 +236,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 		err error
 	)
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg.Topic)
+		mq := p.selectMessageQueue(msg)
 		if mq == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
@@ -276,9 +274,10 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	return remote.NewRemotingCommand(kernel.ReqSendMessage, req, msg.Body)
 }
 
-func (p *defaultProducer) selectMessageQueue(topic string) *primitive.MessageQueue {
-	v, exist := p.publishInfo.Load(topic)
+func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
+	topic := msg.Topic
 
+	v, exist := p.publishInfo.Load(topic)
 	if !exist {
 		p.client.UpdatePublishInfo(topic, kernel.UpdateTopicRouteInfo(topic))
 		v, exist = p.publishInfo.Load(topic)
@@ -297,7 +296,9 @@ func (p *defaultProducer) selectMessageQueue(topic string) *primitive.MessageQue
 		rlog.Error("can not find proper message queue")
 		return nil
 	}
-	return result.MqList[int(atomic.AddInt32(&result.TopicQueueIndex, 1))%len(result.MqList)]
+
+	i := p.options.Selector.Select(msg, len(result.MqList))
+	return result.MqList[i]
 }
 
 func (p *defaultProducer) PublishTopicList() []string {

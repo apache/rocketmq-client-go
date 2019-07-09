@@ -34,11 +34,15 @@ type ProducerOptions struct {
 	GroupName                string
 	RetryTimesWhenSendFailed int
 	UnitMode                 bool
+
+	// Selector strategy of choose which queue to send message
+	Selector QueueSelector
 }
 
 func DefaultProducerOptions() ProducerOptions {
 	return ProducerOptions{
-		RetryTimesWhenSendFailed:  2,
+		RetryTimesWhenSendFailed: 2,
+		Selector:  NewRoundRobinQueueSelector(),
 	}
 }
 
@@ -72,8 +76,14 @@ func WithChainProducerInterceptor(fs ...PInterceptor) *ProducerOption {
 // WithRetry return a ProducerOption that specifies the retry times when send failed.
 // TODO: use retryMiddleeware instead.
 func WithRetry(retries int) *ProducerOption {
-	return  NewProducerOption(func(options *ProducerOptions) {
+	return NewProducerOption(func(options *ProducerOptions) {
 		options.RetryTimesWhenSendFailed = retries
+	})
+}
+
+func WithQueueSelector(s QueueSelector) *ProducerOption {
+	return NewProducerOption(func(options *ProducerOptions) {
+		options.Selector = s
 	})
 }
 
@@ -156,11 +166,11 @@ type ConsumerOptions struct {
 	Interceptors []CInterceptor
 }
 
-func DefaultPushConsumerOptions() ConsumerOptions{
+func DefaultPushConsumerOptions() ConsumerOptions {
 	return ConsumerOptions{
 		ClientOption: ClientOption{
 			InstanceName: "DEFAULT",
-			ClientIP: utils.LocalIP(),
+			ClientIP:     utils.LocalIP(),
 		},
 		Strategy: AllocateByAveragely,
 	}
@@ -182,7 +192,7 @@ func WithConsumerModel(m MessageModel) *ConsumerOption {
 	})
 }
 
-func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption{
+func WithConsumeFromWhere(w ConsumeFromWhere) *ConsumerOption {
 	return NewConsumerOption(func(options *ConsumerOptions) {
 		options.FromWhere = w
 	})
