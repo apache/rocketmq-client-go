@@ -73,7 +73,7 @@ func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingC
 }
 
 func (command *RemotingCommand) String() string {
-	return fmt.Sprintf("Code: %d, Opaque: %d, Remark: %s, ExtFields: %v",
+	return fmt.Sprintf("Code: %d, opaque: %d, Remark: %s, ExtFields: %v",
 		command.Code, command.Opaque, command.Remark, command.ExtFields)
 }
 

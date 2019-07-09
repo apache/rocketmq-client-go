@@ -32,7 +32,6 @@ import (
 var (
 	//ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
-	connectionLocker  sync.Mutex
 )
 
 type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
@@ -42,10 +41,11 @@ type TcpOption struct {
 }
 
 type RemotingClient struct {
-	responseTable   sync.Map
-	connectionTable sync.Map
-	option          TcpOption
-	processors      map[int16]ClientRequestFunc
+	responseTable    sync.Map
+	connectionTable  sync.Map
+	option           TcpOption
+	processors       map[int16]ClientRequestFunc
+	connectionLocker sync.Mutex
 }
 
 func NewRemotingClient() *RemotingClient {
@@ -59,15 +59,15 @@ func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 }
 
 // TODO: merge sync and async model. sync should run on async model by blocking on chan
-func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
+func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return nil, err
 	}
-	resp := NewResponseFuture(request.Opaque, timeoutMillis, nil)
+	resp := NewResponseFuture(request.Opaque, timeout, nil)
 	c.responseTable.Store(resp.Opaque, resp)
-	err = c.sendRequest(conn, request)
 	defer c.responseTable.Delete(request.Opaque)
+	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +75,13 @@ func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 	return resp.waitResponse()
 }
 
-// InvokeAsync send request witout blocking, just return immediately.
-func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
+// InvokeAsync send request without blocking, just return immediately.
+func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return err
 	}
-	resp := NewResponseFuture(request.Opaque, timeoutMillis, callback)
+	resp := NewResponseFuture(request.Opaque, timeout, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
@@ -107,27 +107,10 @@ func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, tim
 	return c.sendRequest(conn, request)
 }
 
-func (c *RemotingClient) ScanResponseTable() {
-	rfs := make([]*ResponseFuture, 0)
-	c.responseTable.Range(func(key, value interface{}) bool {
-		if resp, ok := value.(*ResponseFuture); ok {
-			if (resp.BeginTimestamp + int64(resp.TimeoutMillis) + 1000) <= time.Now().Unix()*1000 {
-				rfs = append(rfs, resp)
-				c.responseTable.Delete(key)
-			}
-		}
-		return true
-	})
-	for _, rf := range rfs {
-		rf.Err = ErrRequestTimeout
-		rf.executeInvokeCallback()
-	}
-}
-
 func (c *RemotingClient) connect(addr string) (net.Conn, error) {
 	//it needs additional locker.
-	connectionLocker.Lock()
-	defer connectionLocker.Unlock()
+	c.connectionLocker.Lock()
+	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
 	if ok {
 		return conn.(net.Conn), nil
@@ -181,7 +164,7 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 		}
 	}
 	if scanner.Err() != nil {
-		rlog.Errorf("net: %s scanner exit, err: %s.", r.RemoteAddr().String(), scanner.Err())
+		rlog.Errorf("net: %s scanner exit, Err: %s.", r.RemoteAddr().String(), scanner.Err())
 	} else {
 		rlog.Infof("net: %s scanner exit.", r.RemoteAddr().String())
 	}
@@ -235,5 +218,17 @@ func (c *RemotingClient) closeConnection(toCloseConn net.Conn) {
 		} else {
 			return true
 		}
+	})
+}
+
+func (c *RemotingClient) ShutDown() {
+	c.responseTable.Range(func(key, value interface{}) bool {
+		c.responseTable.Delete(key)
+		return true
+	})
+	c.connectionTable.Range(func(key, value interface{}) bool {
+		conn := value.(net.Conn)
+		conn.Close()
+		return true
 	})
 }

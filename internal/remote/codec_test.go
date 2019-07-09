@@ -96,7 +96,7 @@ func Test_decode(t *testing.T) {
 			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
 		}
 		if rc.Opaque != decodedRc.Opaque {
-			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+			t.Fatalf("wrong opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
 		}
 		if rc.Remark != decodedRc.Remark {
 			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
@@ -167,7 +167,7 @@ func Test_jsonCodec_decodeHeader(t *testing.T) {
 			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
 		}
 		if rc.Opaque != decodedRc.Opaque {
-			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+			t.Fatalf("wrong opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
 		}
 		if rc.Remark != decodedRc.Remark {
 			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
@@ -237,7 +237,7 @@ func Test_rmqCodec_decodeHeader(t *testing.T) {
 			t.Fatalf("wrong Version. want=%d, got=%d", rc.Version, decodedRc.Version)
 		}
 		if rc.Opaque != decodedRc.Opaque {
-			t.Fatalf("wrong Opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
+			t.Fatalf("wrong opaque. want=%d, got=%d", rc.Opaque, decodedRc.Opaque)
 		}
 		if rc.Remark != decodedRc.Remark {
 			t.Fatalf("wrong remark. want=%s, got=%s", rc.Remark, decodedRc.Remark)
