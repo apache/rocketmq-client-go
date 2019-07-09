@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	_Pattern, _ = regexp.Compile("_ValidPattern")
+	_Pattern, _ = regexp.Compile(_ValidPattern)
 )
 
 func ValidateGroup(group string) {

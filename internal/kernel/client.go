@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	ErrServiceState = errors.New("service state is not running, please check")
+	ErrServiceState = errors.New("service close is not running, please check")
 
 	_VIPChannelEnable = false
 )
@@ -95,7 +95,7 @@ type RMQClient struct {
 
 	remoteClient *remote.RemotingClient
 	hbMutex      sync.Mutex
-	cancel       context.CancelFunc
+	close        bool
 }
 
 var clientMap sync.Map
@@ -117,8 +117,9 @@ func GetOrNewRocketMQClient(option primitive.ClientOption) *RMQClient {
 }
 
 func (c *RMQClient) Start() {
-	ctx, cancel := context.WithCancel(context.Background())
-	c.cancel = cancel
+	//ctx, cancel := context.WithCancel(context.Background())
+	//c.cancel = cancel
+	c.close = false
 	c.once.Do(func() {
 		// TODO fetchNameServerAddr
 		go func() {}()
@@ -127,62 +128,38 @@ func (c *RMQClient) Start() {
 		go func() {
 			// delay
 			time.Sleep(50 * time.Millisecond)
-			c.UpdateTopicRouteInfo()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.Tick(_PullNameServerInterval):
-					c.UpdateTopicRouteInfo()
-				}
+			for !c.close{
+				c.UpdateTopicRouteInfo()
+				time.Sleep(_PullNameServerInterval)
 			}
 		}()
 
 		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
 		go func() {
-			cleanOfflineBroker()
-			c.SendHeartbeatToAllBrokerWithLock()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.Tick(_HeartbeatBrokerInterval):
-					cleanOfflineBroker()
-					c.SendHeartbeatToAllBrokerWithLock()
-				}
+			for !c.close{
+				cleanOfflineBroker()
+				c.SendHeartbeatToAllBrokerWithLock()
+				time.Sleep(_HeartbeatBrokerInterval)
 			}
 		}()
 
 		// schedule persist offset
 		go func() {
-			c.consumerMap.Range(func(key, value interface{}) bool {
-				consumer := value.(InnerConsumer)
-				consumer.PersistConsumerOffset()
-				return true
-			})
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.Tick(_PersistOffset):
-					c.consumerMap.Range(func(key, value interface{}) bool {
-						consumer := value.(InnerConsumer)
-						consumer.PersistConsumerOffset()
-						return true
-					})
-				}
+			//time.Sleep(10 * time.Second)
+			for !c.close{
+				c.consumerMap.Range(func(key, value interface{}) bool {
+					consumer := value.(InnerConsumer)
+					consumer.PersistConsumerOffset()
+					return true
+				})
+				time.Sleep(_PersistOffset)
 			}
 		}()
 
 		go func() {
-			c.RebalanceImmediately()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.Tick(_RebalanceInterval):
-					c.RebalanceImmediately()
-				}
+			for !c.close{
+				c.RebalanceImmediately()
+				time.Sleep(_RebalanceInterval)
 			}
 		}()
 	})
@@ -190,7 +167,7 @@ func (c *RMQClient) Start() {
 
 func (c *RMQClient) Shutdown() {
 	c.remoteClient.ShutDown()
-	c.cancel()
+	c.close = true
 }
 
 func (c *RMQClient) ClientID() string {
@@ -203,18 +180,28 @@ func (c *RMQClient) ClientID() string {
 
 func (c *RMQClient) InvokeSync(addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
+	if c.close {
+		return nil, ErrServiceState
+	}
 	return c.remoteClient.InvokeSync(addr, request, timeoutMillis)
 }
 
 func (c *RMQClient) InvokeAsync(addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
+	if c.close {
+		return ErrServiceState
+	}
 	return c.remoteClient.InvokeAsync(addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
 		f(future.ResponseCommand, future.Err)
 	})
+
 }
 
 func (c *RMQClient) InvokeOneWay(addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
+	if c.close {
+		return ErrServiceState
+	}
 	return c.remoteClient.InvokeOneWay(addr, request, timeoutMillis)
 }
 

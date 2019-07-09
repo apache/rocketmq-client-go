@@ -59,30 +59,30 @@ func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 }
 
 // TODO: merge sync and async model. sync should run on async model by blocking on chan
-func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeoutMillis time.Duration) (*RemotingCommand, error) {
+func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return nil, err
 	}
 	resp := NewResponseFuture(request.Opaque, timeout, nil)
-	c.responseTable.Store(resp.opaque, resp)
+	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
-	resp.sendRequestOK = true
+	resp.SendRequestOK = true
 	return resp.waitResponse()
 }
 
-// InvokeAsync send request witout blocking, just return immediately.
-func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeoutMillis time.Duration, callback func(*ResponseFuture)) error {
+// InvokeAsync send request without blocking, just return immediately.
+func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
 	conn, err := c.connect(addr)
 	if err != nil {
 		return err
 	}
 	resp := NewResponseFuture(request.Opaque, timeout, callback)
-	c.responseTable.Store(resp.opaque, resp)
+	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return err
@@ -105,23 +105,6 @@ func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, tim
 		return err
 	}
 	return c.sendRequest(conn, request)
-}
-
-func (c *RemotingClient) ScanResponseTable() {
-	rfs := make([]*ResponseFuture, 0)
-	c.responseTable.Range(func(key, value interface{}) bool {
-		if resp, ok := value.(*ResponseFuture); ok {
-			if (resp.beginTimestamp + resp.timeout + time.Second) <= time.Duration(time.Now().Unix())*time.Second {
-				rfs = append(rfs, resp)
-				c.responseTable.Delete(key)
-			}
-		}
-		return true
-	})
-	for _, rf := range rfs {
-		rf.Err = ErrRequestTimeout
-		rf.executeInvokeCallback()
-	}
 }
 
 func (c *RemotingClient) connect(addr string) (net.Conn, error) {
@@ -158,8 +141,8 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 				go func() {
 					responseFuture.ResponseCommand = cmd
 					responseFuture.executeInvokeCallback()
-					if responseFuture.done != nil {
-						responseFuture.done <- true
+					if responseFuture.Done != nil {
+						responseFuture.Done <- true
 					}
 				}()
 			}

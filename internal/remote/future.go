@@ -22,27 +22,27 @@ import (
 	"time"
 )
 
-// ResponseFuture 
+// ResponseFuture
 type ResponseFuture struct {
 	ResponseCommand *RemotingCommand
 	SendRequestOK   bool
 	Err             error
 	Opaque          int32
-	TimeoutMillis   time.Duration
+	Timeout         time.Duration
 	callback        func(*ResponseFuture)
-	BeginTimestamp  int64
+	BeginTimestamp  time.Duration
 	Done            chan bool
 	callbackOnce    sync.Once
 }
 
 // NewResponseFuture create ResponseFuture with opaque, timeout and callback
-func NewResponseFuture(opaque int32, timeoutMillis time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
+func NewResponseFuture(opaque int32, timeout time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
 	return &ResponseFuture{
 		Opaque:         opaque,
 		Done:           make(chan bool),
-		TimeoutMillis:  timeoutMillis,
+		Timeout:        timeout,
 		callback:       callback,
-		BeginTimestamp: time.Now().Unix() * 1000,
+		BeginTimestamp: time.Duration(time.Now().Unix()) * time.Second,
 	}
 }
 
@@ -55,8 +55,8 @@ func (r *ResponseFuture) executeInvokeCallback() {
 }
 
 func (r *ResponseFuture) isTimeout() bool {
-	diff := time.Now().Unix()*1000 - r.BeginTimestamp
-	return diff > int64(r.TimeoutMillis)
+	elapse := time.Duration(time.Now().Unix())*time.Second - r.BeginTimestamp
+	return elapse > r.Timeout
 }
 
 func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
@@ -64,7 +64,7 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 		cmd *RemotingCommand
 		err error
 	)
-	timer := time.NewTimer(r.TimeoutMillis * time.Millisecond)
+	timer := time.NewTimer(r.Timeout)
 	for {
 		select {
 		case <-r.Done:
