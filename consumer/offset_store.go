@@ -180,11 +180,11 @@ func (local *localFileOffsetStore) remove(mq *primitive.MessageQueue) {
 type remoteBrokerOffsetStore struct {
 	group       string
 	OffsetTable map[string]map[int]*queueOffset `json:"OffsetTable"`
-	client      *internal.RMQClient
+	client      internal.RMQClient
 	mutex       sync.RWMutex
 }
 
-func NewRemoteOffsetStore(group string, client *internal.RMQClient) OffsetStore {
+func NewRemoteOffsetStore(group string, client internal.RMQClient) OffsetStore {
 	return &remoteBrokerOffsetStore{
 		group:       group,
 		client:      client,

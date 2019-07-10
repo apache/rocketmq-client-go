@@ -20,6 +20,7 @@ package producer
 import (
 	"testing"
 
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,10 +28,10 @@ func TestRoundRobin(t *testing.T) {
 	queues := 10
 	s := NewRoundRobinQueueSelector()
 
-	m := &Message{
+	m := &primitive.Message{
 		Topic: "test",
 	}
-	mrr := &Message{
+	mrr := &primitive.Message{
 		Topic: "rr",
 	}
 	for i := 0; i < 100; i++ {
