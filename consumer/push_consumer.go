@@ -154,8 +154,7 @@ func (pc *pushConsumer) Start() error {
 		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			pc.state = internal.StateCreateJust
-			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
-			err = errors.New("consumer group has been created")
+			err = fmt.Errorf("consumer group: [%s] has been created", pc.consumerGroup)
 			return
 		}
 		pc.client.UpdateTopicRouteInfo()
@@ -230,18 +229,18 @@ func (pc *pushConsumer) validate() {
 
 	if pc.consumerGroup == internal.DefaultConsumerGroup {
 		// TODO FQA
-		rlog.Fatalf("consumerGroup can't equal [%s], please specify another one.", internal.DefaultConsumerGroup)
+		rlog.Errorf("consumerGroup can't equal [%s], please specify another one.", internal.DefaultConsumerGroup)
 	}
 
 	if len(pc.subscribedTopic) == 0 {
-		rlog.Fatal("number of subscribed topics is 0.")
+		rlog.Error("number of subscribed topics is 0.")
 	}
 
 	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
 		if pc.option.ConsumeConcurrentlyMaxSpan == 0 {
 			pc.option.ConsumeConcurrentlyMaxSpan = 1000
 		} else {
-			rlog.Fatal("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
+			rlog.Error("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
 		}
 	}
 
@@ -249,7 +248,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdForQueue == 0 {
 			pc.option.PullThresholdForQueue = 1024
 		} else {
-			rlog.Fatal("option.PullThresholdForQueue out of range [1, 65535]")
+			rlog.Error("option.PullThresholdForQueue out of range [1, 65535]")
 		}
 	}
 
@@ -257,7 +256,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdForTopic == 0 {
 			pc.option.PullThresholdForTopic = 102400
 		} else {
-			rlog.Fatal("option.PullThresholdForTopic out of range [1, 6553500]")
+			rlog.Error("option.PullThresholdForTopic out of range [1, 6553500]")
 		}
 	}
 
@@ -265,7 +264,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdSizeForQueue == 0 {
 			pc.option.PullThresholdSizeForQueue = 512
 		} else {
-			rlog.Fatal("option.PullThresholdSizeForQueue out of range [1, 1024]")
+			rlog.Error("option.PullThresholdSizeForQueue out of range [1, 1024]")
 		}
 	}
 
@@ -273,19 +272,19 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdSizeForTopic == 0 {
 			pc.option.PullThresholdSizeForTopic = 51200
 		} else {
-			rlog.Fatal("option.PullThresholdSizeForTopic out of range [1, 102400]")
+			rlog.Error("option.PullThresholdSizeForTopic out of range [1, 102400]")
 		}
 	}
 
 	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535 {
-		rlog.Fatal("option.PullInterval out of range [0, 65535]")
+		rlog.Error("option.PullInterval out of range [0, 65535]")
 	}
 
 	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
 		if pc.option.ConsumeMessageBatchMaxSize == 0 {
 			pc.option.ConsumeMessageBatchMaxSize = 512
 		} else {
-			rlog.Fatal("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
+			rlog.Error("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
 		}
 	}
 
@@ -293,7 +292,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullBatchSize == 0 {
 			pc.option.PullBatchSize = 32
 		} else {
-			rlog.Fatal("option.PullBatchSize out of range [1, 1024]")
+			rlog.Error("option.PullBatchSize out of range [1, 1024]")
 		}
 	}
 }
