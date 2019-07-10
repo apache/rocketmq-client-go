@@ -19,19 +19,38 @@ package consumer
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/pkg/errors"
 )
 
 type PullConsumer interface {
+	// Start
 	Start()
+
+	// Shutdown refuse all new pull operation, finish all submitted.
 	Shutdown()
+
+	// Pull pull message of topic,  selector indicate which queue to pull.
 	Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error)
+
+	// PullFrom pull messages of queue from the offset to offset + numbers
+	PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
+
+	// updateOffset update offset of queue in mem
+	UpdateOffset(queue *primitive.MessageQueue, offset int64) error
+
+	// PersistOffset persist all offset in mem.
+	PersistOffset(ctx context.Context) error
+
+	// CurrentOffset return the current offset of queue in mem.
+	CurrentOffset(queue *primitive.MessageQueue) (int64, error)
 }
 
 var (
@@ -39,20 +58,60 @@ var (
 )
 
 type defaultPullConsumer struct {
-	state     internal.ServiceState
+	*defaultConsumer
+
 	option    consumerOptions
 	client    internal.RMQClient
 	GroupName string
 	Model     MessageModel
 	UnitMode  bool
+
+	interceptor primitive.Interceptor
 }
 
-func (c *defaultPullConsumer) Start() {
+func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
+	defaultOpts := defaultPullConsumerOptions()
+	for _, apply := range options {
+		apply(&defaultOpts)
+	}
+
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new Namesrv failed.")
+	}
+	internal.RegisterNamsrv(srvs)
+
+	dc := &defaultConsumer{
+		consumerGroup: defaultOpts.GroupName,
+		cType:         _PullConsume,
+		state:         internal.StateCreateJust,
+		prCh:          make(chan PullRequest, 4),
+		model:         defaultOpts.ConsumerModel,
+		option:        defaultOpts,
+	}
+
+	c := &defaultPullConsumer{
+		defaultConsumer: dc,
+	}
+	return c, nil
+}
+
+func (c *defaultPullConsumer) Start() error {
 	c.state = internal.StateRunning
+
+	var err error
+	c.once.Do(func() {
+		err = c.start()
+		if err != nil {
+			return
+		}
+	})
+
+	return err
 }
 
 func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error) {
-	mq := getNextQueueOf(topic)
+	mq := c.getNextQueueOf(topic)
 	if mq == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
@@ -64,8 +123,26 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 		return nil, err
 	}
 
-	processPullResult(mq, result, data)
+	c.processPullResult(mq, result, data)
 	return result, nil
+}
+
+func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
+	queues, err := internal.FetchSubscribeMessageQueues(topic)
+	if err != nil && len(queues) > 0 {
+		rlog.Error(err.Error())
+		return nil
+	}
+	var index int64
+	v, exist := queueCounterTable.Load(topic)
+	if !exist {
+		index = -1
+		queueCounterTable.Store(topic, 0)
+	} else {
+		index = v.(int64)
+	}
+
+	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
 }
 
 // SubscribeWithChan ack manually
@@ -83,62 +160,46 @@ func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) 
 
 }
 
-func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
-	offset int64, numbers int) (*primitive.PullResult, error) {
+func (c *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
 	err := c.makeSureStateOK()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if mq == nil {
-		return nil, errors.New("MessageQueue is nil")
+		return utils.ErrMQEmpty
 	}
 
 	if offset < 0 {
-		return nil, errors.New("offset < 0")
+		return utils.ErrOffset
 	}
 
 	if numbers <= 0 {
-		numbers = 1
+		return utils.ErrNumbers
 	}
+	return nil
+}
+
+// TODO: add timeout limit
+// TODO: add hook
+func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
+	offset int64, numbers int) (*primitive.PullResult, error) {
+
+	if err := c.checkPull(ctx, mq, offset, numbers); err != nil {
+		return nil, err
+	}
+
 	c.subscriptionAutomatically(mq.Topic)
-
-	brokerResult := tryFindBroker(mq)
-	if brokerResult == nil {
-		return nil, fmt.Errorf("the broker %s does not exist", mq.BrokerName)
-	}
-
-	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < internal.V4_1_0 {
-		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
-			mq.BrokerName, brokerResult.BrokerVersion, data.ExpType)
-	}
 
 	sysFlag := buildSysFlag(false, true, true, false)
 
-	if brokerResult.Slave {
-		sysFlag = clearCommitOffsetFlag(sysFlag)
+	pullResp, err := c.pullInner(ctx, mq, data, offset, numbers, sysFlag, 0)
+	if err != nil {
+		return nil, err
 	}
-	pullRequest := &internal.PullMessageRequest{
-		ConsumerGroup:        c.GroupName,
-		Topic:                mq.Topic,
-		QueueId:              int32(mq.QueueId),
-		QueueOffset:          offset,
-		MaxMsgNums:           int32(numbers),
-		SysFlag:              sysFlag,
-		CommitOffset:         0,
-		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
-		SubExpression:        data.SubString,
-		ExpressionType:       string(data.ExpType),
-	}
+	c.processPullResult(mq, pullResp, data)
 
-	if data.ExpType == string(TAG) {
-		pullRequest.SubVersion = 0
-	} else {
-		pullRequest.SubVersion = data.SubVersion
-	}
-
-	// TODO computePullFromWhichFilterServer
-	return c.client.PullMessage(ctx, brokerResult.BrokerAddr, pullRequest)
+	return pullResp, err
 }
 
 func (c *defaultPullConsumer) makeSureStateOK() error {
@@ -148,42 +209,39 @@ func (c *defaultPullConsumer) makeSureStateOK() error {
 	return nil
 }
 
-func (c *defaultPullConsumer) subscriptionAutomatically(topic string) {
-	// TODO
-}
-
 func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
-	return 0
+	return c.computePullFromWhere(queue)
 }
 
-func processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *internal.SubscriptionData) {
-	updatePullFromWhichNode(mq, result.SuggestWhichBrokerId)
-	switch result.Status {
-	case primitive.PullFound:
-		msgs := result.GetMessageExts()
-		msgListFilterAgain := msgs
-		if len(data.Tags) > 0 && data.ClassFilterMode {
-			msgListFilterAgain = make([]*primitive.MessageExt, len(msgs))
-			for _, msg := range msgs {
-				_, exist := data.Tags[msg.GetTags()]
-				if exist {
-					msgListFilterAgain = append(msgListFilterAgain, msg)
-				}
-			}
-		}
-
-		// TODO hook
-
-		for _, msg := range msgListFilterAgain {
-			traFlag, _ := strconv.ParseBool(msg.Properties[primitive.PropertyTransactionPrepared])
-			if traFlag {
-				msg.TransactionId = msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
-			}
-
-			msg.Properties[primitive.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
-			msg.Properties[primitive.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
-		}
-
-		result.SetMessageExts(msgListFilterAgain)
+// PullFrom pull messages of queue from the offset to offset + numbers
+func (c *defaultPullConsumer) PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
+	if err := c.checkPull(ctx, queue, offset, numbers); err != nil {
+		return nil, err
 	}
+
+	selector := MessageSelector{}
+	data := buildSubscriptionData(queue.Topic, selector)
+
+	return c.pull(ctx, queue, data, offset, numbers)
+}
+
+// updateOffset update offset of queue in mem
+func (c *defaultPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offset int64) error {
+	return c.updateOffset(queue, offset)
+}
+
+// PersistOffset persist all offset in mem.
+func (c *defaultPullConsumer) PersistOffset(ctx context.Context) error {
+	return c.persistConsumerOffset()
+}
+
+// CurrentOffset return the current offset of queue in mem.
+func (c *defaultPullConsumer) CurrentOffset(queue *primitive.MessageQueue) (int64, error) {
+	v := c.queryOffset(queue)
+	return v, nil
+}
+
+// Shutdown close defaultConsumer, refuse new request.
+func (c *defaultPullConsumer) Shutdown() error {
+	return c.defaultConsumer.shutdown()
 }

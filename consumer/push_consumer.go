@@ -126,20 +126,18 @@ func (pc *pushConsumer) Start() error {
 		pc.state = internal.StateStartFailed
 		pc.validate()
 
-		if pc.model == Clustering {
-			// set retry topic
-			retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-			pc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
-				MessageSelector{TAG, _SubAll}))
+		err = pc.defaultConsumer.start()
+		if err != nil {
+			return
 		}
 
-		pc.client = internal.GetOrNewRocketMQClient(pc.option.ClientOptions)
-		if pc.model == Clustering {
-			pc.option.ChangeInstanceNameToPID()
-			pc.storage = NewRemoteOffsetStore(pc.consumerGroup, pc.client)
-		} else {
-			pc.storage = NewLocalFileOffsetStore(pc.consumerGroup, pc.client.ClientID())
+		err := pc.client.RegisterConsumer(pc.consumerGroup, pc)
+		if err != nil {
+			pc.state = internal.StateStartFailed
+			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
+			err = ErrCreated
 		}
+
 		go func() {
 			// todo start clean msg expired
 			// TODO quit
@@ -151,16 +149,6 @@ func (pc *pushConsumer) Start() error {
 			}
 		}()
 
-		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
-		if err != nil {
-			pc.state = internal.StateCreateJust
-			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
-			err = errors.New("consumer group has been created")
-			return
-		}
-		pc.client.UpdateTopicRouteInfo()
-		pc.client.Start()
-		pc.state = internal.StateRunning
 	})
 
 	pc.client.UpdateTopicRouteInfo()
@@ -201,8 +189,8 @@ func (pc *pushConsumer) Rebalance() {
 	pc.defaultConsumer.doBalance()
 }
 
-func (pc *pushConsumer) PersistConsumerOffset() {
-	pc.defaultConsumer.persistConsumerOffset()
+func (pc *pushConsumer) PersistConsumerOffset() error {
+	return pc.defaultConsumer.persistConsumerOffset()
 }
 
 func (pc *pushConsumer) UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
@@ -651,7 +639,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					msgs := req.([]*primitive.MessageExt)
 					r, e := pc.consume(ctx, msgs...)
 
-					realReply := reply.(ConsumeResultHolder)
+					realReply := reply.(*ConsumeResultHolder)
 					realReply.ConsumeResult = r
 					return e
 				})

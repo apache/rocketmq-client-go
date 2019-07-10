@@ -54,7 +54,11 @@ type PullConsumer interface {
 	Shutdown() error
 	Pull(context.Context, string, consumer.MessageSelector, int) (*primitive.PullResult, error)
 	PullFrom(context.Context, *primitive.MessageQueue, int64, int) (*primitive.PullResult, error)
-	// only update in memory
-	UpdateOffset(primitive.MessageQueue, int64) error
+	CurrentOffset(*primitive.MessageQueue) (int64, error)
+	UpdateOffset(*primitive.MessageQueue, int64) error
 	PersistOffset(context.Context) error
+}
+
+func NewPullConsumer(opts ...consumer.Option) (PullConsumer, error) {
+	return consumer.NewPullConsumer(opts...)
 }

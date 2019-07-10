@@ -113,6 +113,14 @@ func defaultPushConsumerOptions() consumerOptions {
 
 type Option func(*consumerOptions)
 
+func defaultPullConsumerOptions() consumerOptions {
+	opts := consumerOptions{
+		ClientOptions: internal.DefaultClientOptions(),
+	}
+	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
+	return opts
+}
+
 func WithConsumerModel(m MessageModel) Option {
 	return func(options *consumerOptions) {
 		options.ConsumerModel = m

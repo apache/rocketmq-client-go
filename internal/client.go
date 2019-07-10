@@ -76,7 +76,7 @@ type InnerProducer interface {
 }
 
 type InnerConsumer interface {
-	PersistConsumerOffset()
+	PersistConsumerOffset() error
 	UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue)
 	IsSubscribeTopicNeedUpdate(topic string) bool
 	SubscriptionDataList() []*SubscriptionData
@@ -217,7 +217,10 @@ func (c *rmqClient) Start() {
 			for !c.close {
 				c.consumerMap.Range(func(key, value interface{}) bool {
 					consumer := value.(InnerConsumer)
-					consumer.PersistConsumerOffset()
+					err := consumer.PersistConsumerOffset()
+					if err != nil {
+						rlog.Errorf("persist offset failed. err: %v", err)
+					}
 					return true
 				})
 				time.Sleep(_PersistOffset)
@@ -305,7 +308,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 	hbData.ProducerDatas = pData
 	hbData.ConsumerDatas = cData
 	if len(pData) == 0 && len(cData) == 0 {
-		rlog.Info("sending heartbeat, but no consumer and no consumer")
+		rlog.Info("sending heartbeat, but no producer and no consumer")
 		return
 	}
 	brokerAddressesMap.Range(func(key, value interface{}) bool {
