@@ -31,7 +31,7 @@ import (
 func main() {
 	c, err := consumer.NewPullConsumer(consumer.WithGroupName("testGroup"), consumer.WithNameServer([]string{"127.0.0.1:9876"}))
 	if err != nil{
-		rlog.Fatal("fail to new pullConsumer: %v", err)
+		rlog.Fatal("fail to new pullConsumer: ", err)
 	}
 	c.Start()
 

@@ -133,7 +133,7 @@ func (pc *pushConsumer) Start() error {
 
 		err := pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
-			pc.state = internal.StateCreateJust
+			pc.state = internal.StateStartFailed
 			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
 			err = ErrCreated
 		}
@@ -639,7 +639,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					msgs := req.([]*primitive.MessageExt)
 					r, e := pc.consume(ctx, msgs...)
 
-					realReply := reply.(ConsumeResultHolder)
+					realReply := reply.(*ConsumeResultHolder)
 					realReply.ConsumeResult = r
 					return e
 				})

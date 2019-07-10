@@ -26,13 +26,8 @@ import (
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/pkg/errors"
-)
-
-var (
-	ErrMQEmpty = errors.New("MessageQueue is nil")
-	ErrOffset  = errors.New("offset < 0")
-	ErrNumbers = errors.New("numbers < 0")
 )
 
 type PullConsumer interface {
@@ -88,7 +83,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 
 	dc := &defaultConsumer{
 		consumerGroup: defaultOpts.GroupName,
-		cType:         _PushConsume,
+		cType:         _PullConsume,
 		state:         internal.StateCreateJust,
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
@@ -172,15 +167,15 @@ func (c *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQu
 	}
 
 	if mq == nil {
-		return ErrMQEmpty
+		return utils.ErrMQEmpty
 	}
 
 	if offset < 0 {
-		return ErrOffset
+		return utils.ErrOffset
 	}
 
 	if numbers <= 0 {
-		return ErrNumbers
+		return utils.ErrNumbers
 	}
 	return nil
 }

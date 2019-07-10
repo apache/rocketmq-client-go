@@ -25,6 +25,10 @@ import (
 var(
 	// ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
+
+	ErrMQEmpty = errors.New("MessageQueue is nil")
+	ErrOffset  = errors.New("offset < 0")
+	ErrNumbers = errors.New("numbers < 0")
 )
 
 func CheckError(action string, err error) {

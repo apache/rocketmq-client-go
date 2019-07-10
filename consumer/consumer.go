@@ -258,8 +258,8 @@ func (dc *defaultConsumer) start() error {
 	if dc.model == Clustering {
 		// set retry topic
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
-		dc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
-			MessageSelector{TAG, _SubAll}))
+		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
+		dc.subscriptionDataTable.Store(retryTopic, sub)
 	}
 
 	dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions)
