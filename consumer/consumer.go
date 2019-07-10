@@ -18,13 +18,13 @@ limitations under the License.
 package consumer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal"
@@ -32,6 +32,7 @@ import (
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 )
 
@@ -62,6 +63,11 @@ const (
 	_PushConsume = ConsumeType("push")
 
 	_SubAll = "*"
+)
+
+var(
+	ErrCreated = errors.New("consumer group has been created")
+	ErrBrokerNotFound = errors.New("broker can not found")
 )
 
 // Message model defines the way how messages are delivered to each consumer clients.
@@ -247,11 +253,42 @@ type defaultConsumer struct {
 	prCh chan PullRequest
 }
 
-func (dc *defaultConsumer) persistConsumerOffset() {
+func (dc *defaultConsumer) start() error {
+
+	if dc.model == Clustering {
+		// set retry topic
+		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
+		dc.subscriptionDataTable.Store(retryTopic, buildSubscriptionData(retryTopic,
+			MessageSelector{TAG, _SubAll}))
+	}
+
+	dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions)
+	if dc.model == Clustering {
+		dc.option.ChangeInstanceNameToPID()
+		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client)
+	} else {
+		dc.storage = NewLocalFileOffsetStore(dc.consumerGroup, dc.client.ClientID())
+	}
+
+	dc.client.UpdateTopicRouteInfo()
+	dc.client.Start()
+	dc.state = internal.StateRunning
+
+	return nil
+}
+
+func (dc *defaultConsumer) shutdown() error {
+	dc.state = internal.StateRunning
+	dc.client.Shutdown()
+
+	return nil
+}
+
+
+func (dc *defaultConsumer) persistConsumerOffset() error {
 	err := dc.makeSureStateOK()
 	if err != nil {
-		rlog.Errorf("consumer state error: %s", err.Error())
-		return
+		return err
 	}
 	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
@@ -259,6 +296,22 @@ func (dc *defaultConsumer) persistConsumerOffset() {
 		return true
 	})
 	dc.storage.persist(mqs)
+	return nil
+}
+
+func (c *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
+	c.storage.update(queue, offset, false)
+	return nil
+}
+
+func (dc *defaultConsumer) subscriptionAutomatically(topic string) {
+	_, exist := dc.subscriptionDataTable.Load(topic)
+	if !exist {
+		s := MessageSelector{
+			Expression: _SubAll,
+		}
+		dc.subscriptionDataTable.Store(topic, buildSubscriptionData(topic, s))
+	}
 }
 
 func (dc *defaultConsumer) updateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
@@ -671,6 +724,89 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 	return result
 }
 
+func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
+	offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
+
+	brokerResult := tryFindBroker(queue)
+	if brokerResult == nil {
+		rlog.Warnf("no broker found for %s", queue.String())
+		return nil, ErrBrokerNotFound
+	}
+
+	if brokerResult.Slave {
+		sysFlag = clearCommitOffsetFlag(sysFlag)
+	}
+
+	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < internal.V4_1_0 {
+		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
+			queue.BrokerName, brokerResult.BrokerVersion, data.ExpType)
+	}
+
+	pullRequest := &internal.PullMessageRequest{
+		ConsumerGroup: dc.consumerGroup,
+		Topic:         queue.Topic,
+		QueueId:       int32(queue.QueueId),
+		QueueOffset:   offset,
+		MaxMsgNums:    int32(numbers),
+		SysFlag:       sysFlag,
+		CommitOffset:  commitOffsetValue,
+		// TODO: 和java对齐
+		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
+		SubExpression:        data.SubString,
+		// TODO: add subversion
+		ExpressionType: string(data.ExpType),
+	}
+
+	if data.ExpType == string(TAG) {
+		pullRequest.SubVersion = 0
+	} else {
+		pullRequest.SubVersion = data.SubVersion
+	}
+
+	// TODO: add computPullFromWhichFilterServer
+
+	return dc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
+}
+
+func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *internal.SubscriptionData) {
+
+	updatePullFromWhichNode(mq, result.SuggestWhichBrokerId)
+
+	switch result.Status {
+	case primitive.PullFound:
+		result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
+		msgs := result.GetMessageExts()
+
+		// filter message according to tags
+		msgListFilterAgain := msgs
+		if len(data.Tags) > 0 && data.ClassFilterMode {
+			msgListFilterAgain = make([]*primitive.MessageExt, len(msgs))
+			for _, msg := range msgs {
+				_, exist := data.Tags[msg.GetTags()]
+				if exist {
+					msgListFilterAgain = append(msgListFilterAgain, msg)
+				}
+			}
+		}
+
+		// TODO: add filter message hook
+		for _, msg := range msgListFilterAgain {
+			traFlag, _ := strconv.ParseBool(msg.Properties[primitive.PropertyTransactionPrepared])
+			if traFlag {
+				msg.TransactionId = msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+			}
+
+			if msg.Properties == nil {
+				msg.Properties = make(map[string]string)
+			}
+			msg.Properties[primitive.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
+			msg.Properties[primitive.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
+		}
+
+		result.SetMessageExts(msgListFilterAgain)
+	}
+}
+
 func (dc *defaultConsumer) findConsumerList(topic string) []string {
 	brokerAddr := internal.FindBrokerAddrByTopic(topic)
 	if brokerAddr == "" {
@@ -726,6 +862,10 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+}
+
+func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) (int64) {
+	return dc.storage.read(mq, _ReadMemoryThenStore)
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic
@@ -784,24 +924,6 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		}
 	}
 	return subData
-}
-
-func getNextQueueOf(topic string) *primitive.MessageQueue {
-	queues, err := internal.FetchSubscribeMessageQueues(topic)
-	if err != nil && len(queues) > 0 {
-		rlog.Error(err.Error())
-		return nil
-	}
-	var index int64
-	v, exist := queueCounterTable.Load(topic)
-	if !exist {
-		index = -1
-		queueCounterTable.Store(topic, 0)
-	} else {
-		index = v.(int64)
-	}
-
-	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
 }
 
 func buildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {

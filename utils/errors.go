@@ -19,6 +19,12 @@ package utils
 
 import (
 	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/pkg/errors"
+)
+
+var(
+	// ErrRequestTimeout for request timeout error
+	ErrRequestTimeout = errors.New("request timeout")
 )
 
 func CheckError(action string, err error) {

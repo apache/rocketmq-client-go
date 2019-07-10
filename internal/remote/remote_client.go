@@ -20,18 +20,12 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/rlog"
-)
-
-var (
-	//ErrRequestTimeout for request timeout error
-	ErrRequestTimeout = errors.New("request timeout")
 )
 
 type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
