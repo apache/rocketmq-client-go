@@ -23,7 +23,7 @@ import (
 )
 
 func TestRMQClient_PullMessage(t *testing.T) {
-	client := GetOrNewRocketMQClient(ClientOption{})
+	client := GetOrNewRocketMQClient(ClientOptions{})
 	req := &PullMessageRequest{
 		ConsumerGroup:  "testGroup",
 		Topic:          "wenfeng",

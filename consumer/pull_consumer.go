@@ -41,7 +41,7 @@ var (
 type defaultPullConsumer struct {
 	state     internal.ServiceState
 	option    consumerOptions
-	client    *internal.RMQClient
+	client    internal.RMQClient
 	GroupName string
 	Model     MessageModel
 	UnitMode  bool

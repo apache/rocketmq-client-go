@@ -157,6 +157,13 @@ func UpdateTopicRouteInfo(topic string) *TopicRouteData {
 	return routeData.clone()
 }
 
+// just for test
+func AddBroker(routeData *TopicRouteData) {
+	for _, brokerData := range routeData.BrokerDataList {
+		brokerAddressesMap.Store(brokerData.BrokerName, brokerData)
+	}
+}
+
 func FindBrokerAddrByTopic(topic string) string {
 	v, exist := routeDataMap.Load(topic)
 	if !exist {

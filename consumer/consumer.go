@@ -225,7 +225,7 @@ type defaultConsumer struct {
 	fromWhere      ConsumeFromWhere
 
 	cType     ConsumeType
-	client    *internal.RMQClient
+	client    internal.RMQClient
 	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
 	state     internal.ServiceState
 	pause     bool
