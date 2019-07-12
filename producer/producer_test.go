@@ -63,14 +63,12 @@ func TestShutdown(t *testing.T) {
 
 	err = p.SendOneWay(ctx, msg)
 	assert.Equal(t, ErrNotRunning, err)
-	assert.Nil(t, r)
 
 	f := func(context.Context, *primitive.SendResult, error) {
 		assert.False(t, true, "should not  come in")
 	}
 	err = p.SendAsync(ctx, f, msg)
 	assert.Equal(t, ErrNotRunning, err)
-	assert.Nil(t, r)
 }
 
 func mockB4Send(p *defaultProducer) {
