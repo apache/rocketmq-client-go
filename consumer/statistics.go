@@ -52,24 +52,24 @@ type ConsumeStatus struct {
 	ConsumeFailedMsgs int64
 }
 
-func IncreasePullRT(group, topic string, rt int) {
+func increasePullRT(group, topic string, rt int64) {
 	topicAndGroupPullRT.addValue(topic+"@"+group, rt, 1)
 }
 
-func IncreasePullTPS(group, topic string, msgs int) {
-	topicAndGroupPullTPS.addValue(topic+"@"+group, msgs, 1)
+func increasePullTPS(group, topic string, msgs int) {
+	topicAndGroupPullTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
-func IncreaseConsumeRT(group, topic string, rt int) {
+func increaseConsumeRT(group, topic string, rt int64) {
 	topicAndGroupConsumeRT.addValue(topic+"@"+group, rt, 1)
 }
 
-func IncreaseConsumeOKTPS(group, topic string, msgs int) {
-	topicAndGroupConsumeOKTPS.addValue(topic+"@"+group, msgs, 1)
+func increaseConsumeOKTPS(group, topic string, msgs int) {
+	topicAndGroupConsumeOKTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
-func IncreaseConsumeFailedTPS(group, topic string, msgs int) {
-	topicAndGroupConsumeFailedTPS.addValue(topic+"@"+group, msgs, 1)
+func increaseConsumeFailedTPS(group, topic string, msgs int) {
+	topicAndGroupConsumeFailedTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
 func GetConsumeStatus(group, topic string) ConsumeStatus {
@@ -237,10 +237,10 @@ func (sis *statsItemSet) printAtDay() {
 	})
 }
 
-func (sis *statsItemSet) addValue(key string, incValue, incTimes int) {
+func (sis *statsItemSet) addValue(key string, incValue, incTimes int64) {
 	si := sis.getAndCreateStateItem(key)
-	atomic.AddInt64(&si.value, int64(incValue))
-	atomic.AddInt64(&si.times, int64(incTimes))
+	atomic.AddInt64(&si.value, incValue)
+	atomic.AddInt64(&si.times, incTimes)
 }
 
 func (sis *statsItemSet) getAndCreateStateItem(key string) *statsItem {

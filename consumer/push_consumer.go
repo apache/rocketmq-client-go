@@ -455,8 +455,8 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
-			rt := time.Now().Sub(beginTime)
-			increasePullRT(pc.consumerGroup, request.mq.Topic, rt)
+			rt := time.Now().Sub(beginTime) / time.Millisecond
+			increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
 			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
 
@@ -658,7 +658,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			}
 
 			// TODO hook
-			increaseConsumeRT(pc.consumerGroup, mq.Topic, consumeRT)
+			increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
 
 			if !pq.dropped {
 				msgBackFailed := make([]*primitive.MessageExt, 0)
