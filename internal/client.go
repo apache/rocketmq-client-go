@@ -600,6 +600,7 @@ func encodeMessages(message []*primitive.Message) []byte {
 	index := 0
 	for index < len(message) {
 		buffer.Write(message[index].Body)
+		index ++
 	}
 	return buffer.Bytes()
 }
