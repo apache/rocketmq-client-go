@@ -200,7 +200,7 @@ func (sis *statsItemSet) samplingInSeconds() {
 func (sis *statsItemSet) samplingInMinutes() {
 	sis.statsItemTable.Range(func(key, value interface{}) bool {
 		si := value.(*statsItem)
-		si.samplingInHour()
+		si.samplingInMinutes()
 		return true
 	})
 }
