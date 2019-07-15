@@ -29,9 +29,9 @@ import (
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 )
@@ -879,7 +879,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
-func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) (int64) {
+func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) int64 {
 	return dc.storage.read(mq, _ReadMemoryThenStore)
 }
 

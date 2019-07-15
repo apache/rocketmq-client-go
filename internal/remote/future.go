@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 )
 
 // ResponseFuture

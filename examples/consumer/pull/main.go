@@ -23,14 +23,14 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/consumer"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 )
 
 func main() {
 	c, err := consumer.NewPullConsumer(consumer.WithGroupName("testGroup"), consumer.WithNameServer([]string{"127.0.0.1:9876"}))
-	if err != nil{
+	if err != nil {
 		rlog.Fatal("fail to new pullConsumer: ", err)
 	}
 	c.Start()
@@ -48,7 +48,7 @@ func main() {
 		if err != nil {
 			if err == utils.ErrRequestTimeout {
 				fmt.Printf("timeout \n")
-				time.Sleep(1 *time.Second)
+				time.Sleep(1 * time.Second)
 				continue
 			}
 			fmt.Printf("unexpectable err: %v \n", err)

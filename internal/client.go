@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 )
 
 const (
@@ -600,7 +600,7 @@ func encodeMessages(message []*primitive.Message) []byte {
 	index := 0
 	for index < len(message) {
 		buffer.Write(message[index].Body)
-		index ++
+		index++
 	}
 	return buffer.Bytes()
 }
