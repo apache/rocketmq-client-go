@@ -54,18 +54,20 @@ type processQueue struct {
 	msgAccCnt                  int64
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
+	order                      bool
 }
 
-func newProcessQueue() *processQueue {
+func newProcessQueue(order bool) *processQueue {
 	consumingMsgOrderlyTreeMap := treemap.NewWith(gods_util.Int64Comparator)
 
 	pq := &processQueue{
-		msgCache:        treemap.NewWith(utils.Int64Comparator),
-		lastPullTime:    time.Now(),
-		lastConsumeTime: time.Now(),
-		lastLockTime:    time.Now(),
-		msgCh:           make(chan []*primitive.MessageExt, 32),
+		msgCache:                   treemap.NewWith(utils.Int64Comparator),
+		lastPullTime:               time.Now(),
+		lastConsumeTime:            time.Now(),
+		lastLockTime:               time.Now(),
+		msgCh:                      make(chan []*primitive.MessageExt, 32),
 		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
+		order:                      order,
 	}
 	return pq
 }
@@ -75,7 +77,9 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	pq.mutex.Lock()
-	pq.msgCh <- messages // 放锁外面会挂
+	if !pq.order {
+		pq.msgCh <- messages
+	}
 	validMessageCount := 0
 	for idx := range messages {
 		msg := messages[idx]
