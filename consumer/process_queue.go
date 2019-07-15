@@ -27,6 +27,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/utils"
+	gods_util "github.com/emirpasic/gods/utils"
 )
 
 const (
@@ -41,7 +42,7 @@ type processQueue struct {
 	cachedMsgCount             int64
 	cachedMsgSize              int64
 	consumeLock                sync.Mutex
-	consumingMsgOrderlyTreeMap sync.Map
+	consumingMsgOrderlyTreeMap *treemap.Map
 	tryUnlockTimes             int64
 	queueOffsetMax             int64
 	dropped                    bool
@@ -56,12 +57,15 @@ type processQueue struct {
 }
 
 func newProcessQueue() *processQueue {
+	consumingMsgOrderlyTreeMap := treemap.NewWith(gods_util.Int64Comparator)
+
 	pq := &processQueue{
 		msgCache:        treemap.NewWith(utils.Int64Comparator),
 		lastPullTime:    time.Now(),
 		lastConsumeTime: time.Now(),
 		lastLockTime:    time.Now(),
 		msgCh:           make(chan []*primitive.MessageExt, 32),
+		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
 	}
 	return pq
 }
@@ -205,6 +209,7 @@ func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
 			break
 		}
 		result[i] = v.(*primitive.MessageExt)
+		pq.consumingMsgOrderlyTreeMap.Put(k, v)
 		pq.msgCache.Remove(k)
 	}
 	pq.mutex.Unlock()
@@ -239,4 +244,22 @@ func (pq *processQueue) clear() {
 	pq.cachedMsgCount = 0
 	pq.cachedMsgSize = 0
 	pq.queueOffsetMax = 0
+}
+
+func (pq *processQueue) commit() int64 {
+	pq.mutex.Lock()
+	defer pq.mutex.Unlock()
+
+	var offset int64
+	iter, _ := pq.consumingMsgOrderlyTreeMap.Max()
+	if iter != nil {
+		offset = iter.(int64)
+	}
+	pq.cachedMsgCount -= int64(pq.consumingMsgOrderlyTreeMap.Size())
+	pq.consumingMsgOrderlyTreeMap.Each(func(key interface{}, value interface{}) {
+		msg := value.(*primitive.MessageExt)
+		pq.cachedMsgSize -= int64(len(msg.Body))
+	})
+	pq.consumingMsgOrderlyTreeMap.Clear()
+	return offset + 1
 }

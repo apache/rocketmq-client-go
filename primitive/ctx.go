@@ -27,6 +27,7 @@ type CtxKey int
 const (
 	method CtxKey = iota
 	msgCtx
+	orderlyCtx
 
 	// method name in  producer
 	SendSync   = "SendSync"
@@ -66,5 +67,27 @@ func WithConsumerCtx(ctx context.Context, c *ConsumeMessageContext) context.Cont
 // whether exist.
 func GetConsumerCtx(ctx context.Context) (*ConsumeMessageContext, bool) {
 	c, exist := ctx.Value(msgCtx).(*ConsumeMessageContext)
+	return c, exist
+}
+
+type ConsumeOrderlyContext struct {
+	MQ                            MessageQueue
+	AutoCommit                    bool
+	SuspendCurrentQueueTimeMillis int
+}
+
+func NewConsumeOrderlyContext() *ConsumeOrderlyContext {
+	return &ConsumeOrderlyContext{
+		AutoCommit:                    true,
+		SuspendCurrentQueueTimeMillis: -1,
+	}
+}
+
+func WithOrderlyCtx(ctx context.Context, c *ConsumeOrderlyContext) context.Context {
+	return context.WithValue(ctx, orderlyCtx, c)
+}
+
+func GetOrderlyCtx(ctx context.Context) (*ConsumeOrderlyContext, bool) {
+	c, exist := ctx.Value(orderlyCtx).(*ConsumeOrderlyContext)
 	return c, exist
 }
