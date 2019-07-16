@@ -175,17 +175,9 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
-// WithACL on/off ACL
 func WithVIPChannel(enable bool) Option {
 	return func(opts *consumerOptions) {
 		opts.VIPChannelEnabled = enable
-	}
-}
-
-// WithACL on/off ACL
-func WithACL(enable bool) Option {
-	return func(opts *consumerOptions) {
-		opts.ACLEnabled = enable
 	}
 }
 

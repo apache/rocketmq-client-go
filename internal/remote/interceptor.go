@@ -40,7 +40,6 @@ const (
 func ACLInterceptor(credentials primitive.Credentials) primitive.Interceptor {
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		cmd := req.(*RemotingCommand)
-		// use sorted map
 		m := make(map[string]string)
 		order := make([]string, 1)
 		m[_AccessKey] = credentials.AccessKey
