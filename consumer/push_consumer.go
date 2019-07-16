@@ -52,6 +52,8 @@ type pushConsumer struct {
 	subscribedTopic              map[string]string
 
 	interceptor primitive.Interceptor
+
+	queueLock *QueueLock
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -80,6 +82,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
+		queueLock:       newQueueLock(),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -118,6 +121,7 @@ func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalI
 	}
 }
 
+// TODO: add shutdown on pushConsumr.
 func (pc *pushConsumer) Start() error {
 	var err error
 	pc.once.Do(func() {
@@ -139,6 +143,16 @@ func (pc *pushConsumer) Start() error {
 		}
 
 		go func() {
+			// initial lock.
+			time.Sleep(1000 * time.Millisecond)
+			pc.lockAll()
+
+			t := time.NewTicker(pc.option.RebalanceLockInterval)
+			for range t.C {
+				pc.lockAll()
+			}
+		}()
+		go func() {
 			// todo start clean msg expired
 			// TODO quit
 			for {
@@ -148,16 +162,6 @@ func (pc *pushConsumer) Start() error {
 				}()
 			}
 		}()
-
-		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
-		if err != nil {
-			pc.state = internal.StateCreateJust
-			err = fmt.Errorf("consumer group: [%s] has been created", pc.consumerGroup)
-			return
-		}
-		pc.client.UpdateTopicRouteInfo()
-		pc.client.Start()
-		pc.state = internal.StateRunning
 	})
 
 	pc.client.UpdateTopicRouteInfo()
@@ -171,6 +175,7 @@ func (pc *pushConsumer) Start() error {
 	pc.client.RebalanceImmediately()
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
+
 	return err
 }
 
@@ -301,9 +306,11 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 	pq := request.pq
 	go func() {
 		for {
+			// TODO: add exit logic
 			pc.submitToConsume(request.pq, request.mq)
 		}
 	}()
+
 	for {
 	NEXT:
 		if pq.dropped {
@@ -311,7 +318,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			return
 		}
 		if sleepTime > 0 {
-			rlog.Infof("pull MessageQueue: %d sleep %d ms", request.mq.QueueId, sleepTime/time.Millisecond)
+			rlog.Infof("pull MessageQueue: %d sleep %d ms for mq: %v", request.mq.QueueId, sleepTime/time.Millisecond, request.mq)
 			time.Sleep(sleepTime)
 		}
 		// reset time
@@ -380,7 +387,6 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 							" larger than broker consume offset. pullRequest: [%s] NewOffset: %d",
 							request.String(), offset)
 					}
-
 					request.lockedFirst = true
 					request.nextOffset = offset
 				}
@@ -459,8 +465,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		switch result.Status {
 		case primitive.PullFound:
-			rlog.Debugf("Topic: %s, QueueId: %d found messages: %d", request.mq.Topic, request.mq.QueueId,
-				len(result.GetMessageExts()))
+			rlog.Infof("Topic: %s, QueueId: %d found messages.", request.mq.Topic, request.mq.QueueId)
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
@@ -481,7 +486,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case primitive.PullNoNewMsg:
-			rlog.Infof("Topic: %s, QueueId: %d no more msg, next offset: %d", request.mq.Topic, request.mq.QueueId, result.NextBeginOffset)
+			rlog.Infof("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d", request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset)
 		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
@@ -592,6 +597,24 @@ func (pc *pushConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue
 	return true
 }
 
+func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.MessageExt) (ConsumeResult, error) {
+
+	if pc.interceptor == nil {
+		return pc.consume(ctx, subMsgs...)
+	} else {
+		var container ConsumeResultHolder
+		err := pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
+			msgs := req.([]*primitive.MessageExt)
+			r, e := pc.consume(ctx, msgs...)
+
+			realReply := reply.(*ConsumeResultHolder)
+			realReply.ConsumeResult = r
+			return e
+		})
+		return container.ConsumeResult, err
+	}
+}
+
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
@@ -638,22 +661,8 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			ctx := context.Background()
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
-			if pc.interceptor == nil {
-				result, err = pc.consume(ctx, subMsgs...)
-			} else {
-				var container ConsumeResultHolder
-				err = pc.interceptor(ctx, subMsgs, &container, func(ctx context.Context, req, reply interface{}) error {
-					//consumerCtx, _ := primitive.GetConsumerCtx(ctx)
 
-					msgs := req.([]*primitive.MessageExt)
-					r, e := pc.consume(ctx, msgs...)
-
-					realReply := reply.(*ConsumeResultHolder)
-					realReply.ConsumeResult = r
-					return e
-				})
-				result = container.ConsumeResult
-			}
+			result, err = pc.consumeInner(ctx, subMsgs)
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
@@ -709,4 +718,174 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 }
 
 func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.MessageQueue) {
+	if pq.dropped {
+		rlog.Warn("the message queue not be able to consume, because it's dropped.")
+		return
+	}
+
+	lock := pc.queueLock.fetchLock(*mq)
+	lock.Lock()
+	defer lock.Unlock()
+	if pc.model == BroadCasting || (pq.locked && !pq.isLockExpired()) {
+		beginTime := time.Now()
+
+		continueConsume := true
+		for continueConsume {
+			if pq.dropped {
+				rlog.Warn("the message queue not be able to consume, because it's dropped. %v", mq)
+				break
+			}
+			if pc.model == Clustering {
+				if !pq.locked {
+					rlog.Warn("the message queue not locked, so consume later: %v", mq)
+					pc.tryLocakLaterAndReconsume(mq, 10)
+					return
+				}
+				if pq.isLockExpired() {
+					rlog.Warn("the message queue lock expired, so consume later: %v", mq)
+					pc.tryLocakLaterAndReconsume(mq, 10)
+					return
+				}
+			}
+			interval := time.Now().Sub(beginTime)
+			if interval > pc.option.MaxTimeConsumeContinuously {
+				time.Sleep(10 * time.Millisecond)
+				return
+			}
+			batchSize := pc.option.ConsumeMessageBatchMaxSize
+			msgs := pq.takeMessages(batchSize)
+
+			if len(msgs) == 0 {
+				continueConsume = false
+				break
+			}
+
+			// TODO: add message consumer hook
+			beginTime = time.Now()
+
+			ctx := context.Background()
+			msgCtx := &primitive.ConsumeMessageContext{
+				Properties: make(map[string]string),
+			}
+			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
+			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
+
+			orderlyCtx := primitive.NewConsumeOrderlyContext()
+			orderlyCtx.MQ = *mq
+			ctx = primitive.WithOrderlyCtx(ctx, orderlyCtx)
+
+			pq.lockConsume.Lock()
+			result, _ := pc.consumeInner(ctx, msgs)
+			pq.lockConsume.Unlock()
+
+			if result == Rollback || result == SuspendCurrentQueueAMoment {
+				rlog.Warn("consumeMessage Orderly return not OK, Group: %v Msgs: %v MQ: %v",
+					pc.consumerGroup, msgs, mq)
+			}
+
+			// jsut put consumeResult in consumerMessageCtx
+			//interval = time.Now().Sub(beginTime)
+			//consumeReult := SuccessReturn
+			//if interval > pc.option.ConsumeTimeout {
+			//	consumeReult = TimeoutReturn
+			//} else if SuspendCurrentQueueAMoment == result {
+			//	consumeReult = FailedReturn
+			//} else if ConsumeSuccess == result {
+			//	consumeReult = SuccessReturn
+			//}
+
+			// process result
+			commitOffset := int64(-1)
+			if pc.option.AutoCommit {
+				switch result {
+				case Commit, Rollback:
+					rlog.Warn("the message queue consume result is illegal, we think you want to ack these message: %v", mq)
+				case ConsumeSuccess:
+					commitOffset = pq.commit()
+				case SuspendCurrentQueueAMoment:
+					if (pc.checkReconsumeTimes(msgs)) {
+						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+						continueConsume = false;
+					} else {
+						commitOffset = pq.commit()
+					}
+				default:
+				}
+			} else {
+				switch result {
+				case ConsumeSuccess:
+				case Commit:
+					commitOffset = pq.commit();
+				case Rollback:
+					// pq.rollback
+					time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+					continueConsume = false
+				case SuspendCurrentQueueAMoment:
+					if (pc.checkReconsumeTimes(msgs)) {
+						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+						continueConsume = false;
+					}
+				default:
+				}
+			}
+			if commitOffset > 0 && !pq.dropped {
+				pc.updateOffset(mq, commitOffset)
+			}
+		}
+	} else {
+		if pq.dropped {
+			rlog.Warn("the message queue not be able to consume, because it's dropped. %v", mq)
+		}
+		pc.tryLocakLaterAndReconsume(mq, 100)
+	}
+}
+
+func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
+	suspend := false
+	if len(msgs) != 0 {
+		maxReconsumeTimes := pc.getMaxReconsumeTimes()
+		for _, msg := range msgs {
+			if msg.ReconsumeTimes > maxReconsumeTimes {
+				msg.Properties["RECONSUME_TIME"] = strconv.Itoa(int(msg.ReconsumeTimes))
+				if !pc.sendMessageBack(nil, msg) {
+					// TODO: complete sendMessageBack
+					suspend = true
+					msg.ReconsumeTimes += 1
+				}
+			} else {
+				suspend = true
+				msg.ReconsumeTimes += 1
+			}
+		}
+	}
+	return suspend
+}
+
+func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
+	if pc.option.MaxReconsumeTimes == -1 {
+		return math.MaxInt32
+	} else {
+		return pc.option.MaxReconsumeTimes
+	}
+}
+
+func (pc *pushConsumer) tryLocakLaterAndReconsume(mq *primitive.MessageQueue, delay int64) {
+	time.Sleep(time.Duration(delay) * time.Millisecond)
+	if pc.lock(mq) == true {
+		pc.submitConsumeRequestLater(10)
+	} else {
+		pc.submitConsumeRequestLater(3000)
+	}
+}
+
+func (pc *pushConsumer) submitConsumeRequestLater(suspendTimeMillis int64) {
+	if suspendTimeMillis == -1 {
+		suspendTimeMillis = int64(pc.option.SuspendCurrentQueueTimeMillis / time.Millisecond)
+	}
+	if suspendTimeMillis < 10 {
+		suspendTimeMillis = 10
+	} else if suspendTimeMillis > 30000 {
+		suspendTimeMillis = 30000
+	}
+	time.Sleep(time.Duration(suspendTimeMillis) * time.Millisecond)
 }
