@@ -196,3 +196,9 @@ func WithRetry(retries int) Option {
 		opts.RetryTimes = retries
 	}
 }
+
+func WithCredentials(c primitive.Credentials) Option {
+	return func(options *consumerOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}

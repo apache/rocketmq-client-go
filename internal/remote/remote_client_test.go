@@ -19,6 +19,7 @@ package remote
 import (
 	"bytes"
 	"errors"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"math/rand"
 	"net"
 	"reflect"
@@ -94,9 +95,9 @@ func TestResponseFutureIsTimeout(t *testing.T) {
 
 func TestResponseFutureWaitResponse(t *testing.T) {
 	future := NewResponseFuture(10, 500*time.Millisecond, nil)
-	if _, err := future.waitResponse(); err != ErrRequestTimeout {
+	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
-			ErrRequestTimeout, err)
+			utils.ErrRequestTimeout, err)
 	}
 	future = NewResponseFuture(10, 500*time.Millisecond, nil)
 	responseError := errors.New("response error")
@@ -291,7 +292,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
 			time.Duration(1000), func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
-				assert.Equal(t, ErrRequestTimeout, r.Err)
+				assert.Equal(t, utils.ErrRequestTimeout, r.Err)
 				wg.Done()
 			})
 		assert.Nil(t, err, "failed to invokeSync.")

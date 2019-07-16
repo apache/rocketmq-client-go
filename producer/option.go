@@ -90,3 +90,9 @@ func WithQueueSelector(s QueueSelector) Option {
 		options.Selector = s
 	}
 }
+
+func WithCredentials(c primitive.Credentials) Option {
+	return func(options *producerOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}

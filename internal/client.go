@@ -104,6 +104,7 @@ type ClientOptions struct {
 	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
+	Credentials       primitive.Credentials
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -140,7 +141,7 @@ type RMQClient interface {
 	SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 		msgs []*primitive.Message) (*primitive.SendResult, error)
 
-	ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message)
+	ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error
 
 	RegisterConsumer(group string, consumer InnerConsumer) error
 	UnregisterConsumer(group string)
@@ -190,6 +191,9 @@ func (c *rmqClient) Start() {
 	c.close = false
 	c.once.Do(func() {
 		// TODO fetchNameServerAddr
+		if !c.option.Credentials.IsEmpty() {
+			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+		}
 		go func() {}()
 
 		// schedule update route info
@@ -385,7 +389,7 @@ func (c *rmqClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
+func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error {
 	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -397,7 +401,8 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		// TODO process unknown code
+		status = primitive.SendUnknownError
+		return errors.New(cmd.Remark)
 	}
 
 	msgIDs := make([]string, 0)
@@ -427,7 +432,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	//TransactionID: sendResponse.TransactionId,
 	resp.RegionID = regionId
 	resp.TraceOn = trace != "" && trace != _TranceOff
-
+	return nil
 }
 
 // PullMessage with sync

@@ -33,6 +33,7 @@ const (
 	SendFlushDiskTimeout
 	SendFlushSlaveTimeout
 	SendSlaveNotAvailable
+	SendUnknownError
 
 	FlagCompressed = 0x1
 	MsgIdLength    = 8 + 8
