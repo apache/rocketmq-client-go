@@ -136,10 +136,6 @@ type RMQClient interface {
 	CheckClientInBroker()
 	SendHeartbeatToAllBrokerWithLock()
 	UpdateTopicRouteInfo()
-	SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
-		msgs []*primitive.Message, f func(result *primitive.SendResult)) error
-	SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
-		msgs []*primitive.Message) (*primitive.SendResult, error)
 
 	ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error
 
@@ -361,9 +357,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		consumer := value.(InnerConsumer)
 		list := consumer.SubscriptionDataList()
 		for idx := range list {
-			if !strings.HasPrefix(list[idx].Topic, RetryGroupTopicPrefix) {
-				subscribedTopicSet[list[idx].Topic] = true
-			}
+			subscribedTopicSet[list[idx].Topic] = true
 		}
 		return true
 	})

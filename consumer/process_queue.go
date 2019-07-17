@@ -110,6 +110,16 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	}
 }
 
+func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageExt) {
+	pq.mutex.Lock()
+	for _, msg := range messages {
+		pq.consumingMsgOrderlyTreeMap.Remove(msg.QueueOffset)
+		pq.msgCache.Put(msg.QueueOffset, msg)
+	}
+
+	pq.mutex.Unlock()
+}
+
 func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 	result := int64(-1)
 	pq.mutex.Lock()

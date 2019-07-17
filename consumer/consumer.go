@@ -352,9 +352,6 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 func (dc *defaultConsumer) doBalance() {
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		topic := key.(string)
-		if strings.HasPrefix(topic, internal.RetryGroupTopicPrefix) {
-			return true
-		}
 		v, exist := dc.topicSubscribeInfoTable.Load(topic)
 		if !exist {
 			rlog.Warnf("do balance of group: %s, but topic: %s does not exist.", dc.consumerGroup, topic)

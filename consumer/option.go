@@ -194,3 +194,11 @@ func WithCredentials(c primitive.Credentials) Option {
 		options.ClientOptions.Credentials = c
 	}
 }
+
+// WithMaxReconsumeTimes set MaxReconsumeTimes of options, if message reconsume greater than MaxReconsumeTimes, it will
+// be sent to retry or dlq topic. more info reference by examples/consumer/retry.
+func WithMaxReconsumeTimes(times int32) Option {
+	return func(opts *consumerOptions) {
+		opts.MaxReconsumeTimes = times
+	}
+}

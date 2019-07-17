@@ -20,7 +20,10 @@ limitations under the License.
  */
 package primitive
 
-import "context"
+import (
+	"context"
+	"math"
+)
 
 type CtxKey int
 
@@ -28,6 +31,7 @@ const (
 	method CtxKey = iota
 	msgCtx
 	orderlyCtx
+	concurrentlyCtx
 
 	// method name in  producer
 	SendSync   = "SendSync"
@@ -89,5 +93,26 @@ func WithOrderlyCtx(ctx context.Context, c *ConsumeOrderlyContext) context.Conte
 
 func GetOrderlyCtx(ctx context.Context) (*ConsumeOrderlyContext, bool) {
 	c, exist := ctx.Value(orderlyCtx).(*ConsumeOrderlyContext)
+	return c, exist
+}
+
+type ConsumeConcurrentlyContext struct {
+	MQ                        MessageQueue
+	DelayLevelWhenNextConsume int
+	AckIndex                  int32
+}
+
+func NewConsumeConcurrentlyContext() *ConsumeConcurrentlyContext {
+	return &ConsumeConcurrentlyContext{
+		AckIndex: math.MaxInt32,
+	}
+}
+
+func WithConcurrentlyCtx(ctx context.Context, c *ConsumeConcurrentlyContext) context.Context {
+	return context.WithValue(ctx, concurrentlyCtx, c)
+}
+
+func GetConcurrentlyCtx(ctx context.Context) (*ConsumeConcurrentlyContext, bool) {
+	c, exist := ctx.Value(concurrentlyCtx).(*ConsumeConcurrentlyContext)
 	return c, exist
 }
