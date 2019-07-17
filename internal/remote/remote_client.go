@@ -259,6 +259,7 @@ func (c *RemotingClient) RegisterInterceptor(interceptors ...primitive.Intercept
 	}
 }
 
+// TODO
 // getChainedInterceptor recursively generate the chained invoker.
 func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
 	if cur == len(interceptors)-1 {

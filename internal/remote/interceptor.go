@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	_Signature     = "Signature"
-	_AccessKey     = "AccessKey"
-	_SecurityToken = "SecurityToken"
-	_KeyFile       = "KEY_FILE"
+	signature     = "Signature"
+	accessKey     = "AccessKey"
+	securityToken = "SecurityToken"
+	keyFile       = "KEY_FILE"
 	// System.getProperty("rocketmq.client.keyFile", System.getProperty("user.home") + File.separator + "key");
 )
 
@@ -42,10 +42,10 @@ func ACLInterceptor(credentials primitive.Credentials) primitive.Interceptor {
 		cmd := req.(*RemotingCommand)
 		m := make(map[string]string)
 		order := make([]string, 1)
-		m[_AccessKey] = credentials.AccessKey
-		order[0] = _AccessKey
+		m[accessKey] = credentials.AccessKey
+		order[0] = accessKey
 		if credentials.SecurityToken != "" {
-			m[_SecurityToken] = credentials.SecurityToken
+			m[securityToken] = credentials.SecurityToken
 		}
 		for k, v := range cmd.ExtFields {
 			m[k] = v
@@ -62,12 +62,12 @@ func ACLInterceptor(credentials primitive.Credentials) primitive.Interceptor {
 		copy(buf, []byte(content))
 		copy(buf[len(content):], cmd.Body)
 
-		cmd.ExtFields[_Signature] = calculateSignature(buf, []byte(credentials.SecretKey))
-		cmd.ExtFields[_AccessKey] = credentials.AccessKey
+		cmd.ExtFields[signature] = calculateSignature(buf, []byte(credentials.SecretKey))
+		cmd.ExtFields[accessKey] = credentials.AccessKey
 
 		// The SecurityToken value is unnecessary, user can choose this one.
 		if credentials.SecurityToken != "" {
-			cmd.ExtFields[_SecurityToken] = credentials.SecurityToken
+			cmd.ExtFields[securityToken] = credentials.SecurityToken
 		}
 		err := next(ctx, req, reply)
 		return err
