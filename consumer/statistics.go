@@ -188,7 +188,6 @@ func (sis *statsItemSet) init() {
 	}()
 }
 
-
 func (sis *statsItemSet) samplingInSeconds() {
 	sis.statsItemTable.Range(func(key, value interface{}) bool {
 		si := value.(*statsItem)

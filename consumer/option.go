@@ -175,17 +175,9 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
-// WithACL on/off ACL
 func WithVIPChannel(enable bool) Option {
 	return func(opts *consumerOptions) {
 		opts.VIPChannelEnabled = enable
-	}
-}
-
-// WithACL on/off ACL
-func WithACL(enable bool) Option {
-	return func(opts *consumerOptions) {
-		opts.ACLEnabled = enable
 	}
 }
 
@@ -194,5 +186,11 @@ func WithACL(enable bool) Option {
 func WithRetry(retries int) Option {
 	return func(opts *consumerOptions) {
 		opts.RetryTimes = retries
+	}
+}
+
+func WithCredentials(c primitive.Credentials) Option {
+	return func(options *consumerOptions) {
+		options.ClientOptions.Credentials = c
 	}
 }

@@ -22,7 +22,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 )
 
 // SendStatus of message
@@ -33,6 +33,7 @@ const (
 	SendFlushDiskTimeout
 	SendFlushSlaveTimeout
 	SendSlaveNotAvailable
+	SendUnknownError
 
 	FlagCompressed = 0x1
 	MsgIdLength    = 8 + 8

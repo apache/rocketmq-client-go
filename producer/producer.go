@@ -139,8 +139,8 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 		return resp, err
 	}
 
-	p.sendSync(ctx, msg, resp)
-	return resp, nil
+	err := p.sendSync(ctx, msg, resp)
+	return resp, err
 }
 
 func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, resp *primitive.SendResult) error {
@@ -168,8 +168,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			err = _err
 			continue
 		}
-		p.client.ProcessSendResponse(mq.BrokerName, res, resp, msg)
-		return nil
+		return p.client.ProcessSendResponse(mq.BrokerName, res, resp, msg)
 	}
 	return err
 }
