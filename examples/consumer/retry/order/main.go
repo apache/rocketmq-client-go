@@ -51,7 +51,7 @@ func main() {
 
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > 5 {
-				fmt.Printf("msg ReconsumeTimes > 1. msg: %v", msg)
+				fmt.Printf("msg ReconsumeTimes > 5. msg: %v", msg)
 			} else {
 				fmt.Printf("subscribe orderly callback: %v \n", msg)
 			}

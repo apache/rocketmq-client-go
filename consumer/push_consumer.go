@@ -194,7 +194,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.ConsumerModel == Clustering {
 		// add retry topic for clustering mode
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		data = buildSubscriptionData(retryTopic, MessageSelector{Expression:_SubAll})
+		data = buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
 		pc.subscriptionDataTable.Store(retryTopic, data)
 		pc.subscribedTopic[retryTopic] = ""
 	}
@@ -528,52 +528,6 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 		brokerAddr = msg.StoreHost
 	}
 	_, err := pc.client.InvokeSync(brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
-	}
-	return true
-}
-
-// sendMessageRetryBack send message back to retry topic.
-func (pc *pushConsumer) sendMessageRetryBack(msgExt *primitive.MessageExt) bool {
-
-	msg := &primitive.Message{
-		Topic:      internal.GetRetryTopic(pc.consumerGroup),
-		Body:       msgExt.Body,
-		Flag:       msgExt.Flag,
-		Properties: msgExt.Properties,
-	}
-	msg.Properties[primitive.PropertyRetryTopic] = msg.Topic
-	msg.Properties[primitive.PropertyReconsumeTime] = strconv.Itoa(int(msgExt.ReconsumeTimes))
-	msg.Properties[primitive.PropertyMaxReconsumeTimes] = strconv.Itoa(int(pc.getOrderlyMaxReconsumeTimes()))
-	msg.Properties[primitive.PropertyDelayTimeLevel] = strconv.Itoa(int(3 + msgExt.ReconsumeTimes))
-
-	mq := internal.FindMQByTopic(msg.Topic)
-	if mq == nil {
-		rlog.Errorf("no mq found for topic: %v", msg.Topic)
-		return false
-	}
-
-	brokerAddr := internal.FindBrokerAddrByName(mq.BrokerName)
-	if len(brokerAddr) == 0 {
-		rlog.Errorf("no broker addr for brokerName: %v with topic: %v", mq.BrokerName, msg.Topic)
-		return false
-	}
-
-	req := &internal.SendMessageRequest{
-		ProducerGroup:  internal.ClientInnerProducerGroup,
-		Topic:          msg.Topic,
-		QueueId:        mq.QueueId,
-		SysFlag:        0,
-		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
-		Flag:           msg.Flag,
-		Properties:     primitive.MarshalPropeties(msg.Properties),
-		ReconsumeTimes: 0,
-		UnitMode:       pc.option.UnitMode,
-		Batch:          false,
-	}
-	cmd := remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
-	_, err := pc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return false
 	}
@@ -937,7 +891,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
 				rlog.Warn("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes)
 				msg.Properties["RECONSUME_TIME"] = strconv.Itoa(int(msg.ReconsumeTimes))
-				if !pc.sendMessageRetryBack(msg) {
+				if !pc.sendMessageBack("", msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
 				}
