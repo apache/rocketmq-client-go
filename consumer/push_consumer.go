@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal"
+	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/pkg/errors"
@@ -50,10 +51,8 @@ type pushConsumer struct {
 	consume                      func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
 	subscribedTopic              map[string]string
-
-	interceptor primitive.Interceptor
-
-	queueLock *QueueLock
+	interceptor                  primitive.Interceptor
+	queueLock                    *QueueLock
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -191,6 +190,15 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
+
+	if pc.option.ConsumerModel == Clustering {
+		// add retry topic for clustering mode
+		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
+		data = buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
+		pc.subscriptionDataTable.Store(retryTopic, data)
+		pc.subscribedTopic[retryTopic] = ""
+	}
+
 	pc.consume = f
 	return nil
 }
@@ -512,8 +520,31 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 	// TODO
 }
 
-func (pc *pushConsumer) sendMessageBack(ctx *primitive.ConsumeMessageContext, msg *primitive.MessageExt) bool {
+func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
+	var brokerAddr string
+	if len(brokerName) != 0 {
+		brokerAddr = internal.FindBrokerAddrByName(brokerName)
+	} else {
+		brokerAddr = msg.StoreHost
+	}
+	_, err := pc.client.InvokeSync(brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	if err != nil {
+		return false
+	}
 	return true
+}
+
+func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLevel int) *remote.RemotingCommand {
+	req := &internal.ConsumerSendMsgBackRequest{
+		Group:             pc.consumerGroup,
+		OriginTopic:       msg.Topic,
+		Offset:            msg.CommitLogOffset,
+		DelayLevel:        delayLevel,
+		OriginMsgId:       msg.MsgId,
+		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
+	}
+
+	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, msg.Body)
 }
 
 func (pc *pushConsumer) suspend() {
@@ -615,6 +646,23 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 	}
 }
 
+// resetRetryAndNamespace modify retry message.
+func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) {
+	groupTopic := internal.RetryGroupTopicPrefix + pc.consumerGroup
+	beginTime := time.Now()
+	for idx := range subMsgs {
+		msg := subMsgs[idx]
+		if msg.Properties != nil {
+			retryTopic := msg.Properties[primitive.PropertyRetryTopic]
+			if retryTopic == "" && groupTopic == msg.Topic {
+				msg.Topic = retryTopic
+			}
+			subMsgs[idx].Properties[primitive.PropertyConsumeStartTime] = strconv.FormatInt(
+				beginTime.UnixNano()/int64(time.Millisecond), 10)
+		}
+	}
+}
+
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
@@ -640,18 +688,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			// TODO hook
 			beginTime := time.Now()
-			groupTopic := internal.RetryGroupTopicPrefix + pc.consumerGroup
-			for idx := range subMsgs {
-				msg := subMsgs[idx]
-				if msg.Properties != nil {
-					retryTopic := msg.Properties[primitive.PropertyRetryTopic]
-					if retryTopic == "" && groupTopic == msg.Topic {
-						msg.Topic = retryTopic
-					}
-					subMsgs[idx].Properties[primitive.PropertyConsumeStartTime] = strconv.FormatInt(
-						beginTime.UnixNano()/int64(time.Millisecond), 10)
-				}
-			}
+			pc.resetRetryAndNamespace(subMsgs)
 			var result ConsumeResult
 
 			var err error
@@ -661,6 +698,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			ctx := context.Background()
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
+			concurrentCtx := primitive.NewConsumeConcurrentlyContext()
+			concurrentCtx.MQ = *mq
+			ctx = primitive.WithConcurrentlyCtx(ctx, concurrentCtx)
 
 			result, err = pc.consumeInner(ctx, subMsgs)
 
@@ -691,7 +731,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					} else {
 						for i := 0; i < len(msgs); i++ {
 							msg := msgs[i]
-							if !pc.sendMessageBack(msgCtx, msg) {
+							if !pc.sendMessageBack(mq.BrokerName, msg, concurrentCtx.DelayLevelWhenNextConsume) {
 								msg.ReconsumeTimes += 1
 								msgBackFailed = append(msgBackFailed, msg)
 							}
@@ -755,6 +795,8 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			batchSize := pc.option.ConsumeMessageBatchMaxSize
 			msgs := pq.takeMessages(batchSize)
 
+			pc.resetRetryAndNamespace(msgs)
+
 			if len(msgs) == 0 {
 				continueConsume = false
 				break
@@ -804,6 +846,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
 					if (pc.checkReconsumeTimes(msgs)) {
+						pq.putMessage(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 						continueConsume = false;
 					} else {
@@ -843,12 +886,12 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 	suspend := false
 	if len(msgs) != 0 {
-		maxReconsumeTimes := pc.getMaxReconsumeTimes()
+		maxReconsumeTimes := pc.getOrderlyMaxReconsumeTimes()
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
+				rlog.Warn("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes)
 				msg.Properties["RECONSUME_TIME"] = strconv.Itoa(int(msg.ReconsumeTimes))
-				if !pc.sendMessageBack(nil, msg) {
-					// TODO: complete sendMessageBack
+				if !pc.sendMessageBack("", msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
 				}
@@ -861,9 +904,17 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 	return suspend
 }
 
-func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
+func (pc *pushConsumer) getOrderlyMaxReconsumeTimes() int32 {
 	if pc.option.MaxReconsumeTimes == -1 {
 		return math.MaxInt32
+	} else {
+		return pc.option.MaxReconsumeTimes
+	}
+}
+
+func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
+	if pc.option.MaxReconsumeTimes == -1 {
+		return 16
 	} else {
 		return pc.option.MaxReconsumeTimes
 	}

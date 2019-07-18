@@ -18,8 +18,9 @@ limitations under the License.
 package internal
 
 const (
-	RetryGroupTopicPrefix = "%RETRY%"
-	DefaultConsumerGroup  = "DEFAULT_CONSUMER"
+	RetryGroupTopicPrefix    = "%RETRY%"
+	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
+	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
 )
 
 func GetRetryTopic(group string) string {
