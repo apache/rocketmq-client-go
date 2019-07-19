@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -71,6 +72,13 @@ func NewMessage(topic string, body []byte) *Message {
 		Body:       body,
 		Properties: make(map[string]string),
 	}
+}
+
+func (msg *Message) SetDelayTimeLevel(level int) {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string)
+	}
+	msg.Properties[PropertyDelayTimeLevel] = strconv.Itoa(level)
 }
 
 func (msg *Message) String() string {
