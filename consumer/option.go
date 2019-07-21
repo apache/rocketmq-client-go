@@ -85,7 +85,7 @@ type consumerOptions struct {
 	//
 	// If messages are re-consumed more than {@link #maxReconsumeTimes} before Success, it's be directed to a deletion
 	// queue waiting.
-	MaxReconsumeTimes int
+	MaxReconsumeTimes int32
 
 	// Suspending pulling time for cases requiring slow pulling like flow-control scenario.
 	SuspendCurrentQueueTimeMillis time.Duration
@@ -100,12 +100,20 @@ type consumerOptions struct {
 
 	Interceptors []primitive.Interceptor
 	// TODO traceDispatcher
+	MaxTimeConsumeContinuously time.Duration
+	//
+	AutoCommit            bool
+	RebalanceLockInterval time.Duration
 }
 
 func defaultPushConsumerOptions() consumerOptions {
 	opts := consumerOptions{
-		ClientOptions: internal.DefaultClientOptions(),
-		Strategy:      AllocateByAveragely,
+		ClientOptions:              internal.DefaultClientOptions(),
+		Strategy:                   AllocateByAveragely,
+		MaxTimeConsumeContinuously: time.Duration(60 * time.Second),
+		RebalanceLockInterval:      20 * time.Second,
+		MaxReconsumeTimes:          -1,
+		AutoCommit:                 true,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -130,6 +138,12 @@ func WithConsumerModel(m MessageModel) Option {
 func WithConsumeFromWhere(w ConsumeFromWhere) Option {
 	return func(options *consumerOptions) {
 		options.FromWhere = w
+	}
+}
+
+func WithConsumerOrder(order bool) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeOrderly = order
 	}
 }
 
@@ -161,17 +175,9 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
-// WithACL on/off ACL
 func WithVIPChannel(enable bool) Option {
 	return func(opts *consumerOptions) {
 		opts.VIPChannelEnabled = enable
-	}
-}
-
-// WithACL on/off ACL
-func WithACL(enable bool) Option {
-	return func(opts *consumerOptions) {
-		opts.ACLEnabled = enable
 	}
 }
 
@@ -180,5 +186,19 @@ func WithACL(enable bool) Option {
 func WithRetry(retries int) Option {
 	return func(opts *consumerOptions) {
 		opts.RetryTimes = retries
+	}
+}
+
+func WithCredentials(c primitive.Credentials) Option {
+	return func(options *consumerOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}
+
+// WithMaxReconsumeTimes set MaxReconsumeTimes of options, if message reconsume greater than MaxReconsumeTimes, it will
+// be sent to retry or dlq topic. more info reference by examples/consumer/retry.
+func WithMaxReconsumeTimes(times int32) Option {
+	return func(opts *consumerOptions) {
+		opts.MaxReconsumeTimes = times
 	}
 }

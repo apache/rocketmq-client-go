@@ -27,6 +27,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/utils"
+	gods_util "github.com/emirpasic/gods/utils"
 )
 
 const (
@@ -41,7 +42,7 @@ type processQueue struct {
 	cachedMsgCount             int64
 	cachedMsgSize              int64
 	consumeLock                sync.Mutex
-	consumingMsgOrderlyTreeMap sync.Map
+	consumingMsgOrderlyTreeMap *treemap.Map
 	tryUnlockTimes             int64
 	queueOffsetMax             int64
 	dropped                    bool
@@ -53,15 +54,20 @@ type processQueue struct {
 	msgAccCnt                  int64
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
+	order                      bool
 }
 
-func newProcessQueue() *processQueue {
+func newProcessQueue(order bool) *processQueue {
+	consumingMsgOrderlyTreeMap := treemap.NewWith(gods_util.Int64Comparator)
+
 	pq := &processQueue{
-		msgCache:        treemap.NewWith(utils.Int64Comparator),
-		lastPullTime:    time.Now(),
-		lastConsumeTime: time.Now(),
-		lastLockTime:    time.Now(),
-		msgCh:           make(chan []*primitive.MessageExt, 32),
+		msgCache:                   treemap.NewWith(utils.Int64Comparator),
+		lastPullTime:               time.Now(),
+		lastConsumeTime:            time.Now(),
+		lastLockTime:               time.Now(),
+		msgCh:                      make(chan []*primitive.MessageExt, 32),
+		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
+		order:                      order,
 	}
 	return pq
 }
@@ -71,7 +77,9 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	pq.mutex.Lock()
-	pq.msgCh <- messages // 放锁外面会挂
+	if !pq.order {
+		pq.msgCh <- messages
+	}
 	validMessageCount := 0
 	for idx := range messages {
 		msg := messages[idx]
@@ -100,6 +108,16 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 			pq.msgAccCnt = acc
 		}
 	}
+}
+
+func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageExt) {
+	pq.mutex.Lock()
+	for _, msg := range messages {
+		pq.consumingMsgOrderlyTreeMap.Remove(msg.QueueOffset)
+		pq.msgCache.Put(msg.QueueOffset, msg)
+	}
+
+	pq.mutex.Unlock()
 }
 
 func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
@@ -205,6 +223,7 @@ func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
 			break
 		}
 		result[i] = v.(*primitive.MessageExt)
+		pq.consumingMsgOrderlyTreeMap.Put(k, v)
 		pq.msgCache.Remove(k)
 	}
 	pq.mutex.Unlock()
@@ -239,4 +258,22 @@ func (pq *processQueue) clear() {
 	pq.cachedMsgCount = 0
 	pq.cachedMsgSize = 0
 	pq.queueOffsetMax = 0
+}
+
+func (pq *processQueue) commit() int64 {
+	pq.mutex.Lock()
+	defer pq.mutex.Unlock()
+
+	var offset int64
+	iter, _ := pq.consumingMsgOrderlyTreeMap.Max()
+	if iter != nil {
+		offset = iter.(int64)
+	}
+	pq.cachedMsgCount -= int64(pq.consumingMsgOrderlyTreeMap.Size())
+	pq.consumingMsgOrderlyTreeMap.Each(func(key interface{}, value interface{}) {
+		msg := value.(*primitive.MessageExt)
+		pq.cachedMsgSize -= int64(len(msg.Body))
+	})
+	pq.consumingMsgOrderlyTreeMap.Clear()
+	return offset + 1
 }

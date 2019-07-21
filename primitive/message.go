@@ -20,7 +20,7 @@ package primitive
 import (
 	"fmt"
 
-	"github.com/apache/rocketmq-client-go/utils"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 )
 
 const (
@@ -147,7 +147,7 @@ func (mq *MessageQueue) HashCode() int {
 	return result
 }
 
-func (mq *MessageQueue) Equals(queue *MessageQueue) bool {
+func (mq MessageQueue) Equals(queue *MessageQueue) bool {
 	// TODO
-	return true
+	return mq.BrokerName == queue.BrokerName && mq.Topic == queue.Topic && mq.QueueId == mq.QueueId
 }

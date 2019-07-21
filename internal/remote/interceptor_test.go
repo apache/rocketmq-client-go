@@ -15,14 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package internal
+package remote
 
-const (
-	RetryGroupTopicPrefix    = "%RETRY%"
-	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
-	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func GetRetryTopic(group string) string {
-	return RetryGroupTopicPrefix + group
+func Test_CalculateSignature(t *testing.T) {
+	assert.Equal(t, "tAb/54Rwwcq+pbH8Loi7FWX4QSQ=",
+		calculateSignature([]byte("Hello RocketMQ Client ACL Feature"), []byte("adiaushdiaushd")))
 }

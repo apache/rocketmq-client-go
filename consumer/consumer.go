@@ -29,9 +29,9 @@ import (
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 )
@@ -65,8 +65,8 @@ const (
 	_SubAll = "*"
 )
 
-var(
-	ErrCreated = errors.New("consumer group has been created")
+var (
+	ErrCreated        = errors.New("consumer group has been created")
 	ErrBrokerNotFound = errors.New("broker can not found")
 )
 
@@ -195,11 +195,24 @@ type ConsumeResult int
 const (
 	ConsumeSuccess ConsumeResult = iota
 	ConsumeRetryLater
+	Commit
+	Rollback
+	SuspendCurrentQueueAMoment
 )
 
 type ConsumeResultHolder struct {
 	ConsumeResult
 }
+
+type ConsumerReturn int
+
+const (
+	SuccessReturn ConsumerReturn = iota
+	ExceptionReturn
+	NullReturn
+	TimeoutReturn
+	FailedReturn
+)
 
 type PullRequest struct {
 	consumerGroup string
@@ -284,7 +297,6 @@ func (dc *defaultConsumer) shutdown() error {
 	return nil
 }
 
-
 func (dc *defaultConsumer) persistConsumerOffset() error {
 	err := dc.makeSureStateOK()
 	if err != nil {
@@ -292,7 +304,8 @@ func (dc *defaultConsumer) persistConsumerOffset() error {
 	}
 	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mqs = append(mqs, key.(*primitive.MessageQueue))
+		k := key.(primitive.MessageQueue)
+		mqs = append(mqs, &k)
 		return true
 	})
 	dc.storage.persist(mqs)
@@ -339,9 +352,6 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 func (dc *defaultConsumer) doBalance() {
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
 		topic := key.(string)
-		if strings.HasPrefix(topic, internal.RetryGroupTopicPrefix) {
-			return true
-		}
 		v, exist := dc.topicSubscribeInfoTable.Load(topic)
 		if !exist {
 			rlog.Warnf("do balance of group: %s, but topic: %s does not exist.", dc.consumerGroup, topic)
@@ -436,12 +446,13 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 			pq := v.(*processQueue)
 			pq.locked = true
 			pq.lastConsumeTime = time.Now()
+			pq.lastLockTime = time.Now()
 		}
 		if _mq.Equals(mq) {
 			lockOK = true
 		}
 	}
-	rlog.Infof("the message queue lock %v, %s %s", lockOK, dc.consumerGroup, mq.String())
+	rlog.Debugf("the message queue lock %v, %s %s", lockOK, dc.consumerGroup, mq.String())
 	return lockOK
 }
 
@@ -462,7 +473,7 @@ func (dc *defaultConsumer) unlock(mq *primitive.MessageQueue, oneway bool) {
 		dc.consumerGroup, dc.client.ClientID(), mq.String())
 }
 
-func (dc *defaultConsumer) lockAll(mq primitive.MessageQueue) {
+func (dc *defaultConsumer) lockAll() {
 	mqMapSet := dc.buildProcessQueueTableByBrokerName()
 	for broker, mqs := range mqMapSet {
 		if len(mqs) == 0 {
@@ -497,7 +508,7 @@ func (dc *defaultConsumer) lockAll(mq primitive.MessageQueue) {
 					pq := v.(*processQueue)
 					pq.locked = true
 					pq.lastLockTime = time.Now()
-					rlog.Warnf("the message queue: %s locked Failed, Group: %s", mq.String(), dc.consumerGroup)
+					rlog.Warnf("the message queue: %s locked Failed, Group: %s", _mq.String(), dc.consumerGroup)
 				}
 			}
 		}
@@ -573,12 +584,12 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 	result := make(map[string][]*primitive.MessageQueue, 0)
 
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mq := key.(*primitive.MessageQueue)
+		mq := key.(primitive.MessageQueue)
 		mqs, exist := result[mq.BrokerName]
 		if !exist {
 			mqs = make([]*primitive.MessageQueue, 0)
 		}
-		mqs = append(mqs, mq)
+		mqs = append(mqs, &mq)
 		result[mq.BrokerName] = mqs
 		return true
 	})
@@ -589,18 +600,18 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 // TODO 问题不少 需要再好好对一下
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
-	mqSet := make(map[*primitive.MessageQueue]bool)
+	mqSet := make(map[primitive.MessageQueue]bool)
 	for idx := range mqs {
-		mqSet[mqs[idx]] = true
+		mqSet[*mqs[idx]] = true
 	}
 	// TODO
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
-		mq := key.(*primitive.MessageQueue)
+		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
 		if mq.Topic == topic {
 			if !mqSet[mq] {
 				pq.dropped = true
-				if dc.removeUnnecessaryMessageQueue(mq, pq) {
+				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					//delete(mqSet, mq)
 					dc.processQueueTable.Delete(key)
 					changed = true
@@ -608,7 +619,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				}
 			} else if pq.isPullExpired() && dc.cType == _PushConsume {
 				pq.dropped = true
-				if dc.removeUnnecessaryMessageQueue(mq, pq) {
+				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					delete(mqSet, mq)
 					changed = true
 					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s, "+
@@ -620,29 +631,31 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 	})
 
 	if dc.cType == _PushConsume {
-		for mq := range mqSet {
+		for item := range mqSet {
+			// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
+			mq := item
 			_, exist := dc.processQueueTable.Load(mq)
 			if exist {
 				continue
 			}
-			if dc.consumeOrderly && !dc.lock(mq) {
+			if dc.consumeOrderly && !dc.lock(&mq) {
 				rlog.Warnf("do defaultConsumer, Group:%s add a new mq failed, %s, because lock failed",
 					dc.consumerGroup, mq.String())
 				continue
 			}
-			dc.storage.remove(mq)
-			nextOffset := dc.computePullFromWhere(mq)
+			dc.storage.remove(&mq)
+			nextOffset := dc.computePullFromWhere(&mq)
 			if nextOffset >= 0 {
 				_, exist := dc.processQueueTable.Load(mq)
 				if exist {
 					rlog.Debugf("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
 				} else {
 					rlog.Infof("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
-					pq := newProcessQueue()
+					pq := newProcessQueue(dc.consumeOrderly)
 					dc.processQueueTable.Store(mq, pq)
 					pr := PullRequest{
 						consumerGroup: dc.consumerGroup,
-						mq:            mq,
+						mq:            &mq,
 						pq:            pq,
 						nextOffset:    nextOffset,
 					}
@@ -673,7 +686,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 	if lastOffset >= 0 {
 		result = lastOffset
 	} else {
-		switch dc.fromWhere {
+		switch dc.option.FromWhere {
 		case ConsumeFromLastOffset:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
@@ -720,7 +733,6 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 		default:
 		}
 	}
-
 	return result
 }
 
@@ -864,7 +876,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
-func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) (int64) {
+func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) int64 {
 	return dc.storage.read(mq, _ReadMemoryThenStore)
 }
 

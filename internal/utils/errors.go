@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var(
+var (
 	// ErrRequestTimeout for request timeout error
 	ErrRequestTimeout = errors.New("request timeout")
 

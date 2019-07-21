@@ -15,14 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package internal
+package primitive
 
-const (
-	RetryGroupTopicPrefix    = "%RETRY%"
-	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
-	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
-)
+type Credentials struct {
+	AccessKey     string
+	SecretKey     string
+	SecurityToken string
+}
 
-func GetRetryTopic(group string) string {
-	return RetryGroupTopicPrefix + group
+func (c Credentials) IsEmpty() bool {
+	return c.AccessKey == "" || c.SecretKey == ""
 }

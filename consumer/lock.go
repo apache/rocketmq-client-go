@@ -15,14 +15,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package internal
+package consumer
 
-const (
-	RetryGroupTopicPrefix    = "%RETRY%"
-	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
-	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
+import (
+	"sync"
+
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
-func GetRetryTopic(group string) string {
-	return RetryGroupTopicPrefix + group
+type QueueLock struct {
+	lockTable sync.Map
+}
+
+func newQueueLock() *QueueLock {
+	return &QueueLock{
+	}
+}
+
+func (ql QueueLock) fetchLock(queue primitive.MessageQueue) sync.Locker {
+	v, _ := ql.lockTable.LoadOrStore(queue, new(sync.Mutex))
+	return v.(*sync.Mutex)
 }

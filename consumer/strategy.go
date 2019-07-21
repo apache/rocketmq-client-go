@@ -18,9 +18,9 @@ limitations under the License.
 package consumer
 
 import (
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 )
 
 // Strategy Algorithm for message allocating between consumers

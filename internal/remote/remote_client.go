@@ -19,11 +19,14 @@ package remote
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/primitive"
 
 	"github.com/apache/rocketmq-client-go/rlog"
 )
@@ -40,6 +43,7 @@ type RemotingClient struct {
 	option           TcpOption
 	processors       map[int16]ClientRequestFunc
 	connectionLocker sync.Mutex
+	interceptor      primitive.Interceptor
 }
 
 func NewRemotingClient() *RemotingClient {
@@ -192,6 +196,18 @@ func (c *RemotingClient) createScanner(r io.Reader) *bufio.Scanner {
 }
 
 func (c *RemotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
+	var err error
+	if c.interceptor != nil {
+		err = c.interceptor(context.Background(), request, nil, func(ctx context.Context, req, reply interface{}) error {
+			return c.doRequest(conn, request)
+		})
+	} else {
+		err = c.doRequest(conn, request)
+	}
+	return err
+}
+
+func (c *RemotingClient) doRequest(conn net.Conn, request *RemotingCommand) error {
 	content, err := encode(request)
 	if err != nil {
 		return err
@@ -225,4 +241,31 @@ func (c *RemotingClient) ShutDown() {
 		conn.Close()
 		return true
 	})
+}
+
+func (c *RemotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
+	if len(interceptors) == 0 {
+		return
+	}
+	idx := 0
+	if c.interceptor == nil {
+		c.interceptor = interceptors[0]
+		idx = 1
+	}
+	for ; idx < len(interceptors); idx++ {
+		c.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
+			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, idx, invoker))
+		}
+	}
+}
+
+// TODO
+// getChainedInterceptor recursively generate the chained invoker.
+func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
 }

@@ -15,14 +15,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package internal
+package rocketmq
 
-const (
-	RetryGroupTopicPrefix    = "%RETRY%"
-	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
-	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
+import (
+	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/pkg/errors"
 )
 
-func GetRetryTopic(group string) string {
-	return RetryGroupTopicPrefix + group
+var (
+	// ErrRequestTimeout for request timeout error
+	ErrRequestTimeout = errors.New("request timeout")
+
+	ErrMQEmpty = errors.New("MessageQueue is nil")
+	ErrOffset  = errors.New("offset < 0")
+	ErrNumbers = errors.New("numbers < 0")
+)
+
+func CheckError(action string, err error) {
+	if err != nil {
+		rlog.Errorf("%s error: %s", action, err.Error())
+	}
 }

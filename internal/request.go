@@ -31,6 +31,7 @@ const (
 	ReqSearchOffsetByTimestamp  = int16(30)
 	ReqGetMaxOffset             = int16(30)
 	ReqHeartBeat                = int16(34)
+	ReqConsumerSendMsgBack      = int16(36)
 	ReqGetConsumerListByGroup   = int16(38)
 	ReqLockBatchMQ              = int16(41)
 	ReqUnlockBatchMQ            = int16(42)
@@ -78,6 +79,29 @@ func (request *SendMessageRequest) Encode() map[string]string {
 
 func (request *SendMessageRequest) Decode(properties map[string]string) error {
 	return nil
+}
+
+type ConsumerSendMsgBackRequest struct {
+	Group             string `json:"group"`
+	Offset            int64  `json:"offset"`
+	DelayLevel        int    `json:"delayLevel"`
+	OriginMsgId       string `json:"originMsgId"`
+	OriginTopic       string `json:"originTopic"`
+	UnitMode          bool   `json:"unitMode"`
+	MaxReconsumeTimes int32  `json:"maxReconsumeTimes"`
+}
+
+func (request *ConsumerSendMsgBackRequest) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["group"] = request.Group
+	maps["offset"] = strconv.FormatInt(request.Offset, 10)
+	maps["delayLevel"] = strconv.Itoa(request.DelayLevel)
+	maps["originMsgId"] = request.OriginMsgId
+	maps["originTopic"] = request.OriginTopic
+	maps["unitMode"] = strconv.FormatBool(request.UnitMode)
+	maps["maxReconsumeTimes"] = strconv.Itoa(int(request.MaxReconsumeTimes))
+
+	return maps
 }
 
 type PullMessageRequest struct {

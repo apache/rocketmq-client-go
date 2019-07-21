@@ -57,17 +57,9 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
-// WithACL on/off ACL
 func WithVIPChannel(enable bool) Option {
 	return func(opts *producerOptions) {
 		opts.VIPChannelEnabled = enable
-	}
-}
-
-// WithACL on/off ACL
-func WithACL(enable bool) Option {
-	return func(opts *producerOptions) {
-		opts.ACLEnabled = enable
 	}
 }
 
@@ -88,5 +80,11 @@ func WithInterceptor(f ...primitive.Interceptor) Option {
 func WithQueueSelector(s QueueSelector) Option {
 	return func(options *producerOptions) {
 		options.Selector = s
+	}
+}
+
+func WithCredentials(c primitive.Credentials) Option {
+	return func(options *producerOptions) {
+		options.ClientOptions.Credentials = c
 	}
 }

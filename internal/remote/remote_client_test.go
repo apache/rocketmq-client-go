@@ -19,6 +19,7 @@ package remote
 import (
 	"bytes"
 	"errors"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"math/rand"
 	"net"
 	"reflect"
@@ -81,7 +82,7 @@ func TestResponseFutureTimeout(t *testing.T) {
 }
 
 func TestResponseFutureIsTimeout(t *testing.T) {
-	future := NewResponseFuture(10, 500 * time.Millisecond, nil)
+	future := NewResponseFuture(10, 500*time.Millisecond, nil)
 	if future.isTimeout() != false {
 		t.Errorf("wrong ResponseFuture's istimeout. want=%t, got=%t", false, future.isTimeout())
 	}
@@ -93,12 +94,12 @@ func TestResponseFutureIsTimeout(t *testing.T) {
 }
 
 func TestResponseFutureWaitResponse(t *testing.T) {
-	future := NewResponseFuture(10, 500 * time.Millisecond, nil)
-	if _, err := future.waitResponse(); err != ErrRequestTimeout {
+	future := NewResponseFuture(10, 500*time.Millisecond, nil)
+	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
-			ErrRequestTimeout, err)
+			utils.ErrRequestTimeout, err)
 	}
-	future = NewResponseFuture(10, 500 * time.Millisecond, nil)
+	future = NewResponseFuture(10, 500*time.Millisecond, nil)
 	responseError := errors.New("response error")
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -109,7 +110,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v. got=%v",
 			responseError, err)
 	}
-	future = NewResponseFuture(10, 500 * time.Millisecond, nil)
+	future = NewResponseFuture(10, 500*time.Millisecond, nil)
 	responseRemotingCommand := NewRemotingCommand(202, nil, nil)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -219,7 +220,7 @@ func TestInvokeAsync(t *testing.T) {
 	cnt := 50
 	wg.Add(cnt)
 	client := NewRemotingClient()
-	for i:=0; i < cnt; i++ {
+	for i := 0; i < cnt; i++ {
 		go func(index int) {
 			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
 			t.Logf("[Send: %d] asychronous message", index)
@@ -291,7 +292,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		err := client.InvokeAsync(":3000", clientSendRemtingCommand,
 			time.Duration(1000), func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
-				assert.Equal(t, ErrRequestTimeout, r.Err)
+				assert.Equal(t, utils.ErrRequestTimeout, r.Err)
 				wg.Done()
 			})
 		assert.Nil(t, err, "failed to invokeSync.")
@@ -361,5 +362,3 @@ func TestInvokeOneWay(t *testing.T) {
 	}
 	wg.Done()
 }
-
-

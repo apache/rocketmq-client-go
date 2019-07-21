@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 )
 
 const (
@@ -104,6 +104,7 @@ type ClientOptions struct {
 	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
+	Credentials       primitive.Credentials
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -135,12 +136,8 @@ type RMQClient interface {
 	CheckClientInBroker()
 	SendHeartbeatToAllBrokerWithLock()
 	UpdateTopicRouteInfo()
-	SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
-		msgs []*primitive.Message, f func(result *primitive.SendResult)) error
-	SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
-		msgs []*primitive.Message) (*primitive.SendResult, error)
 
-	ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message)
+	ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error
 
 	RegisterConsumer(group string, consumer InnerConsumer) error
 	UnregisterConsumer(group string)
@@ -190,6 +187,9 @@ func (c *rmqClient) Start() {
 	c.close = false
 	c.once.Do(func() {
 		// TODO fetchNameServerAddr
+		if !c.option.Credentials.IsEmpty() {
+			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+		}
 		go func() {}()
 
 		// schedule update route info
@@ -357,9 +357,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		consumer := value.(InnerConsumer)
 		list := consumer.SubscriptionDataList()
 		for idx := range list {
-			if !strings.HasPrefix(list[idx].Topic, RetryGroupTopicPrefix) {
-				subscribedTopicSet[list[idx].Topic] = true
-			}
+			subscribedTopicSet[list[idx].Topic] = true
 		}
 		return true
 	})
@@ -385,7 +383,7 @@ func (c *rmqClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, r
 	return nil, err
 }
 
-func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
+func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error {
 	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
@@ -397,7 +395,8 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		// TODO process unknown code
+		status = primitive.SendUnknownError
+		return errors.New(cmd.Remark)
 	}
 
 	msgIDs := make([]string, 0)
@@ -427,13 +426,13 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	//TransactionID: sendResponse.TransactionId,
 	resp.RegionID = regionId
 	resp.TraceOn = trace != "" && trace != _TranceOff
-
+	return nil
 }
 
 // PullMessage with sync
 func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 3*time.Second)
+	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -600,6 +599,7 @@ func encodeMessages(message []*primitive.Message) []byte {
 	index := 0
 	for index < len(message) {
 		buffer.Write(message[index].Body)
+		index++
 	}
 	return buffer.Bytes()
 }

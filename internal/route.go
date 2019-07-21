@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/apache/rocketmq-client-go/utils"
 	"github.com/tidwall/gjson"
 )
 
@@ -65,6 +65,7 @@ var (
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
+
 )
 
 func cleanOfflineBroker() {
@@ -254,7 +255,45 @@ func FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error
 	return mqs, nil
 }
 
+func FindMQByTopic(topic string) *primitive.MessageQueue {
+	mqs, err := FetchPublishMessageQueues(topic)
+	if err != nil {
+		return nil
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	i := utils.AbsInt(r.Int())
+	return mqs[i%len(mqs)]
+}
+
+func FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
+	var (
+		err       error
+		routeData *TopicRouteData
+	)
+
+	v, exist := routeDataMap.Load(topic)
+	if !exist {
+		routeData, err = queryTopicRouteInfoFromServer(topic)
+		if err != nil {
+			rlog.Error("queryTopicRouteInfoFromServer failed. topic: %v", topic)
+			return nil, err
+		}
+		routeDataMap.Store(topic, routeData)
+		AddBroker(routeData)
+	} else {
+		routeData = v.(*TopicRouteData)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	publishinfo := routeData2PublishInfo(topic, routeData)
+
+	return publishinfo.MqList, nil
+}
+
 func findBrokerVersion(brokerName, brokerAddr string) int32 {
+
 	versions, exist := brokerVersionMap.Load(brokerName)
 
 	if !exist {
