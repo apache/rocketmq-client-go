@@ -640,6 +640,9 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 
 			realReply := reply.(*ConsumeResultHolder)
 			realReply.ConsumeResult = r
+
+			msgCtx, _ := primitive.GetConsumerCtx(ctx)
+			msgCtx.Success = realReply.ConsumeResult == ConsumeSuccess
 			return e
 		})
 		return container.ConsumeResult, err
@@ -694,6 +697,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			var err error
 			msgCtx := &primitive.ConsumeMessageContext{
 				Properties: make(map[string]string),
+				ConsumerGroup: pc.consumerGroup,
+				MQ: mq,
+				Msgs: msgs,
 			}
 			ctx := context.Background()
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
@@ -706,16 +712,15 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				msgCtx.Properties["ConsumeContextType"] = "EXCEPTION"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionRetrun)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
-				msgCtx.Properties["ConsumeContextType"] = "TIMEOUT"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {
-				msgCtx.Properties["ConsumeContextType"] = "SUCCESS"
-			} else {
-				msgCtx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
+			} else if result == ConsumeRetryLater{
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
 			}
 
-			// TODO hook
 			increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
 
 			if !pq.dropped {
@@ -808,6 +813,9 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			ctx := context.Background()
 			msgCtx := &primitive.ConsumeMessageContext{
 				Properties: make(map[string]string),
+				ConsumerGroup: pc.consumerGroup,
+				MQ: mq,
+				Msgs: msgs,
 			}
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)

@@ -23,23 +23,55 @@ package primitive
 import (
 	"context"
 	"math"
+
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 type CtxKey int
+
+type CommunicationMode string
+
+type ConsumeReturnType string
+
+func (c ConsumeReturnType) Ordinal() int {
+	switch c {
+	case SuccessReturn:
+		return 0
+	case TimeoutReturn:
+		return 1
+	case ExceptionRetrun:
+		return 2
+	case NullReturn:
+		return 3
+	case FailedReturn:
+		return 4
+	default:
+		rlog.Error("illegal ConsumeReturnType: %v", c)
+		return 0
+	}
+}
 
 const (
 	method CtxKey = iota
 	msgCtx
 	orderlyCtx
 	concurrentlyCtx
+	producerCtx
 
 	// method name in  producer
-	SendSync   = "SendSync"
-	SendOneway = "SendOneway"
-	SendAsync  = "SendAsync"
+	SendSync   CommunicationMode = "SendSync"
+	SendOneway CommunicationMode = "SendOneway"
+	SendAsync  CommunicationMode = "SendAsync"
 	// method name in consumer
 	ConsumerPush = "ConsumerPush"
 	ConsumerPull = "ConsumerPull"
+
+	PropCtxType                       = "ConsumeContextType"
+	SuccessReturn   ConsumeReturnType = "SUCCESS"
+	TimeoutReturn   ConsumeReturnType = "TIMEOUT"
+	ExceptionRetrun ConsumeReturnType = "EXCEPTION"
+	NullReturn      ConsumeReturnType = "RETURNNULL"
+	FailedReturn    ConsumeReturnType = "FAILED"
 )
 
 type ConsumeMessageContext struct {
@@ -53,13 +85,13 @@ type ConsumeMessageContext struct {
 }
 
 // WithMethod set call method name
-func WithMethod(ctx context.Context, m string) context.Context {
+func WithMethod(ctx context.Context, m CommunicationMode) context.Context {
 	return context.WithValue(ctx, method, m)
 }
 
 // GetMethod get call method name
-func GetMethod(ctx context.Context) string {
-	return ctx.Value(method).(string)
+func GetMethod(ctx context.Context) CommunicationMode {
+	return ctx.Value(method).(CommunicationMode)
 }
 
 // WithConsumerCtx set ConsumeMessageContext in PushConsumer
@@ -115,4 +147,25 @@ func WithConcurrentlyCtx(ctx context.Context, c *ConsumeConcurrentlyContext) con
 func GetConcurrentlyCtx(ctx context.Context) (*ConsumeConcurrentlyContext, bool) {
 	c, exist := ctx.Value(concurrentlyCtx).(*ConsumeConcurrentlyContext)
 	return c, exist
+}
+
+type ProducerCtx struct {
+	ProducerGroup     string
+	Message           Message
+	MQ                MessageQueue
+	BrokerAddr        string
+	BornHost          string
+	CommunicationMode CommunicationMode
+	SendResult        *SendResult
+	Props             map[string]string
+	MsgType           MessageType
+	Namespace         string
+}
+
+func WithProducerCtx(ctx context.Context, c *ProducerCtx) context.Context {
+	return context.WithValue(ctx, producerCtx, c)
+}
+
+func GetProducerCtx(ctx context.Context) *ProducerCtx {
+	return ctx.Value(producerCtx).(*ProducerCtx)
 }

@@ -1,20 +1,28 @@
 package utils
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
+	"time"
 )
 
-func LocalIP() string {
-	ip, err := clientIP4()
+var (
+	LocalIP string
+)
+
+func init() {
+	ip, err := ClientIP4()
 	if err != nil {
-		return ""
+		LocalIP = ""
+	} else {
+		LocalIP = fmt.Sprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
 	}
-	return fmt.Sprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
 }
 
-func clientIP4() ([]byte, error) {
+func ClientIP4() ([]byte, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil, errors.New("unexpected IP address")
@@ -27,4 +35,10 @@ func clientIP4() ([]byte, error) {
 		}
 	}
 	return nil, errors.New("unknown IP address")
+}
+
+func FakeIP() []byte {
+	buf := bytes.NewBufferString("")
+	buf.WriteString(strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10))
+	return buf.Bytes()[4:8]
 }

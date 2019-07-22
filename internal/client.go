@@ -88,7 +88,7 @@ func DefaultClientOptions() ClientOptions {
 	opts := ClientOptions{
 		InstanceName: "DEFAULT",
 		RetryTimes:   3,
-		ClientIP:     utils.LocalIP(),
+		ClientIP:     utils.LocalIP,
 	}
 	return opts
 }

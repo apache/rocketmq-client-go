@@ -28,3 +28,9 @@ type Invoker func(ctx context.Context, req, reply interface{}) error
 // In PushConsumer call, the req is []*MessageExt type and the reply is ConsumeResultHolder,
 // use type assert to get real type.
 type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
+
+// config for message trace.
+type TraceConfig struct {
+	TraceTopic string
+	Access     AccessChannel
+}
