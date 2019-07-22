@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -71,6 +72,16 @@ func NewMessage(topic string, body []byte) *Message {
 		Body:       body,
 		Properties: make(map[string]string),
 	}
+}
+
+// SetDelayTimeLevel set message delay time to consume.
+// reference delay level definition: 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
+// delay level starts from 1. for example, if we set param level=1, then the delay time is 1s.
+func (msg *Message) SetDelayTimeLevel(level int) {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string)
+	}
+	msg.Properties[PropertyDelayTimeLevel] = strconv.Itoa(level)
 }
 
 func (msg *Message) String() string {
