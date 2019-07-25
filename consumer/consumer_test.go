@@ -26,7 +26,7 @@ import (
 
 func TestParseTimestamp(t *testing.T) {
 	layout := "20060102150405"
-	timestamp, err := time.ParseInLocation(layout, "20190430193409", time.Local)
+	timestamp, err := time.ParseInLocation(layout, "20190430193409", time.UTC)
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1556624049), timestamp.Unix())
+	assert.Equal(t, int64(1556652849), timestamp.Unix())
 }

@@ -65,7 +65,6 @@ var (
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
-
 )
 
 func cleanOfflineBroker() {
