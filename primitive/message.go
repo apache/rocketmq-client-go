@@ -20,6 +20,7 @@ package primitive
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -108,6 +109,23 @@ func (msg *Message) RemoveProperty(key string) string {
 	return value
 }
 
+func (msg *Message) SetKeys(keys []string) {
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString(PropertyKeySeparator)
+	}
+	msg.PutProperty(PropertyKeys, sb.String())
+}
+
+func (msg *Message) GetTags() string {
+	return msg.Properties[PropertyTags]
+}
+
+func (msg *Message) GetKeys() string {
+	return msg.Properties[PropertyKeys]
+}
+
 type MessageExt struct {
 	Message
 	MsgId                     string
@@ -127,6 +145,14 @@ type MessageExt struct {
 
 func (msgExt *MessageExt) GetTags() string {
 	return msgExt.Properties[PropertyTags]
+}
+
+func (msgExt *MessageExt) GetRegionID() string {
+	return msgExt.Properties[PropertyMsgRegion]
+}
+
+func (msgExt *MessageExt) IsTraceOn() string {
+	return msgExt.Properties[PropertyTraceSwitch]
 }
 
 func (msgExt *MessageExt) String() string {
@@ -162,3 +188,21 @@ func (mq MessageQueue) Equals(queue *MessageQueue) bool {
 	// TODO
 	return mq.BrokerName == queue.BrokerName && mq.Topic == queue.Topic && mq.QueueId == mq.QueueId
 }
+
+type AccessChannel int
+
+const (
+	// connect to private IDC cluster.
+	Local AccessChannel = iota
+	// connect to Cloud service.
+	Cloud
+)
+
+type MessageType int
+
+const (
+	NormalMsg MessageType = iota
+	TransMsgHalf
+	TransMsgCommit
+	DelayMsg
+)

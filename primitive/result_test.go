@@ -18,12 +18,14 @@ limitations under the License.
 package primitive
 
 import (
+	"strings"
 	"testing"
 
+	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test(t *testing.T) {
+func TestProperties(t *testing.T) {
 	kv := map[string]string{
 		"k1": "v1",
 		"k2": "v2",
@@ -31,4 +33,18 @@ func Test(t *testing.T) {
 	str := MarshalPropeties(kv)
 	kv2 := unmarshalProperties([]byte(str))
 	assert.Equal(t, kv, kv2)
+}
+
+func TestCreateMessageId(t *testing.T) {
+	Convey("MessageId gen", t, func() {
+		b := []byte{10, 93, 233, 58}
+		port := int32(10911)
+		offset := int64(4391252)
+		id := createMessageId(b, port, offset)
+
+		Convey("generated messageId should be equal to expected", func() {
+			assert.Equal(t, strings.ToLower("0A5DE93A00002A9F0000000000430154"), id)
+		})
+	})
+
 }

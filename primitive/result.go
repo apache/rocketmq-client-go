@@ -20,7 +20,9 @@ package primitive
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -203,7 +205,7 @@ func DecodeMessage(data []byte) []*MessageExt {
 		}
 		count += 2 + int(propertiesLength)
 
-		msg.MsgId = createMessageId(hostBytes, msg.CommitLogOffset)
+		msg.MsgId = createMessageId(hostBytes, port, msg.CommitLogOffset)
 		//count += 16
 
 		msgs = append(msgs, msg)
@@ -212,8 +214,12 @@ func DecodeMessage(data []byte) []*MessageExt {
 	return msgs
 }
 
-func createMessageId(addr []byte, offset int64) string {
-	return "msgID" // TODO
+func createMessageId(addr []byte, port int32, offset int64) string {
+	buffer := new(bytes.Buffer)
+	buffer.Write(addr)
+	binary.Write(buffer, binary.BigEndian, port)
+	binary.Write(buffer, binary.BigEndian, offset)
+	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
 }
 
 // unmarshalProperties parse data into property kv pairs.
