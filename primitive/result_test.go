@@ -18,7 +18,6 @@ limitations under the License.
 package primitive
 
 import (
-	"strings"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -43,7 +42,7 @@ func TestCreateMessageId(t *testing.T) {
 		id := createMessageId(b, port, offset)
 
 		Convey("generated messageId should be equal to expected", func() {
-			assert.Equal(t, strings.ToLower("0A5DE93A00002A9F0000000000430154"), id)
+			assert.Equal(t, "0A5DE93A00002A9F0000000000430154", id)
 		})
 	})
 

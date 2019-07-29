@@ -131,11 +131,11 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendSync)
 		producerCtx := &primitive.ProducerCtx{
-			ProducerGroup: p.group,
+			ProducerGroup:     p.group,
 			CommunicationMode: primitive.SendSync,
-			BornHost: utils.LocalIP,
-			Message: *msg,
-			SendResult: resp,
+			BornHost:          utils.LocalIP,
+			Message:           *msg,
+			SendResult:        resp,
 		}
 		ctx = primitive.WithProducerCtx(ctx, producerCtx)
 

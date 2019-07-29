@@ -696,10 +696,10 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			var err error
 			msgCtx := &primitive.ConsumeMessageContext{
-				Properties: make(map[string]string),
+				Properties:    make(map[string]string),
 				ConsumerGroup: pc.consumerGroup,
-				MQ: mq,
-				Msgs: msgs,
+				MQ:            mq,
+				Msgs:          msgs,
 			}
 			ctx := context.Background()
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
@@ -717,7 +717,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
-			} else if result == ConsumeRetryLater{
+			} else if result == ConsumeRetryLater {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
 			}
 
@@ -812,10 +812,10 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 
 			ctx := context.Background()
 			msgCtx := &primitive.ConsumeMessageContext{
-				Properties: make(map[string]string),
+				Properties:    make(map[string]string),
 				ConsumerGroup: pc.consumerGroup,
-				MQ: mq,
-				Msgs: msgs,
+				MQ:            mq,
+				Msgs:          msgs,
 			}
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
@@ -853,10 +853,10 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				case ConsumeSuccess:
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
-					if (pc.checkReconsumeTimes(msgs)) {
+					if pc.checkReconsumeTimes(msgs) {
 						pq.putMessage(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
-						continueConsume = false;
+						continueConsume = false
 					} else {
 						commitOffset = pq.commit()
 					}
@@ -866,15 +866,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				switch result {
 				case ConsumeSuccess:
 				case Commit:
-					commitOffset = pq.commit();
+					commitOffset = pq.commit()
 				case Rollback:
 					// pq.rollback
 					time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 					continueConsume = false
 				case SuspendCurrentQueueAMoment:
-					if (pc.checkReconsumeTimes(msgs)) {
+					if pc.checkReconsumeTimes(msgs) {
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
-						continueConsume = false;
+						continueConsume = false
 					}
 				default:
 				}
