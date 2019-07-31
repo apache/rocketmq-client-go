@@ -34,3 +34,24 @@ type TraceConfig struct {
 	TraceTopic string
 	Access     AccessChannel
 }
+
+func ChainInterceptors(interceptors ...Interceptor) Interceptor {
+	if len(interceptors) == 0 {
+		return nil
+	}
+	if len(interceptors) == 1 {
+		return interceptors[0]
+	}
+	return func(ctx context.Context, req, reply interface{}, invoker Invoker) error {
+		return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
+	}
+}
+
+func getChainedInterceptor(interceptors []Interceptor, cur int, finalInvoker Invoker) Invoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
+}

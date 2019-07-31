@@ -244,28 +244,7 @@ func (c *RemotingClient) ShutDown() {
 }
 
 func (c *RemotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
-	if len(interceptors) == 0 {
-		return
-	}
-	idx := 0
-	if c.interceptor == nil {
-		c.interceptor = interceptors[0]
-		idx = 1
-	}
-	for ; idx < len(interceptors); idx++ {
-		c.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
-			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, idx, invoker))
-		}
-	}
-}
 
-// TODO
-// getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
-	if cur == len(interceptors)-1 {
-		return finalInvoker
-	}
-	return func(ctx context.Context, req, reply interface{}) error {
-		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
-	}
+	c.interceptor = primitive.ChainInterceptors(interceptors...)
+
 }
