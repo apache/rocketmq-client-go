@@ -50,19 +50,10 @@ func TestStart(t *testing.T){
 			return ConsumeSuccess, nil
 		})
 
-		//client.EXPECT().UpdateTopicRouteInfo().Return()
-		client.EXPECT().UpdateTopicRouteInfo().Do(func() bool {
-			//c.topicSubscribeInfoTable.Store("TopicTest",[]*primitive.MessageQueue{})
-			//rlog.Infof("hello")
-			return true
-		})
 		client.EXPECT().ClientID().Return("127.0.0.1@DEFAULT")
 		client.EXPECT().Start().Return()
 		client.EXPECT().RegisterConsumer(gomock.Any(),gomock.Any()).Return(nil)
-		client.EXPECT().UpdateTopicRouteInfo().Return()
-
-
-
+		client.EXPECT().UpdateTopicRouteInfo().AnyTimes().Return()
 
 		Convey("test topic route info not found", func() {
 			client.EXPECT().Shutdown().Return()
