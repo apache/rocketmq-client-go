@@ -15,23 +15,43 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package consumer
+package main
 
 import (
-	"sync"
+	"context"
+	"fmt"
+	"os"
+	"time"
 
+	"github.com/apache/rocketmq-client-go"
+	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
-type QueueLock struct {
-	lockTable sync.Map
-}
+func main() {
+	namesrvs := []string{"127.0.0.1:9876"}
+	traceCfg := primitive.TraceConfig{
+		Access: primitive.Local,
+	}
 
-func newQueueLock() *QueueLock {
-	return &QueueLock{}
-}
-
-func (ql QueueLock) fetchLock(queue primitive.MessageQueue) sync.Locker {
-	v, _ := ql.lockTable.LoadOrStore(queue, new(sync.Mutex))
-	return v.(*sync.Mutex)
+	c, _ := rocketmq.NewPushConsumer(
+		consumer.WithGroupName("testGroup"),
+		consumer.WithNameServer(namesrvs),
+		consumer.WithTrace(traceCfg),
+	)
+	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
+		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		fmt.Printf("subscribe callback: %v \n", msgs)
+		return consumer.ConsumeSuccess, nil
+	})
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	// Note: start after subscribe
+	err = c.Start()
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(-1)
+	}
+	time.Sleep(time.Hour)
 }

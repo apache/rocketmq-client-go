@@ -88,7 +88,7 @@ func DefaultClientOptions() ClientOptions {
 	opts := ClientOptions{
 		InstanceName: "DEFAULT",
 		RetryTimes:   3,
-		ClientIP:     utils.LocalIP(),
+		ClientIP:     utils.LocalIP,
 	}
 	return opts
 }
@@ -119,7 +119,7 @@ func (opt *ClientOptions) String() string {
 		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
 }
 
-//go:generate mockgen -source client.go -destination mock_client.go --package internal RMQClient
+//go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal RMQClient
 type RMQClient interface {
 	Start()
 	Shutdown()

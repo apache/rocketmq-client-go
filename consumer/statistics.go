@@ -19,10 +19,11 @@ package consumer
 
 import (
 	"container/list"
-	"github.com/apache/rocketmq-client-go/rlog"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 var (

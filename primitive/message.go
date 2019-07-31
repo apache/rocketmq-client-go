@@ -19,6 +19,8 @@ package primitive
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -73,6 +75,16 @@ func NewMessage(topic string, body []byte) *Message {
 	}
 }
 
+// SetDelayTimeLevel set message delay time to consume.
+// reference delay level definition: 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
+// delay level starts from 1. for example, if we set param level=1, then the delay time is 1s.
+func (msg *Message) SetDelayTimeLevel(level int) {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string)
+	}
+	msg.Properties[PropertyDelayTimeLevel] = strconv.Itoa(level)
+}
+
 func (msg *Message) String() string {
 	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, Properties=%v, TransactionId=%s]",
 		msg.Topic, string(msg.Body), msg.Flag, msg.Properties, msg.TransactionId)
@@ -97,6 +109,23 @@ func (msg *Message) RemoveProperty(key string) string {
 	return value
 }
 
+func (msg *Message) SetKeys(keys []string) {
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString(PropertyKeySeparator)
+	}
+	msg.PutProperty(PropertyKeys, sb.String())
+}
+
+func (msg *Message) GetTags() string {
+	return msg.Properties[PropertyTags]
+}
+
+func (msg *Message) GetKeys() string {
+	return msg.Properties[PropertyKeys]
+}
+
 type MessageExt struct {
 	Message
 	MsgId                     string
@@ -116,6 +145,14 @@ type MessageExt struct {
 
 func (msgExt *MessageExt) GetTags() string {
 	return msgExt.Properties[PropertyTags]
+}
+
+func (msgExt *MessageExt) GetRegionID() string {
+	return msgExt.Properties[PropertyMsgRegion]
+}
+
+func (msgExt *MessageExt) IsTraceOn() string {
+	return msgExt.Properties[PropertyTraceSwitch]
 }
 
 func (msgExt *MessageExt) String() string {
@@ -151,3 +188,21 @@ func (mq MessageQueue) Equals(queue *MessageQueue) bool {
 	// TODO
 	return mq.BrokerName == queue.BrokerName && mq.Topic == queue.Topic && mq.QueueId == mq.QueueId
 }
+
+type AccessChannel int
+
+const (
+	// connect to private IDC cluster.
+	Local AccessChannel = iota
+	// connect to Cloud service.
+	Cloud
+)
+
+type MessageType int
+
+const (
+	NormalMsg MessageType = iota
+	TransMsgHalf
+	TransMsgCommit
+	DelayMsg
+)

@@ -1,8 +1,8 @@
 language: go
 
 go:
-  - "1.10.x"
   - "1.11.x"
+  - "1.12.x"
 
 go_import_path: github.com/apache/rocketmq-client-go
 
@@ -12,16 +12,9 @@ env:
     - BROKER_ADDRESS=127.0.0.1:10911
     - TOPIC=test
     - GROUP=testGroup
+    - GO111MODULE=on
   matrix:
-  - OS_TYPE=centos OS_VERSION=7
-
-before_install:
-  - cd ${TRAVIS_HOME}
-  - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.0/RHEL7.x/librocketmq.tar.gz
-  - tar -xzf librocketmq.tar.gz
-  - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
-  - sudo cp -r rocketmq /usr/local/include/
-  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+    - OS_TYPE=centos OS_VERSION=7
 
 before_script:
   - cd ${TRAVIS_HOME}
@@ -36,5 +29,9 @@ before_script:
   - ./bin/mqadmin updateSubGroup -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS} -g ${GROUP}
 
 script:
-  - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+  - go fmt ./... && [[ -z `git status -s` ]]
+  - go mod vendor && go test ./... -coverprofile=coverage.txt -covermode=atomic
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

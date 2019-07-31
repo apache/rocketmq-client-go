@@ -28,3 +28,30 @@ type Invoker func(ctx context.Context, req, reply interface{}) error
 // In PushConsumer call, the req is []*MessageExt type and the reply is ConsumeResultHolder,
 // use type assert to get real type.
 type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
+
+// config for message trace.
+type TraceConfig struct {
+	TraceTopic string
+	Access     AccessChannel
+}
+
+func ChainInterceptors(interceptors ...Interceptor) Interceptor {
+	if len(interceptors) == 0 {
+		return nil
+	}
+	if len(interceptors) == 1 {
+		return interceptors[0]
+	}
+	return func(ctx context.Context, req, reply interface{}, invoker Invoker) error {
+		return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
+	}
+}
+
+func getChainedInterceptor(interceptors []Interceptor, cur int, finalInvoker Invoker) Invoker {
+	if cur == len(interceptors)-1 {
+		return finalInvoker
+	}
+	return func(ctx context.Context, req, reply interface{}) error {
+		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
+	}
+}
