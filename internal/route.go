@@ -65,7 +65,6 @@ var (
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
 	lockNamesrv  sync.Mutex
-
 )
 
 func cleanOfflineBroker() {
@@ -275,7 +274,7 @@ func FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error) 
 	if !exist {
 		routeData, err = queryTopicRouteInfoFromServer(topic)
 		if err != nil {
-			rlog.Error("queryTopicRouteInfoFromServer failed. topic: %v", topic)
+			rlog.Error("queryTopicRouteInfoFromServer failed. topic: ", topic)
 			return nil, err
 		}
 		routeDataMap.Store(topic, routeData)

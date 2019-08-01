@@ -91,34 +91,9 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		p.submitToConsume = p.consumeMessageCurrently
 	}
 
-	chainInterceptor(p)
+	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
 	return p, nil
-}
-
-// chainInterceptor chain list of interceptor as one interceptor
-func chainInterceptor(p *pushConsumer) {
-	interceptors := p.option.Interceptors
-	switch len(interceptors) {
-	case 0:
-		p.interceptor = nil
-	case 1:
-		p.interceptor = interceptors[0]
-	default:
-		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
-			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
-		}
-	}
-}
-
-// getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
-	if cur == len(interceptors)-1 {
-		return finalInvoker
-	}
-	return func(ctx context.Context, req, reply interface{}) error {
-		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
-	}
 }
 
 // TODO: add shutdown on pushConsumr.
@@ -641,6 +616,9 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 
 			realReply := reply.(*ConsumeResultHolder)
 			realReply.ConsumeResult = r
+
+			msgCtx, _ := primitive.GetConsumerCtx(ctx)
+			msgCtx.Success = realReply.ConsumeResult == ConsumeSuccess
 			return e
 		})
 		return container.ConsumeResult, err
@@ -694,7 +672,10 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			var err error
 			msgCtx := &primitive.ConsumeMessageContext{
-				Properties: make(map[string]string),
+				Properties:    make(map[string]string),
+				ConsumerGroup: pc.consumerGroup,
+				MQ:            mq,
+				Msgs:          msgs,
 			}
 			ctx := context.Background()
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
@@ -707,16 +688,15 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				msgCtx.Properties["ConsumeContextType"] = "EXCEPTION"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionRetrun)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
-				msgCtx.Properties["ConsumeContextType"] = "TIMEOUT"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {
-				msgCtx.Properties["ConsumeContextType"] = "SUCCESS"
-			} else {
-				msgCtx.Properties["ConsumeContextType"] = "RECONSUME_LATER"
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
+			} else if result == ConsumeRetryLater {
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
 			}
 
-			// TODO hook
 			increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
 
 			if !pq.dropped {
@@ -808,7 +788,10 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 
 			ctx := context.Background()
 			msgCtx := &primitive.ConsumeMessageContext{
-				Properties: make(map[string]string),
+				Properties:    make(map[string]string),
+				ConsumerGroup: pc.consumerGroup,
+				MQ:            mq,
+				Msgs:          msgs,
 			}
 			ctx = primitive.WithConsumerCtx(ctx, msgCtx)
 			ctx = primitive.WithMethod(ctx, primitive.ConsumerPush)
@@ -846,10 +829,10 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				case ConsumeSuccess:
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
-					if (pc.checkReconsumeTimes(msgs)) {
+					if pc.checkReconsumeTimes(msgs) {
 						pq.putMessage(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
-						continueConsume = false;
+						continueConsume = false
 					} else {
 						commitOffset = pq.commit()
 					}
@@ -859,15 +842,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				switch result {
 				case ConsumeSuccess:
 				case Commit:
-					commitOffset = pq.commit();
+					commitOffset = pq.commit()
 				case Rollback:
 					// pq.rollback
 					time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 					continueConsume = false
 				case SuspendCurrentQueueAMoment:
-					if (pc.checkReconsumeTimes(msgs)) {
+					if pc.checkReconsumeTimes(msgs) {
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
-						continueConsume = false;
+						continueConsume = false
 					}
 				default:
 				}

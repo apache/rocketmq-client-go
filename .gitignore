@@ -1,3 +1,5 @@
 .idea
 go.mod
 go.sum
+vendor/
+coverage.txt

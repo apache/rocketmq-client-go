@@ -6,11 +6,12 @@ package internal
 
 import (
 	context "context"
+	reflect "reflect"
+	time "time"
+
 	remote "github.com/apache/rocketmq-client-go/internal/remote"
 	primitive "github.com/apache/rocketmq-client-go/primitive"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
-	time "time"
 )
 
 // MockInnerProducer is a mock of InnerProducer interface

@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/pkg/errors"
@@ -53,34 +54,9 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 		options: defaultOpts,
 	}
 
-	chainInterceptor(producer)
+	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
 	return producer, nil
-}
-
-// chainInterceptor chain list of interceptor as one interceptor
-func chainInterceptor(p *defaultProducer) {
-	interceptors := p.options.Interceptors
-	switch len(interceptors) {
-	case 0:
-		p.interceptor = nil
-	case 1:
-		p.interceptor = interceptors[0]
-	default:
-		p.interceptor = func(ctx context.Context, req, reply interface{}, invoker primitive.Invoker) error {
-			return interceptors[0](ctx, req, reply, getChainedInterceptor(interceptors, 0, invoker))
-		}
-	}
-}
-
-// getChainedInterceptor recursively generate the chained invoker.
-func getChainedInterceptor(interceptors []primitive.Interceptor, cur int, finalInvoker primitive.Invoker) primitive.Invoker {
-	if cur == len(interceptors)-1 {
-		return finalInvoker
-	}
-	return func(ctx context.Context, req, reply interface{}) error {
-		return interceptors[cur+1](ctx, req, reply, getChainedInterceptor(interceptors, cur+1, finalInvoker))
-	}
 }
 
 type defaultProducer struct {
@@ -129,6 +105,15 @@ func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) 
 	resp := new(primitive.SendResult)
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendSync)
+		producerCtx := &primitive.ProducerCtx{
+			ProducerGroup:     p.group,
+			CommunicationMode: primitive.SendSync,
+			BornHost:          utils.LocalIP,
+			Message:           *msg,
+			SendResult:        resp,
+		}
+		ctx = primitive.WithProducerCtx(ctx, producerCtx)
+
 		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
 			var err error
 			realReq := req.(*primitive.Message)
@@ -151,6 +136,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
+	var producerCtx *primitive.ProducerCtx
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
 		if mq == nil {
@@ -161,6 +147,12 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		addr := internal.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
+		}
+
+		if p.interceptor != nil {
+			producerCtx = primitive.GetProducerCtx(ctx)
+			producerCtx.BrokerAddr = addr
+			producerCtx.MQ = *mq
 		}
 
 		res, _err := p.client.InvokeSync(addr, p.buildSendRequest(mq, msg), 3*time.Second)
