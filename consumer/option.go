@@ -202,3 +202,9 @@ func WithMaxReconsumeTimes(times int32) Option {
 		opts.MaxReconsumeTimes = times
 	}
 }
+
+func WithStrategy(strategy AllocateStrategy) Option {
+	return func(opts *consumerOptions) {
+		opts.Strategy = strategy
+	}
+}

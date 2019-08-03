@@ -41,14 +41,14 @@ type AllocateStrategy func(string, string, []*primitive.MessageQueue, []string) 
 
 func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
 	cidAll []string) []*primitive.MessageQueue {
-	if currentCID == "" || utils.IsArrayEmpty(mqAll) || utils.IsArrayEmpty(cidAll) {
+	if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
 		return nil
 	}
+
 	var (
 		find  bool
 		index int
 	)
-
 	for idx := range cidAll {
 		if cidAll[idx] == currentCID {
 			find = true
@@ -84,20 +84,46 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 	}
 
 	num := utils.MinInt(averageSize, mqSize-startIndex)
-	result := make([]*primitive.MessageQueue, num)
+	result := []*primitive.MessageQueue{}
 	for i := 0; i < num; i++ {
-		result[i] = mqAll[(startIndex+i)%mqSize]
+		result = append(result, mqAll[(startIndex+i)%mqSize])
+	}
+	return result
+}
+
+func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
+	if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
+		return nil
+	}
+
+	var (
+		find  bool
+		index int
+	)
+	for idx := range cidAll {
+		if cidAll[idx] == currentCID {
+			find = true
+			index = idx
+			break
+		}
+	}
+	if !find {
+		rlog.Infof("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		return nil
+	}
+
+	result := []*primitive.MessageQueue{}
+	for i := index; i < len(mqAll); i++ {
+		if i%len(cidAll) == index {
+			result = append(result, mqAll[i])
+		}
 	}
 	return result
 }
 
 // TODO
 func AllocateByMachineNearby(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
-	cidAll []string) []*primitive.MessageQueue {
-	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
-}
-
-func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
 	cidAll []string) []*primitive.MessageQueue {
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }

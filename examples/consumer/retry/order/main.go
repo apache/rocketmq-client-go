@@ -41,6 +41,7 @@ func main() {
 		consumer.WithConsumeFromWhere(consumer.ConsumeFromFirstOffset),
 		consumer.WithConsumerOrder(true),
 		consumer.WithMaxReconsumeTimes(5),
+		consumer.WithStrategy(consumer.AllocateByAveragely),
 	)
 
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
