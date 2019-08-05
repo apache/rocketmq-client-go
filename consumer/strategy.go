@@ -57,7 +57,7 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 		}
 	}
 	if !find {
-		rlog.Infof("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
 		return nil
 	}
 
@@ -109,7 +109,7 @@ func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primit
 		}
 	}
 	if !find {
-		rlog.Infof("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
 		return nil
 	}
 
