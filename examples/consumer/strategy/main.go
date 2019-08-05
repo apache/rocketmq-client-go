@@ -15,11 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/**
- * use orderly consumer model, when Subscribe function return consumer.SuspendCurrentQueueAMoment, it will be re-send to
- * local msg queue for later consume if msg.ReconsumeTimes < MaxReconsumeTimes, otherwise, it will be send to rocketmq
- * DLQ topic, we should manually resolve the msg.
- */
 package main
 
 import (
@@ -37,27 +32,12 @@ func main() {
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
-		consumer.WithConsumerModel(consumer.Clustering),
-		consumer.WithConsumeFromWhere(consumer.ConsumeFromFirstOffset),
-		consumer.WithConsumerOrder(true),
-		consumer.WithMaxReconsumeTimes(5),
+		consumer.WithStrategy(consumer.AllocateByAveragely),
 	)
-
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		orderlyCtx, _ := primitive.GetOrderlyCtx(ctx)
-		fmt.Printf("orderly context: %v\n", orderlyCtx)
-		fmt.Printf("subscribe orderly callback len: %d \n", len(msgs))
-
-		for _, msg := range msgs {
-			if msg.ReconsumeTimes > 5 {
-				fmt.Printf("msg ReconsumeTimes > 5. msg: %v", msg)
-			} else {
-				fmt.Printf("subscribe orderly callback: %v \n", msg)
-			}
-		}
-		return consumer.SuspendCurrentQueueAMoment, nil
-
+		fmt.Printf("subscribe callback: %v \n", msgs)
+		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {
 		fmt.Println(err.Error())
