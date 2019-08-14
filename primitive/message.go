@@ -18,9 +18,17 @@ limitations under the License.
 package primitive
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -68,11 +76,13 @@ type Message struct {
 }
 
 func NewMessage(topic string, body []byte) *Message {
-	return &Message{
+	msg := &Message{
 		Topic:      topic,
 		Body:       body,
 		Properties: make(map[string]string),
 	}
+	msg.Properties[PropertyWaitStoreMsgOk] = strconv.FormatBool(true)
+	return msg
 }
 
 // SetDelayTimeLevel set message delay time to consume.
@@ -164,6 +174,135 @@ func (msgExt *MessageExt) String() string {
 		msgExt.PreparedTransactionOffset)
 }
 
+func DecodeMessage(data []byte) []*MessageExt {
+	msgs := make([]*MessageExt, 0)
+	buf := bytes.NewBuffer(data)
+	count := 0
+	for count < len(data) {
+		msg := &MessageExt{}
+
+		// 1. total size
+		binary.Read(buf, binary.BigEndian, &msg.StoreSize)
+		count += 4
+
+		// 2. magic code
+		buf.Next(4)
+		count += 4
+
+		// 3. body CRC32
+		binary.Read(buf, binary.BigEndian, &msg.BodyCRC)
+		count += 4
+
+		// 4. queueID
+		binary.Read(buf, binary.BigEndian, &msg.QueueId)
+		count += 4
+
+		// 5. Flag
+		binary.Read(buf, binary.BigEndian, &msg.Flag)
+		count += 4
+
+		// 6. QueueOffset
+		binary.Read(buf, binary.BigEndian, &msg.QueueOffset)
+		count += 8
+
+		// 7. physical offset
+		binary.Read(buf, binary.BigEndian, &msg.CommitLogOffset)
+		count += 8
+
+		// 8. SysFlag
+		binary.Read(buf, binary.BigEndian, &msg.SysFlag)
+		count += 4
+
+		// 9. BornTimestamp
+		binary.Read(buf, binary.BigEndian, &msg.BornTimestamp)
+		count += 8
+
+		// 10. born host
+		hostBytes := buf.Next(4)
+		var port int32
+		binary.Read(buf, binary.BigEndian, &port)
+		msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+		count += 8
+
+		// 11. store timestamp
+		binary.Read(buf, binary.BigEndian, &msg.StoreTimestamp)
+		count += 8
+
+		// 12. store host
+		hostBytes = buf.Next(4)
+		binary.Read(buf, binary.BigEndian, &port)
+		msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+		count += 8
+
+		// 13. reconsume times
+		binary.Read(buf, binary.BigEndian, &msg.ReconsumeTimes)
+		count += 4
+
+		// 14. prepared transaction offset
+		binary.Read(buf, binary.BigEndian, &msg.PreparedTransactionOffset)
+		count += 8
+
+		// 15. body
+		var length int32
+		binary.Read(buf, binary.BigEndian, &length)
+		msg.Body = buf.Next(int(length))
+		if (msg.SysFlag & FlagCompressed) == FlagCompressed {
+			msg.Body = utils.UnCompress(msg.Body)
+		}
+		count += 4 + int(length)
+
+		// 16. topic
+		_byte, _ := buf.ReadByte()
+		msg.Topic = string(buf.Next(int(_byte)))
+		count += 1 + int(_byte)
+
+		// 17. properties
+		var propertiesLength int16
+		binary.Read(buf, binary.BigEndian, &propertiesLength)
+		if propertiesLength > 0 {
+			msg.Properties = unmarshalProperties(buf.Next(int(propertiesLength)))
+		}
+		count += 2 + int(propertiesLength)
+
+		msg.MsgId = createMessageId(hostBytes, port, msg.CommitLogOffset)
+		//count += 16
+		if msg.Properties == nil {
+			msg.Properties = make(map[string]string, 0)
+		}
+		msgs = append(msgs, msg)
+	}
+
+	return msgs
+}
+
+// unmarshalProperties parse data into property kv pairs.
+func unmarshalProperties(data []byte) map[string]string {
+	m := make(map[string]string)
+	items := bytes.Split(data, []byte{propertySeparator})
+	for _, item := range items {
+		kv := bytes.Split(item, []byte{nameValueSeparator})
+		if len(kv) == 2 {
+			m[string(kv[0])] = string(kv[1])
+		}
+	}
+	return m
+}
+
+func MarshalPropeties(properties map[string]string) string {
+	if properties == nil {
+		return ""
+	}
+	buffer := bytes.NewBufferString("")
+
+	for k, v := range properties {
+		buffer.WriteString(k)
+		buffer.WriteRune(nameValueSeparator)
+		buffer.WriteString(v)
+		buffer.WriteRune(propertySeparator)
+	}
+	return buffer.String()
+}
+
 // MessageQueue message queue
 type MessageQueue struct {
 	Topic      string `json:"topic"`
@@ -206,3 +345,142 @@ const (
 	TransMsgCommit
 	DelayMsg
 )
+
+type LocalTransactionState int
+
+const (
+	CommitMessageState LocalTransactionState = iota + 1
+	RollbackMessageState
+	UnknowState
+)
+
+type TransactionListener interface {
+	//  When send transactional prepare(half) message succeed, this method will be invoked to execute local transaction.
+	ExecuteLocalTransaction(Message) LocalTransactionState
+
+	// When no response to prepare(half) message. broker will send check message to check the transaction status, and this
+	// method will be invoked to get local transaction status.
+	CheckLocalTransaction(MessageExt) LocalTransactionState
+}
+
+type MessageID struct {
+	Addr   string
+	Port   int
+	Offset int64
+}
+
+func createMessageId(addr []byte, port int32, offset int64) string {
+	buffer := new(bytes.Buffer)
+	buffer.Write(addr)
+	binary.Write(buffer, binary.BigEndian, port)
+	binary.Write(buffer, binary.BigEndian, offset)
+	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
+}
+
+func UnmarshalMsgID(msgID []byte) (*MessageID, error) {
+	if len(msgID) < 32 {
+		return nil, errors.Errorf("%s len < 32", string(msgID))
+	}
+	ip := make([]byte, 8)
+	port := make([]byte, 8)
+	offset := make([]byte, 16)
+	var portVal int
+	var offsetVal int64
+
+	_, err := hex.Decode(ip, msgID[0:8])
+	if err != nil {
+		_, err = hex.Decode(port, msgID[8:16])
+	}
+	if err != nil {
+		_, err = hex.Decode(offset, msgID[16:32])
+	}
+	if err != nil {
+		portVal, err = strconv.Atoi(string(port))
+	}
+	if err != nil {
+		offsetVal, err = strconv.ParseInt(string(offset), 10, 0)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &MessageID{
+		Addr:   string(ip),
+		Port:   portVal,
+		Offset: offsetVal,
+	}, nil
+}
+
+var (
+	CompressedFlag = 0x1
+
+	MultiTagsFlag = 0x1 << 1
+
+	TransactionNotType = 0
+
+	TransactionPreparedType = 0x1 << 2
+
+	TransactionCommitType = 0x2 << 2
+
+	TransactionRollbackType = 0x3 << 2
+)
+
+func GetTransactionValue(flag int) int {
+	return flag & TransactionRollbackType
+}
+
+func ResetTransactionValue(flag int, typeFlag int) int {
+	return (flag & (^TransactionRollbackType)) | typeFlag
+}
+
+func ClearCompressedFlag(flag int) int {
+	return flag & (^CompressedFlag)
+}
+
+var (
+	counter        int16 = 0
+	startTimestamp int64 = 0
+	nextTimestamp  int64 = 0
+	prefix         string
+	locker         sync.Mutex
+	classLoadId    int32 = 0
+)
+
+func init() {
+	buf := new(bytes.Buffer)
+
+	ip, err := utils.ClientIP4()
+	if err != nil {
+		ip = utils.FakeIP()
+	}
+	_, _ = buf.Write(ip)
+	_ = binary.Write(buf, binary.BigEndian, Pid())
+	_ = binary.Write(buf, binary.BigEndian, classLoadId)
+	prefix = strings.ToUpper(hex.EncodeToString(buf.Bytes()))
+}
+
+func CreateUniqID() string {
+	locker.Lock()
+	defer locker.Unlock()
+
+	if time.Now().Unix() > nextTimestamp {
+		updateTimestamp()
+	}
+	counter++
+	buf := new(bytes.Buffer)
+	_ = binary.Write(buf, binary.BigEndian, int32((time.Now().Unix()-startTimestamp)*1000))
+	_ = binary.Write(buf, binary.BigEndian, counter)
+
+	return prefix + hex.EncodeToString(buf.Bytes())
+}
+
+func updateTimestamp() {
+	year, month := time.Now().Year(), time.Now().Month()
+	startTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).Unix()
+	nextTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).AddDate(0, 1, 0).Unix()
+}
+
+func Pid() int16 {
+	return int16(os.Getpid())
+}

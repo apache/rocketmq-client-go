@@ -20,6 +20,7 @@ package internal
 import (
 	"encoding/json"
 
+	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
 
@@ -31,8 +32,6 @@ type FindBrokerResult struct {
 
 type (
 	// groupName of consumer
-	producerData string
-
 	consumeType string
 
 	ServiceState int
@@ -55,6 +54,14 @@ type SubscriptionData struct {
 	ExpType         string
 }
 
+type producerData struct {
+	GroupName string `json:"groupName"`
+}
+
+func (p producerData) UniqueID() string {
+	return p.GroupName
+}
+
 type consumerData struct {
 	GroupName         string              `json:"groupName"`
 	CType             consumeType         `json:"consumeType"`
@@ -64,10 +71,22 @@ type consumerData struct {
 	UnitMode          bool                `json:"unitMode"`
 }
 
+func (c consumerData) UniqueID() string {
+	return c.GroupName
+}
+
 type heartbeatData struct {
-	ClientId      string         `json:"clientID"`
-	ProducerDatas []producerData `json:"producerDataSet"`
-	ConsumerDatas []consumerData `json:"consumerDataSet"`
+	ClientId      string    `json:"clientID"`
+	ProducerDatas utils.Set `json:"producerDataSet"`
+	ConsumerDatas utils.Set `json:"consumerDataSet"`
+}
+
+func NewHeartbeatData(clientID string) *heartbeatData {
+	return &heartbeatData{
+		ClientId:      clientID,
+		ProducerDatas: utils.NewSet(),
+		ConsumerDatas: utils.NewSet(),
+	}
 }
 
 func (data *heartbeatData) encode() []byte {
@@ -76,6 +95,6 @@ func (data *heartbeatData) encode() []byte {
 		rlog.Errorf("marshal heartbeatData error: %s", err.Error())
 		return nil
 	}
-	rlog.Info(string(d))
+	rlog.Info("heartbeat: " + string(d))
 	return d
 }
