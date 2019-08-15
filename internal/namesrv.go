@@ -85,8 +85,7 @@ func (s *Namesrvs) GetNamesrv() string {
 	}
 	index %= len(s.srvs)
 	s.index = index
-	v := strings.TrimLeft(addr, "http(s)://")
-	return v
+	return strings.TrimLeft(addr, "http(s)://")
 }
 
 func (s *Namesrvs) Size() int {

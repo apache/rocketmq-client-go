@@ -31,10 +31,10 @@ import (
 func main() {
 	c, err := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
-		consumer.WithNameServer([]string{"127.0.0.1：9876"}),
+		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
 		consumer.WithCredentials(primitive.Credentials{
 			AccessKey: "RocketMQ",
-			SecretKey: "123456",
+			SecretKey: "12345678",
 		}),
 	)
 
@@ -43,7 +43,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	err = c.Subscribe("t-opensource-go-native-test-topic", consumer.MessageSelector{}, func(ctx context.Context,
+	err = c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		fmt.Printf("subscribe callback: %v \n", msgs)
 		return consumer.ConsumeSuccess, nil
