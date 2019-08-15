@@ -95,6 +95,6 @@ func (data *heartbeatData) encode() []byte {
 		rlog.Errorf("marshal heartbeatData error: %s", err.Error())
 		return nil
 	}
-	rlog.Info("heartbeat: " + string(d))
+	rlog.Debugf("heartbeat: " + string(d))
 	return d
 }

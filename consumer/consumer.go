@@ -227,7 +227,6 @@ func (pr *PullRequest) String() string {
 		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
 }
 
-// TODO hook
 type defaultConsumer struct {
 	/**
 	 * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
@@ -312,8 +311,8 @@ func (dc *defaultConsumer) persistConsumerOffset() error {
 	return nil
 }
 
-func (c *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
-	c.storage.update(queue, offset, false)
+func (dc *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
+	dc.storage.update(queue, offset, false)
 	return nil
 }
 

@@ -59,6 +59,9 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
 	internal.RegisterNamsrv(srvs)
 
 	producer := &defaultProducer{
@@ -251,6 +254,9 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string, 0)
+	}
 	if !msg.Batch && msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] == "" {
 		msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] = primitive.CreateUniqID()
 	}
