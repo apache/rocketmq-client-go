@@ -52,6 +52,9 @@ var (
 )
 
 func RegisterNamsrv(s *Namesrvs) {
+	if !s.credentials.IsEmpty() {
+		nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(s.credentials))
+	}
 	nameSrvs = s
 }
 

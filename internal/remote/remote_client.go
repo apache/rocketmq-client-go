@@ -244,7 +244,5 @@ func (c *RemotingClient) ShutDown() {
 }
 
 func (c *RemotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
-
 	c.interceptor = primitive.ChainInterceptors(interceptors...)
-
 }

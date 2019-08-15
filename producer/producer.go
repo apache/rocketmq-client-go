@@ -59,6 +59,9 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
 	internal.RegisterNamsrv(srvs)
 
 	producer := &defaultProducer{
