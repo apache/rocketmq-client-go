@@ -275,7 +275,7 @@ func (dc *defaultConsumer) start() error {
 		dc.subscriptionDataTable.Store(retryTopic, sub)
 	}
 
-	//dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions)
+	//dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions, nil)
 	if dc.model == Clustering {
 		dc.option.ChangeInstanceNameToPID()
 		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client)
