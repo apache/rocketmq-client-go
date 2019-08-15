@@ -50,7 +50,7 @@ func newTraceInterceptor(traceCfg primitive.TraceConfig) primitive.Interceptor {
 		beginT := time.Now()
 		// before traceCtx
 		traceCx := internal.TraceContext{
-			RequestId: internal.CreateUniqID(),
+			RequestId: primitive.CreateUniqID(),
 			TimeStamp: time.Now().UnixNano() / int64(time.Millisecond),
 			TraceType: internal.SubBefore,
 			GroupName: consumerCtx.ConsumerGroup,

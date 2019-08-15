@@ -32,6 +32,7 @@ const (
 	ReqGetMaxOffset             = int16(30)
 	ReqHeartBeat                = int16(34)
 	ReqConsumerSendMsgBack      = int16(36)
+	ReqENDTransaction           = int16(37)
 	ReqGetConsumerListByGroup   = int16(38)
 	ReqLockBatchMQ              = int16(41)
 	ReqUnlockBatchMQ            = int16(42)
@@ -79,6 +80,68 @@ func (request *SendMessageRequest) Encode() map[string]string {
 
 func (request *SendMessageRequest) Decode(properties map[string]string) error {
 	return nil
+}
+
+type EndTransactionRequestHeader struct {
+	ProducerGroup        string `json:"producerGroup"`
+	TranStateTableOffset int64  `json:"tranStateTableOffset"`
+	CommitLogOffset      int64  `json:"commitLogOffset"`
+	CommitOrRollback     int    `json:"commitOrRollback"`
+	FromTransactionCheck bool   `json:"fromTransactionCheck"`
+	MsgID                string `json:"msgId"`
+	TransactionId        string `json:"transactionId"`
+}
+
+func (request *EndTransactionRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["producerGroup"] = request.ProducerGroup
+	maps["tranStateTableOffset"] = strconv.FormatInt(request.TranStateTableOffset, 10)
+	maps["commitLogOffset"] = strconv.Itoa(int(request.CommitLogOffset))
+	maps["commitOrRollback"] = strconv.Itoa(request.CommitOrRollback)
+	maps["fromTransactionCheck"] = strconv.FormatBool(request.FromTransactionCheck)
+	maps["msgId"] = request.MsgID
+	maps["transactionId"] = request.TransactionId
+	return maps
+}
+
+type CheckTransactionStateRequestHeader struct {
+	TranStateTableOffset int64
+	CommitLogOffset      int64
+	MsgId                string
+	TransactionId        string
+	OffsetMsgId          string
+}
+
+func (request *CheckTransactionStateRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["tranStateTableOffset"] = strconv.FormatInt(request.TranStateTableOffset, 10)
+	maps["commitLogOffset"] = strconv.FormatInt(request.CommitLogOffset, 10)
+	maps["msgId"] = request.MsgId
+	maps["transactionId"] = request.TransactionId
+	maps["offsetMsgId"] = request.OffsetMsgId
+
+	return maps
+}
+
+func (request *CheckTransactionStateRequestHeader) Decode(ext map[string]string) {
+	if len(ext) == 0 {
+		return
+	}
+	if v, existed := ext["tranStateTableOffset"]; existed {
+		request.TranStateTableOffset, _ = strconv.ParseInt(v, 10, 0)
+	}
+	if v, existed := ext["commitLogOffset"]; existed {
+		request.CommitLogOffset, _ = strconv.ParseInt(v, 10, 0)
+	}
+	if v, existed := ext["msgId"]; existed {
+		request.MsgId = v
+	}
+	if v, existed := ext["transactionId"]; existed {
+		request.MsgId = v
+	}
+	if v, existed := ext["offsetMsgId"]; existed {
+		request.MsgId = v
+	}
 }
 
 type ConsumerSendMsgBackRequest struct {

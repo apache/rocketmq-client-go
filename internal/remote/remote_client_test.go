@@ -167,7 +167,12 @@ func TestInvokeSync(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	client := NewRemotingClient()
+
+	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
+	clientSend.Add(1)
+
 	go func() {
+		clientSend.Wait()
 		receiveCommand, err := client.InvokeSync(addr,
 			clientSendRemtingCommand, time.Second)
 		if err != nil {
@@ -189,6 +194,7 @@ func TestInvokeSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
+	clientSend.Done()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -337,7 +343,11 @@ func TestInvokeOneWay(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	client := NewRemotingClient()
+
+	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
+	clientSend.Add(1)
 	go func() {
+		clientSend.Wait()
 		err := client.InvokeOneWay(addr, clientSendRemtingCommand, 3*time.Second)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
@@ -350,6 +360,7 @@ func TestInvokeOneWay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
+	clientSend.Done()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -366,8 +377,9 @@ func TestInvokeOneWay(t *testing.T) {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
 					clientSendRemtingCommand.Code)
 			}
-			return
+			goto done
 		}
 	}
-	wg.Done()
+done:
+	wg.Wait()
 }
