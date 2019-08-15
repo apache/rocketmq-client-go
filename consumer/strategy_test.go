@@ -377,3 +377,4 @@ func TestAllocateByMachineRoom(t *testing.T) {
 		})
 	})
 }
+
