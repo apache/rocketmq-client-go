@@ -67,7 +67,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	internal.RegisterNamsrv(srvs)
 
 	dc := &defaultConsumer{
-		client:			internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions,nil),
+		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
 		state:          internal.StateCreateJust,
