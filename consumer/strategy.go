@@ -21,6 +21,7 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"strings"
 )
 
 // Strategy Algorithm for message allocating between consumers
@@ -41,14 +42,14 @@ type AllocateStrategy func(string, string, []*primitive.MessageQueue, []string) 
 
 func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
 	cidAll []string) []*primitive.MessageQueue {
-	if currentCID == "" || utils.IsArrayEmpty(mqAll) || utils.IsArrayEmpty(cidAll) {
+	if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
 		return nil
 	}
+
 	var (
 		find  bool
 		index int
 	)
-
 	for idx := range cidAll {
 		if cidAll[idx] == currentCID {
 			find = true
@@ -57,7 +58,7 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 		}
 	}
 	if !find {
-		rlog.Infof("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
 		return nil
 	}
 
@@ -84,9 +85,40 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 	}
 
 	num := utils.MinInt(averageSize, mqSize-startIndex)
-	result := make([]*primitive.MessageQueue, num)
+	result := []*primitive.MessageQueue{}
 	for i := 0; i < num; i++ {
-		result[i] = mqAll[(startIndex+i)%mqSize]
+		result = append(result, mqAll[(startIndex+i)%mqSize])
+	}
+	return result
+}
+
+func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
+	cidAll []string) []*primitive.MessageQueue {
+	if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
+		return nil
+	}
+
+	var (
+		find  bool
+		index int
+	)
+	for idx := range cidAll {
+		if cidAll[idx] == currentCID {
+			find = true
+			index = idx
+			break
+		}
+	}
+	if !find {
+		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		return nil
+	}
+
+	result := []*primitive.MessageQueue{}
+	for i := index; i < len(mqAll); i++ {
+		if i%len(cidAll) == index {
+			result = append(result, mqAll[i])
+		}
 	}
 	return result
 }
@@ -97,19 +129,60 @@ func AllocateByMachineNearby(consumerGroup, currentCID string, mqAll []*primitiv
 	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
 }
 
-func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
-	cidAll []string) []*primitive.MessageQueue {
-	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
+func AllocateByConfig(list []*primitive.MessageQueue) AllocateStrategy {
+	return func(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue, cidAll []string) []*primitive.MessageQueue {
+		return list
+	}
 }
 
-func AllocateByConfig(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
-	cidAll []string) []*primitive.MessageQueue {
-	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
-}
+func AllocateByMachineRoom(consumeridcs []string) AllocateStrategy {
+	return func(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue, cidAll []string) []*primitive.MessageQueue {
+		if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
+			return nil
+		}
 
-func AllocateByMachineRoom(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
-	cidAll []string) []*primitive.MessageQueue {
-	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
+		var (
+			find  bool
+			index int
+		)
+		for idx := range cidAll {
+			if cidAll[idx] == currentCID {
+				find = true
+				index = idx
+				break
+			}
+		}
+		if !find {
+			rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+			return nil
+		}
+
+		premqAll := []*primitive.MessageQueue{}
+		for _, mq := range mqAll {
+			temp := strings.Split(mq.BrokerName, "@")
+			if len(temp) == 2 {
+				for _, idc := range consumeridcs {
+					if idc == temp[0] {
+						premqAll = append(premqAll, mq)
+					}
+				}
+			}
+		}
+
+		mod := len(premqAll) / len(cidAll)
+		rem := len(premqAll) % len(cidAll)
+		startIndex := mod * index
+		endIndex := startIndex + mod
+
+		result := []*primitive.MessageQueue{}
+		for i := startIndex; i < endIndex; i++ {
+			result = append(result, mqAll[i])
+		}
+		if rem > index {
+			result = append(result, premqAll[index+mod*len(cidAll)])
+		}
+		return result
+	}
 }
 
 func AllocateByConsistentHash(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,

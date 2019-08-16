@@ -27,12 +27,12 @@ import (
 	"testing"
 )
 
-func mockB4Start(c *pushConsumer){
-	c.topicSubscribeInfoTable.Store("TopicTest",[]*primitive.MessageQueue{})
+func mockB4Start(c *pushConsumer) {
+	c.topicSubscribeInfoTable.Store("TopicTest", []*primitive.MessageQueue{})
 }
 
-func TestStart(t *testing.T){
-	Convey("test Start method",t, func() {
+func TestStart(t *testing.T) {
+	Convey("test Start method", t, func() {
 		c, _ := NewPushConsumer(
 			WithGroupName("testGroup"),
 			WithNameServer([]string{"127.0.0.1:9876"}),
@@ -52,13 +52,13 @@ func TestStart(t *testing.T){
 
 		client.EXPECT().ClientID().Return("127.0.0.1@DEFAULT")
 		client.EXPECT().Start().Return()
-		client.EXPECT().RegisterConsumer(gomock.Any(),gomock.Any()).Return(nil)
+		client.EXPECT().RegisterConsumer(gomock.Any(), gomock.Any()).Return(nil)
 		client.EXPECT().UpdateTopicRouteInfo().AnyTimes().Return()
 
 		Convey("test topic route info not found", func() {
 			client.EXPECT().Shutdown().Return()
 			err = c.Start()
-			So(err.Error(),ShouldContainSubstring,"route info not found")
+			So(err.Error(), ShouldContainSubstring, "route info not found")
 		})
 
 		Convey("test topic route info found", func() {
@@ -67,7 +67,7 @@ func TestStart(t *testing.T){
 			client.EXPECT().SendHeartbeatToAllBrokerWithLock().Return()
 			mockB4Start(c)
 			err = c.Start()
-			So(err,ShouldBeNil)
+			So(err, ShouldBeNil)
 		})
 	})
 }

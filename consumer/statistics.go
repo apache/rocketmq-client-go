@@ -38,8 +38,8 @@ var (
 
 func init() {
 	topicAndGroupConsumeOKTPS = newStatsItemSet("CONSUME_OK_TPS")
-	topicAndGroupConsumeRT = newStatsItemSet("CONSUME_FAILED_TPS")
-	topicAndGroupConsumeFailedTPS = newStatsItemSet("CONSUME_RT")
+	topicAndGroupConsumeRT = newStatsItemSet("CONSUME_RT")
+	topicAndGroupConsumeFailedTPS = newStatsItemSet("CONSUME_FAILED_TPS")
 	topicAndGroupPullTPS = newStatsItemSet("PULL_TPS")
 	topicAndGroupPullRT = newStatsItemSet("PULL_RT")
 }
