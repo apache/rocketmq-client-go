@@ -46,8 +46,8 @@ func MakeFileIfNotExist(path string) error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(path, 0755)
-			return err
 		}
+		return err
 	}
 	if !info.IsDir() {
 		return errors.New(path + " is a file")
