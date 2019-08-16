@@ -175,11 +175,11 @@ func AllocateByMachineRoom(consumeridcs []string) AllocateStrategy {
 		endIndex := startIndex + mod
 
 		result := []*primitive.MessageQueue{}
-		for i:= startIndex; i<endIndex; i++ {
+		for i := startIndex; i < endIndex; i++ {
 			result = append(result, mqAll[i])
 		}
 		if rem > index {
-			result = append(result, premqAll[index + mod *len(cidAll)])
+			result = append(result, premqAll[index+mod*len(cidAll)])
 		}
 		return result
 	}
