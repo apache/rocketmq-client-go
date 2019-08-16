@@ -1,6 +1,7 @@
 module github.com/apache/rocketmq-client-go
 
 require (
+	github.com/agiledragon/gomonkey v0.0.0-20190517145658-8fa491f7b918
 	github.com/emirpasic/gods v1.12.0
 	github.com/golang/mock v1.3.1
 	github.com/pkg/errors v0.8.1

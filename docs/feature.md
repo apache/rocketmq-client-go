@@ -40,9 +40,9 @@
     
 ### AllocateMessageQueueStrategy
 - [x] AllocateMessageQueueAveragely
-- [ ] AllocateMessageQueueAveragelyByCircle
-- [ ] AllocateMessageQueueByConfig
-- [ ] AllocateMessageQueueByMachineRoom
+- [x] AllocateMessageQueueAveragelyByCircle
+- [X] AllocateMessageQueueByConfig
+- [X] AllocateMessageQueueByMachineRoom
 
 ### Other
 - [x] Rebalance

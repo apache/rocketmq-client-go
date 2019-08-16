@@ -24,7 +24,3 @@ func GetAddressByBytes(data []byte) string {
 func UnCompress(data []byte) []byte {
 	return data
 }
-
-func IsArrayEmpty(i ...interface{}) bool {
-	return len(i) == 0
-}
