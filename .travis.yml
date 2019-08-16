@@ -13,6 +13,7 @@ env:
     - TOPIC=test
     - GROUP=testGroup
     - GO111MODULE=on
+    - HOME=$TRAVIS_HOME
   matrix:
     - OS_TYPE=centos OS_VERSION=7
 
