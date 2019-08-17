@@ -122,6 +122,8 @@ func (local *localFileOffsetStore) read(mq *primitive.MessageQueue, t readType) 
 }
 
 func (local *localFileOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
+	local.mutex.Lock()
+	defer local.mutex.Unlock()
 	rlog.Debugf("update offset: %s to %d", mq, offset)
 	localOffset, exist := local.OffsetTable[mq.Topic]
 	if !exist {
@@ -149,6 +151,8 @@ func (local *localFileOffsetStore) persist(mqs []*primitive.MessageQueue) {
 	if len(mqs) == 0 {
 		return
 	}
+	local.mutex.Lock()
+	defer local.mutex.Unlock()
 	table := make(map[string]map[int]*queueOffset)
 	for idx := range mqs {
 		mq := mqs[idx]

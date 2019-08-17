@@ -25,9 +25,6 @@ before_script:
   - perl -i -pe's/-Xms8g -Xmx8g -Xmn4g/-Xms2g -Xmx2g -Xmn1g/g' bin/runbroker.sh
   - nohup sh bin/mqnamesrv &
   - nohup sh bin/mqbroker -n localhost:9876 &
-  - sleep 10
-  - ./bin/mqadmin updateTopic -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS}  -t ${TOPIC}
-  - ./bin/mqadmin updateSubGroup -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS} -g ${GROUP}
 
 script:
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go

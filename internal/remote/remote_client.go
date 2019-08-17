@@ -31,7 +31,7 @@ import (
 	"github.com/apache/rocketmq-client-go/rlog"
 )
 
-type ClientRequestFunc func(*RemotingCommand) *RemotingCommand
+type ClientRequestFunc func(*RemotingCommand, net.Addr) *RemotingCommand
 
 type TcpOption struct {
 	// TODO
@@ -148,7 +148,7 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 			f := c.processors[cmd.Code]
 			if f != nil {
 				go func() { // 单个goroutine会造成死锁
-					res := f(cmd)
+					res := f(cmd, r.RemoteAddr())
 					if res != nil {
 						err := c.sendRequest(r, res)
 						if err != nil {
