@@ -21,6 +21,7 @@ import (
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
+	"stathat.com/c/consistent"
 	"strings"
 )
 
@@ -185,7 +186,42 @@ func AllocateByMachineRoom(consumeridcs []string) AllocateStrategy {
 	}
 }
 
-func AllocateByConsistentHash(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,
-	cidAll []string) []*primitive.MessageQueue {
-	return AllocateByAveragely(consumerGroup, currentCID, mqAll, cidAll)
+func AllocateByConsistentHash(virtualNodeCnt int) AllocateStrategy {
+	return func(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue, cidAll []string) []*primitive.MessageQueue {
+		if currentCID == "" || len(mqAll) == 0 || len(cidAll) == 0 {
+			return nil
+		}
+
+		var (
+			find bool
+		)
+		for idx := range cidAll {
+			if cidAll[idx] == currentCID {
+				find = true
+				break
+			}
+		}
+		if !find {
+			rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+			return nil
+		}
+
+		c := consistent.New()
+		c.NumberOfReplicas = virtualNodeCnt
+		for _, cid := range cidAll {
+			c.Add(cid)
+		}
+
+		result := []*primitive.MessageQueue{}
+		for _, mq := range mqAll {
+			clientNode, err := c.Get(mq.String())
+			if err != nil {
+				rlog.Warnf("[BUG] AllocateByConsistentHash err:%s", err.Error())
+			}
+			if currentCID == clientNode {
+				result = append(result, mq)
+			}
+		}
+		return result
+	}
 }
