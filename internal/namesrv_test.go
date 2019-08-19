@@ -25,48 +25,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestVerifyIP(t *testing.T) {
-	IPs := "127.0.0.1:9876"
-	err := verifyIP(IPs)
-	assert.Nil(t, err)
-
-	IPs = "12.24.123.243:10911"
-	err = verifyIP(IPs)
-	assert.Nil(t, err)
-
-	IPs = "xa2.0.0.1:9876"
-	err = verifyIP(IPs)
-	assert.Equal(t, "IP addr error", err.Error())
-
-	IPs = "333.0.0.1:9876"
-	err = verifyIP(IPs)
-	assert.Equal(t, "IP addr error", err.Error())
-
-	IPs = "127.0.0.1:9876;12.24.123.243:10911"
-	err = verifyIP(IPs)
-	assert.Equal(t, "multiple IP addr does not support", err.Error())
-}
-
 // TestSelector test roundrobin selector in namesrv
 func TestSelector(t *testing.T) {
 	srvs := []string{"127.0.0.1:9876", "127.0.0.1:9879", "12.24.123.243:10911", "12.24.123.243:10915"}
-	namesrv, err := NewNamesrv(srvs...)
+	namesrv, err := NewNamesrv(srvs)
 	assert.Nil(t, err)
 
-	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[1], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[2], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[3], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[1], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[2], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[3], namesrv.GetNamesrv())
-	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
+	assert.Equal(t, srvs[0], namesrv.getNamesrv())
+	assert.Equal(t, srvs[1], namesrv.getNamesrv())
+	assert.Equal(t, srvs[2], namesrv.getNamesrv())
+	assert.Equal(t, srvs[3], namesrv.getNamesrv())
+	assert.Equal(t, srvs[0], namesrv.getNamesrv())
+	assert.Equal(t, srvs[1], namesrv.getNamesrv())
+	assert.Equal(t, srvs[2], namesrv.getNamesrv())
+	assert.Equal(t, srvs[3], namesrv.getNamesrv())
+	assert.Equal(t, srvs[0], namesrv.getNamesrv())
 }
 
 func TestGetNamesrv(t *testing.T) {
 	Convey("Test GetNamesrv round-robin strategy", t, func() {
-		ns := &Namesrvs{
+		ns := &namesrvs{
 			srvs: []string{"192.168.100.1",
 				"192.168.100.2",
 				"192.168.100.3",
@@ -77,10 +55,10 @@ func TestGetNamesrv(t *testing.T) {
 		}
 
 		index1 := ns.index
-		IP1 := ns.GetNamesrv()
+		IP1 := ns.getNamesrv()
 
 		index2 := ns.index
-		IP2 := ns.GetNamesrv()
+		IP2 := ns.getNamesrv()
 
 		So(index1+1, ShouldEqual, index2)
 		So(IP1, ShouldEqual, ns.srvs[index1])

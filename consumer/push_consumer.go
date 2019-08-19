@@ -24,11 +24,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
 )
 
 // In most scenarios, this is the mostly recommended usage to consume messages.
@@ -60,17 +61,19 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
 	if !defaultOpts.Credentials.IsEmpty() {
 		srvs.SetCredentials(defaultOpts.Credentials)
 	}
-	internal.RegisterNamsrv(srvs)
+	defaultOpts.Namesrv = srvs
+
 	if defaultOpts.Namespace != "" {
 		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
 	}
+
 	dc := &defaultConsumer{
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
@@ -82,6 +85,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		fromWhere:      defaultOpts.FromWhere,
 		allocate:       defaultOpts.Strategy,
 		option:         defaultOpts,
+		namesrv:        srvs,
 	}
 
 	p := &pushConsumer{
@@ -435,7 +439,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		//	pullRequest.SubVersion = data.SubVersion
 		//}
 
-		brokerResult := tryFindBroker(request.mq)
+		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
 		if brokerResult == nil {
 			rlog.Warnf("no broker found for %s", request.mq.String())
 			sleepTime = _PullDelayTimeWhenError
@@ -507,7 +511,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
 	var brokerAddr string
 	if len(brokerName) != 0 {
-		brokerAddr = internal.FindBrokerAddrByName(brokerName)
+		brokerAddr = pc.defaultConsumer.namesrv.FindBrokerAddrByName(brokerName)
 	} else {
 		brokerAddr = msg.StoreHost
 	}

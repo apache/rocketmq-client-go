@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
@@ -203,13 +205,13 @@ type traceDispatcher struct {
 	discardCount int64
 
 	// support deliver trace message to other cluster.
-	namesrvs []string
+	namesrvs *namesrvs
 	// round robin index
 	rrindex int32
 	cli     RMQClient
 }
 
-func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel) *traceDispatcher {
+func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel, nameServerAddrs []string) *traceDispatcher {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -222,8 +224,14 @@ func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel) *trac
 		t = TraceTopicPrefix + traceTopic
 	}
 
+	srvs, err := NewNamesrv(nameServerAddrs)
+	if err != nil {
+		panic(errors.Wrap(err, "new Namesrv failed."))
+	}
+
 	cliOp := DefaultClientOptions()
 	cliOp.RetryTimes = 0
+	cliOp.Namesrv = srvs
 	cli := GetOrNewRocketMQClient(cliOp, nil)
 	return &traceDispatcher{
 		ctx:    ctx,
@@ -234,6 +242,7 @@ func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel) *trac
 		input:      make(chan TraceContext, 1024),
 		batchCh:    make(chan []*TraceContext, 2048),
 		cli:        cli,
+		namesrvs:   srvs,
 	}
 }
 
@@ -396,7 +405,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keyset Keyset, regionID string, dat
 }
 
 func (td *traceDispatcher) findMq() (*primitive.MessageQueue, string) {
-	mqs, err := FetchPublishMessageQueues(td.traceTopic)
+	mqs, err := td.namesrvs.FetchPublishMessageQueues(td.traceTopic)
 	if err != nil {
 		rlog.Error("fetch publish message queues failed. err: %v", err)
 		return nil, ""
@@ -410,7 +419,7 @@ func (td *traceDispatcher) findMq() (*primitive.MessageQueue, string) {
 	mq := mqs[i]
 
 	brokerName := mq.BrokerName
-	addr := FindBrokerAddrByName(brokerName)
+	addr := td.namesrvs.FindBrokerAddrByName(brokerName)
 
 	return mq, addr
 }

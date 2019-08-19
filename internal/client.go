@@ -96,7 +96,8 @@ func DefaultClientOptions() ClientOptions {
 
 type ClientOptions struct {
 	GroupName         string
-	NameServerAddrs   []string
+	NameServerAddrs   primitive.NamesrvAddr
+	Namesrv           *namesrvs
 	ClientIP          string
 	InstanceName      string
 	UnitMode          bool
@@ -162,6 +163,7 @@ type rmqClient struct {
 	remoteClient *remote.RemotingClient
 	hbMutex      sync.Mutex
 	close        bool
+	namesrvs     *namesrvs
 }
 
 var clientMap sync.Map
@@ -170,6 +172,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),
+		namesrvs:     option.Namesrv,
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	if !loaded {
@@ -244,7 +247,7 @@ func (c *rmqClient) Start() {
 		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
 		go func() {
 			for !c.close {
-				cleanOfflineBroker()
+				c.namesrvs.cleanOfflineBroker()
 				c.SendHeartbeatToAllBrokerWithLock()
 				time.Sleep(_HeartbeatBrokerInterval)
 			}
@@ -349,7 +352,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		rlog.Info("sending heartbeat, but no producer and no consumer")
 		return
 	}
-	brokerAddressesMap.Range(func(key, value interface{}) bool {
+	c.namesrvs.brokerAddressesMap.Range(func(key, value interface{}) bool {
 		brokerName := key.(string)
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
@@ -360,13 +363,13 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 				return true
 			}
 			if response.Code == ResSuccess {
-				v, exist := brokerVersionMap.Load(brokerName)
+				v, exist := c.namesrvs.brokerVersionMap.Load(brokerName)
 				var m map[string]int32
 				if exist {
 					m = v.(map[string]int32)
 				} else {
 					m = make(map[string]int32, 4)
-					brokerVersionMap.Store(brokerName, m)
+					c.namesrvs.brokerVersionMap.Store(brokerName, m)
 				}
 				m[brokerName] = int32(response.Version)
 				rlog.Debugf("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
@@ -387,7 +390,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		return true
 	})
 	for topic := range publishTopicSet {
-		c.UpdatePublishInfo(topic, UpdateTopicRouteInfo(topic))
+		c.UpdatePublishInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
 	}
 
 	subscribedTopicSet := make(map[string]bool, 0)
@@ -401,7 +404,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	})
 
 	for topic := range subscribedTopicSet {
-		c.updateSubscribeInfo(topic, UpdateTopicRouteInfo(topic))
+		c.updateSubscribeInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
 	}
 }
 
@@ -567,7 +570,7 @@ func (c *rmqClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
 	}
 	c.producerMap.Range(func(key, value interface{}) bool {
 		p := value.(InnerProducer)
-		publishInfo := routeData2PublishInfo(topic, data)
+		publishInfo := c.namesrvs.routeData2PublishInfo(topic, data)
 		publishInfo.HaveTopicRouterInfo = true
 		p.UpdateTopicPublishInfo(topic, publishInfo)
 		return true

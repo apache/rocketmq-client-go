@@ -167,11 +167,9 @@ func WithGroupName(group string) Option {
 }
 
 // WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers []string) Option {
+func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 	return func(opts *consumerOptions) {
-		if len(nameServers) > 0 {
-			opts.NameServerAddrs = nameServers
-		}
+		opts.NameServerAddrs = nameServers
 	}
 }
 

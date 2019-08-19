@@ -55,14 +55,14 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
 	if !defaultOpts.Credentials.IsEmpty() {
 		srvs.SetCredentials(defaultOpts.Credentials)
 	}
-	internal.RegisterNamsrv(srvs)
+	defaultOpts.Namesrv = srvs
 
 	producer := &defaultProducer{
 		group:      defaultOpts.GroupName,
@@ -155,7 +155,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			continue
 		}
 
-		addr := internal.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -200,7 +200,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
 
-	addr := internal.FindBrokerAddrByName(mq.BrokerName)
+	addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
@@ -246,7 +246,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			continue
 		}
 
-		addr := internal.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -299,7 +299,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
-		p.client.UpdatePublishInfo(topic, internal.UpdateTopicRouteInfo(topic))
+		p.client.UpdatePublishInfo(topic, p.options.Namesrv.UpdateTopicRouteInfo(topic))
 		v, exist = p.publishInfo.Load(topic)
 	}
 
@@ -454,7 +454,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
 	// 估计没有反序列化回来
-	brokerAddr := internal.FindBrokerAddrByName(result.MessageQueue.BrokerName)
+	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
 		CommitLogOffset:      msgID.Offset,

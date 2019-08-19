@@ -31,8 +31,9 @@ type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker)
 
 // config for message trace.
 type TraceConfig struct {
-	TraceTopic string
-	Access     AccessChannel
+	TraceTopic   string
+	Access       AccessChannel
+	NamesrvAddrs []string
 }
 
 func ChainInterceptors(interceptors ...Interceptor) Interceptor {
