@@ -175,6 +175,13 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
+// WithNamespace set the namespace of consumer
+func WithNamespace(namespace string) Option {
+	return func(opts *consumerOptions) {
+		opts.Namespace = namespace
+	}
+}
+
 func WithVIPChannel(enable bool) Option {
 	return func(opts *consumerOptions) {
 		opts.VIPChannelEnabled = enable

@@ -102,10 +102,10 @@ type ClientOptions struct {
 	UnitMode          bool
 	UnitName          string
 	VIPChannelEnabled bool
-	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
 	Credentials       primitive.Credentials
+	Namespace         string
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -116,8 +116,8 @@ func (opt *ClientOptions) ChangeInstanceNameToPID() {
 
 func (opt *ClientOptions) String() string {
 	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, ACLEnabled=%v]", opt.ClientIP,
-		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v]", opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled)
 }
 
 //go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal RMQClient

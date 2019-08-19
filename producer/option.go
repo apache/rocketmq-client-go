@@ -61,6 +61,13 @@ func WithNameServer(nameServers []string) Option {
 	}
 }
 
+// WithNamespace set the namespace of producer
+func WithNamespace(namespace string) Option {
+	return func(opts *producerOptions) {
+		opts.Namespace = namespace
+	}
+}
+
 func WithSendMsgTimeout(duration time.Duration) Option {
 	return func(opts *producerOptions) {
 		opts.SendMsgTimeout = duration

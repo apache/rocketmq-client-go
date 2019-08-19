@@ -49,6 +49,7 @@ func MakeFileIfNotExist(path string) error {
 				return err
 			}
 		}
+		return err
 	}
 	if !info.IsDir() {
 		return errors.New(path + " is a file")

@@ -614,14 +614,14 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 					//delete(mqSet, mq)
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s", dc.consumerGroup, mq.String())
+					rlog.Debugf("do defaultConsumer, Group:%s, remove unnecessary mq: %s", dc.consumerGroup, mq.String())
 				}
 			} else if pq.isPullExpired() && dc.cType == _PushConsume {
 				pq.dropped = true
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					delete(mqSet, mq)
 					changed = true
-					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s, "+
+					rlog.Debugf("do defaultConsumer, Group:%s, remove unnecessary mq: %s, "+
 						"because pull was paused, so try to fixed it", dc.consumerGroup, mq)
 				}
 			}
@@ -649,7 +649,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if exist {
 					rlog.Debugf("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
 				} else {
-					rlog.Infof("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
+					rlog.Debugf("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
 					pq := newProcessQueue(dc.consumeOrderly)
 					dc.processQueueTable.Store(mq, pq)
 					pr := PullRequest{
