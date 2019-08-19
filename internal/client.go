@@ -210,6 +210,12 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			return nil
 		})
 
+		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive get consumer running info request...")
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			res.Remark = "the go client has not supported consumer running info"
+			return res
+		})
 	}
 	return actual.(*rmqClient)
 }

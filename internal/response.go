@@ -19,6 +19,7 @@ package internal
 
 const (
 	ResSuccess              = int16(0)
+	ResError                = int16(1)
 	ResFlushDiskTimeout     = int16(10)
 	ResSlaveNotAvailable    = int16(11)
 	ResFlushSlaveTimeout    = int16(12)

@@ -29,21 +29,52 @@ var opaque int32
 const (
 	// 0, REQUEST_COMMAND
 	RPCType = 0
-
 	// 1, RPC
 	RPCOneWay = 1
-
 	//ResponseType for response
 	ResponseType = 1
-
-	_Flag         = 0
-	_LanguageCode = byte(9)
-	_Version      = 137
+	_Flag        = 0
+	_Version     = 317
 )
+
+type LanguageCode byte
+
+const (
+	_Java    = LanguageCode(0)
+	_Go      = LanguageCode(9)
+	_Unknown = LanguageCode(127)
+)
+
+func (lc LanguageCode) MarshalJSON() ([]byte, error) {
+	return []byte(`"GO"`), nil
+}
+
+func (lc *LanguageCode) UnmarshalJSON(b []byte) error {
+	switch string(b) {
+	case "JAVA":
+		*lc = _Java
+	case "GO":
+		*lc = _Go
+	default:
+		*lc = _Unknown
+	}
+	return nil
+}
+
+func (lc LanguageCode) String() string {
+	switch lc {
+	case _Java:
+		return "JAVA"
+	case _Go:
+		return "GO"
+	default:
+		return "unknown"
+	}
+}
 
 type RemotingCommand struct {
 	Code      int16             `json:"code"`
-	Language  byte              `json:"-"`
+	Language  LanguageCode      `json:"language,string"`
 	Version   int16             `json:"version"`
 	Opaque    int32             `json:"opaque"`
 	Flag      int32             `json:"flag"`
@@ -62,7 +93,7 @@ func NewRemotingCommand(code int16, header CustomHeader, body []byte) *RemotingC
 		Version:   _Version,
 		Opaque:    atomic.AddInt32(&opaque, 1),
 		Body:      body,
-		Language:  _LanguageCode,
+		Language:  _Go,
 		ExtFields: make(map[string]string),
 	}
 
@@ -264,7 +295,7 @@ func (c *rmqCodec) encodeHeader(command *RemotingCommand) ([]byte, error) {
 	}
 
 	// language flag, length is 1 byte
-	err = binary.Write(buf, binary.BigEndian, _LanguageCode)
+	err = binary.Write(buf, binary.BigEndian, _Go)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +395,7 @@ func (c *rmqCodec) decodeHeader(data []byte) (*RemotingCommand, error) {
 	if err != nil {
 		return nil, err
 	}
-	command.Language = languageCode
+	command.Language = LanguageCode(languageCode)
 
 	var version int16
 	err = binary.Read(buf, binary.BigEndian, &version)
