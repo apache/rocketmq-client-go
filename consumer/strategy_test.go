@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"fmt"
 	"github.com/apache/rocketmq-client-go/primitive"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
@@ -373,6 +374,91 @@ func TestAllocateByMachineRoom(t *testing.T) {
 			for _, value := range cases {
 				result := strategy("testGroup", value.currentCid, value.mqAll, value.cidAll)
 				So(result, ShouldResemble, value.expectedQueue)
+			}
+		})
+	})
+}
+
+func TestAllocateByConsistentHash(t *testing.T) {
+	Convey("Given virtualNodeCnt with a starting value", t, func() {
+		virtualNodeCnt := 10
+		strategy := AllocateByConsistentHash(virtualNodeCnt)
+
+		queues := []*primitive.MessageQueue{
+			{
+				QueueId:    0,
+				BrokerName: "192.168.24.1@defaultName",
+			},
+			{
+				QueueId:    1,
+				BrokerName: "192.168.24.1@defaultName",
+			},
+			{
+				QueueId:    2,
+				BrokerName: "192.168.24.1@defaultName",
+			},
+			{
+				QueueId:    3,
+				BrokerName: "192.168.24.2@defaultName",
+			},
+			{
+				QueueId:    4,
+				BrokerName: "192.168.24.2@defaultName",
+			},
+			{
+				QueueId:    5,
+				BrokerName: "192.168.24.3@defaultName",
+			},
+		}
+
+		Convey("When params is empty", func() {
+			result := strategy("testGroup", "", queues, []string{"192.168.24.1@default"})
+			So(result, ShouldBeNil)
+
+			result = strategy("testGroup", "192.168.24.1@default", nil, []string{"192.168.24.1@default"})
+			So(result, ShouldBeNil)
+
+			result = strategy("testGroup", "192.168.24.1@default", queues, nil)
+			So(result, ShouldBeNil)
+		})
+
+		type testCase struct {
+			currentCid string
+			mqAll      []*primitive.MessageQueue
+			cidAll     []string
+		}
+		cases := []testCase{
+			{
+				currentCid: "192.168.24.1@default",
+				mqAll:      queues,
+				cidAll:     []string{"192.168.24.1@default", "192.168.24.2@default", "192.168.24.3@default"},
+			},
+			{
+				currentCid: "192.168.24.2@default",
+				mqAll:      queues,
+				cidAll:     []string{"192.168.24.1@default", "192.168.24.2@default", "192.168.24.3@default"},
+			},
+			{
+				currentCid: "192.168.24.3@default",
+				mqAll:      queues,
+				cidAll:     []string{"192.168.24.1@default", "192.168.24.2@default", "192.168.24.3@default"},
+			},
+			{
+				currentCid: "192.168.24.1@default",
+				mqAll:      queues,
+				cidAll:     []string{"192.168.24.1@default", "192.168.24.2@default"},
+			},
+			{
+				currentCid: "192.168.24.2@default",
+				mqAll:      queues,
+				cidAll:     []string{"192.168.24.1@default", "192.168.24.2@default"},
+			},
+		}
+
+		Convey("observe the result of AllocateByMachineRoom", func() {
+			for _, value := range cases {
+				result := strategy("testGroup", value.currentCid, value.mqAll, value.cidAll)
+				fmt.Printf("\n\n currentCid:%s, cidAll:%s, \n allocateResult:%+v \n", value.currentCid, value.cidAll, result)
 			}
 		})
 	})
