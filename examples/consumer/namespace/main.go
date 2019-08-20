@@ -36,6 +36,7 @@ func main() {
 			AccessKey: "RocketMQ",
 			SecretKey: "12345678",
 		}),
+		consumer.WithNamespace("namespace"),
 	)
 	if err != nil {
 		fmt.Println("init consumer error: " + err.Error())

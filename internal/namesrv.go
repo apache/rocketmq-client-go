@@ -22,6 +22,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 var (
@@ -42,6 +44,9 @@ type Namesrvs struct {
 
 	// index indicate the next position for getNamesrv
 	index int
+
+	// credentials for query topic route
+	credentials primitive.Credentials
 }
 
 // NewNamesrv init Namesrv from namesrv addr string.
@@ -80,7 +85,7 @@ func (s *Namesrvs) GetNamesrv() string {
 	}
 	index %= len(s.srvs)
 	s.index = index
-	return addr
+	return strings.TrimLeft(addr, "http(s)://")
 }
 
 func (s *Namesrvs) Size() int {
@@ -90,8 +95,18 @@ func (s *Namesrvs) Size() int {
 func (s *Namesrvs) String() string {
 	return strings.Join(s.srvs, ";")
 }
+func (s *Namesrvs) SetCredentials(credentials primitive.Credentials) {
+	s.credentials = credentials
+}
+
+var (
+	httpPrefixRegex, _ = regexp.Compile("^(http|https)://")
+)
 
 func verifyIP(ip string) error {
+	if httpPrefixRegex.MatchString(ip) {
+		return nil
+	}
 	if strings.Contains(ip, ";") {
 		return ErrMultiIP
 	}

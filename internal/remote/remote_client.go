@@ -150,6 +150,8 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 				go func() { // 单个goroutine会造成死锁
 					res := f(cmd, r.RemoteAddr())
 					if res != nil {
+						res.Opaque = cmd.Opaque
+						res.Flag |= 1 << 0
 						err := c.sendRequest(r, res)
 						if err != nil {
 							rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)

@@ -160,8 +160,8 @@ func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) 
 
 }
 
-func (c *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
-	err := c.makeSureStateOK()
+func (dc *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
+	err := dc.makeSureStateOK()
 	if err != nil {
 		return err
 	}

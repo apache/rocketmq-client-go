@@ -52,6 +52,9 @@ var (
 )
 
 func RegisterNamsrv(s *Namesrvs) {
+	if !s.credentials.IsEmpty() {
+		nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(s.credentials))
+	}
 	nameSrvs = s
 }
 
@@ -202,8 +205,8 @@ func FindBrokerAddrByName(brokerName string) string {
 func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
 	var (
 		brokerAddr = ""
-		slave      = false
-		found      = false
+		//slave      = false
+		//found      = false
 	)
 
 	v, exist := brokerAddressesMap.Load(brokerName)
@@ -212,22 +215,27 @@ func FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBro
 		return nil
 	}
 	data := v.(*BrokerData)
-	for k, v := range data.BrokerAddresses {
-		if v != "" {
-			found = true
-			if k != MasterId {
-				slave = true
-			}
-			brokerAddr = v
-			break
-		}
+	if len(data.BrokerAddresses) == 0 {
+		return nil
 	}
 
+	brokerAddr = data.BrokerAddresses[brokerId]
+	//for k, v := range data.BrokerAddresses {
+	//	if v != "" {
+	//		found = true
+	//		if k != MasterId {
+	//			slave = true
+	//		}
+	//		brokerAddr = v
+	//		break
+	//	}
+	//}
+
 	var result *FindBrokerResult
-	if found {
+	if brokerAddr != "" {
 		result = &FindBrokerResult{
 			BrokerAddr:    brokerAddr,
-			Slave:         slave,
+			Slave:         brokerId != 0,
 			BrokerVersion: findBrokerVersion(brokerName, brokerAddr),
 		}
 	}

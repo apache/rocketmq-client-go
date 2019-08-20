@@ -64,8 +64,13 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
 	internal.RegisterNamsrv(srvs)
-
+	if defaultOpts.Namespace != "" {
+		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
+	}
 	dc := &defaultConsumer{
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
@@ -96,7 +101,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	return p, nil
 }
 
-// TODO: add shutdown on pushConsumr.
+// TODO: add shutdown on pushConsumer.
 func (pc *pushConsumer) Start() error {
 	var err error
 	pc.once.Do(func() {
@@ -162,6 +167,9 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if pc.state != internal.StateCreateJust {
 		return errors.New("subscribe topic only started before")
+	}
+	if pc.option.Namespace != "" {
+		topic = pc.option.Namespace + "%" + topic
 	}
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
@@ -285,7 +293,7 @@ func (pc *pushConsumer) validate() {
 }
 
 func (pc *pushConsumer) pullMessage(request *PullRequest) {
-	rlog.Infof("start a nwe Pull Message task %s for [%s]", request.String(), pc.consumerGroup)
+	rlog.Debugf("start a new Pull Message task %s for [%s]", request.String(), pc.consumerGroup)
 	var sleepTime time.Duration
 	pq := request.pq
 	go func() {

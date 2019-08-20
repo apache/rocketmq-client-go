@@ -59,6 +59,9 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
 	internal.RegisterNamsrv(srvs)
 
 	producer := &defaultProducer{
@@ -140,6 +143,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
+
 	var producerCtx *primitive.ProducerCtx
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
@@ -185,6 +192,9 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 }
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
 	mq := p.selectMessageQueue(msg)
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
@@ -224,9 +234,11 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message
 func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message) error {
 	retryTime := 1 + p.options.RetryTimes
 
-	var (
-		err error
-	)
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
+
+	var err error
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
 		if mq == nil {
@@ -251,6 +263,9 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string, 0)
+	}
 	if !msg.Batch && msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] == "" {
 		msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] = primitive.CreateUniqID()
 	}

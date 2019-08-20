@@ -102,10 +102,10 @@ type ClientOptions struct {
 	UnitMode          bool
 	UnitName          string
 	VIPChannelEnabled bool
-	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
 	Credentials       primitive.Credentials
+	Namespace         string
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -116,8 +116,8 @@ func (opt *ClientOptions) ChangeInstanceNameToPID() {
 
 func (opt *ClientOptions) String() string {
 	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, ACLEnabled=%v]", opt.ClientIP,
-		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v]", opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled)
 }
 
 //go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal RMQClient
@@ -210,6 +210,12 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			return nil
 		})
 
+		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive get consumer running info request...")
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			res.Remark = "the go client has not supported consumer running info"
+			return res
+		})
 	}
 	return actual.(*rmqClient)
 }
@@ -363,7 +369,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					brokerVersionMap.Store(brokerName, m)
 				}
 				m[brokerName] = int32(response.Version)
-				rlog.Infof("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
+				rlog.Debugf("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
 			}
 		}
 		return true

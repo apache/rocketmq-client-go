@@ -15,46 +15,56 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package main implements a producer with user custom interceptor.
 package main
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"time"
+	"strconv"
 
 	"github.com/apache/rocketmq-client-go"
-	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/producer"
 )
 
 func main() {
-	c, err := rocketmq.NewPushConsumer(
-		consumer.WithGroupName("testGroup"),
-		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
-		consumer.WithCredentials(primitive.Credentials{
+	p, err := rocketmq.NewProducer(
+		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithRetry(2),
+		producer.WithCredentials(primitive.Credentials{
 			AccessKey: "RocketMQ",
 			SecretKey: "12345678",
 		}),
+		producer.WithNamespace("namespace"),
 	)
+
 	if err != nil {
-		fmt.Println("init consumer error: " + err.Error())
+		fmt.Println("init producer error: " + err.Error())
 		os.Exit(0)
 	}
 
-	err = c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
-		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Printf("subscribe callback: %v \n", msgs)
-		return consumer.ConsumeSuccess, nil
-	})
+	err = p.Start()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Printf("start producer error: %s", err.Error())
+		os.Exit(1)
 	}
-	// Note: start after subscribe
-	err = c.Start()
+	for i := 0; i < 100000; i++ {
+		res, err := p.SendSync(context.Background(), &primitive.Message{
+			Topic:      "test",
+			Body:       []byte("Hello RocketMQ Go Client!"),
+			Properties: map[string]string{"order": strconv.Itoa(i)},
+		})
+
+		if err != nil {
+			fmt.Printf("send message error: %s\n", err)
+		} else {
+			fmt.Printf("send message success: result=%s\n", res.String())
+		}
+	}
+	err = p.Shutdown()
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
+		fmt.Printf("shundown producer error: %s", err.Error())
 	}
-	time.Sleep(time.Hour)
 }
