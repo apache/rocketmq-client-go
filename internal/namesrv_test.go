@@ -18,8 +18,10 @@ limitations under the License.
 package internal
 
 import (
+	"sync"
 	"testing"
 
+	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,4 +62,28 @@ func TestSelector(t *testing.T) {
 	assert.Equal(t, srvs[2], namesrv.GetNamesrv())
 	assert.Equal(t, srvs[3], namesrv.GetNamesrv())
 	assert.Equal(t, srvs[0], namesrv.GetNamesrv())
+}
+
+func TestGetNamesrv(t *testing.T) {
+	Convey("Test GetNamesrv round-robin strategy", t, func() {
+		ns := &Namesrvs{
+			srvs: []string{"192.168.100.1",
+				"192.168.100.2",
+				"192.168.100.3",
+				"192.168.100.4",
+				"192.168.100.5",
+			},
+			lock: new(sync.Mutex),
+		}
+
+		index1 := ns.index
+		IP1 := ns.GetNamesrv()
+
+		index2 := ns.index
+		IP2 := ns.GetNamesrv()
+
+		So(index1+1, ShouldEqual, index2)
+		So(IP1, ShouldEqual, ns.srvs[index1])
+		So(IP2, ShouldEqual, ns.srvs[index2])
+	})
 }
