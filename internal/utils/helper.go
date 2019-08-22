@@ -18,9 +18,9 @@ limitations under the License.
 package utils
 
 import (
-    "bytes"
-    "io/ioutil"
-    "compress/zlib"
+	"bytes"
+	"compress/zlib"
+	"io/ioutil"
 )
 
 func GetAddressByBytes(data []byte) string {
@@ -28,14 +28,14 @@ func GetAddressByBytes(data []byte) string {
 }
 
 func UnCompress(data []byte) []byte {
-    rdata := bytes.NewReader(data)
-    r, err := zlib.NewReader(rdata)
-    if err != nil {
-        return data
-    }
-    ret_data, err := ioutil.ReadAll(r)
-    if err != nil {
-        return data
-    }
-    return ret_data
+	rdata := bytes.NewReader(data)
+	r, err := zlib.NewReader(rdata)
+	if err != nil {
+		return data
+	}
+	ret_data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return data
+	}
+	return ret_data
 }
