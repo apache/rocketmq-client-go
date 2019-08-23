@@ -19,6 +19,7 @@ package rocketmq
 
 import (
 	"context"
+	"github.com/pkg/errors"
 
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
@@ -127,6 +128,10 @@ type PullConsumer interface {
 	//Resume(mqs ...primitive.MessageQueue) error
 }
 
+// The PullConsumer has not implemented completely, if you want have an experience of PullConsumer, you could use
+// consumer.NewPullConsumer(...), but it may changed in the future.
+//
+// The PullConsumer will be supported in next release
 func NewPullConsumer(opts ...consumer.Option) (PullConsumer, error) {
-	return nil, nil
+	return nil, errors.New("pull consumer has not supported")
 }

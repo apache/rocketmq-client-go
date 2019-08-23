@@ -290,9 +290,17 @@ func (dc *defaultConsumer) start() error {
 }
 
 func (dc *defaultConsumer) shutdown() error {
-	dc.state = internal.StateRunning
+	dc.state = internal.StateShutdown
+	mqs := make([]*primitive.MessageQueue, 0)
+	dc.processQueueTable.Range(func(key, value interface{}) bool {
+		k := key.(primitive.MessageQueue)
+		pq := value.(*processQueue)
+		pq.dropped = true
+		mqs = append(mqs, &k)
+		return true
+	})
+	dc.storage.persist(mqs)
 	dc.client.Shutdown()
-
 	return nil
 }
 
@@ -395,7 +403,6 @@ func (dc *defaultConsumer) doBalance() {
 					"topic=%s, clientId=%s, mqAllSize=%d, cidAllSize=%d, rebalanceResultSize=%d, "+
 					"rebalanceResultSet=%v", dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
 					len(cidAll), len(allocateResult), allocateResult)
-
 			}
 		}
 		return true

@@ -160,7 +160,7 @@ func (pc *pushConsumer) Start() error {
 }
 
 func (pc *pushConsumer) Shutdown() error {
-	return nil
+	return pc.defaultConsumer.shutdown()
 }
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
@@ -216,7 +216,43 @@ func (pc *pushConsumer) IsUnitMode() bool {
 }
 
 func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
-	// TODO
+	v, exit := pc.subscriptionDataTable.Load(topic)
+	if !exit {
+		return
+	}
+	data := v.(*internal.SubscriptionData)
+	newVersion := time.Now().UnixNano()
+	rlog.Infof("the MessageQueue changed, also update version: %d to %d", data.SubVersion, newVersion)
+	data.SubVersion = newVersion
+
+	data.SubVersion = time.Now().UnixNano()
+
+	// TODO: otpimize
+	count := 0
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		count++
+		return true
+	})
+	if count > 0 {
+		if pc.option.PullThresholdForTopic != -1 {
+			newVal := pc.option.PullThresholdForTopic / count
+			if newVal == 0 {
+				newVal = 1
+			}
+			rlog.Info("The PullThresholdForTopic is changed from %d to %d", pc.option.PullThresholdForTopic, newVal)
+			pc.option.PullThresholdForTopic = newVal
+		}
+
+		if pc.option.PullThresholdSizeForTopic != -1 {
+			newVal := pc.option.PullThresholdSizeForTopic / count
+			if newVal == 0 {
+				newVal = 1
+			}
+			rlog.Info("The PullThresholdSizeForTopic is changed from %d to %d", pc.option.PullThresholdSizeForTopic, newVal)
+			pc.option.PullThresholdSizeForTopic = newVal
+		}
+	}
+	pc.client.SendHeartbeatToAllBrokerWithLock()
 }
 
 func (pc *pushConsumer) validate() {
