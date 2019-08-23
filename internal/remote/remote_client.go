@@ -172,6 +172,7 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 
 func (c *RemotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 1024 * 1024), 64 * 1024 * 1024)
 	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		defer func() {
 			if err := recover(); err != nil {
