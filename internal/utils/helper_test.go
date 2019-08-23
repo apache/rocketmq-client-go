@@ -20,22 +20,18 @@ package utils
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"testing"
 )
 
-func GetAddressByBytes(data []byte) string {
-	return "127.0.0.1"
-}
+func TestUnCompress(t *testing.T) {
+	var b bytes.Buffer
+	var oriStr string = "hello, go"
+	zr := zlib.NewWriter(&b)
+	zr.Write([]byte(oriStr))
+	zr.Close()
 
-func UnCompress(data []byte) []byte {
-	rdata := bytes.NewReader(data)
-	r, err := zlib.NewReader(rdata)
-	if err != nil {
-		return data
+	retBytes := UnCompress(b.Bytes())
+	if string(retBytes) != oriStr {
+		t.Errorf("UnCompress was incorrect, got %s, want: %s .", retBytes, []byte(oriStr))
 	}
-	retData, err := ioutil.ReadAll(r)
-	if err != nil {
-		return data
-	}
-	return retData
 }
