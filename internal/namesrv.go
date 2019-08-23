@@ -59,10 +59,10 @@ type namesrvs struct {
 	// namesrv addr list
 	srvs []string
 
-	// lock for getNamesrv in case of update index race condition
+	// lock for getNameServerAddress in case of update index race condition
 	lock sync.Locker
 
-	// index indicate the next position for getNamesrv
+	// index indicate the next position for getNameServerAddress
 	index int
 
 	// brokerName -> *BrokerData
@@ -76,7 +76,7 @@ type namesrvs struct {
 
 	lockNamesrv sync.Mutex
 
-	nameSrvClient *remote.RemotingClient
+	nameSrvClient remote.RemotingClient
 }
 
 var _ Namesrvs = &namesrvs{}
@@ -94,8 +94,8 @@ func NewNamesrv(addr primitive.NamesrvAddr) (*namesrvs, error) {
 	}, nil
 }
 
-// getNamesrv return namesrv using round-robin strategy.
-func (s *namesrvs) getNamesrv() string {
+// getNameServerAddress return namesrv using round-robin strategy.
+func (s *namesrvs) getNameServerAddress() string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -118,26 +118,4 @@ func (s *namesrvs) String() string {
 }
 func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
 	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
-}
-
-var (
-	httpPrefixRegex, _ = regexp.Compile("^(http|https)://")
-)
-
-func verifyIP(ip string) error {
-	if httpPrefixRegex.MatchString(ip) {
-		return nil
-	}
-	if strings.Contains(ip, ";") {
-		return ErrMultiIP
-	}
-	ips := ipRegex.FindAllString(ip, -1)
-	if len(ips) == 0 {
-		return ErrIllegalIP
-	}
-
-	if len(ips) > 1 {
-		return ErrMultiIP
-	}
-	return nil
 }

@@ -31,15 +31,15 @@ func TestSelector(t *testing.T) {
 	namesrv, err := NewNamesrv(srvs)
 	assert.Nil(t, err)
 
-	assert.Equal(t, srvs[0], namesrv.getNamesrv())
-	assert.Equal(t, srvs[1], namesrv.getNamesrv())
-	assert.Equal(t, srvs[2], namesrv.getNamesrv())
-	assert.Equal(t, srvs[3], namesrv.getNamesrv())
-	assert.Equal(t, srvs[0], namesrv.getNamesrv())
-	assert.Equal(t, srvs[1], namesrv.getNamesrv())
-	assert.Equal(t, srvs[2], namesrv.getNamesrv())
-	assert.Equal(t, srvs[3], namesrv.getNamesrv())
-	assert.Equal(t, srvs[0], namesrv.getNamesrv())
+	assert.Equal(t, srvs[0], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[1], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[2], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[3], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[0], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[1], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[2], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[3], namesrv.getNameServerAddress())
+	assert.Equal(t, srvs[0], namesrv.getNameServerAddress())
 }
 
 func TestGetNamesrv(t *testing.T) {
@@ -55,10 +55,10 @@ func TestGetNamesrv(t *testing.T) {
 		}
 
 		index1 := ns.index
-		IP1 := ns.getNamesrv()
+		IP1 := ns.getNameServerAddress()
 
 		index2 := ns.index
-		IP2 := ns.getNamesrv()
+		IP2 := ns.getNameServerAddress()
 
 		So(index1+1, ShouldEqual, index2)
 		So(IP1, ShouldEqual, ns.srvs[index1])
