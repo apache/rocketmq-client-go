@@ -160,7 +160,7 @@ type rmqClient struct {
 	consumerMap sync.Map
 	once        sync.Once
 
-	remoteClient *remote.RemotingClient
+	remoteClient remote.RemotingClient
 	hbMutex      sync.Mutex
 	close        bool
 	namesrvs     *namesrvs

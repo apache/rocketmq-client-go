@@ -306,8 +306,8 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
 		response, err = s.nameSrvClient.InvokeSync(s.getNameServerAddress(), rc, requestTimeout)
 
-		if err != nil {
-			continue
+		if err == nil {
+			break
 		}
 	}
 	if err != nil {
@@ -416,10 +416,6 @@ func (s *namesrvs) routeData2PublishInfo(topic string, data *TopicRouteData) *To
 	}
 
 	return publishInfo
-}
-
-func (s *namesrvs) getNameServerAddress() string {
-	return s.getNamesrv()
 }
 
 // TopicRouteData TopicRouteData
