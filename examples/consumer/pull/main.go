@@ -20,9 +20,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go"
 	"time"
 
+	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"

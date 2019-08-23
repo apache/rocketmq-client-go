@@ -225,9 +225,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 	rlog.Infof("the MessageQueue changed, also update version: %d to %d", data.SubVersion, newVersion)
 	data.SubVersion = newVersion
 
-	data.SubVersion = time.Now().UnixNano()
-
-	// TODO: otpimize
+	// TODO: optimize
 	count := 0
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
 		count++
