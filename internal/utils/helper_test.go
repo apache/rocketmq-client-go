@@ -6,15 +6,15 @@ import (
 	"testing"
 )
 
-func Test_UnCompress(t *testing.T) {
+func TestUnCompress(t *testing.T) {
 	var b bytes.Buffer
-	var ori_s string = "hello, go"
+	var oriStr string = "hello, go"
 	zr := zlib.NewWriter(&b)
-	zr.Write([]byte(ori_s))
+	zr.Write([]byte(oriStr))
 	zr.Close()
 
-	ret_bytes := UnCompress(b.Bytes())
-	if string(ret_bytes) != ori_s {
-		t.Errorf("UnCompress was incorrect, got %s, want: %s .", ret_bytes, []byte(ori_s))
+	retBytes := UnCompress(b.Bytes())
+	if string(retBytes) != oriStr {
+		t.Errorf("UnCompress was incorrect, got %s, want: %s .", retBytes, []byte(oriStr))
 	}
 }

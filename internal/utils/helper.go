@@ -33,9 +33,9 @@ func UnCompress(data []byte) []byte {
 	if err != nil {
 		return data
 	}
-	ret_data, err := ioutil.ReadAll(r)
+	retData, err := ioutil.ReadAll(r)
 	if err != nil {
 		return data
 	}
-	return ret_data
+	return retData
 }
