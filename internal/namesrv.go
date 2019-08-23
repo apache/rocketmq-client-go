@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
@@ -34,8 +35,27 @@ var (
 	ErrIllegalIP    = errors.New("IP addr error")
 )
 
-// Namesrvs rocketmq namesrv instance.
-type Namesrvs struct {
+//go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal Namesrvs
+type Namesrvs interface {
+	AddBroker(routeData *TopicRouteData)
+
+	cleanOfflineBroker()
+
+	UpdateTopicRouteInfo(topic string) *TopicRouteData
+
+	FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error)
+
+	FindBrokerAddrByTopic(topic string) string
+
+	FindBrokerAddrByName(brokerName string) string
+
+	FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult
+
+	FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error)
+}
+
+// namesrvs rocketmq namesrv instance.
+type namesrvs struct {
 	// namesrv addr list
 	srvs []string
 
@@ -45,36 +65,37 @@ type Namesrvs struct {
 	// index indicate the next position for getNamesrv
 	index int
 
-	// credentials for query topic route
-	credentials primitive.Credentials
+	// brokerName -> *BrokerData
+	brokerAddressesMap sync.Map
+
+	// brokerName -> map[string]int32
+	brokerVersionMap sync.Map
+
+	//subscribeInfoMap sync.Map
+	routeDataMap sync.Map
+
+	lockNamesrv sync.Mutex
+
+	nameSrvClient *remote.RemotingClient
 }
 
+var _ Namesrvs = &namesrvs{}
+
 // NewNamesrv init Namesrv from namesrv addr string.
-func NewNamesrv(s ...string) (*Namesrvs, error) {
-	if len(s) == 0 {
-		return nil, ErrNoNameserver
+func NewNamesrv(addr primitive.NamesrvAddr) (*namesrvs, error) {
+	if err := addr.Check(); err != nil {
+		return nil, err
 	}
-
-	ss := s
-	if len(ss) == 1 {
-		// compatible with multi server env string: "a;b;c"
-		ss = strings.Split(s[0], ";")
-	}
-
-	for _, srv := range ss {
-		if err := verifyIP(srv); err != nil {
-			return nil, err
-		}
-	}
-
-	return &Namesrvs{
-		srvs: ss,
-		lock: new(sync.Mutex),
+	nameSrvClient := remote.NewRemotingClient()
+	return &namesrvs{
+		srvs:          addr,
+		lock:          new(sync.Mutex),
+		nameSrvClient: nameSrvClient,
 	}, nil
 }
 
-// GetNamesrv return namesrv using round-robin strategy.
-func (s *Namesrvs) GetNamesrv() string {
+// getNamesrv return namesrv using round-robin strategy.
+func (s *namesrvs) getNamesrv() string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -88,15 +109,15 @@ func (s *Namesrvs) GetNamesrv() string {
 	return strings.TrimLeft(addr, "http(s)://")
 }
 
-func (s *Namesrvs) Size() int {
+func (s *namesrvs) Size() int {
 	return len(s.srvs)
 }
 
-func (s *Namesrvs) String() string {
+func (s *namesrvs) String() string {
 	return strings.Join(s.srvs, ";")
 }
-func (s *Namesrvs) SetCredentials(credentials primitive.Credentials) {
-	s.credentials = credentials
+func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
+	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
 }
 
 var (

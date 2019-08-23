@@ -22,11 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -82,7 +83,7 @@ func mockB4Send(p *defaultProducer) {
 			},
 		},
 	})
-	internal.AddBroker(&internal.TopicRouteData{
+	p.options.Namesrv.AddBroker(&internal.TopicRouteData{
 		BrokerDataList: []*internal.BrokerData{
 			{
 				Cluster:    "cluster",

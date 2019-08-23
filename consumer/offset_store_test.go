@@ -1,13 +1,14 @@
 package consumer
 
 import (
-	"github.com/agiledragon/gomonkey"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/golang/mock/gomock"
-	. "github.com/smartystreets/goconvey/convey"
-	"testing"
 )
 
 func TestNewLocalFileOffsetStore(t *testing.T) {
@@ -192,8 +193,10 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
+		namesrv := internal.NewMockNamesrvs(ctrl)
+
 		rmqClient := internal.NewMockRMQClient(ctrl)
-		remoteStore := NewRemoteOffsetStore("testGroup", rmqClient)
+		remoteStore := NewRemoteOffsetStore("testGroup", rmqClient, namesrv)
 
 		type offsetCase struct {
 			queue          *primitive.MessageQueue
@@ -251,10 +254,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		Convey("test persist", func() {
 			queues := []*primitive.MessageQueue{mq}
 
-			patch := gomonkey.ApplyFunc(internal.FindBrokerAddrByName, func(_ string) string {
-				return "192.168.24.1:10911"
-			})
-			defer patch.Reset()
+			namesrv.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("192.168.24.1:10911")
 
 			ret := &remote.RemotingCommand{
 				Code: internal.ResSuccess,

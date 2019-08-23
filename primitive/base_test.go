@@ -15,25 +15,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package rocketmq
+package primitive
 
 import (
-	"github.com/apache/rocketmq-client-go/rlog"
+	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	// ErrRequestTimeout for request timeout error
-	ErrRequestTimeout = errors.New("request timeout")
+func TestVerifyIP(t *testing.T) {
+	IPs := "127.0.0.1:9876"
+	err := verifyIP(IPs)
+	assert.Nil(t, err)
 
-	ErrMQEmpty = errors.New("MessageQueue is nil")
-	ErrOffset  = errors.New("offset < 0")
-	ErrNumbers = errors.New("numbers < 0")
-)
+	IPs = "12.24.123.243:10911"
+	err = verifyIP(IPs)
+	assert.Nil(t, err)
 
-func CheckError(action string, err error) {
-	if err != nil {
-		rlog.Errorf("%s error: %s", action, err.Error())
-	}
+	IPs = "xa2.0.0.1:9876"
+	err = verifyIP(IPs)
+	assert.Equal(t, "IP addr error", err.Error())
+
+	IPs = "333.0.0.1:9876"
+	err = verifyIP(IPs)
+	assert.Equal(t, "IP addr error", err.Error())
+
+	IPs = "127.0.0.1:9876;12.24.123.243:10911"
+	err = verifyIP(IPs)
+	assert.Equal(t, "multiple IP addr does not support", err.Error())
 }

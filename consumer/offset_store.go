@@ -185,13 +185,15 @@ type remoteBrokerOffsetStore struct {
 	group       string
 	OffsetTable map[string]map[int]*queueOffset `json:"OffsetTable"`
 	client      internal.RMQClient
+	namesrv     internal.Namesrvs
 	mutex       sync.RWMutex
 }
 
-func NewRemoteOffsetStore(group string, client internal.RMQClient) OffsetStore {
+func NewRemoteOffsetStore(group string, client internal.RMQClient, namesrv internal.Namesrvs) OffsetStore {
 	return &remoteBrokerOffsetStore{
 		group:       group,
 		client:      client,
+		namesrv:     namesrv,
 		OffsetTable: make(map[string]map[int]*queueOffset),
 	}
 }
@@ -285,10 +287,10 @@ func (r *remoteBrokerOffsetStore) update(mq *primitive.MessageQueue, offset int6
 }
 
 func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq *primitive.MessageQueue) (int64, error) {
-	broker := internal.FindBrokerAddrByName(mq.BrokerName)
+	broker := r.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if broker == "" {
-		internal.UpdateTopicRouteInfo(mq.Topic)
-		broker = internal.FindBrokerAddrByName(mq.BrokerName)
+		r.namesrv.UpdateTopicRouteInfo(mq.Topic)
+		broker = r.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	}
 	if broker == "" {
 		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
@@ -317,10 +319,10 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 }
 
 func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group, topic string, queue *queueOffset) error {
-	broker := internal.FindBrokerAddrByName(queue.Broker)
+	broker := r.namesrv.FindBrokerAddrByName(queue.Broker)
 	if broker == "" {
-		internal.UpdateTopicRouteInfo(topic)
-		broker = internal.FindBrokerAddrByName(queue.Broker)
+		r.namesrv.UpdateTopicRouteInfo(topic)
+		broker = r.namesrv.FindBrokerAddrByName(queue.Broker)
 	}
 	if broker == "" {
 		return fmt.Errorf("broker: %s address not found", queue.Broker)
