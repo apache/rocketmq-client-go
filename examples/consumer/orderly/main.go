@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	rocketmq "github.com/apache/rocketmq-client-go"
+	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
