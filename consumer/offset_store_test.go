@@ -279,7 +279,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 					"offset": "1",
 				},
 			}
-			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil)
+			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil)
 
 			remoteStore.persist(queues)
 			offset := remoteStore.read(mq, _ReadFromStore)

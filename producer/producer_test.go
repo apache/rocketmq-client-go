@@ -130,7 +130,7 @@ func TestSync(t *testing.T) {
 
 	mockB4Send(p)
 
-	client.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
 	client.EXPECT().ProcessSendResponse(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
 			resp.Status = expectedResp.Status
@@ -181,8 +181,8 @@ func TestASync(t *testing.T) {
 
 	mockB4Send(p)
 
-	client.EXPECT().InvokeAsync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(addr string, request *remote.RemotingCommand,
+	client.EXPECT().InvokeAsync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, addr string, request *remote.RemotingCommand,
 			timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
 			// mock invoke callback
 			f(nil, nil)
@@ -226,7 +226,7 @@ func TestOneway(t *testing.T) {
 
 	mockB4Send(p)
 
-	client.EXPECT().InvokeOneWay(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	client.EXPECT().InvokeOneWay(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	err = p.SendOneWay(ctx, msg)
 	assert.Nil(t, err)

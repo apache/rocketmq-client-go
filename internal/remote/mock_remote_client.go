@@ -21,6 +21,7 @@
 package remote
 
 import (
+	context "context"
 	primitive "github.com/apache/rocketmq-client-go/primitive"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
@@ -75,40 +76,40 @@ func (mr *MockRemotingClientMockRecorder) RegisterInterceptor(interceptors ...in
 }
 
 // InvokeSync mocks base method
-func (m *MockRemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
-	ret := m.ctrl.Call(m, "InvokeSync", addr, request, timeout)
+func (m *MockRemotingClient) InvokeSync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	ret := m.ctrl.Call(m, "InvokeSync", ctx, addr, request, timeout)
 	ret0, _ := ret[0].(*RemotingCommand)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // InvokeSync indicates an expected call of InvokeSync
-func (mr *MockRemotingClientMockRecorder) InvokeSync(addr, request, timeout interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeSync", reflect.TypeOf((*MockRemotingClient)(nil).InvokeSync), addr, request, timeout)
+func (mr *MockRemotingClientMockRecorder) InvokeSync(ctx, addr, request, timeout interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeSync", reflect.TypeOf((*MockRemotingClient)(nil).InvokeSync), ctx, addr, request, timeout)
 }
 
 // InvokeAsync mocks base method
-func (m *MockRemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
-	ret := m.ctrl.Call(m, "InvokeAsync", addr, request, timeout, callback)
+func (m *MockRemotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
+	ret := m.ctrl.Call(m, "InvokeAsync", ctx, addr, request, timeout, callback)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InvokeAsync indicates an expected call of InvokeAsync
-func (mr *MockRemotingClientMockRecorder) InvokeAsync(addr, request, timeout, callback interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeAsync", reflect.TypeOf((*MockRemotingClient)(nil).InvokeAsync), addr, request, timeout, callback)
+func (mr *MockRemotingClientMockRecorder) InvokeAsync(ctx, addr, request, timeout, callback interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeAsync", reflect.TypeOf((*MockRemotingClient)(nil).InvokeAsync), ctx, addr, request, timeout, callback)
 }
 
 // InvokeOneWay mocks base method
-func (m *MockRemotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
-	ret := m.ctrl.Call(m, "InvokeOneWay", addr, request, timeout)
+func (m *MockRemotingClient) InvokeOneWay(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) error {
+	ret := m.ctrl.Call(m, "InvokeOneWay", ctx, addr, request, timeout)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InvokeOneWay indicates an expected call of InvokeOneWay
-func (mr *MockRemotingClientMockRecorder) InvokeOneWay(addr, request, timeout interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeOneWay", reflect.TypeOf((*MockRemotingClient)(nil).InvokeOneWay), addr, request, timeout)
+func (mr *MockRemotingClientMockRecorder) InvokeOneWay(ctx, addr, request, timeout interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeOneWay", reflect.TypeOf((*MockRemotingClient)(nil).InvokeOneWay), ctx, addr, request, timeout)
 }
 
 // ShutDown mocks base method

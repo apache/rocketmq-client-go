@@ -41,9 +41,9 @@ type TcpOption struct {
 type RemotingClient interface {
 	RegisterRequestFunc(code int16, f ClientRequestFunc)
 	RegisterInterceptor(interceptors ...primitive.Interceptor)
-	InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error)
-	InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error
-	InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error
+	InvokeSync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error)
+	InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error
+	InvokeOneWay(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) error
 	ShutDown()
 }
 
@@ -69,12 +69,12 @@ func (c *remotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 }
 
 // TODO: merge sync and async model. sync should run on async model by blocking on chan
-func (c *remotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	resp := NewResponseFuture(request.Opaque, timeout, nil)
+	resp := NewResponseFuture(ctx, request.Opaque, timeout, nil)
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
 	err = c.sendRequest(conn, request)
@@ -86,12 +86,12 @@ func (c *remotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 }
 
 // InvokeAsync send request without blocking, just return immediately.
-func (c *remotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return err
 	}
-	resp := NewResponseFuture(request.Opaque, timeout, callback)
+	resp := NewResponseFuture(ctx, request.Opaque, timeout, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
@@ -109,15 +109,15 @@ func (c *remotingClient) receiveAsync(f *ResponseFuture) {
 	}
 }
 
-func (c *remotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) error {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return err
 	}
 	return c.sendRequest(conn, request)
 }
 
-func (c *remotingClient) connect(addr string) (net.Conn, error) {
+func (c *remotingClient) connect(ctx context.Context, addr string) (net.Conn, error) {
 	//it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
@@ -125,7 +125,8 @@ func (c *remotingClient) connect(addr string) (net.Conn, error) {
 	if ok {
 		return conn.(net.Conn), nil
 	}
-	tcpConn, err := net.Dial("tcp", addr)
+	var d net.Dialer
+	tcpConn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
 	}

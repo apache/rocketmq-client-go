@@ -18,6 +18,7 @@ limitations under the License.
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"math/rand"
@@ -304,7 +305,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 	)
 	for i := 0; i < s.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-		response, err = s.nameSrvClient.InvokeSync(s.getNameServerAddress(), rc, requestTimeout)
+		response, err = s.nameSrvClient.InvokeSync(context.Background(), s.getNameServerAddress(), rc, requestTimeout)
 
 		if err == nil {
 			break
