@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/apache/rocketmq-client-go"
+	rocketmq "github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
 )
@@ -46,6 +46,10 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
+	}
+	err = c.Shutdown()
+	if err != nil {
+		fmt.Printf("shundown Consumer error: %s", err.Error())
 	}
 	time.Sleep(time.Hour)
 }
