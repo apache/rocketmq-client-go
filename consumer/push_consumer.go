@@ -182,8 +182,8 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.ConsumerModel == Clustering {
 		// add retry topic for clustering mode
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		data = buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, data)
+		retryData := buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
+		pc.subscriptionDataTable.Store(retryTopic, retryData)
 		pc.subscribedTopic[retryTopic] = ""
 	}
 
@@ -502,7 +502,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			rt := time.Now().Sub(beginTime) / time.Millisecond
 			increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
-			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
+			pc.processPullResult(request.mq, result, sd)
 
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)

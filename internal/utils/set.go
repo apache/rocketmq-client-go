@@ -27,6 +27,12 @@ type UniqueItem interface {
 	UniqueID() string
 }
 
+type StringUnique string
+
+func (str StringUnique) UniqueID() string {
+	return string(str)
+}
+
 type Set struct {
 	items map[string]UniqueItem
 }
@@ -39,6 +45,15 @@ func NewSet() Set {
 
 func (s *Set) Add(v UniqueItem) {
 	s.items[v.UniqueID()] = v
+}
+
+func (s *Set) AddKV(k, v string) {
+	s.items[k] = StringUnique(v)
+}
+
+func (s *Set) Contains(k string) (UniqueItem, bool) {
+	v, ok := s.items[k]
+	return v, ok
 }
 
 func (s *Set) Len() int {
@@ -56,11 +71,18 @@ func (s *Set) MarshalJSON() ([]byte, error) {
 	buffer.WriteByte('[')
 	keys := make([]string, 0)
 	for _, k := range s.items {
-		v, err := json.Marshal(k)
-		if err != nil {
-			return nil, err
+		var key string
+		switch kval := k.(type) {
+		case StringUnique:
+			key = "\"" + string(kval) + "\""
+		default:
+			v, err := json.Marshal(k)
+			if err != nil {
+				return nil, err
+			}
+			key = string(v)
 		}
-		keys = append(keys, string(v))
+		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 

@@ -389,7 +389,7 @@ func (td *traceDispatcher) flush(topic, regionID string, data []TraceTransferBea
 
 func (td *traceDispatcher) sendTraceDataByMQ(keyset Keyset, regionID string, data string) {
 	msg := primitive.NewMessage(td.traceTopic, []byte(data))
-	msg.SetKeys(keyset.slice())
+	msg.WithKeys(keyset.slice())
 
 	mq, addr := td.findMq()
 	if mq == nil {

@@ -27,13 +27,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -276,7 +277,6 @@ func (dc *defaultConsumer) start() error {
 		dc.subscriptionDataTable.Store(retryTopic, sub)
 	}
 
-	//dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions, nil)
 	if dc.model == Clustering {
 		dc.option.ChangeInstanceNameToPID()
 		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client, dc.namesrv)
@@ -799,10 +799,10 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// filter message according to tags
 		msgListFilterAgain := msgs
-		if len(data.Tags) > 0 && data.ClassFilterMode {
-			msgListFilterAgain = make([]*primitive.MessageExt, len(msgs))
+		if data.Tags.Len() > 0 && data.ClassFilterMode {
+			msgListFilterAgain = make([]*primitive.MessageExt, 0)
 			for _, msg := range msgs {
-				_, exist := data.Tags[msg.GetTags()]
+				_, exist := data.Tags.Contains(msg.GetTags())
 				if exist {
 					msgListFilterAgain = append(msgListFilterAgain, msg)
 				}
@@ -929,16 +929,19 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		subData.ExpType = string(TAG)
 		subData.SubString = _SubAll
 	} else {
-		tags := strings.Split(selector.Expression, "\\|\\|")
+		tags := strings.Split(selector.Expression, "||")
+		subData.Tags = utils.NewSet()
+		subData.Codes = utils.NewSet()
 		for idx := range tags {
 			trimString := strings.Trim(tags[idx], " ")
 			if trimString != "" {
-				if !subData.Tags[trimString] {
-					subData.Tags[trimString] = true
+				if _, ok := subData.Tags.Contains(trimString); !ok {
+					subData.Tags.AddKV(trimString, trimString)
 				}
 				hCode := utils.HashString(trimString)
-				if !subData.Codes[int32(hCode)] {
-					subData.Codes[int32(hCode)] = true
+				v := strconv.Itoa(hCode)
+				if _, ok := subData.Codes.Contains(v); !ok {
+					subData.Codes.AddKV(v, v)
 				}
 			}
 		}

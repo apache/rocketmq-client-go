@@ -37,14 +37,16 @@ func main() {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
-	for i := 0; i < 10; i++ {
+	tags := []string{"TagA", "TagB", "TagC"}
+	for i := 0; i < 3; i++ {
+		tag := tags[i%3]
 		msg := &primitive.Message{
 			Topic: "TopicTest",
 			Body:  []byte("Hello RocketMQ Go Client!"),
 		}
-		msg.WithDelayTimeLevel(3)
-		res, err := p.SendSync(context.Background(), msg)
+		msg.WithTag(tag)
 
+		res, err := p.SendSync(context.Background(), msg)
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)
 		} else {
