@@ -129,11 +129,11 @@ type RMQClient interface {
 	ClientID() string
 
 	RegisterProducer(group string, producer InnerProducer)
-	InvokeSync(addr string, request *remote.RemotingCommand,
+	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
-	InvokeAsync(addr string, request *remote.RemotingCommand,
+	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error
-	InvokeOneWay(addr string, request *remote.RemotingCommand,
+	InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) error
 	CheckClientInBroker()
 	SendHeartbeatToAllBrokerWithLock()
@@ -291,31 +291,31 @@ func (c *rmqClient) ClientID() string {
 	return id
 }
 
-func (c *rmqClient) InvokeSync(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
 	if c.close {
 		return nil, ErrServiceState
 	}
-	return c.remoteClient.InvokeSync(addr, request, timeoutMillis)
+	return c.remoteClient.InvokeSync(ctx, addr, request, timeoutMillis)
 }
 
-func (c *rmqClient) InvokeAsync(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeAsync(addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
+	return c.remoteClient.InvokeAsync(ctx, addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
 		f(future.ResponseCommand, future.Err)
 	})
 
 }
 
-func (c *rmqClient) InvokeOneWay(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeOneWay(addr, request, timeoutMillis)
+	return c.remoteClient.InvokeOneWay(ctx, addr, request, timeoutMillis)
 }
 
 func (c *rmqClient) CheckClientInBroker() {
@@ -357,7 +357,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
-			response, err := c.remoteClient.InvokeSync(addr, cmd, 3*time.Second)
+			response, err := c.remoteClient.InvokeSync(context.Background(), addr, cmd, 3*time.Second)
 			if err != nil {
 				rlog.Warnf("send heart beat to broker error: %s", err.Error())
 				return true
@@ -417,7 +417,7 @@ func (c *rmqClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerNam
 func (c *rmqClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*primitive.Message) (*primitive.SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := c.remoteClient.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
+	err := c.remoteClient.InvokeOneWay(ctx, brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with oneway error: %v", err)
 	}
@@ -473,7 +473,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 // PullMessage with sync
 func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 10*time.Second)
+	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}

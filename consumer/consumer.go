@@ -546,7 +546,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqLockBatchMQ, nil, data)
-	response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
 	if err != nil {
 		rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		return nil
@@ -566,12 +566,12 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := dc.client.InvokeOneWay(addr, request, 3*time.Second)
+		err := dc.client.InvokeOneWay(context.Background(), addr, request, 3*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker with oneway: %s error %s", addr, err.Error())
 		}
 	} else {
-		response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
+		response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		}
@@ -832,7 +832,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
-		res, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
+		res, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
 			return nil
@@ -869,7 +869,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
-	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
@@ -899,7 +899,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
-	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}

@@ -397,7 +397,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keyset Keyset, regionID string, dat
 	}
 
 	var req = td.buildSendRequest(mq, msg)
-	td.cli.InvokeAsync(addr, req, 5000*time.Millisecond, func(command *remote.RemotingCommand, e error) {
+	td.cli.InvokeAsync(context.Background(), addr, req, 5000*time.Millisecond, func(command *remote.RemotingCommand, e error) {
 		if e != nil {
 			rlog.Error("send trace data ,the traceData is %v", data)
 		}

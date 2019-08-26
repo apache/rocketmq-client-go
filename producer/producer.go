@@ -166,7 +166,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			producerCtx.MQ = *mq
 		}
 
-		res, _err := p.client.InvokeSync(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
 		if _err != nil {
 			err = _err
 			continue
@@ -205,7 +205,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
+	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
 		resp := new(primitive.SendResult)
 		if err != nil {
 			h(ctx, nil, err)
@@ -251,7 +251,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
-		_err := p.client.InvokeOneWay(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
 		if _err != nil {
 			err = _err
 			continue
@@ -398,7 +398,7 @@ func (tp *transactionProducer) checkTransactionState() {
 			req := remote.NewRemotingCommand(internal.ReqENDTransaction, header, nil)
 			req.Remark = tp.errRemark(nil)
 
-			tp.producer.client.InvokeOneWay(callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
+			tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
 		default:
 			rlog.Error("unknow type %v", ch)
 		}
@@ -467,7 +467,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	req := remote.NewRemotingCommand(internal.ReqENDTransaction, requestHeader, nil)
 	req.Remark = tp.errRemark(err)
 
-	return tp.producer.client.InvokeOneWay(brokerAddr, req, tp.producer.options.SendMsgTimeout)
+	return tp.producer.client.InvokeOneWay(context.Background(), brokerAddr, req, tp.producer.options.SendMsgTimeout)
 }
 
 func (tp *transactionProducer) errRemark(err error) string {

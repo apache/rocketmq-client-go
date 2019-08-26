@@ -18,6 +18,7 @@ limitations under the License.
 package consumer
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -302,7 +303,7 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 		QueueId:       mq.QueueId,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
-	res, err := r.client.InvokeSync(broker, cmd, 3*time.Second)
+	res, err := r.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
@@ -336,7 +337,7 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group, topic strin
 		CommitOffset:  queue.Offset,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
-	return r.client.InvokeOneWay(broker, cmd, 5*time.Second)
+	return r.client.InvokeOneWay(context.Background(), broker, cmd, 5*time.Second)
 }
 
 func readFromMemory(table map[string]map[int]*queueOffset, mq *primitive.MessageQueue) int64 {
