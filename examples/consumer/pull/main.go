@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
@@ -29,14 +30,20 @@ import (
 )
 
 func main() {
-	c, err := consumer.NewPullConsumer(consumer.WithGroupName("testGroup"), consumer.WithNameServer([]string{"127.0.0.1:9876"}))
+	c, err := rocketmq.NewPullConsumer(
+		consumer.WithGroupName("testGroup"),
+		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
+	)
 	if err != nil {
 		rlog.Fatal("fail to new pullConsumer: ", err)
 	}
-	c.Start()
+	err = c.Start()
+	if err != nil {
+		rlog.Fatal("fail to new pullConsumer: ", err)
+	}
 
 	ctx := context.Background()
-	queue := &primitive.MessageQueue{
+	queue := primitive.MessageQueue{
 		Topic:      "TopicTest",
 		BrokerName: "", // replace with your broker name. otherwise, pull will failed.
 		QueueId:    0,
