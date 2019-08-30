@@ -21,38 +21,34 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/apache/rocketmq-client-go"
+	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/producer"
 )
 
 func main() {
-	p, _ := rocketmq.NewProducer(
-		producer.WithNameServer([]string{"127.0.0.1:9876"}),
-		producer.WithRetry(2),
+	c, _ := rocketmq.NewPushConsumer(
+		consumer.WithGroupName("testGroup"),
+		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
 	)
-	err := p.Start()
+	selector := consumer.MessageSelector{
+		Type:       consumer.TAG,
+		Expression: "TagA || TagC",
+	}
+	err := c.Subscribe("TopicTest", selector, func(ctx context.Context,
+		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		fmt.Printf("subscribe callback: %v \n", msgs)
+		return consumer.ConsumeSuccess, nil
+	})
 	if err != nil {
-		fmt.Printf("start producer error: %s", err.Error())
-		os.Exit(1)
+		fmt.Println(err.Error())
 	}
-	for i := 0; i < 10; i++ {
-		msg := &primitive.Message{
-			Topic: "TopicTest",
-			Body:  []byte("Hello RocketMQ Go Client!"),
-		}
-		msg.WithDelayTimeLevel(3)
-		res, err := p.SendSync(context.Background(), msg)
-
-		if err != nil {
-			fmt.Printf("send message error: %s\n", err)
-		} else {
-			fmt.Printf("send message success: result=%s\n", res.String())
-		}
-	}
-	err = p.Shutdown()
+	err = c.Start()
 	if err != nil {
-		fmt.Printf("shundown producer error: %s", err.Error())
+		fmt.Println(err.Error())
+		os.Exit(-1)
 	}
+	time.Sleep(time.Hour)
 }

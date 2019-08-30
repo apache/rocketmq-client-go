@@ -70,7 +70,7 @@ func TestDoRebalance(t *testing.T) {
 		dc.namesrv = namesrvCli
 
 		rmqCli := internal.NewMockRMQClient(ctrl)
-		rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).
+		rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&remote.RemotingCommand{
 				Body: []byte("{\"consumerIdList\": [\"a1\", \"a2\", \"a3\"] }"),
 			}, nil)
@@ -127,7 +127,7 @@ func TestComputePullFromWhere(t *testing.T) {
 			broker := "a"
 			namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return(broker)
 
-			rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).
+			rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(&remote.RemotingCommand{
 					ExtFields: map[string]string{
 						"offset": "20",
@@ -155,7 +155,7 @@ func TestComputePullFromWhere(t *testing.T) {
 			broker := "a"
 			namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return(broker)
 
-			rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).
+			rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(&remote.RemotingCommand{
 					ExtFields: map[string]string{
 						"offset": "30",
