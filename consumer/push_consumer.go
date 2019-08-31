@@ -24,11 +24,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
 )
 
 // In most scenarios, this is the mostly recommended usage to consume messages.
@@ -60,11 +61,18 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
-	internal.RegisterNamsrv(srvs)
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
+	defaultOpts.Namesrv = srvs
+
+	if defaultOpts.Namespace != "" {
+		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
+	}
 
 	dc := &defaultConsumer{
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
@@ -77,6 +85,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		fromWhere:      defaultOpts.FromWhere,
 		allocate:       defaultOpts.Strategy,
 		option:         defaultOpts,
+		namesrv:        srvs,
 	}
 
 	p := &pushConsumer{
@@ -96,7 +105,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	return p, nil
 }
 
-// TODO: add shutdown on pushConsumr.
+// TODO: add shutdown on pushConsumer.
 func (pc *pushConsumer) Start() error {
 	var err error
 	pc.once.Do(func() {
@@ -155,13 +164,16 @@ func (pc *pushConsumer) Start() error {
 }
 
 func (pc *pushConsumer) Shutdown() error {
-	return nil
+	return pc.defaultConsumer.shutdown()
 }
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if pc.state != internal.StateCreateJust {
 		return errors.New("subscribe topic only started before")
+	}
+	if pc.option.Namespace != "" {
+		topic = pc.option.Namespace + "%" + topic
 	}
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
@@ -170,8 +182,8 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.ConsumerModel == Clustering {
 		// add retry topic for clustering mode
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		data = buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, data)
+		retryData := buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
+		pc.subscriptionDataTable.Store(retryTopic, retryData)
 		pc.subscribedTopic[retryTopic] = ""
 	}
 
@@ -208,7 +220,41 @@ func (pc *pushConsumer) IsUnitMode() bool {
 }
 
 func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
-	// TODO
+	v, exit := pc.subscriptionDataTable.Load(topic)
+	if !exit {
+		return
+	}
+	data := v.(*internal.SubscriptionData)
+	newVersion := time.Now().UnixNano()
+	rlog.Infof("the MessageQueue changed, also update version: %d to %d", data.SubVersion, newVersion)
+	data.SubVersion = newVersion
+
+	// TODO: optimize
+	count := 0
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		count++
+		return true
+	})
+	if count > 0 {
+		if pc.option.PullThresholdForTopic != -1 {
+			newVal := pc.option.PullThresholdForTopic / count
+			if newVal == 0 {
+				newVal = 1
+			}
+			rlog.Info("The PullThresholdForTopic is changed from %d to %d", pc.option.PullThresholdForTopic, newVal)
+			pc.option.PullThresholdForTopic = newVal
+		}
+
+		if pc.option.PullThresholdSizeForTopic != -1 {
+			newVal := pc.option.PullThresholdSizeForTopic / count
+			if newVal == 0 {
+				newVal = 1
+			}
+			rlog.Info("The PullThresholdSizeForTopic is changed from %d to %d", pc.option.PullThresholdSizeForTopic, newVal)
+			pc.option.PullThresholdSizeForTopic = newVal
+		}
+	}
+	pc.client.SendHeartbeatToAllBrokerWithLock()
 }
 
 func (pc *pushConsumer) validate() {
@@ -285,7 +331,7 @@ func (pc *pushConsumer) validate() {
 }
 
 func (pc *pushConsumer) pullMessage(request *PullRequest) {
-	rlog.Infof("start a nwe Pull Message task %s for [%s]", request.String(), pc.consumerGroup)
+	rlog.Debugf("start a new Pull Message task %s for [%s]", request.String(), pc.consumerGroup)
 	var sleepTime time.Duration
 	pq := request.pq
 	go func() {
@@ -427,7 +473,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		//	pullRequest.SubVersion = data.SubVersion
 		//}
 
-		brokerResult := tryFindBroker(request.mq)
+		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
 		if brokerResult == nil {
 			rlog.Warnf("no broker found for %s", request.mq.String())
 			sleepTime = _PullDelayTimeWhenError
@@ -456,7 +502,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			rt := time.Now().Sub(beginTime) / time.Millisecond
 			increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
-			result.SetMessageExts(primitive.DecodeMessage(result.GetBody()))
+			pc.processPullResult(request.mq, result, sd)
 
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)
@@ -499,11 +545,11 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
 	var brokerAddr string
 	if len(brokerName) != 0 {
-		brokerAddr = internal.FindBrokerAddrByName(brokerName)
+		brokerAddr = pc.defaultConsumer.namesrv.FindBrokerAddrByName(brokerName)
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
 	if err != nil {
 		return false
 	}

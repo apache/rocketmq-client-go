@@ -45,13 +45,13 @@ const (
 )
 
 type SubscriptionData struct {
-	ClassFilterMode bool
-	Topic           string
-	SubString       string
-	Tags            map[string]bool
-	Codes           map[int32]bool
-	SubVersion      int64
-	ExpType         string
+	ClassFilterMode bool      `json:"classFilterMode"`
+	Topic           string    `json:"topic"`
+	SubString       string    `json:"subString"`
+	Tags            utils.Set `json:"tagsSet"`
+	Codes           utils.Set `json:"codeSet"`
+	SubVersion      int64     `json:"subVersion"`
+	ExpType         string    `json:"expressionType"`
 }
 
 type producerData struct {
@@ -95,6 +95,6 @@ func (data *heartbeatData) encode() []byte {
 		rlog.Errorf("marshal heartbeatData error: %s", err.Error())
 		return nil
 	}
-	rlog.Info("heartbeat: " + string(d))
+	rlog.Debugf("heartbeat: " + string(d))
 	return d
 }

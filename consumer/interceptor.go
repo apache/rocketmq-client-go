@@ -38,7 +38,7 @@ func WithTrace(traceCfg primitive.TraceConfig) Option {
 }
 
 func newTraceInterceptor(traceCfg primitive.TraceConfig) primitive.Interceptor {
-	dispatcher := internal.NewTraceDispatcher(traceCfg.TraceTopic, traceCfg.Access)
+	dispatcher := internal.NewTraceDispatcher(traceCfg.TraceTopic, traceCfg.Access, traceCfg.NamesrvAddrs)
 	dispatcher.Start()
 
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {

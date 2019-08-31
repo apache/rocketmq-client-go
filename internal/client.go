@@ -96,16 +96,17 @@ func DefaultClientOptions() ClientOptions {
 
 type ClientOptions struct {
 	GroupName         string
-	NameServerAddrs   []string
+	NameServerAddrs   primitive.NamesrvAddr
+	Namesrv           *namesrvs
 	ClientIP          string
 	InstanceName      string
 	UnitMode          bool
 	UnitName          string
 	VIPChannelEnabled bool
-	ACLEnabled        bool
 	RetryTimes        int
 	Interceptors      []primitive.Interceptor
 	Credentials       primitive.Credentials
+	Namespace         string
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -116,8 +117,8 @@ func (opt *ClientOptions) ChangeInstanceNameToPID() {
 
 func (opt *ClientOptions) String() string {
 	return fmt.Sprintf("ClientOption [ClientIP=%s, InstanceName=%s, "+
-		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v, ACLEnabled=%v]", opt.ClientIP,
-		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled, opt.ACLEnabled)
+		"UnitMode=%v, UnitName=%s, VIPChannelEnabled=%v]", opt.ClientIP,
+		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled)
 }
 
 //go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal RMQClient
@@ -128,11 +129,11 @@ type RMQClient interface {
 	ClientID() string
 
 	RegisterProducer(group string, producer InnerProducer)
-	InvokeSync(addr string, request *remote.RemotingCommand,
+	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
-	InvokeAsync(addr string, request *remote.RemotingCommand,
+	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error
-	InvokeOneWay(addr string, request *remote.RemotingCommand,
+	InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) error
 	CheckClientInBroker()
 	SendHeartbeatToAllBrokerWithLock()
@@ -159,9 +160,10 @@ type rmqClient struct {
 	consumerMap sync.Map
 	once        sync.Once
 
-	remoteClient *remote.RemotingClient
+	remoteClient remote.RemotingClient
 	hbMutex      sync.Mutex
 	close        bool
+	namesrvs     *namesrvs
 }
 
 var clientMap sync.Map
@@ -170,6 +172,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),
+		namesrvs:     option.Namesrv,
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	if !loaded {
@@ -210,6 +213,12 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			return nil
 		})
 
+		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive get consumer running info request...")
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			res.Remark = "the go client has not supported consumer running info"
+			return res
+		})
 	}
 	return actual.(*rmqClient)
 }
@@ -238,7 +247,7 @@ func (c *rmqClient) Start() {
 		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
 		go func() {
 			for !c.close {
-				cleanOfflineBroker()
+				c.namesrvs.cleanOfflineBroker()
 				c.SendHeartbeatToAllBrokerWithLock()
 				time.Sleep(_HeartbeatBrokerInterval)
 			}
@@ -282,31 +291,31 @@ func (c *rmqClient) ClientID() string {
 	return id
 }
 
-func (c *rmqClient) InvokeSync(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
 	if c.close {
 		return nil, ErrServiceState
 	}
-	return c.remoteClient.InvokeSync(addr, request, timeoutMillis)
+	return c.remoteClient.InvokeSync(ctx, addr, request, timeoutMillis)
 }
 
-func (c *rmqClient) InvokeAsync(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeAsync(addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
+	return c.remoteClient.InvokeAsync(ctx, addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
 		f(future.ResponseCommand, future.Err)
 	})
 
 }
 
-func (c *rmqClient) InvokeOneWay(addr string, request *remote.RemotingCommand,
+func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeOneWay(addr, request, timeoutMillis)
+	return c.remoteClient.InvokeOneWay(ctx, addr, request, timeoutMillis)
 }
 
 func (c *rmqClient) CheckClientInBroker() {
@@ -343,27 +352,27 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		rlog.Info("sending heartbeat, but no producer and no consumer")
 		return
 	}
-	brokerAddressesMap.Range(func(key, value interface{}) bool {
+	c.namesrvs.brokerAddressesMap.Range(func(key, value interface{}) bool {
 		brokerName := key.(string)
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
-			response, err := c.remoteClient.InvokeSync(addr, cmd, 3*time.Second)
+			response, err := c.remoteClient.InvokeSync(context.Background(), addr, cmd, 3*time.Second)
 			if err != nil {
 				rlog.Warnf("send heart beat to broker error: %s", err.Error())
 				return true
 			}
 			if response.Code == ResSuccess {
-				v, exist := brokerVersionMap.Load(brokerName)
+				v, exist := c.namesrvs.brokerVersionMap.Load(brokerName)
 				var m map[string]int32
 				if exist {
 					m = v.(map[string]int32)
 				} else {
 					m = make(map[string]int32, 4)
-					brokerVersionMap.Store(brokerName, m)
+					c.namesrvs.brokerVersionMap.Store(brokerName, m)
 				}
 				m[brokerName] = int32(response.Version)
-				rlog.Infof("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
+				rlog.Debugf("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
 			}
 		}
 		return true
@@ -381,7 +390,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		return true
 	})
 	for topic := range publishTopicSet {
-		c.UpdatePublishInfo(topic, UpdateTopicRouteInfo(topic))
+		c.UpdatePublishInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
 	}
 
 	subscribedTopicSet := make(map[string]bool, 0)
@@ -395,7 +404,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	})
 
 	for topic := range subscribedTopicSet {
-		c.updateSubscribeInfo(topic, UpdateTopicRouteInfo(topic))
+		c.updateSubscribeInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
 	}
 }
 
@@ -408,7 +417,7 @@ func (c *rmqClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerNam
 func (c *rmqClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
 	msgs []*primitive.Message) (*primitive.SendResult, error) {
 	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := c.remoteClient.InvokeOneWay(brokerAddrs, cmd, 3*time.Second)
+	err := c.remoteClient.InvokeOneWay(ctx, brokerAddrs, cmd, 3*time.Second)
 	if err != nil {
 		rlog.Warnf("send messages with oneway error: %v", err)
 	}
@@ -464,7 +473,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 // PullMessage with sync
 func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := c.remoteClient.InvokeSync(brokerAddrs, cmd, 10*time.Second)
+	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +570,7 @@ func (c *rmqClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
 	}
 	c.producerMap.Range(func(key, value interface{}) bool {
 		p := value.(InnerProducer)
-		publishInfo := routeData2PublishInfo(topic, data)
+		publishInfo := c.namesrvs.routeData2PublishInfo(topic, data)
 		publishInfo.HaveTopicRouterInfo = true
 		p.UpdateTopicPublishInfo(topic, publishInfo)
 		return true

@@ -1,13 +1,31 @@
+/*
+Licensed to the Apache Software Foundation (ASF) under one or more
+contributor license agreements.  See the NOTICE file distributed with
+this work for additional information regarding copyright ownership.
+The ASF licenses this file to You under the Apache License, Version 2.0
+(the "License"); you may not use this file except in compliance with
+the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package consumer
 
 import (
-	"github.com/agiledragon/gomonkey"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/golang/mock/gomock"
-	. "github.com/smartystreets/goconvey/convey"
-	"testing"
 )
 
 func TestNewLocalFileOffsetStore(t *testing.T) {
@@ -192,8 +210,10 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
+		namesrv := internal.NewMockNamesrvs(ctrl)
+
 		rmqClient := internal.NewMockRMQClient(ctrl)
-		remoteStore := NewRemoteOffsetStore("testGroup", rmqClient)
+		remoteStore := NewRemoteOffsetStore("testGroup", rmqClient, namesrv)
 
 		type offsetCase struct {
 			queue          *primitive.MessageQueue
@@ -251,10 +271,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		Convey("test persist", func() {
 			queues := []*primitive.MessageQueue{mq}
 
-			patch := gomonkey.ApplyFunc(internal.FindBrokerAddrByName, func(_ string) string {
-				return "192.168.24.1:10911"
-			})
-			defer patch.Reset()
+			namesrv.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("192.168.24.1:10911")
 
 			ret := &remote.RemotingCommand{
 				Code: internal.ResSuccess,
@@ -262,7 +279,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 					"offset": "1",
 				},
 			}
-			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil)
+			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil)
 
 			remoteStore.persist(queues)
 			offset := remoteStore.read(mq, _ReadFromStore)

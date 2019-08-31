@@ -27,13 +27,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -227,7 +228,6 @@ func (pr *PullRequest) String() string {
 		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
 }
 
-// TODO hook
 type defaultConsumer struct {
 	/**
 	 * Consumers of the same role is required to have exactly same subscriptions and consumerGroup to correctly achieve
@@ -264,6 +264,8 @@ type defaultConsumer struct {
 	storage               OffsetStore
 	// chan for push consumer
 	prCh chan PullRequest
+
+	namesrv internal.Namesrvs
 }
 
 func (dc *defaultConsumer) start() error {
@@ -275,10 +277,9 @@ func (dc *defaultConsumer) start() error {
 		dc.subscriptionDataTable.Store(retryTopic, sub)
 	}
 
-	//dc.client = internal.GetOrNewRocketMQClient(dc.option.ClientOptions, nil)
 	if dc.model == Clustering {
 		dc.option.ChangeInstanceNameToPID()
-		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client)
+		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client, dc.namesrv)
 	} else {
 		dc.storage = NewLocalFileOffsetStore(dc.consumerGroup, dc.client.ClientID())
 	}
@@ -291,9 +292,17 @@ func (dc *defaultConsumer) start() error {
 }
 
 func (dc *defaultConsumer) shutdown() error {
-	dc.state = internal.StateRunning
+	dc.state = internal.StateShutdown
+	mqs := make([]*primitive.MessageQueue, 0)
+	dc.processQueueTable.Range(func(key, value interface{}) bool {
+		k := key.(primitive.MessageQueue)
+		pq := value.(*processQueue)
+		pq.dropped = true
+		mqs = append(mqs, &k)
+		return true
+	})
+	dc.storage.persist(mqs)
 	dc.client.Shutdown()
-
 	return nil
 }
 
@@ -312,8 +321,8 @@ func (dc *defaultConsumer) persistConsumerOffset() error {
 	return nil
 }
 
-func (c *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
-	c.storage.update(queue, offset, false)
+func (dc *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
+	dc.storage.update(queue, offset, false)
 	return nil
 }
 
@@ -396,7 +405,6 @@ func (dc *defaultConsumer) doBalance() {
 					"topic=%s, clientId=%s, mqAllSize=%d, cidAllSize=%d, rebalanceResultSize=%d, "+
 					"rebalanceResultSet=%v", dc.consumerGroup, topic, dc.client.ClientID(), len(mqAll),
 					len(cidAll), len(allocateResult), allocateResult)
-
 			}
 		}
 		return true
@@ -426,7 +434,7 @@ type lockBatchRequestBody struct {
 }
 
 func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
-	brokerResult := internal.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
+	brokerResult := dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
 
 	if brokerResult == nil {
 		return false
@@ -457,7 +465,7 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 }
 
 func (dc *defaultConsumer) unlock(mq *primitive.MessageQueue, oneway bool) {
-	brokerResult := internal.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
+	brokerResult := dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
 
 	if brokerResult == nil {
 		return
@@ -479,7 +487,7 @@ func (dc *defaultConsumer) lockAll() {
 		if len(mqs) == 0 {
 			continue
 		}
-		brokerResult := internal.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
+		brokerResult := dc.namesrv.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
 		if brokerResult == nil {
 			continue
 		}
@@ -521,7 +529,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 		if len(mqs) == 0 {
 			continue
 		}
-		brokerResult := internal.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
+		brokerResult := dc.namesrv.FindBrokerAddressInSubscribe(broker, internal.MasterId, true)
 		if brokerResult == nil {
 			continue
 		}
@@ -545,7 +553,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqLockBatchMQ, nil, data)
-	response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
 	if err != nil {
 		rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		return nil
@@ -565,12 +573,12 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := json.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := dc.client.InvokeOneWay(addr, request, 3*time.Second)
+		err := dc.client.InvokeOneWay(context.Background(), addr, request, 3*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker with oneway: %s error %s", addr, err.Error())
 		}
 	} else {
-		response, err := dc.client.InvokeSync(addr, request, 1*time.Second)
+		response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
 		if err != nil {
 			rlog.Errorf("lock mq to broker: %s error %s", addr, err.Error())
 		}
@@ -615,14 +623,14 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 					//delete(mqSet, mq)
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s", dc.consumerGroup, mq.String())
+					rlog.Debugf("do defaultConsumer, Group:%s, remove unnecessary mq: %s", dc.consumerGroup, mq.String())
 				}
 			} else if pq.isPullExpired() && dc.cType == _PushConsume {
 				pq.dropped = true
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					delete(mqSet, mq)
 					changed = true
-					rlog.Infof("do defaultConsumer, Group:%s, remove unnecessary mq: %s, "+
+					rlog.Debugf("do defaultConsumer, Group:%s, remove unnecessary mq: %s, "+
 						"because pull was paused, so try to fixed it", dc.consumerGroup, mq)
 				}
 			}
@@ -650,7 +658,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if exist {
 					rlog.Debugf("do defaultConsumer, Group: %s, mq already exist, %s", dc.consumerGroup, mq.String())
 				} else {
-					rlog.Infof("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
+					rlog.Debugf("do defaultConsumer, Group: %s, add a new mq, %s", dc.consumerGroup, mq.String())
 					pq := newProcessQueue(dc.consumeOrderly)
 					dc.processQueueTable.Store(mq, pq)
 					pr := PullRequest{
@@ -739,7 +747,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
 	offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
 
-	brokerResult := tryFindBroker(queue)
+	brokerResult := dc.tryFindBroker(queue)
 	if brokerResult == nil {
 		rlog.Warnf("no broker found for %s", queue.String())
 		return nil, ErrBrokerNotFound
@@ -791,10 +799,10 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// filter message according to tags
 		msgListFilterAgain := msgs
-		if len(data.Tags) > 0 && data.ClassFilterMode {
-			msgListFilterAgain = make([]*primitive.MessageExt, len(msgs))
+		if data.Tags.Len() > 0 && data.ClassFilterMode {
+			msgListFilterAgain = make([]*primitive.MessageExt, 0)
 			for _, msg := range msgs {
-				_, exist := data.Tags[msg.GetTags()]
+				_, exist := data.Tags.Contains(msg.GetTags())
 				if exist {
 					msgListFilterAgain = append(msgListFilterAgain, msg)
 				}
@@ -820,10 +828,10 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 }
 
 func (dc *defaultConsumer) findConsumerList(topic string) []string {
-	brokerAddr := internal.FindBrokerAddrByTopic(topic)
+	brokerAddr := dc.namesrv.FindBrokerAddrByTopic(topic)
 	if brokerAddr == "" {
-		internal.UpdateTopicRouteInfo(topic)
-		brokerAddr = internal.FindBrokerAddrByTopic(topic)
+		dc.namesrv.UpdateTopicRouteInfo(topic)
+		brokerAddr = dc.namesrv.FindBrokerAddrByTopic(topic)
 	}
 
 	if brokerAddr != "" {
@@ -831,7 +839,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
-		res, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
+		res, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Errorf("get consumer list of [%s] from %s error: %s", dc.consumerGroup, brokerAddr, err.Error())
 			return nil
@@ -853,10 +861,10 @@ func (dc *defaultConsumer) sendBack(msg *primitive.MessageExt, level int) error 
 
 // QueryMaxOffset with specific queueId and topic
 func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, error) {
-	brokerAddr := internal.FindBrokerAddrByName(mq.BrokerName)
+	brokerAddr := dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
-		internal.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = internal.FindBrokerAddrByName(mq.Topic)
+		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.Topic)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
@@ -868,7 +876,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
-	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
@@ -882,10 +890,10 @@ func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) int64 {
 
 // SearchOffsetByTimestamp with specific queueId and topic
 func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, timestamp int64) (int64, error) {
-	brokerAddr := internal.FindBrokerAddrByName(mq.BrokerName)
+	brokerAddr := dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
-		internal.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = internal.FindBrokerAddrByName(mq.Topic)
+		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
+		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.Topic)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
@@ -898,7 +906,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
-	response, err := dc.client.InvokeSync(brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
@@ -921,16 +929,19 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		subData.ExpType = string(TAG)
 		subData.SubString = _SubAll
 	} else {
-		tags := strings.Split(selector.Expression, "\\|\\|")
+		tags := strings.Split(selector.Expression, "||")
+		subData.Tags = utils.NewSet()
+		subData.Codes = utils.NewSet()
 		for idx := range tags {
 			trimString := strings.Trim(tags[idx], " ")
 			if trimString != "" {
-				if !subData.Tags[trimString] {
-					subData.Tags[trimString] = true
+				if _, ok := subData.Tags.Contains(trimString); !ok {
+					subData.Tags.AddKV(trimString, trimString)
 				}
 				hCode := utils.HashString(trimString)
-				if !subData.Codes[int32(hCode)] {
-					subData.Codes[int32(hCode)] = true
+				v := strconv.Itoa(hCode)
+				if _, ok := subData.Codes.Contains(v); !ok {
+					subData.Codes.AddKV(v, v)
 				}
 			}
 		}
@@ -963,13 +974,13 @@ func clearCommitOffsetFlag(sysFlag int32) int32 {
 	return sysFlag & (^0x1 << 0)
 }
 
-func tryFindBroker(mq *primitive.MessageQueue) *internal.FindBrokerResult {
-	result := internal.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+func (dc *defaultConsumer) tryFindBroker(mq *primitive.MessageQueue) *internal.FindBrokerResult {
+	result := dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 
 	if result == nil {
-		internal.UpdateTopicRouteInfo(mq.Topic)
+		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
 	}
-	return internal.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
+	return dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 }
 
 var (

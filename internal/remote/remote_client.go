@@ -37,7 +37,19 @@ type TcpOption struct {
 	// TODO
 }
 
-type RemotingClient struct {
+//go:generate mockgen -source remote_client.go -destination mock_remote_client.go -self_package github.com/apache/rocketmq-client-go/internal/remote  --package remote RemotingClient
+type RemotingClient interface {
+	RegisterRequestFunc(code int16, f ClientRequestFunc)
+	RegisterInterceptor(interceptors ...primitive.Interceptor)
+	InvokeSync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error)
+	InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error
+	InvokeOneWay(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) error
+	ShutDown()
+}
+
+var _ RemotingClient = &remotingClient{}
+
+type remotingClient struct {
 	responseTable    sync.Map
 	connectionTable  sync.Map
 	option           TcpOption
@@ -46,23 +58,23 @@ type RemotingClient struct {
 	interceptor      primitive.Interceptor
 }
 
-func NewRemotingClient() *RemotingClient {
-	return &RemotingClient{
+func NewRemotingClient() *remotingClient {
+	return &remotingClient{
 		processors: make(map[int16]ClientRequestFunc),
 	}
 }
 
-func (c *RemotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
+func (c *remotingClient) RegisterRequestFunc(code int16, f ClientRequestFunc) {
 	c.processors[code] = f
 }
 
 // TODO: merge sync and async model. sync should run on async model by blocking on chan
-func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) (*RemotingCommand, error) {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	resp := NewResponseFuture(request.Opaque, timeout, nil)
+	resp := NewResponseFuture(ctx, request.Opaque, timeout, nil)
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
 	err = c.sendRequest(conn, request)
@@ -74,12 +86,12 @@ func (c *RemotingClient) InvokeSync(addr string, request *RemotingCommand, timeo
 }
 
 // InvokeAsync send request without blocking, just return immediately.
-func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration, callback func(*ResponseFuture)) error {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return err
 	}
-	resp := NewResponseFuture(request.Opaque, timeout, callback)
+	resp := NewResponseFuture(ctx, request.Opaque, timeout, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
@@ -90,22 +102,22 @@ func (c *RemotingClient) InvokeAsync(addr string, request *RemotingCommand, time
 	return nil
 }
 
-func (c *RemotingClient) receiveAsync(f *ResponseFuture) {
+func (c *remotingClient) receiveAsync(f *ResponseFuture) {
 	_, err := f.waitResponse()
 	if err != nil {
 		f.executeInvokeCallback()
 	}
 }
 
-func (c *RemotingClient) InvokeOneWay(addr string, request *RemotingCommand, timeout time.Duration) error {
-	conn, err := c.connect(addr)
+func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request *RemotingCommand, timeout time.Duration) error {
+	conn, err := c.connect(ctx, addr)
 	if err != nil {
 		return err
 	}
 	return c.sendRequest(conn, request)
 }
 
-func (c *RemotingClient) connect(addr string) (net.Conn, error) {
+func (c *remotingClient) connect(ctx context.Context, addr string) (net.Conn, error) {
 	//it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
@@ -113,7 +125,8 @@ func (c *RemotingClient) connect(addr string) (net.Conn, error) {
 	if ok {
 		return conn.(net.Conn), nil
 	}
-	tcpConn, err := net.Dial("tcp", addr)
+	var d net.Dialer
+	tcpConn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +135,7 @@ func (c *RemotingClient) connect(addr string) (net.Conn, error) {
 	return tcpConn, nil
 }
 
-func (c *RemotingClient) receiveResponse(r net.Conn) {
+func (c *remotingClient) receiveResponse(r net.Conn) {
 	scanner := c.createScanner(r)
 	for scanner.Scan() {
 		cmd, err := decode(scanner.Bytes())
@@ -150,6 +163,8 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 				go func() { // 单个goroutine会造成死锁
 					res := f(cmd, r.RemoteAddr())
 					if res != nil {
+						res.Opaque = cmd.Opaque
+						res.Flag |= 1 << 0
 						err := c.sendRequest(r, res)
 						if err != nil {
 							rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
@@ -168,8 +183,11 @@ func (c *RemotingClient) receiveResponse(r net.Conn) {
 	}
 }
 
-func (c *RemotingClient) createScanner(r io.Reader) *bufio.Scanner {
+func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
+
+	// max batch size: 32, max message size: 4Mb
+	scanner.Buffer(make([]byte, 1024*1024), 128*1024*1024)
 	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -195,7 +213,7 @@ func (c *RemotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func (c *RemotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
+func (c *remotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
 	var err error
 	if c.interceptor != nil {
 		err = c.interceptor(context.Background(), request, nil, func(ctx context.Context, req, reply interface{}) error {
@@ -207,7 +225,7 @@ func (c *RemotingClient) sendRequest(conn net.Conn, request *RemotingCommand) er
 	return err
 }
 
-func (c *RemotingClient) doRequest(conn net.Conn, request *RemotingCommand) error {
+func (c *remotingClient) doRequest(conn net.Conn, request *RemotingCommand) error {
 	content, err := encode(request)
 	if err != nil {
 		return err
@@ -220,7 +238,7 @@ func (c *RemotingClient) doRequest(conn net.Conn, request *RemotingCommand) erro
 	return nil
 }
 
-func (c *RemotingClient) closeConnection(toCloseConn net.Conn) {
+func (c *remotingClient) closeConnection(toCloseConn net.Conn) {
 	c.connectionTable.Range(func(key, value interface{}) bool {
 		if value == toCloseConn {
 			c.connectionTable.Delete(key)
@@ -231,7 +249,7 @@ func (c *RemotingClient) closeConnection(toCloseConn net.Conn) {
 	})
 }
 
-func (c *RemotingClient) ShutDown() {
+func (c *remotingClient) ShutDown() {
 	c.responseTable.Range(func(key, value interface{}) bool {
 		c.responseTable.Delete(key)
 		return true
@@ -243,7 +261,7 @@ func (c *RemotingClient) ShutDown() {
 	})
 }
 
-func (c *RemotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
+func (c *remotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
 
 	c.interceptor = primitive.ChainInterceptors(interceptors...)
 

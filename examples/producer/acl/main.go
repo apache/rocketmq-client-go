@@ -30,7 +30,7 @@ import (
 )
 
 func main() {
-	p, _ := rocketmq.NewProducer(
+	p, err := rocketmq.NewProducer(
 		producer.WithNameServer([]string{"127.0.0.1:9876"}),
 		producer.WithRetry(2),
 		producer.WithCredentials(primitive.Credentials{
@@ -38,7 +38,13 @@ func main() {
 			SecretKey: "12345678",
 		}),
 	)
-	err := p.Start()
+
+	if err != nil {
+		fmt.Println("init producer error: " + err.Error())
+		os.Exit(0)
+	}
+
+	err = p.Start()
 	if err != nil {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)

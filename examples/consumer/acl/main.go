@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-	c, _ := rocketmq.NewPushConsumer(
+	c, err := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
 		consumer.WithCredentials(primitive.Credentials{
@@ -37,7 +37,12 @@ func main() {
 			SecretKey: "12345678",
 		}),
 	)
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
+	if err != nil {
+		fmt.Println("init consumer error: " + err.Error())
+		os.Exit(0)
+	}
+
+	err = c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		fmt.Printf("subscribe callback: %v \n", msgs)
 		return consumer.ConsumeSuccess, nil
@@ -50,6 +55,10 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
+	}
+	err = c.Shutdown()
+	if err != nil {
+		fmt.Printf("Shutdown Consumer error: %s", err.Error())
 	}
 	time.Sleep(time.Hour)
 }

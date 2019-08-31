@@ -31,7 +31,8 @@ import (
 func main() {
 	namesrvs := []string{"127.0.0.1:9876"}
 	traceCfg := primitive.TraceConfig{
-		Access: primitive.Local,
+		Access:       primitive.Local,
+		NamesrvAddrs: namesrvs,
 	}
 
 	p, _ := rocketmq.NewProducer(

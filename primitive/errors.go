@@ -15,10 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package primitive
 
-import "testing"
+import (
+	"errors"
+)
 
-func TestLocalIP2(t *testing.T) {
-	t.Log(LocalIP)
-}
+var (
+	ErrNoNameserver = errors.New("nameServerAddrs can't be empty.")
+	ErrMultiIP      = errors.New("multiple IP addr does not support")
+	ErrIllegalIP    = errors.New("IP addr error")
+)

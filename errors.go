@@ -19,6 +19,7 @@ package rocketmq
 
 import (
 	"github.com/apache/rocketmq-client-go/rlog"
+
 	"github.com/pkg/errors"
 )
 

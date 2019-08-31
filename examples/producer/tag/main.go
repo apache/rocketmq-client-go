@@ -21,36 +21,40 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/apache/rocketmq-client-go"
-	"github.com/apache/rocketmq-client-go/consumer"
 	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/producer"
 )
 
 func main() {
-	c, _ := rocketmq.NewPushConsumer(
-		consumer.WithGroupName("testGroup"),
-		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
-		consumer.WithStrategy(consumer.AllocateByAveragely),
+	p, _ := rocketmq.NewProducer(
+		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithRetry(2),
 	)
-	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
-		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Printf("subscribe callback: %v \n", msgs)
-		return consumer.ConsumeSuccess, nil
-	})
+	err := p.Start()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Printf("start producer error: %s", err.Error())
+		os.Exit(1)
 	}
-	// Note: start after subscribe
-	err = c.Start()
+	tags := []string{"TagA", "TagB", "TagC"}
+	for i := 0; i < 3; i++ {
+		tag := tags[i%3]
+		msg := &primitive.Message{
+			Topic: "TopicTest",
+			Body:  []byte("Hello RocketMQ Go Client!"),
+		}
+		msg.WithTag(tag)
+
+		res, err := p.SendSync(context.Background(), msg)
+		if err != nil {
+			fmt.Printf("send message error: %s\n", err)
+		} else {
+			fmt.Printf("send message success: result=%s\n", res.String())
+		}
+	}
+	err = p.Shutdown()
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
+		fmt.Printf("shundown producer error: %s", err.Error())
 	}
-	err = c.Shutdown()
-	if err != nil {
-		fmt.Printf("shundown Consumer error: %s", err.Error())
-	}
-	time.Sleep(time.Hour)
 }

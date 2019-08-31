@@ -55,11 +55,14 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
-	internal.RegisterNamsrv(srvs)
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
+	defaultOpts.Namesrv = srvs
 
 	producer := &defaultProducer{
 		group:      defaultOpts.GroupName,
@@ -140,6 +143,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
+
 	var producerCtx *primitive.ProducerCtx
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
@@ -148,7 +155,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			continue
 		}
 
-		addr := internal.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -159,7 +166,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			producerCtx.MQ = *mq
 		}
 
-		res, _err := p.client.InvokeSync(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
 		if _err != nil {
 			err = _err
 			continue
@@ -185,17 +192,20 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 }
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
 	mq := p.selectMessageQueue(msg)
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
 
-	addr := internal.FindBrokerAddrByName(mq.BrokerName)
+	addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	return p.client.InvokeAsync(addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
+	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
 		resp := new(primitive.SendResult)
 		if err != nil {
 			h(ctx, nil, err)
@@ -224,9 +234,11 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message
 func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message) error {
 	retryTime := 1 + p.options.RetryTimes
 
-	var (
-		err error
-	)
+	if p.options.Namespace != "" {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
+
+	var err error
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
 		if mq == nil {
@@ -234,12 +246,12 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			continue
 		}
 
-		addr := internal.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
-		_err := p.client.InvokeOneWay(addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
 		if _err != nil {
 			err = _err
 			continue
@@ -251,6 +263,9 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string, 0)
+	}
 	if !msg.Batch && msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] == "" {
 		msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] = primitive.CreateUniqID()
 	}
@@ -284,7 +299,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
-		p.client.UpdatePublishInfo(topic, internal.UpdateTopicRouteInfo(topic))
+		p.client.UpdatePublishInfo(topic, p.options.Namesrv.UpdateTopicRouteInfo(topic))
 		v, exist = p.publishInfo.Load(topic)
 	}
 
@@ -383,7 +398,7 @@ func (tp *transactionProducer) checkTransactionState() {
 			req := remote.NewRemotingCommand(internal.ReqENDTransaction, header, nil)
 			req.Remark = tp.errRemark(nil)
 
-			tp.producer.client.InvokeOneWay(callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
+			tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
 		default:
 			rlog.Error("unknow type %v", ch)
 		}
@@ -439,7 +454,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
 	// 估计没有反序列化回来
-	brokerAddr := internal.FindBrokerAddrByName(result.MessageQueue.BrokerName)
+	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
 		CommitLogOffset:      msgID.Offset,
@@ -452,7 +467,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	req := remote.NewRemotingCommand(internal.ReqENDTransaction, requestHeader, nil)
 	req.Remark = tp.errRemark(err)
 
-	return tp.producer.client.InvokeOneWay(brokerAddr, req, tp.producer.options.SendMsgTimeout)
+	return tp.producer.client.InvokeOneWay(context.Background(), brokerAddr, req, tp.producer.options.SendMsgTimeout)
 }
 
 func (tp *transactionProducer) errRemark(err error) string {

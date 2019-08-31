@@ -15,10 +15,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package primitive
 
-import "testing"
+import (
+	"testing"
 
-func TestLocalIP2(t *testing.T) {
-	t.Log(LocalIP)
+	"github.com/stretchr/testify/assert"
+)
+
+func TestVerifyIP(t *testing.T) {
+	IPs := "127.0.0.1:9876"
+	err := verifyIP(IPs)
+	assert.Nil(t, err)
+
+	IPs = "12.24.123.243:10911"
+	err = verifyIP(IPs)
+	assert.Nil(t, err)
+
+	IPs = "xa2.0.0.1:9876"
+	err = verifyIP(IPs)
+	assert.Equal(t, "IP addr error", err.Error())
+
+	IPs = "333.0.0.1:9876"
+	err = verifyIP(IPs)
+	assert.Equal(t, "IP addr error", err.Error())
+
+	IPs = "127.0.0.1:9876;12.24.123.243:10911"
+	err = verifyIP(IPs)
+	assert.Equal(t, "multiple IP addr does not support", err.Error())
 }

@@ -17,10 +17,25 @@ limitations under the License.
 
 package utils
 
+import (
+	"bytes"
+	"compress/zlib"
+	"io/ioutil"
+)
+
 func GetAddressByBytes(data []byte) string {
 	return "127.0.0.1"
 }
 
 func UnCompress(data []byte) []byte {
-	return data
+	rdata := bytes.NewReader(data)
+	r, err := zlib.NewReader(rdata)
+	if err != nil {
+		return data
+	}
+	retData, err := ioutil.ReadAll(r)
+	if err != nil {
+		return data
+	}
+	return retData
 }

@@ -85,14 +85,23 @@ func NewMessage(topic string, body []byte) *Message {
 	return msg
 }
 
-// SetDelayTimeLevel set message delay time to consume.
+// WithDelayTimeLevel set message delay time to consume.
 // reference delay level definition: 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
 // delay level starts from 1. for example, if we set param level=1, then the delay time is 1s.
-func (msg *Message) SetDelayTimeLevel(level int) {
+func (msg *Message) WithDelayTimeLevel(level int) *Message {
 	if msg.Properties == nil {
 		msg.Properties = make(map[string]string)
 	}
 	msg.Properties[PropertyDelayTimeLevel] = strconv.Itoa(level)
+	return msg
+}
+
+func (msg *Message) WithTag(tags string) *Message {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string)
+	}
+	msg.Properties[PropertyTags] = tags
+	return msg
 }
 
 func (msg *Message) String() string {
@@ -100,13 +109,9 @@ func (msg *Message) String() string {
 		msg.Topic, string(msg.Body), msg.Flag, msg.Properties, msg.TransactionId)
 }
 
-//
-//func (msg *Message) SetTags(tags string) {
-//	msg.Properties[tags] = tags
-//}
-
-func (msg *Message) PutProperty(key, value string) {
+func (msg *Message) WithProperty(key, value string) *Message {
 	msg.Properties[key] = value
+	return msg
 }
 
 func (msg *Message) RemoveProperty(key string) string {
@@ -119,13 +124,13 @@ func (msg *Message) RemoveProperty(key string) string {
 	return value
 }
 
-func (msg *Message) SetKeys(keys []string) {
+func (msg *Message) WithKeys(keys []string) *Message {
 	var sb strings.Builder
 	for _, k := range keys {
 		sb.WriteString(k)
 		sb.WriteString(PropertyKeySeparator)
 	}
-	msg.PutProperty(PropertyKeys, sb.String())
+	return msg.WithProperty(PropertyKeys, sb.String())
 }
 
 func (msg *Message) GetTags() string {

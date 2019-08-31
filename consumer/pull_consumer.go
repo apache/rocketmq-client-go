@@ -23,11 +23,12 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/pkg/errors"
+
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
 )
 
 type PullConsumer interface {
@@ -75,11 +76,10 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		apply(&defaultOpts)
 	}
 
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs...)
+	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
-	internal.RegisterNamsrv(srvs)
 
 	dc := &defaultConsumer{
 		consumerGroup: defaultOpts.GroupName,
@@ -88,6 +88,8 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
+
+		namesrv: srvs,
 	}
 
 	c := &defaultPullConsumer{
@@ -128,7 +130,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 }
 
 func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
-	queues, err := internal.FetchSubscribeMessageQueues(topic)
+	queues, err := c.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
 		rlog.Error(err.Error())
 		return nil
@@ -160,8 +162,8 @@ func (c *defaultPullConsumer) ACK(msg *primitive.Message, result ConsumeResult) 
 
 }
 
-func (c *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
-	err := c.makeSureStateOK()
+func (dc *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
+	err := dc.makeSureStateOK()
 	if err != nil {
 		return err
 	}

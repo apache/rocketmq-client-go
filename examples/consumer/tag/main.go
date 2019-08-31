@@ -32,9 +32,12 @@ func main() {
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
-		consumer.WithStrategy(consumer.AllocateByAveragely),
 	)
-	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
+	selector := consumer.MessageSelector{
+		Type:       consumer.TAG,
+		Expression: "TagA || TagC",
+	}
+	err := c.Subscribe("TopicTest", selector, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		fmt.Printf("subscribe callback: %v \n", msgs)
 		return consumer.ConsumeSuccess, nil
@@ -42,15 +45,10 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	// Note: start after subscribe
 	err = c.Start()
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
-	}
-	err = c.Shutdown()
-	if err != nil {
-		fmt.Printf("shundown Consumer error: %s", err.Error())
 	}
 	time.Sleep(time.Hour)
 }

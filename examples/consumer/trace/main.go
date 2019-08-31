@@ -31,7 +31,8 @@ import (
 func main() {
 	namesrvs := []string{"127.0.0.1:9876"}
 	traceCfg := primitive.TraceConfig{
-		Access: primitive.Local,
+		Access:       primitive.Local,
+		NamesrvAddrs: namesrvs,
 	}
 
 	c, _ := rocketmq.NewPushConsumer(
@@ -52,6 +53,11 @@ func main() {
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(-1)
+
+	}
+	err = c.Shutdown()
+	if err != nil {
+		fmt.Printf("shundown Consumer error: %s", err.Error())
 	}
 	time.Sleep(time.Hour)
 }

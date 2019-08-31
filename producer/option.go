@@ -53,11 +53,16 @@ func WithGroupName(group string) Option {
 }
 
 // WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers []string) Option {
+func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 	return func(opts *producerOptions) {
-		if len(nameServers) > 0 {
-			opts.NameServerAddrs = nameServers
-		}
+		opts.NameServerAddrs = nameServers
+	}
+}
+
+// WithNamespace set the namespace of producer
+func WithNamespace(namespace string) Option {
+	return func(opts *producerOptions) {
+		opts.Namespace = namespace
 	}
 }
 

@@ -32,9 +32,10 @@ func main() {
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
-		consumer.WithStrategy(consumer.AllocateByAveragely),
+		consumer.WithConsumeFromWhere(consumer.ConsumeFromFirstOffset),
+		consumer.WithConsumerModel(consumer.BroadCasting),
 	)
-	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
+	err := c.Subscribe("min", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		fmt.Printf("subscribe callback: %v \n", msgs)
 		return consumer.ConsumeSuccess, nil
@@ -50,7 +51,8 @@ func main() {
 	}
 	err = c.Shutdown()
 	if err != nil {
-		fmt.Printf("shundown Consumer error: %s", err.Error())
+		fmt.Printf("Shutdown Consumer error: %s", err.Error())
+		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
 }
