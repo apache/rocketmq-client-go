@@ -20,15 +20,17 @@ package producer
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -36,6 +38,17 @@ var (
 	ErrMessageEmpty = errors.New("message is nil")
 	ErrNotRunning   = errors.New("producer not started")
 )
+
+type defaultProducer struct {
+	group       string
+	client      internal.RMQClient
+	state       internal.ServiceState
+	options     producerOptions
+	publishInfo sync.Map
+	callbackCh  chan interface{}
+
+	interceptor primitive.Interceptor
+}
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	defaultOpts := defaultProducerOptions()
@@ -49,24 +62,15 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	internal.RegisterNamsrv(srvs)
 
 	producer := &defaultProducer{
-		group:   "default",
-		client:  internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions),
-		options: defaultOpts,
+		group:      defaultOpts.GroupName,
+		callbackCh: make(chan interface{}),
+		options:    defaultOpts,
 	}
+	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
 
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
 	return producer, nil
-}
-
-type defaultProducer struct {
-	group       string
-	client      internal.RMQClient
-	state       internal.ServiceState
-	options     producerOptions
-	publishInfo sync.Map
-
-	interceptor primitive.Interceptor
 }
 
 func (p *defaultProducer) Start() error {
@@ -247,11 +251,23 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
+	if !msg.Batch && msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] == "" {
+		msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] = primitive.CreateUniqID()
+	}
+	sysFlag := 0
+	v, ok := msg.Properties[primitive.PropertyTransactionPrepared]
+	if ok {
+		tranMsg, err := strconv.ParseBool(v)
+		if err == nil && tranMsg {
+			sysFlag |= primitive.TransactionPreparedType
+		}
+	}
+
 	req := &internal.SendMessageRequest{
 		ProducerGroup:  p.group,
 		Topic:          mq.Topic,
 		QueueId:        mq.QueueId,
-		SysFlag:        0,
+		SysFlag:        sysFlag,
 		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:           msg.Flag,
 		Properties:     primitive.MarshalPropeties(msg.Properties),
@@ -317,4 +333,144 @@ func (p *defaultProducer) IsPublishTopicNeedUpdate(topic string) bool {
 
 func (p *defaultProducer) IsUnitMode() bool {
 	return false
+}
+
+type transactionProducer struct {
+	producer *defaultProducer
+	listener primitive.TransactionListener
+}
+
+// TODO: checkLocalTransaction
+func NewTransactionProducer(listener primitive.TransactionListener, opts ...Option) (*transactionProducer, error) {
+	producer, err := NewDefaultProducer(opts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "NewDefaultProducer failed.")
+	}
+	return &transactionProducer{
+		producer: producer,
+		listener: listener,
+	}, nil
+}
+
+func (tp *transactionProducer) Start() error {
+	go tp.checkTransactionState()
+	return tp.producer.Start()
+}
+func (tp *transactionProducer) Shutdown() error {
+	return tp.producer.Shutdown()
+}
+
+// TODO: check addr
+func (tp *transactionProducer) checkTransactionState() {
+	for ch := range tp.producer.callbackCh {
+		switch callback := ch.(type) {
+		case internal.CheckTransactionStateCallback:
+			localTransactionState := tp.listener.CheckLocalTransaction(callback.Msg)
+			uniqueKey, existed := callback.Msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+			if !existed {
+				uniqueKey = callback.Msg.MsgId
+			}
+			header := &internal.EndTransactionRequestHeader{
+				CommitLogOffset:      callback.Header.CommitLogOffset,
+				ProducerGroup:        tp.producer.group,
+				TranStateTableOffset: callback.Header.TranStateTableOffset,
+				FromTransactionCheck: true,
+				MsgID:                uniqueKey,
+				TransactionId:        callback.Header.TransactionId,
+				CommitOrRollback:     tp.transactionState(localTransactionState),
+			}
+
+			req := remote.NewRemotingCommand(internal.ReqENDTransaction, header, nil)
+			req.Remark = tp.errRemark(nil)
+
+			tp.producer.client.InvokeOneWay(callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
+		default:
+			rlog.Error("unknow type %v", ch)
+		}
+	}
+}
+
+func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg *primitive.Message) (*primitive.TransactionSendResult, error) {
+	if msg.Properties == nil {
+		msg.Properties = make(map[string]string, 0)
+	}
+	msg.Properties[primitive.PropertyTransactionPrepared] = "true"
+	msg.Properties[primitive.PropertyProducerGroup] = tp.producer.options.GroupName
+
+	rsp, err := tp.producer.SendSync(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	localTransactionState := primitive.UnknowState
+	switch rsp.Status {
+	case primitive.SendOK:
+		if len(rsp.TransactionID) > 0 {
+			msg.Properties["__transactionId__"] = rsp.TransactionID
+		}
+		transactionId := msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+		if len(transactionId) > 0 {
+			msg.TransactionId = transactionId
+		}
+		localTransactionState = tp.listener.ExecuteLocalTransaction(*msg)
+		if localTransactionState != primitive.CommitMessageState {
+			rlog.Errorf("executeLocalTransactionBranch return %v with msg: %v\n", localTransactionState, msg)
+		}
+
+	case primitive.SendFlushDiskTimeout, primitive.SendFlushSlaveTimeout, primitive.SendSlaveNotAvailable:
+		localTransactionState = primitive.RollbackMessageState
+	default:
+	}
+
+	tp.endTransaction(*rsp, err, localTransactionState)
+
+	transactionSendResult := &primitive.TransactionSendResult{
+		SendResult: rsp,
+		State:      localTransactionState,
+	}
+
+	return transactionSendResult, nil
+}
+
+func (tp *transactionProducer) endTransaction(result primitive.SendResult, err error, state primitive.LocalTransactionState) error {
+	var msgID *primitive.MessageID
+	if len(result.OffsetMsgID) > 0 {
+		msgID, _ = primitive.UnmarshalMsgID([]byte(result.OffsetMsgID))
+	} else {
+		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
+	}
+	// 估计没有反序列化回来
+	brokerAddr := internal.FindBrokerAddrByName(result.MessageQueue.BrokerName)
+	requestHeader := &internal.EndTransactionRequestHeader{
+		TransactionId:        result.TransactionID,
+		CommitLogOffset:      msgID.Offset,
+		ProducerGroup:        tp.producer.group,
+		TranStateTableOffset: result.QueueOffset,
+		MsgID:                result.MsgID,
+		CommitOrRollback:     tp.transactionState(state),
+	}
+
+	req := remote.NewRemotingCommand(internal.ReqENDTransaction, requestHeader, nil)
+	req.Remark = tp.errRemark(err)
+
+	return tp.producer.client.InvokeOneWay(brokerAddr, req, tp.producer.options.SendMsgTimeout)
+}
+
+func (tp *transactionProducer) errRemark(err error) string {
+	if err != nil {
+		return "executeLocalTransactionBranch exception: " + err.Error()
+	}
+	return ""
+}
+
+func (tp *transactionProducer) transactionState(state primitive.LocalTransactionState) int {
+	switch state {
+	case primitive.CommitMessageState:
+		return primitive.TransactionCommitType
+	case primitive.RollbackMessageState:
+		return primitive.TransactionRollbackType
+	case primitive.UnknowState:
+		return primitive.TransactionNotType
+	default:
+		return primitive.TransactionNotType
+	}
 }

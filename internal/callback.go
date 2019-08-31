@@ -15,30 +15,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package internal
 
-var (
-	CompressedFlag = 0x1
+import (
+	"net"
 
-	MultiTagsFlag = 0x1 << 1
-
-	TransactionNotType = 0
-
-	TransactionPreparedType = 0x1 << 2
-
-	TransactionCommitType = 0x2 << 2
-
-	TransactionRollbackType = 0x3 << 2
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
-func GetTransactionValue(flag int) int {
-	return flag & TransactionRollbackType
-}
-
-func ResetTransactionValue(flag int, typeFlag int) int {
-	return (flag & (^TransactionRollbackType)) | typeFlag
-}
-
-func ClearCompressedFlag(flag int) int {
-	return flag & (^CompressedFlag)
+// remotingClient callback TransactionProducer
+type CheckTransactionStateCallback struct {
+	Addr   net.Addr
+	Msg    primitive.MessageExt
+	Header CheckTransactionStateRequestHeader
 }

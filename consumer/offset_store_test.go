@@ -251,7 +251,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		Convey("test persist", func() {
 			queues := []*primitive.MessageQueue{mq}
 
-			patch := gomonkey.ApplyFunc(internal.FindBrokerAddrByName, func(_ string) (string) {
+			patch := gomonkey.ApplyFunc(internal.FindBrokerAddrByName, func(_ string) string {
 				return "192.168.24.1:10911"
 			})
 			defer patch.Reset()

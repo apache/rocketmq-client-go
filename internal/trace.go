@@ -20,69 +20,17 @@ package internal
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
-
-var (
-	counter        int16 = 0
-	startTimestamp int64 = 0
-	nextTimestamp  int64 = 0
-	prefix         string
-	locker         sync.Mutex
-	classLoadId    int32 = 0
-)
-
-func init() {
-	buf := new(bytes.Buffer)
-
-	ip, err := utils.ClientIP4()
-	if err != nil {
-		ip = utils.FakeIP()
-	}
-	_, _ = buf.Write(ip)
-	_ = binary.Write(buf, binary.BigEndian, Pid())
-	_ = binary.Write(buf, binary.BigEndian, classLoadId)
-	prefix = strings.ToUpper(hex.EncodeToString(buf.Bytes()))
-}
-
-func CreateUniqID() string {
-	locker.Lock()
-	defer locker.Unlock()
-
-	if time.Now().Unix() > nextTimestamp {
-		updateTimestamp()
-	}
-	counter++
-	buf := new(bytes.Buffer)
-	_ = binary.Write(buf, binary.BigEndian, int32((time.Now().Unix()-startTimestamp)*1000))
-	_ = binary.Write(buf, binary.BigEndian, counter)
-
-	return prefix + hex.EncodeToString(buf.Bytes())
-}
-
-func updateTimestamp() {
-	year, month := time.Now().Year(), time.Now().Month()
-	startTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).Unix()
-	nextTimestamp = time.Date(year, month, 1, 0, 0, 0, 0, time.Local).AddDate(0, 1, 0).Unix()
-}
-
-func Pid() int16 {
-	return int16(os.Getpid())
-}
 
 type TraceBean struct {
 	Topic       string
@@ -276,7 +224,7 @@ func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel) *trac
 
 	cliOp := DefaultClientOptions()
 	cliOp.RetryTimes = 0
-	cli := GetOrNewRocketMQClient(cliOp)
+	cli := GetOrNewRocketMQClient(cliOp, nil)
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,

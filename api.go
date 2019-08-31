@@ -37,6 +37,16 @@ func NewProducer(opts ...producer.Option) (Producer, error) {
 	return producer.NewDefaultProducer(opts...)
 }
 
+type TransactionProducer interface {
+	Start() error
+	Shutdown() error
+	SendMessageInTransaction(context.Context, *primitive.Message) (*primitive.TransactionSendResult, error)
+}
+
+func NewTransactionProducer(listener primitive.TransactionListener, opts ...producer.Option) (TransactionProducer, error) {
+	return producer.NewTransactionProducer(listener, opts...)
+}
+
 type PushConsumer interface {
 	Start() error
 	Shutdown() error

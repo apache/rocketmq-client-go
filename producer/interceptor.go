@@ -81,7 +81,7 @@ func newTraceInterceptor(traceCfg primitive.TraceConfig) primitive.Interceptor {
 		}
 
 		traceCtx := internal.TraceContext{
-			RequestId: internal.CreateUniqID(), // set id
+			RequestId: primitive.CreateUniqID(), // set id
 			TimeStamp: time.Now().UnixNano() / int64(time.Millisecond),
 
 			TraceType:  internal.Pub,

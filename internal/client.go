@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -165,18 +166,50 @@ type rmqClient struct {
 
 var clientMap sync.Map
 
-func GetOrNewRocketMQClient(option ClientOptions) *rmqClient {
+func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *rmqClient {
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	if !loaded {
-		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand) *remote.RemotingCommand {
+		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Infof("receive broker's notification, the consumer group: %s", req.ExtFields["consumerGroup"])
 			client.RebalanceImmediately()
 			return nil
 		})
+		client.remoteClient.RegisterRequestFunc(ReqCheckTransactionState, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			header := new(CheckTransactionStateRequestHeader)
+			header.Decode(req.ExtFields)
+			msgExts := primitive.DecodeMessage(req.Body)
+			if len(msgExts) == 0 {
+				rlog.Warn("checkTransactionState, decode message failed")
+				return nil
+			}
+			msgExt := msgExts[0]
+			// TODO: add namespace support
+			transactionID := msgExt.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+			if len(transactionID) > 0 {
+				msgExt.TransactionId = transactionID
+			}
+			group, existed := msgExt.Properties[primitive.PropertyProducerGroup]
+			if !existed {
+				rlog.Warn("checkTransactionState, pick producer group failed")
+				return nil
+			}
+			if option.GroupName != group {
+				rlog.Warn("producer group is not equal.")
+				return nil
+			}
+			callback := CheckTransactionStateCallback{
+				Addr:   addr,
+				Msg:    *msgExt,
+				Header: *header,
+			}
+			callbackCh <- callback
+			return nil
+		})
+
 	}
 	return actual.(*rmqClient)
 }
@@ -283,31 +316,30 @@ func (c *rmqClient) CheckClientInBroker() {
 func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 	c.hbMutex.Lock()
 	defer c.hbMutex.Unlock()
-	hbData := &heartbeatData{
-		ClientId: c.ClientID(),
-	}
-	pData := make([]producerData, 0)
+	hbData := NewHeartbeatData(c.ClientID())
+
 	c.producerMap.Range(func(key, value interface{}) bool {
-		pData = append(pData, producerData(key.(string)))
+		pData := producerData{
+			GroupName: key.(string),
+		}
+		hbData.ProducerDatas.Add(pData)
 		return true
 	})
 
-	cData := make([]consumerData, 0)
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
-		cData = append(cData, consumerData{
+		cData := consumerData{
 			GroupName:         key.(string),
 			CType:             "PUSH",
 			MessageModel:      "CLUSTERING",
 			Where:             "CONSUME_FROM_FIRST_OFFSET",
 			UnitMode:          consumer.IsUnitMode(),
 			SubscriptionDatas: consumer.SubscriptionDataList(),
-		})
+		}
+		hbData.ConsumerDatas.Add(cData)
 		return true
 	})
-	hbData.ProducerDatas = pData
-	hbData.ConsumerDatas = cData
-	if len(pData) == 0 && len(cData) == 0 {
+	if hbData.ProducerDatas.Len() == 0 && hbData.ConsumerDatas.Len() == 0 {
 		rlog.Info("sending heartbeat, but no producer and no consumer")
 		return
 	}
