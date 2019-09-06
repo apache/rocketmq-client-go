@@ -72,7 +72,7 @@ type Message struct {
 
 	// QueueID is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
-	QueueID int
+	Queue *MessageQueue
 }
 
 func NewMessage(topic string, body []byte) *Message {

@@ -27,7 +27,7 @@ import (
 )
 
 type QueueSelector interface {
-	Select(*primitive.Message, int) int
+	Select(*primitive.Message, []*primitive.MessageQueue) *primitive.MessageQueue
 }
 
 // manualQueueSelector use the queue manually set in the provided Message's QueueID  field as the queue to send.
@@ -37,8 +37,8 @@ func NewManualQueueSelector() QueueSelector {
 	return new(manualQueueSelector)
 }
 
-func (manualQueueSelector) Select(message *primitive.Message, queues int) int {
-	return message.QueueID
+func (manualQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	return message.Queue
 }
 
 // randomQueueSelector choose a random queue each time.
@@ -52,8 +52,9 @@ func NewRandomQueueSelector() QueueSelector {
 	return s
 }
 
-func (r randomQueueSelector) Select(message *primitive.Message, queues int) int {
-	return r.rander.Intn(queues)
+func (r randomQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	i := r.rander.Intn(len(queues))
+	return queues[i]
 }
 
 // roundRobinQueueSelector choose the queue by roundRobin.
@@ -70,7 +71,7 @@ func NewRoundRobinQueueSelector() QueueSelector {
 	return s
 }
 
-func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues int) int {
+func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
 	t := message.Topic
 	if _, exist := r.indexer[t]; !exist {
 		r.Lock()
@@ -87,5 +88,6 @@ func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues int)
 		i = -i
 		atomic.StoreInt32(index, 0)
 	}
-	return int(i) % queues
+	qIndex := int(i) % len(queues)
+	return queues[qIndex]
 }
