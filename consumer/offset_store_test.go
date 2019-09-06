@@ -68,75 +68,6 @@ func TestNewLocalFileOffsetStore(t *testing.T) {
 	})
 }
 
-func TestReadFromMemory(t *testing.T) {
-	Convey("Given some queue and queueOffset with a starting value", t, func() {
-		type testCase struct {
-			queueOffset    map[string]map[int]*queueOffset
-			queue          *primitive.MessageQueue
-			expectedOffset int64
-		}
-
-		cases := []testCase{
-			{
-				queueOffset: map[string]map[int]*queueOffset{
-					"testTopic2": {
-						1: {
-							QueueID: 1,
-							Broker:  "default",
-							Offset:  1,
-						},
-					},
-				},
-				queue: &primitive.MessageQueue{
-					Topic:      "testTopic1",
-					BrokerName: "default",
-					QueueId:    1,
-				},
-				expectedOffset: -1,
-			},
-			{
-				queueOffset: map[string]map[int]*queueOffset{
-					"testTopic1": {
-						0: {
-							QueueID: 0,
-							Broker:  "default",
-							Offset:  1,
-						},
-					},
-				},
-				queue: &primitive.MessageQueue{
-					Topic:      "testTopic1",
-					BrokerName: "default",
-					QueueId:    1,
-				},
-				expectedOffset: -1,
-			},
-			{
-				queueOffset: map[string]map[int]*queueOffset{
-					"testTopic1": {
-						0: {
-							QueueID: 0,
-							Broker:  "default",
-							Offset:  1,
-						},
-					},
-				},
-				queue: &primitive.MessageQueue{
-					Topic:      "testTopic1",
-					BrokerName: "default",
-					QueueId:    0,
-				},
-				expectedOffset: 1,
-			},
-		}
-
-		for _, value := range cases {
-			offset := readFromMemory(value.queueOffset, value.queue)
-			So(offset, ShouldEqual, value.expectedOffset)
-		}
-	})
-}
-
 func TestLocalFileOffsetStore(t *testing.T) {
 	Convey("Given a local store with a starting value", t, func() {
 		localStore := NewLocalFileOffsetStore("192.168.24.1@default", "testGroup")
@@ -196,10 +127,12 @@ func TestLocalFileOffsetStore(t *testing.T) {
 
 		Convey("test persist", func() {
 			localStore.update(mq, 1, false)
+			offset := localStore.read(mq, _ReadFromMemory)
+			So(offset, ShouldEqual, 1)
 
 			queues := []*primitive.MessageQueue{mq}
 			localStore.persist(queues)
-			offset := localStore.read(mq, _ReadFromStore)
+			offset = localStore.read(mq, _ReadFromStore)
 			So(offset, ShouldEqual, 1)
 		})
 	})
