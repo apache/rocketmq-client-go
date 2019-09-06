@@ -97,7 +97,7 @@ func (result *PullResult) SetMessageExts(msgExts []*MessageExt) {
 }
 
 func (result *PullResult) GetMessages() []*Message {
-	if result.messageExts == nil || len(result.messageExts) == 0 {
+	if len(result.messageExts) == 0 {
 		return make([]*Message, 0)
 	}
 	return toMessages(result.messageExts)
