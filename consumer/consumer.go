@@ -976,10 +976,10 @@ func clearCommitOffsetFlag(sysFlag int32) int32 {
 
 func (dc *defaultConsumer) tryFindBroker(mq *primitive.MessageQueue) *internal.FindBrokerResult {
 	result := dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
-
-	if result == nil {
-		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
+	if result != nil {
+		return result
 	}
+	dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
 	return dc.namesrv.FindBrokerAddressInSubscribe(mq.BrokerName, recalculatePullFromWhichNode(mq), false)
 }
 

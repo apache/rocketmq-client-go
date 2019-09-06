@@ -73,7 +73,7 @@ func newProcessQueue(order bool) *processQueue {
 }
 
 func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
-	if messages == nil || len(messages) == 0 {
+	if len(messages) == 0 {
 		return
 	}
 	pq.mutex.Lock()
