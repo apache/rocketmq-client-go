@@ -317,8 +317,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 		return nil
 	}
 
-	i := p.options.Selector.Select(msg, len(result.MqList))
-	return result.MqList[i]
+	return p.options.Selector.Select(msg, result.MqList)
 }
 
 func (p *defaultProducer) PublishTopicList() []string {

@@ -25,7 +25,12 @@ import (
 )
 
 func TestRoundRobin(t *testing.T) {
-	queues := 10
+	queues := make([]*primitive.MessageQueue, 10)
+	for i := 0; i < 10; i++ {
+		queues = append(queues, &primitive.MessageQueue{
+			QueueId: i,
+		})
+	}
 	s := NewRoundRobinQueueSelector()
 
 	m := &primitive.Message{
@@ -36,9 +41,11 @@ func TestRoundRobin(t *testing.T) {
 	}
 	for i := 0; i < 100; i++ {
 		q := s.Select(m, queues)
-		assert.Equal(t, (i+1)%queues, q, "i: %d", i)
+		expected := (i + 1) % len(queues)
+		assert.Equal(t, queues[expected], q, "i: %d", i)
 
 		qrr := s.Select(mrr, queues)
-		assert.Equal(t, (i+1)%queues, qrr, "i: %d", i)
+		expected = (i + 1) % len(queues)
+		assert.Equal(t, queues[expected], qrr, "i: %d", i)
 	}
 }

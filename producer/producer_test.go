@@ -118,7 +118,11 @@ func TestSync(t *testing.T) {
 		Topic:      topic,
 		Body:       []byte("this is a message body"),
 		Properties: map[string]string{"key": "value"},
-		QueueID:    0,
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
 	}
 
 	expectedResp := &primitive.SendResult{
@@ -165,6 +169,11 @@ func TestASync(t *testing.T) {
 		Topic:      topic,
 		Body:       []byte("this is a message body"),
 		Properties: map[string]string{"key": "value"},
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
 	}
 
 	expectedResp := &primitive.SendResult{
@@ -222,6 +231,11 @@ func TestOneway(t *testing.T) {
 		Topic:      topic,
 		Body:       []byte("this is a message body"),
 		Properties: map[string]string{"key": "value"},
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
 	}
 
 	mockB4Send(p)
