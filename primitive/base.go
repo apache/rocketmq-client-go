@@ -59,7 +59,14 @@ func (addr NamesrvAddr) Check() error {
 	return nil
 }
 
+var (
+	httpPrefixRegex, _ = regexp.Compile("^(http|https)://")
+)
+
 func verifyIP(ip string) error {
+	if httpPrefixRegex.MatchString(ip) {
+		return nil
+	}
 	if strings.Contains(ip, ";") {
 		return ErrMultiIP
 	}
