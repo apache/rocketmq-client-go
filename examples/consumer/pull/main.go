@@ -24,7 +24,6 @@ import (
 
 	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
@@ -53,7 +52,7 @@ func main() {
 	for {
 		resp, err := c.PullFrom(ctx, queue, offset, 10)
 		if err != nil {
-			if err == utils.ErrRequestTimeout {
+			if err == rocketmq.ErrRequestTimeout {
 				fmt.Printf("timeout \n")
 				time.Sleep(1 * time.Second)
 				continue
