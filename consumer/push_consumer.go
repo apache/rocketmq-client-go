@@ -495,7 +495,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		switch result.Status {
 		case primitive.PullFound:
-			rlog.Infof("Topic: %s, QueueId: %d found messages.", request.mq.Topic, request.mq.QueueId)
+			rlog.Debugf("Topic: %s, QueueId: %d found messages.", request.mq.Topic, request.mq.QueueId)
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
@@ -516,7 +516,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case primitive.PullNoNewMsg:
-			rlog.Infof("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d", request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset)
+			rlog.Debugf("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d", request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset)
 		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)

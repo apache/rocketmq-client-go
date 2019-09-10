@@ -106,6 +106,8 @@ func (m *Message) RemoveProperty(key string) string {
 	return value
 }
 func (m *Message) MarshallProperties() string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 	buffer := bytes.NewBufferString("")
 	for k, v := range m.properties {
 		buffer.WriteString(k)
@@ -118,6 +120,11 @@ func (m *Message) MarshallProperties() string {
 
 // unmarshalProperties parse data into property kv pairs.
 func (m *Message) UnmarshalProperties(data []byte) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.properties == nil {
+		m.properties = make(map[string]string)
+	}
 	items := bytes.Split(data, []byte{propertySeparator})
 	for _, item := range items {
 		kv := bytes.Split(item, []byte{nameValueSeparator})
