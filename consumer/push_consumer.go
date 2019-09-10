@@ -734,7 +734,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
-				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionRetrun)
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionReturn)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {

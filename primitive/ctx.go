@@ -39,7 +39,7 @@ func (c ConsumeReturnType) Ordinal() int {
 		return 0
 	case TimeoutReturn:
 		return 1
-	case ExceptionRetrun:
+	case ExceptionReturn:
 		return 2
 	case NullReturn:
 		return 3
@@ -69,7 +69,7 @@ const (
 	PropCtxType                       = "ConsumeContextType"
 	SuccessReturn   ConsumeReturnType = "SUCCESS"
 	TimeoutReturn   ConsumeReturnType = "TIMEOUT"
-	ExceptionRetrun ConsumeReturnType = "EXCEPTION"
+	ExceptionReturn ConsumeReturnType = "EXCEPTION"
 	NullReturn      ConsumeReturnType = "RETURNNULL"
 	FailedReturn    ConsumeReturnType = "FAILED"
 )

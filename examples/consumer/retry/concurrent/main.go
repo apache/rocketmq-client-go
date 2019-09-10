@@ -15,13 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/**
- * use concurrent consumer model, when Subscribe function return consumer.ConsumeRetryLater, the message will be
- * send to rocketmq retry topic. we could set DelayLevelWhenNextConsume in ConsumeConcurrentlyContext, which used to
- * indicate the delay of message re-send to origin topic from retry topic.
- * in this example, we always set DelayLevelWhenNextConsume=1, means that the message will be sent to origin topic after
- * 1s. in case of the unlimit retry, we will return consumer.ConsumeSuccess after ReconsumeTimes > 5
- */
 package main
 
 import (
@@ -35,6 +28,12 @@ import (
 	"github.com/apache/rocketmq-client-go/primitive"
 )
 
+// use concurrent consumer model, when Subscribe function return consumer.ConsumeRetryLater, the message will be
+// send to RocketMQ retry topic. we could set DelayLevelWhenNextConsume in ConsumeConcurrentlyContext, which used to
+// indicate the delay of message re-send to origin topic from retry topic.
+//
+// in this example, we always set DelayLevelWhenNextConsume=1, means that the message will be sent to origin topic after
+// 1s. in case of the unlimited retry, we will return consumer.ConsumeSuccess after ReconsumeTimes > 5
 func main() {
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
@@ -42,13 +41,18 @@ func main() {
 		consumer.WithConsumerModel(consumer.Clustering),
 	)
 
-	retryLevel := 1 // mean 10s later before consume
+	// The DelayLevel specify the waiting time that before next reconsume,
+	// and it range is from 1 to 18 now.
+	//
+	// The time of each level is the value of indexing of {level-1} in [1s, 5s, 10s, 30s,
+	// 1m, 2m, 3m, 4m, 5m, 6m, 7m, 8m, 9m, 10m, 20m, 30m, 1h, 2h]
+	delayLevel := 1
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		fmt.Printf("subscribe callback len: %d \n", len(msgs))
 
 		concurrentCtx, _ := primitive.GetConcurrentlyCtx(ctx)
-		concurrentCtx.DelayLevelWhenNextConsume = retryLevel // only run when return consumer.ConsumeRetryLater
+		concurrentCtx.DelayLevelWhenNextConsume = delayLevel // only run when return consumer.ConsumeRetryLater
 
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > 5 {
