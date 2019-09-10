@@ -191,12 +191,12 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			}
 			msgExt := msgExts[0]
 			// TODO: add namespace support
-			transactionID := msgExt.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+			transactionID := msgExt.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
 			if len(transactionID) > 0 {
 				msgExt.TransactionId = transactionID
 			}
-			group, existed := msgExt.Properties[primitive.PropertyProducerGroup]
-			if !existed {
+			group := msgExt.GetProperty(primitive.PropertyProducerGroup)
+			if group == "" {
 				rlog.Warn("checkTransactionState, pick producer group failed")
 				return nil
 			}
@@ -442,7 +442,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 
 	msgIDs := make([]string, 0)
 	for i := 0; i < len(msgs); i++ {
-		msgIDs = append(msgIDs, msgs[i].Properties[primitive.PropertyUniqueClientMessageIdKeyIndex])
+		msgIDs = append(msgIDs, msgs[i].GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex))
 	}
 
 	regionId := cmd.ExtFields[primitive.PropertyMsgRegion]

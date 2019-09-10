@@ -40,10 +40,8 @@ func main() {
 	tags := []string{"TagA", "TagB", "TagC"}
 	for i := 0; i < 3; i++ {
 		tag := tags[i%3]
-		msg := &primitive.Message{
-			Topic: "TopicTest",
-			Body:  []byte("Hello RocketMQ Go Client!"),
-		}
+		msg := primitive.NewMessage("test",
+			[]byte("Hello RocketMQ Go Client!"))
 		msg.WithTag(tag)
 
 		res, err := p.SendSync(context.Background(), msg)

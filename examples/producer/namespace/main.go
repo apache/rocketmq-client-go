@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/apache/rocketmq-client-go"
 	"github.com/apache/rocketmq-client-go/primitive"
@@ -51,11 +50,8 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < 100000; i++ {
-		res, err := p.SendSync(context.Background(), &primitive.Message{
-			Topic:      "test",
-			Body:       []byte("Hello RocketMQ Go Client!"),
-			Properties: map[string]string{"order": strconv.Itoa(i)},
-		})
+		res, err := p.SendSync(context.Background(), primitive.NewMessage("test",
+			[]byte("Hello RocketMQ Go Client!")))
 
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)

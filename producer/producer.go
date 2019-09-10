@@ -263,15 +263,12 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
-	if msg.Properties == nil {
-		msg.Properties = make(map[string]string, 0)
-	}
-	if !msg.Batch && msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] == "" {
-		msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex] = primitive.CreateUniqID()
+	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
+		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
 	sysFlag := 0
-	v, ok := msg.Properties[primitive.PropertyTransactionPrepared]
-	if ok {
+	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
+	if v != "" {
 		tranMsg, err := strconv.ParseBool(v)
 		if err == nil && tranMsg {
 			sysFlag |= primitive.TransactionPreparedType
@@ -285,7 +282,7 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		SysFlag:        sysFlag,
 		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:           msg.Flag,
-		Properties:     primitive.MarshalPropeties(msg.Properties),
+		Properties:     msg.MarshallProperties(),
 		ReconsumeTimes: 0,
 		UnitMode:       p.options.UnitMode,
 		Batch:          false,
@@ -380,8 +377,8 @@ func (tp *transactionProducer) checkTransactionState() {
 		switch callback := ch.(type) {
 		case internal.CheckTransactionStateCallback:
 			localTransactionState := tp.listener.CheckLocalTransaction(callback.Msg)
-			uniqueKey, existed := callback.Msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
-			if !existed {
+			uniqueKey := callback.Msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
+			if uniqueKey == "" {
 				uniqueKey = callback.Msg.MsgId
 			}
 			header := &internal.EndTransactionRequestHeader{
@@ -405,11 +402,8 @@ func (tp *transactionProducer) checkTransactionState() {
 }
 
 func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg *primitive.Message) (*primitive.TransactionSendResult, error) {
-	if msg.Properties == nil {
-		msg.Properties = make(map[string]string, 0)
-	}
-	msg.Properties[primitive.PropertyTransactionPrepared] = "true"
-	msg.Properties[primitive.PropertyProducerGroup] = tp.producer.options.GroupName
+	msg.WithProperty(primitive.PropertyTransactionPrepared, "true")
+	msg.WithProperty(primitive.PropertyProducerGroup, tp.producer.options.GroupName)
 
 	rsp, err := tp.producer.SendSync(ctx, msg)
 	if err != nil {
@@ -419,9 +413,9 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	switch rsp.Status {
 	case primitive.SendOK:
 		if len(rsp.TransactionID) > 0 {
-			msg.Properties["__transactionId__"] = rsp.TransactionID
+			msg.WithProperty("__transactionId__", rsp.TransactionID)
 		}
-		transactionId := msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+		transactionId := msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
 		if len(transactionId) > 0 {
 			msg.TransactionId = transactionId
 		}

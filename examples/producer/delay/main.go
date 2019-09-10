@@ -38,10 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < 10; i++ {
-		msg := &primitive.Message{
-			Topic: "TopicTest",
-			Body:  []byte("Hello RocketMQ Go Client!"),
-		}
+		msg := primitive.NewMessage("test", []byte("Hello RocketMQ Go Client!"))
 		msg.WithDelayTimeLevel(3)
 		res, err := p.SendSync(context.Background(), msg)
 

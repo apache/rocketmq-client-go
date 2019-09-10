@@ -45,10 +45,8 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < 1; i++ {
-		res, err := p.SendSync(context.Background(), &primitive.Message{
-			Topic: "TopicTest",
-			Body:  []byte("Hello RocketMQ Go Client!"),
-		})
+		res, err := p.SendSync(context.Background(), primitive.NewMessage("test",
+			[]byte("Hello RocketMQ Go Client!")))
 
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)
