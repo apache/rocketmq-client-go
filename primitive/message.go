@@ -66,79 +66,119 @@ type Message struct {
 	Topic         string
 	Body          []byte
 	Flag          int32
-	Properties    map[string]string
 	TransactionId string
 	Batch         bool
-
 	// QueueID is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue
+
+	properties map[string]string
+	mutex      sync.RWMutex
+}
+
+func (m *Message) WithProperty(key, value string) {
+	if key == "" || value == "" {
+		return
+	}
+	m.mutex.Lock()
+	if m.properties == nil {
+		m.properties = make(map[string]string)
+	}
+	m.properties[key] = value
+	m.mutex.Unlock()
+}
+
+func (m *Message) GetProperty(key string) string {
+	m.mutex.RLock()
+	v := m.properties[key]
+	m.mutex.RUnlock()
+	return v
+}
+
+func (m *Message) RemoveProperty(key string) string {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	value, exist := m.properties[key]
+	if !exist {
+		return ""
+	}
+	delete(m.properties, key)
+	return value
+}
+func (m *Message) MarshallProperties() string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	buffer := bytes.NewBufferString("")
+	for k, v := range m.properties {
+		buffer.WriteString(k)
+		buffer.WriteRune(nameValueSeparator)
+		buffer.WriteString(v)
+		buffer.WriteRune(propertySeparator)
+	}
+	return buffer.String()
+}
+
+// unmarshalProperties parse data into property kv pairs.
+func (m *Message) UnmarshalProperties(data []byte) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.properties == nil {
+		m.properties = make(map[string]string)
+	}
+	items := bytes.Split(data, []byte{propertySeparator})
+	for _, item := range items {
+		kv := bytes.Split(item, []byte{nameValueSeparator})
+		if len(kv) == 2 {
+			m.properties[string(kv[0])] = string(kv[1])
+		}
+	}
 }
 
 func NewMessage(topic string, body []byte) *Message {
 	msg := &Message{
 		Topic:      topic,
 		Body:       body,
-		Properties: make(map[string]string),
+		properties: make(map[string]string),
 	}
-	msg.Properties[PropertyWaitStoreMsgOk] = strconv.FormatBool(true)
+	//msg.properties[PropertyWaitStoreMsgOk] = strconv.FormatBool(true)
 	return msg
 }
 
 // WithDelayTimeLevel set message delay time to consume.
 // reference delay level definition: 1s 5s 10s 30s 1m 2m 3m 4m 5m 6m 7m 8m 9m 10m 20m 30m 1h 2h
 // delay level starts from 1. for example, if we set param level=1, then the delay time is 1s.
-func (msg *Message) WithDelayTimeLevel(level int) *Message {
-	if msg.Properties == nil {
-		msg.Properties = make(map[string]string)
-	}
-	msg.Properties[PropertyDelayTimeLevel] = strconv.Itoa(level)
-	return msg
+func (m *Message) WithDelayTimeLevel(level int) *Message {
+	m.WithProperty(PropertyDelayTimeLevel, strconv.Itoa(level))
+	return m
 }
 
-func (msg *Message) WithTag(tags string) *Message {
-	if msg.Properties == nil {
-		msg.Properties = make(map[string]string)
-	}
-	msg.Properties[PropertyTags] = tags
-	return msg
+func (m *Message) WithTag(tags string) *Message {
+	m.WithProperty(PropertyTags, tags)
+	return m
 }
 
-func (msg *Message) String() string {
-	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, Properties=%v, TransactionId=%s]",
-		msg.Topic, string(msg.Body), msg.Flag, msg.Properties, msg.TransactionId)
-}
-
-func (msg *Message) WithProperty(key, value string) *Message {
-	msg.Properties[key] = value
-	return msg
-}
-
-func (msg *Message) RemoveProperty(key string) string {
-	value, exist := msg.Properties[key]
-	if !exist {
-		return ""
-	}
-
-	delete(msg.Properties, key)
-	return value
-}
-
-func (msg *Message) WithKeys(keys []string) *Message {
+func (m *Message) WithKeys(keys []string) *Message {
 	var sb strings.Builder
 	for _, k := range keys {
 		sb.WriteString(k)
 		sb.WriteString(PropertyKeySeparator)
 	}
-	return msg.WithProperty(PropertyKeys, sb.String())
+
+	m.WithProperty(PropertyKeys, sb.String())
+	return m
 }
 
-func (msg *Message) GetTags() string {
-	return msg.Properties[PropertyTags]
+func (m *Message) GetTags() string {
+	return m.GetProperty(PropertyTags)
 }
 
-func (msg *Message) GetKeys() string {
-	return msg.Properties[PropertyKeys]
+func (m *Message) GetKeys() string {
+	return m.GetProperty(PropertyKeys)
+}
+
+func (m *Message) String() string {
+	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, properties=%v, TransactionId=%s]",
+		m.Topic, string(m.Body), m.Flag, m.properties, m.TransactionId)
 }
 
 type MessageExt struct {
@@ -159,15 +199,15 @@ type MessageExt struct {
 }
 
 func (msgExt *MessageExt) GetTags() string {
-	return msgExt.Properties[PropertyTags]
+	return msgExt.GetProperty(PropertyTags)
 }
 
 func (msgExt *MessageExt) GetRegionID() string {
-	return msgExt.Properties[PropertyMsgRegion]
+	return msgExt.GetProperty(PropertyMsgRegion)
 }
 
 func (msgExt *MessageExt) IsTraceOn() string {
-	return msgExt.Properties[PropertyTraceSwitch]
+	return msgExt.GetProperty(PropertyTraceSwitch)
 }
 
 func (msgExt *MessageExt) String() string {
@@ -265,47 +305,19 @@ func DecodeMessage(data []byte) []*MessageExt {
 		var propertiesLength int16
 		binary.Read(buf, binary.BigEndian, &propertiesLength)
 		if propertiesLength > 0 {
-			msg.Properties = unmarshalProperties(buf.Next(int(propertiesLength)))
+			msg.UnmarshalProperties(buf.Next(int(propertiesLength)))
 		}
 		count += 2 + int(propertiesLength)
 
 		msg.MsgId = createMessageId(hostBytes, port, msg.CommitLogOffset)
 		//count += 16
-		if msg.Properties == nil {
-			msg.Properties = make(map[string]string, 0)
+		if msg.properties == nil {
+			msg.properties = make(map[string]string, 0)
 		}
 		msgs = append(msgs, msg)
 	}
 
 	return msgs
-}
-
-// unmarshalProperties parse data into property kv pairs.
-func unmarshalProperties(data []byte) map[string]string {
-	m := make(map[string]string)
-	items := bytes.Split(data, []byte{propertySeparator})
-	for _, item := range items {
-		kv := bytes.Split(item, []byte{nameValueSeparator})
-		if len(kv) == 2 {
-			m[string(kv[0])] = string(kv[1])
-		}
-	}
-	return m
-}
-
-func MarshalPropeties(properties map[string]string) string {
-	if properties == nil {
-		return ""
-	}
-	buffer := bytes.NewBufferString("")
-
-	for k, v := range properties {
-		buffer.WriteString(k)
-		buffer.WriteRune(nameValueSeparator)
-		buffer.WriteString(v)
-		buffer.WriteRune(propertySeparator)
-	}
-	return buffer.String()
 }
 
 // MessageQueue message queue

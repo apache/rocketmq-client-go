@@ -495,7 +495,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		switch result.Status {
 		case primitive.PullFound:
-			rlog.Infof("Topic: %s, QueueId: %d found messages.", request.mq.Topic, request.mq.QueueId)
+			rlog.Debugf("Topic: %s, QueueId: %d found messages.", request.mq.Topic, request.mq.QueueId)
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
@@ -516,7 +516,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"firstMsgOffset=%d, prevRequestOffset=%d]", result.NextBeginOffset, firstMsgOffset, prevRequestOffset)
 			}
 		case primitive.PullNoNewMsg:
-			rlog.Infof("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d", request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset)
+			rlog.Debugf("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d", request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset)
 		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
@@ -677,14 +677,12 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	beginTime := time.Now()
 	for idx := range subMsgs {
 		msg := subMsgs[idx]
-		if msg.Properties != nil {
-			retryTopic := msg.Properties[primitive.PropertyRetryTopic]
-			if retryTopic == "" && groupTopic == msg.Topic {
-				msg.Topic = retryTopic
-			}
-			subMsgs[idx].Properties[primitive.PropertyConsumeStartTime] = strconv.FormatInt(
-				beginTime.UnixNano()/int64(time.Millisecond), 10)
+		retryTopic := msg.GetProperty(primitive.PropertyRetryTopic)
+		if retryTopic == "" && groupTopic == msg.Topic {
+			msg.Topic = retryTopic
 		}
+		subMsgs[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
+			beginTime.UnixNano()/int64(time.Millisecond), 10))
 	}
 }
 
@@ -805,12 +803,12 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			if pc.model == Clustering {
 				if !pq.locked {
 					rlog.Warn("the message queue not locked, so consume later: %v", mq)
-					pc.tryLocakLaterAndReconsume(mq, 10)
+					pc.tryLockLaterAndReconsume(mq, 10)
 					return
 				}
 				if pq.isLockExpired() {
 					rlog.Warn("the message queue lock expired, so consume later: %v", mq)
-					pc.tryLocakLaterAndReconsume(mq, 10)
+					pc.tryLockLaterAndReconsume(mq, 10)
 					return
 				}
 			}
@@ -909,7 +907,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 		if pq.dropped {
 			rlog.Warn("the message queue not be able to consume, because it's dropped. %v", mq)
 		}
-		pc.tryLocakLaterAndReconsume(mq, 100)
+		pc.tryLockLaterAndReconsume(mq, 100)
 	}
 }
 
@@ -920,7 +918,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
 				rlog.Warn("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes)
-				msg.Properties["RECONSUME_TIME"] = strconv.Itoa(int(msg.ReconsumeTimes))
+				msg.WithProperty("RECONSUME_TIME", strconv.Itoa(int(msg.ReconsumeTimes)))
 				if !pc.sendMessageBack("", msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
@@ -950,7 +948,7 @@ func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
 	}
 }
 
-func (pc *pushConsumer) tryLocakLaterAndReconsume(mq *primitive.MessageQueue, delay int64) {
+func (pc *pushConsumer) tryLockLaterAndReconsume(mq *primitive.MessageQueue, delay int64) {
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	if pc.lock(mq) == true {
 		pc.submitConsumeRequestLater(10)

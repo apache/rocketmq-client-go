@@ -811,16 +811,13 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// TODO: add filter message hook
 		for _, msg := range msgListFilterAgain {
-			traFlag, _ := strconv.ParseBool(msg.Properties[primitive.PropertyTransactionPrepared])
+			traFlag, _ := strconv.ParseBool(msg.GetProperty(primitive.PropertyTransactionPrepared))
 			if traFlag {
-				msg.TransactionId = msg.Properties[primitive.PropertyUniqueClientMessageIdKeyIndex]
+				msg.TransactionId = msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
 			}
 
-			if msg.Properties == nil {
-				msg.Properties = make(map[string]string)
-			}
-			msg.Properties[primitive.PropertyMinOffset] = strconv.FormatInt(result.MinOffset, 10)
-			msg.Properties[primitive.PropertyMaxOffset] = strconv.FormatInt(result.MaxOffset, 10)
+			msg.WithProperty(primitive.PropertyMinOffset, strconv.FormatInt(result.MinOffset, 10))
+			msg.WithProperty(primitive.PropertyMaxOffset, strconv.FormatInt(result.MaxOffset, 10))
 		}
 
 		result.SetMessageExts(msgListFilterAgain)

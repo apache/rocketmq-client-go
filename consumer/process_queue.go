@@ -101,7 +101,7 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	}
 
 	msg := messages[len(messages)-1]
-	maxOffset, err := strconv.ParseInt(msg.Properties[primitive.PropertyMaxOffset], 10, 64)
+	maxOffset, err := strconv.ParseInt(msg.GetProperty(primitive.PropertyMaxOffset), 10, 64)
 	if err != nil {
 		acc := maxOffset - msg.QueueOffset
 		if acc > 0 {
@@ -172,7 +172,7 @@ func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
 		}
 		_, firstValue := pq.msgCache.Min()
 		msg := firstValue.(*primitive.MessageExt)
-		startTime := msg.Properties[primitive.PropertyConsumeStartTime]
+		startTime := msg.GetProperty(primitive.PropertyConsumeStartTime)
 		if startTime != "" {
 			st, err := strconv.ParseInt(startTime, 10, 64)
 			if err != nil {

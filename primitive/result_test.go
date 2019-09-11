@@ -25,13 +25,15 @@ import (
 )
 
 func TestProperties(t *testing.T) {
-	kv := map[string]string{
+	msg1 := NewMessage("test", nil)
+	msg1.properties = map[string]string{
 		"k1": "v1",
 		"k2": "v2",
 	}
-	str := MarshalPropeties(kv)
-	kv2 := unmarshalProperties([]byte(str))
-	assert.Equal(t, kv, kv2)
+	str := msg1.MarshallProperties()
+	msg2 := NewMessage("test", nil)
+	msg2.UnmarshalProperties([]byte(str))
+	assert.Equal(t, msg1.properties, msg2.properties)
 }
 
 func TestCreateMessageId(t *testing.T) {
