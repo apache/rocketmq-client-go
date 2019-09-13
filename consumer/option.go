@@ -216,6 +216,6 @@ func WithStrategy(strategy AllocateStrategy) Option {
 
 func WithConsumeMessageBatchMaxSize(size int) Option {
 	return func(opts *consumerOptions) {
-		opts.ConsumeMessageBatchMaxSize = size;
+		opts.ConsumeMessageBatchMaxSize = size
 	}
 }
