@@ -66,7 +66,7 @@ func main() {
 				FileNum:  1,
 				Level:    rocketmq.LogLevelInfo,
 			},
-		}}
+		}, Model: rocketmq.Clustering}
 
 		ConsumeWithPush(cConfig)
 	}
