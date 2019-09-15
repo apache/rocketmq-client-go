@@ -699,7 +699,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		} else {
 			next := count + pc.option.ConsumeMessageBatchMaxSize
 			subMsgs = msgs[count:next]
-			count = next
+			count = next - 1
 		}
 		go func() {
 		RETRY:

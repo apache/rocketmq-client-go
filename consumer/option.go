@@ -147,6 +147,12 @@ func WithConsumerOrder(order bool) Option {
 	}
 }
 
+func WithConsumeMessageBatchMaxSize(consumeMessageBatchMaxSize int) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeMessageBatchMaxSize = consumeMessageBatchMaxSize
+	}
+}
+
 // WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
