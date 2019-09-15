@@ -118,12 +118,31 @@ func (mode MessageModel) String() string {
 	}
 }
 
+type ConsumerModel int
+
+const (
+	CoCurrently = ConsumerModel(1)
+	Orderly     = ConsumerModel(2)
+)
+
+func (mode ConsumerModel) String() string {
+	switch mode {
+	case CoCurrently:
+		return "CoCurrently"
+	case Orderly:
+		return "Orderly"
+	default:
+		return "Unknown"
+	}
+}
+
 // PushConsumerConfig define a new consumer.
 type PushConsumerConfig struct {
 	ClientConfig
 	ThreadCount         int
 	MessageBatchMaxSize int
 	Model               MessageModel
+	ConsumerModel       ConsumerModel
 }
 
 func (config *PushConsumerConfig) String() string {
@@ -142,6 +161,9 @@ func (config *PushConsumerConfig) String() string {
 		str = strJoin(str, "MessageModel", config.Model.String())
 	}
 
+	if config.ConsumerModel != 0 {
+		str = strJoin(str, "ConsumerModel", config.ConsumerModel.String())
+	}
 	return str + "]"
 }
 

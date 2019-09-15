@@ -32,11 +32,11 @@ int callback_cgo(CPushConsumer *consumer, CMessageExt *msg) {
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"sync"
 	"unsafe"
-	"errors"
 )
 
 type ConsumeStatus int
@@ -183,10 +183,17 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 
 	}
 
-	err = rmqError(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+	if config.ConsumerModel != 0 {
+		switch config.ConsumerModel {
+		case Orderly:
+			err = rmqError(C.RegisterMessageCallbackOrderly(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+		case CoCurrently:
+			err = rmqError(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+		}
+		if err != NIL {
+			return nil, err
+		}
 
-	if err != NIL {
-		return nil, err
 	}
 
 	consumer.cconsumer = cconsumer
