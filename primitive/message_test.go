@@ -20,7 +20,7 @@ package primitive
 import "testing"
 
 func TestMessageID(t *testing.T) {
-	id := "0AAF0895000078BF000000000009BB4A"
+	id := []byte("0AAF0895000078BF000000000009BB4A")
 	msgID, err := UnmarshalMsgID(id)
 	if err != nil {
 		t.Fatalf("unmarshal msg id error, ms is: %s", err.Error())
