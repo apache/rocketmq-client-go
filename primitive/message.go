@@ -28,8 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
 
@@ -394,38 +392,40 @@ func createMessageId(addr []byte, port int32, offset int64) string {
 	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
 }
 
-func UnmarshalMsgID(msgID []byte) (*MessageID, error) {
+func string2Bytes(hexStr string) []byte {
+	if hexStr == "" {
+		return nil
+	}
+
+	hexStr = strings.ToUpper(hexStr)
+	length := len(hexStr) / 2
+	result := make([]byte, length)
+	for i := 0; i < length; i++ {
+		pos := i * 2
+		result[i] = charToByte(hexStr[pos])<<4 | charToByte(hexStr[pos+1])
+	}
+	return result
+}
+
+func charToByte(c byte) byte {
+	return byte(strings.IndexByte("0123456789ABCDEF", c))
+}
+
+func UnmarshalMsgID(msgID string) (*MessageID, error) {
 	if len(msgID) < 32 {
-		return nil, errors.Errorf("%s len < 32", string(msgID))
+		return nil, fmt.Errorf("%s len < 32", string(msgID))
 	}
-	ip := make([]byte, 8)
-	port := make([]byte, 8)
-	offset := make([]byte, 16)
-	var portVal int
-	var offsetVal int64
+	ipBytes := string2Bytes(msgID[0:8])
+	portBytes := string2Bytes(msgID[8:16])
+	portVal := binary.BigEndian.Uint32(portBytes)
 
-	_, err := hex.Decode(ip, msgID[0:8])
-	if err != nil {
-		_, err = hex.Decode(port, msgID[8:16])
-	}
-	if err != nil {
-		_, err = hex.Decode(offset, msgID[16:32])
-	}
-	if err != nil {
-		portVal, err = strconv.Atoi(string(port))
-	}
-	if err != nil {
-		offsetVal, err = strconv.ParseInt(string(offset), 10, 0)
-	}
-
-	if err != nil {
-		return nil, err
-	}
+	offsetBytes := string2Bytes(msgID[16:32])
+	offsetVal := binary.BigEndian.Uint64(offsetBytes)
 
 	return &MessageID{
-		Addr:   string(ip),
-		Port:   portVal,
-		Offset: offsetVal,
+		Addr:   utils.GetAddressByBytes(ipBytes),
+		Port:   int(portVal),
+		Offset: int64(offsetVal),
 	}, nil
 }
 
