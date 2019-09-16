@@ -392,17 +392,17 @@ func createMessageId(addr []byte, port int32, offset int64) string {
 	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
 }
 
-func string2Bytes(hexStr string) []byte {
-	if hexStr == "" {
+func string2Bytes(hexBytes []byte) []byte {
+	if len(hexBytes) == 0 {
 		return nil
 	}
 
-	hexStr = strings.ToUpper(hexStr)
-	length := len(hexStr) / 2
+	hexBytes = bytes.ToUpper(hexBytes)
+	length := len(hexBytes) / 2
 	result := make([]byte, length)
 	for i := 0; i < length; i++ {
 		pos := i * 2
-		result[i] = charToByte(hexStr[pos])<<4 | charToByte(hexStr[pos+1])
+		result[i] = charToByte(hexBytes[pos])<<4 | charToByte(hexBytes[pos+1])
 	}
 	return result
 }
