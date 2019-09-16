@@ -411,7 +411,7 @@ func charToByte(c byte) byte {
 	return byte(strings.IndexByte("0123456789ABCDEF", c))
 }
 
-func UnmarshalMsgID(msgID string) (*MessageID, error) {
+func UnmarshalMsgID(msgID []byte) (*MessageID, error) {
 	if len(msgID) < 32 {
 		return nil, fmt.Errorf("%s len < 32", string(msgID))
 	}
