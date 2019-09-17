@@ -1,7 +1,7 @@
 ## Prerequisites
 
 ### Install `librocketmq`
-because the project top on [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), so you need install 
+rocketmq-client-go is a lightweight wrapper around [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), so you need install 
 `librocketmq` first.
 
 #### include file
@@ -17,7 +17,7 @@ sudo cp rocketmq-client-cpp/include/* /usr/local/include/rocketmq
 your could download directly or build manually:
 
 - download specific release: [rocketmq-client-cpp-1.2.0](http://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/libindex.log)
- and move files downloaded to your `LDFLAGS` directory(if you don't know what is `LDFLAGS`, just google it), in linux, `/usr/local/lib/` works finely.
+ and move downloaded files to your `LDFLAGS` directory(if you don't know what is `LDFLAGS`, just google it). In linux, `/usr/local/lib/` works finely.
  
 - build from source: [Build and Install](https://github.com/apache/rocketmq-client-cpp/tree/master#build-and-install)
 
