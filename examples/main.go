@@ -42,8 +42,13 @@ func main() {
 	switch kingpin.MustParse(rmq.Parse(os.Args[1:])) {
 	case produce.FullCommand():
 		pConfig := &rocketmq.ProducerConfig{ClientConfig: rocketmq.ClientConfig{
-			GroupID:    *gid,
-			NameServer: *namesrv,
+			GroupID:    "MQ_INST_xxxxxxx%GID",
+			NameServer: "http://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:80",
+             Credentials:&rocketmq.SessionCredentials{
+                 AccessKey:"xxxxxx",
+                 SecretKey:"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+                 Channel:"mq-channel",
+            },
 			LogC: &rocketmq.LogConfig{
 				Path:     "example",
 				FileSize: 64 * 1 << 10,
