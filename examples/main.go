@@ -47,7 +47,7 @@ func main() {
              Credentials:&rocketmq.SessionCredentials{
                  AccessKey:"xxxxxx",
                  SecretKey:"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-                 Channel:"Aliyun",
+                 Channel:"mq-channel",
             },
 			LogC: &rocketmq.LogConfig{
 				Path:     "example",
