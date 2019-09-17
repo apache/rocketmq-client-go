@@ -392,40 +392,23 @@ func createMessageId(addr []byte, port int32, offset int64) string {
 	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
 }
 
-func string2Bytes(hexBytes []byte) []byte {
-	if len(hexBytes) == 0 {
-		return nil
+func UnmarshalMsgID(id []byte) (*MessageID, error) {
+	if len(id) < 32 {
+		return nil, fmt.Errorf("%s len < 32", string(id))
 	}
-
-	hexBytes = bytes.ToUpper(hexBytes)
-	length := len(hexBytes) / 2
-	result := make([]byte, length)
-	for i := 0; i < length; i++ {
-		pos := i * 2
-		result[i] = charToByte(hexBytes[pos])<<4 | charToByte(hexBytes[pos+1])
-	}
-	return result
-}
-
-func charToByte(c byte) byte {
-	return byte(strings.IndexByte("0123456789ABCDEF", c))
-}
-
-func UnmarshalMsgID(msgID []byte) (*MessageID, error) {
-	if len(msgID) < 32 {
-		return nil, fmt.Errorf("%s len < 32", string(msgID))
-	}
-	ipBytes := string2Bytes(msgID[0:8])
-	portBytes := string2Bytes(msgID[8:16])
-	portVal := binary.BigEndian.Uint32(portBytes)
-
-	offsetBytes := string2Bytes(msgID[16:32])
-	offsetVal := binary.BigEndian.Uint64(offsetBytes)
+	var (
+		ipBytes     = make([]byte, 4)
+		portBytes   = make([]byte, 4)
+		offsetBytes = make([]byte, 8)
+	)
+	hex.Decode(ipBytes, id[0:8])
+	hex.Decode(portBytes, id[8:16])
+	hex.Decode(offsetBytes, id[16:32])
 
 	return &MessageID{
 		Addr:   utils.GetAddressByBytes(ipBytes),
-		Port:   int(portVal),
-		Offset: int64(offsetVal),
+		Port:   int(binary.BigEndian.Uint32(portBytes)),
+		Offset: int64(binary.BigEndian.Uint64(offsetBytes)),
 	}, nil
 }
 
