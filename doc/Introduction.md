@@ -16,7 +16,7 @@ sudo cp rocketmq-client-cpp/include/* /usr/local/include/rocketmq
 #### binary library
 your could download directly or build manually:
 
-- download specific release: [rocketmq-client-cpp-1.2.0](http://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/libindex.log)
+- download specific release: [rocketmq-client-cpp](https://www.apache.org/dyn/closer.cgi?path=rocketmq/rocketmq-client-cpp/1.2.3/rocketmq-client-cpp-1.2.3-bin-release.tar.gz)
  and move downloaded files to your `LDFLAGS` directory(if you don't know what is `LDFLAGS`, just google it). In linux, `/usr/local/lib/` works finely.
  
 - build from source: [Build and Install](https://github.com/apache/rocketmq-client-cpp/tree/master#build-and-install)
