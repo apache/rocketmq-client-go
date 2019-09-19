@@ -1,6 +1,4 @@
-## RocketMQ Client Go
-[![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![TravisCI](https://travis-ci.org/apache/rocketmq-client-go.svg)](https://travis-ci.org/apache/rocketmq-client-go.svg?branch=native)
+## RocketMQ Client Go [![Build Status](https://travis-ci.org/apache/rocketmq-client-go.svg?branch=native)](https://travis-ci.org/apache/rocketmq-client-go) [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 ( The alpha version of Apache RocketMQ Go in Pure Go has been released, Welcome have a try! [native version](https://github.com/apache/rocketmq-client-go/tree/native) )
 
