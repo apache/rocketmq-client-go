@@ -48,6 +48,24 @@ func (config *ClientConfig) String() string {
 	return str
 }
 
+type ProducerModel int
+
+const (
+	CommonProducer  = ProducerModel(1)
+	OrderlyProducer = ProducerModel(2)
+)
+
+func (mode ProducerModel) String() string {
+	switch mode {
+	case CommonProducer:
+		return "CommonProducer"
+	case OrderlyProducer:
+		return "OrderlyProducer"
+	default:
+		return "Unknown"
+	}
+}
+
 // NewProducer create a new producer with config
 func NewProducer(config *ProducerConfig) (Producer, error) {
 	return newDefaultProducer(config)
@@ -59,6 +77,7 @@ type ProducerConfig struct {
 	SendMsgTimeout int
 	CompressLevel  int
 	MaxMessageSize int
+	ProducerModel  ProducerModel
 }
 
 func (config *ProducerConfig) String() string {
@@ -75,7 +94,7 @@ func (config *ProducerConfig) String() string {
 	if config.MaxMessageSize > 0 {
 		str = strJoin(str, "MaxMessageSize", config.MaxMessageSize)
 	}
-
+	str = strJoin(str, "ProducerModel", config.ProducerModel.String())
 	return str + "]"
 }
 
@@ -93,6 +112,8 @@ type Producer interface {
 
 	// SendMessageOneway send a message with oneway
 	SendMessageOneway(msg *Message) error
+
+	SendMessageOrderlyByShardingKey(msg *Message, shardingkey string) (*SendResult, error)
 }
 
 // NewPushConsumer create a new consumer with config.
