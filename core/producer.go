@@ -35,7 +35,6 @@ import (
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"unsafe"
-	"github.com/apache/rocketmq-client-go/core"
 )
 
 type SendStatus int
@@ -231,7 +230,7 @@ func (p *defaultProducer) SendMessageSync(msg *Message) (*SendResult, error) {
 func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueueSelector, arg interface{}, autoRetryTimes int) (*SendResult, error) {
 	if p.config.ProducerModel == OrderlyProducer {
 		log.Warnf("Can not send message orderly by common select queue in lite order producer")
-		return nil, rocketmq.ErrSendOrderlyFailed
+		return nil, ErrSendOrderlyFailed
 	}
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
@@ -275,15 +274,18 @@ func (p *defaultProducer) SendMessageOneway(msg *Message) error {
 func (p *defaultProducer) SendMessageOrderlyByShardingKey(msg *Message, shardingkey string) (*SendResult, error) {
 	if p.config.ProducerModel != OrderlyProducer {
 		log.Warnf("Can not send message orderly, This method only support in lite order producer.")
-		return nil, rocketmq.ErrSendOrderlyFailed
+		return nil, ErrSendOrderlyFailed
 	}
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
+	cshardingkey := C.CString(shardingkey)
+	defer C.free(unsafe.Pointer(cshardingkey))
 	var sr C.struct__SendResult_
 	err := rmqError(C.SendMessageOrderlyByShardingKey(
 		p.cproduer,
 		cmsg,
-		unsafe.Pointer(&shardingkey)))
+		cshardingkey,
+		&sr))
 
 	if err != NIL {
 		log.Warnf("send message orderly error, error is: %s", err.Error())
