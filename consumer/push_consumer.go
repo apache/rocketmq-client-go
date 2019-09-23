@@ -241,7 +241,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdForTopic is changed from %d to %d", pc.option.PullThresholdForTopic, newVal)
+			rlog.Infof("The PullThresholdForTopic is changed from %d to %d", pc.option.PullThresholdForTopic, newVal)
 			pc.option.PullThresholdForTopic = newVal
 		}
 
@@ -250,7 +250,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdSizeForTopic is changed from %d to %d", pc.option.PullThresholdSizeForTopic, newVal)
+			rlog.Infof("The PullThresholdSizeForTopic is changed from %d to %d", pc.option.PullThresholdSizeForTopic, newVal)
 			pc.option.PullThresholdSizeForTopic = newVal
 		}
 	}
@@ -797,17 +797,17 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 		continueConsume := true
 		for continueConsume {
 			if pq.dropped {
-				rlog.Warn("the message queue not be able to consume, because it's dropped. %v", mq)
+				rlog.Warnf("the message queue not be able to consume, because it's dropped. %v", mq)
 				break
 			}
 			if pc.model == Clustering {
 				if !pq.locked {
-					rlog.Warn("the message queue not locked, so consume later: %v", mq)
+					rlog.Warnf("the message queue not locked, so consume later: %v", mq)
 					pc.tryLockLaterAndReconsume(mq, 10)
 					return
 				}
 				if pq.isLockExpired() {
-					rlog.Warn("the message queue lock expired, so consume later: %v", mq)
+					rlog.Warnf("the message queue lock expired, so consume later: %v", mq)
 					pc.tryLockLaterAndReconsume(mq, 10)
 					return
 				}
@@ -849,7 +849,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			pq.lockConsume.Unlock()
 
 			if result == Rollback || result == SuspendCurrentQueueAMoment {
-				rlog.Warn("consumeMessage Orderly return not OK, Group: %v Msgs: %v MQ: %v",
+				rlog.Warnf("consumeMessage Orderly return not OK, Group: %v Msgs: %v MQ: %v",
 					pc.consumerGroup, msgs, mq)
 			}
 
@@ -869,7 +869,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			if pc.option.AutoCommit {
 				switch result {
 				case Commit, Rollback:
-					rlog.Warn("the message queue consume result is illegal, we think you want to ack these message: %v", mq)
+					rlog.Warnf("the message queue consume result is illegal, we think you want to ack these message: %v", mq)
 				case ConsumeSuccess:
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
@@ -905,7 +905,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 		}
 	} else {
 		if pq.dropped {
-			rlog.Warn("the message queue not be able to consume, because it's dropped. %v", mq)
+			rlog.Warnf("the message queue not be able to consume, because it's dropped. %v", mq)
 		}
 		pc.tryLockLaterAndReconsume(mq, 100)
 	}
@@ -917,7 +917,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 		maxReconsumeTimes := pc.getOrderlyMaxReconsumeTimes()
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
-				rlog.Warn("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes)
+				rlog.Warnf("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes)
 				msg.WithProperty("RECONSUME_TIME", strconv.Itoa(int(msg.ReconsumeTimes)))
 				if !pc.sendMessageBack("", msg, -1) {
 					suspend = true
