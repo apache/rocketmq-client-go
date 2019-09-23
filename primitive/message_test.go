@@ -15,28 +15,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package primitive
 
-import (
-	"bytes"
-	"compress/zlib"
-	"io/ioutil"
-	"net"
-)
+import "testing"
 
-func GetAddressByBytes(data []byte) string {
-	return net.IPv4(data[0], data[1], data[2], data[3]).String()
-}
-
-func UnCompress(data []byte) []byte {
-	rdata := bytes.NewReader(data)
-	r, err := zlib.NewReader(rdata)
+func TestMessageID(t *testing.T) {
+	id := []byte("0AAF0895000078BF000000000009BB4A")
+	msgID, err := UnmarshalMsgID(id)
 	if err != nil {
-		return data
+		t.Fatalf("unmarshal msg id error, ms is: %s", err.Error())
 	}
-	retData, err := ioutil.ReadAll(r)
-	if err != nil {
-		return data
+	if msgID.Addr != "10.175.8.149" {
+		t.Fatalf("parse messageID %s error", id)
 	}
-	return retData
+	if msgID.Port != 30911 {
+		t.Fatalf("parse messageID %s error", id)
+	}
+	if msgID.Offset != 637770 {
+		t.Fatalf("parse messageID %s error", id)
+	}
+	t.Log(msgID)
 }
