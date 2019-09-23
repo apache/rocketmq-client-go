@@ -113,6 +113,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		MaxTimeConsumeContinuously: time.Duration(60 * time.Second),
 		RebalanceLockInterval:      20 * time.Second,
 		MaxReconsumeTimes:          -1,
+		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"

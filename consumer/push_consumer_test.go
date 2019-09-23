@@ -36,6 +36,7 @@ func TestStart(t *testing.T) {
 		c, _ := NewPushConsumer(
 			WithGroupName("testGroup"),
 			WithNameServer([]string{"127.0.0.1:9876"}),
+			WithConsumerModel(BroadCasting),
 		)
 
 		ctrl := gomock.NewController(t)
