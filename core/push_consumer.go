@@ -167,6 +167,20 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		}
 	}
 
+	if config.MaxCacheMessageSize > 0 {
+		err = rmqError(C.SetPushConsumerMaxCacheMessageSize(cconsumer, C.int(config.MaxCacheMessageSize)))
+		if err != NIL {
+			return nil, err
+		}
+	}
+
+	if config.MaxCacheMessageSizeInMB > 0 {
+		err = rmqError(C.SetPushConsumerMaxCacheMessageSizeInMb(cconsumer, C.int(config.MaxCacheMessageSizeInMB)))
+		if err != NIL {
+			return nil, err
+		}
+	}
+
 	if config.Model != 0 {
 		var mode C.CMessageModel
 		switch config.Model {
