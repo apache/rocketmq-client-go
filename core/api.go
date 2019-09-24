@@ -160,10 +160,12 @@ func (mode ConsumerModel) String() string {
 // PushConsumerConfig define a new consumer.
 type PushConsumerConfig struct {
 	ClientConfig
-	ThreadCount         int
-	MessageBatchMaxSize int
-	Model               MessageModel
-	ConsumerModel       ConsumerModel
+	ThreadCount             int
+	MessageBatchMaxSize     int
+	Model                   MessageModel
+	ConsumerModel           ConsumerModel
+	MaxCacheMessageSize     int
+	MaxCacheMessageSizeInMB int
 }
 
 func (config *PushConsumerConfig) String() string {
@@ -184,6 +186,14 @@ func (config *PushConsumerConfig) String() string {
 
 	if config.ConsumerModel != 0 {
 		str = strJoin(str, "ConsumerModel", config.ConsumerModel.String())
+	}
+
+	if config.MaxCacheMessageSize != 0 {
+		str = strJoin(str, "MaxCacheMessageSize", config.MaxCacheMessageSize)
+	}
+
+	if config.MaxCacheMessageSizeInMB != 0 {
+		str = strJoin(str, "MaxCacheMessageSizeInMB", config.MaxCacheMessageSizeInMB)
 	}
 	return str + "]"
 }
