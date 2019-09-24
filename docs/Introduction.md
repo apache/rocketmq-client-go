@@ -57,7 +57,7 @@ err := p.SendOneWay(context.Background(), &primitive.Message{
     Body:  []byte("Hello RocketMQ Go Client!"),
 })
 ```
-Full examples: [producer](../examples/producer/main.go)
+Full examples: [producer](../examples/producer)
 
 ### Consume Message
 alpha1 only support `PushConsumer`
@@ -92,4 +92,4 @@ err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.Consum
 ```
 - start the consumer(**NOTE: MUST after subscribe**)
 
-Full examples: [consumer](../examples/consumer/main.go)
+Full examples: [consumer](../examples/consumer)
