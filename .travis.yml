@@ -12,6 +12,7 @@ env:
     - BROKER_ADDRESS=127.0.0.1:10911
     - TOPIC=test
     - GROUP=testGroup
+    - CUSTOM_JDK="oraclejdk8"
   matrix:
   - OS_TYPE=centos OS_VERSION=7
 
