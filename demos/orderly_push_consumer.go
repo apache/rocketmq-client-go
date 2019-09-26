@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 )
 
-func main() {
+func main3() {
 	pConfig := &rocketmq.PushConsumerConfig{
 		ClientConfig: rocketmq.ClientConfig{
 			GroupID:    "GID_XXXXXXXXXXXX",
