@@ -41,7 +41,7 @@ func FileReadAll(path string) ([]byte, error) {
 	return data, nil
 }
 
-func MakeFileIfNotExist(path string) error {
+func ensureDir(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -56,7 +56,7 @@ func MakeFileIfNotExist(path string) error {
 }
 
 func WriteToFile(path string, data []byte) error {
-	if err := MakeFileIfNotExist(filepath.Dir(path)); err != nil {
+	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	tmpFile, err := os.Create(path + ".tmp")
@@ -80,6 +80,10 @@ func WriteToFile(path string, data []byte) error {
 		}
 		CheckError(fmt.Sprintf("close %s", bakFile.Name()), bakFile.Close())
 	}
-	CheckError(fmt.Sprintf("remove %s", path), os.Remove(path))
+
+	_, err = os.Stat(path)
+	if err == nil {
+		CheckError(fmt.Sprintf("remove %s", path), os.Remove(path))
+	}
 	return os.Rename(path+".tmp", path)
 }
