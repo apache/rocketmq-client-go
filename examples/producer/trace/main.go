@@ -30,7 +30,7 @@ import (
 
 func main() {
 	namesrvs := []string{"127.0.0.1:9876"}
-	traceCfg := primitive.TraceConfig{
+	traceCfg := &primitive.TraceConfig{
 		Access:       primitive.Local,
 		NamesrvAddrs: namesrvs,
 	}

@@ -29,13 +29,6 @@ type Invoker func(ctx context.Context, req, reply interface{}) error
 // use type assert to get real type.
 type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
 
-// config for message trace.
-type TraceConfig struct {
-	TraceTopic   string
-	Access       AccessChannel
-	NamesrvAddrs []string
-}
-
 func ChainInterceptors(interceptors ...Interceptor) Interceptor {
 	if len(interceptors) == 0 {
 		return nil
