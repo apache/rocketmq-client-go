@@ -17,9 +17,15 @@
 
 package rlog
 
-import "github.com/sirupsen/logrus"
+import (
+	"io"
+
+	"github.com/sirupsen/logrus"
+)
 
 type Logger interface {
+	SetLevel(l logrus.Level)
+	SetOutput(output io.Writer)
 	Debug(i ...interface{})
 	Debugf(format string, args ...interface{})
 	Info(i ...interface{})
@@ -36,12 +42,20 @@ var rLog Logger
 
 func init() {
 	r := logrus.New()
-	//r.SetLevel(logrus.DebugLevel)
+	r.SetLevel(logrus.InfoLevel)
 	rLog = r
 }
 
 func SetLogger(log Logger) {
 	rLog = log
+}
+
+func SetLevel(l logrus.Level) {
+	rLog.SetLevel(l)
+}
+
+func SetOutput(output io.Writer) {
+	rLog.SetOutput(output)
 }
 
 func Debug(i ...interface{}) {
