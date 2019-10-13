@@ -114,16 +114,16 @@ func (pc *pushConsumer) Start() error {
 		pc.state = internal.StateStartFailed
 		pc.validate()
 
-		err = pc.defaultConsumer.start()
-		if err != nil {
-			return
-		}
-
 		err := pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			pc.state = internal.StateStartFailed
 			rlog.Errorf("the consumer group: [%s] has been created, specify another name.", pc.consumerGroup)
 			err = ErrCreated
+		}
+
+		err = pc.defaultConsumer.start()
+		if err != nil {
+			return
 		}
 
 		go func() {
