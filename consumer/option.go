@@ -173,6 +173,12 @@ func WithGroupName(group string) Option {
 	}
 }
 
+func WithInstance(name string) Option {
+	return func(options *consumerOptions) {
+		options.InstanceName = name
+	}
+}
+
 // WithNameServer set NameServer address, only support one NameServer cluster in alpha2
 func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 	return func(opts *consumerOptions) {
