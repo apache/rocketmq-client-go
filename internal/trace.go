@@ -211,34 +211,38 @@ type traceDispatcher struct {
 	cli     RMQClient
 }
 
-func NewTraceDispatcher(traceTopic string, access primitive.AccessChannel, nameServerAddrs []string) *traceDispatcher {
+func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
-	t := traceTopic
+	t := traceCfg.TraceTopic
 	if len(t) == 0 {
 		t = RmqSysTraceTopic
 	}
 
-	if access == primitive.Cloud {
-		t = TraceTopicPrefix + traceTopic
+	if traceCfg.Access == primitive.Cloud {
+		t = TraceTopicPrefix + traceCfg.TraceTopic
 	}
 
-	srvs, err := NewNamesrv(nameServerAddrs)
+	srvs, err := NewNamesrv(traceCfg.NamesrvAddrs)
 	if err != nil {
 		panic(errors.Wrap(err, "new Namesrv failed."))
+	}
+	if !traceCfg.Credentials.IsEmpty() {
+		srvs.SetCredentials(traceCfg.Credentials)
 	}
 
 	cliOp := DefaultClientOptions()
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
+	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,
 
 		traceTopic: t,
-		access:     access,
+		access:     traceCfg.Access,
 		input:      make(chan TraceContext, 1024),
 		batchCh:    make(chan []*TraceContext, 2048),
 		cli:        cli,

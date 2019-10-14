@@ -30,7 +30,7 @@ import (
 )
 
 // WithTrace support rocketmq trace: https://github.com/apache/rocketmq/wiki/RIP-6-Message-Trace.
-func WithTrace(traceCfg primitive.TraceConfig) Option {
+func WithTrace(traceCfg *primitive.TraceConfig) Option {
 	return func(options *producerOptions) {
 
 		ori := options.Interceptors
@@ -40,8 +40,8 @@ func WithTrace(traceCfg primitive.TraceConfig) Option {
 	}
 }
 
-func newTraceInterceptor(traceCfg primitive.TraceConfig) primitive.Interceptor {
-	dispatcher := internal.NewTraceDispatcher(traceCfg.TraceTopic, traceCfg.Access, traceCfg.NamesrvAddrs)
+func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor {
+	dispatcher := internal.NewTraceDispatcher(traceCfg)
 	dispatcher.Start()
 
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
