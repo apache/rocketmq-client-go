@@ -22,5 +22,5 @@ type TraceConfig struct {
 	TraceTopic   string
 	Access       AccessChannel
 	NamesrvAddrs []string
-	Credentials // acl config for trace. omit if acl is closed on broker.
+	Credentials  // acl config for trace. omit if acl is closed on broker.
 }
