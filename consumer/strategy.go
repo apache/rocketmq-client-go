@@ -18,11 +18,13 @@ limitations under the License.
 package consumer
 
 import (
+	"strings"
+
+	"stathat.com/c/consistent"
+
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
-	"stathat.com/c/consistent"
-	"strings"
 )
 
 // Strategy Algorithm for message allocating between consumers
