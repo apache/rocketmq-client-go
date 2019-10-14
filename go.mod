@@ -14,4 +14,3 @@ require (
 )
 
 replace stathat.com/c/consistent v1.0.0 => github.com/stathat/consistent v1.0.0
-
