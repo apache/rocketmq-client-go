@@ -16,15 +16,12 @@
  */
 package rocketmq
 
-//import (
-//    "fmt"
-//    "testing"
-//    "../client"
-//)
-//
-//func TestGetVersion(test *testing.T){
-//    fmt.Println("-----TestGetVersion Start----")
-//    version := rocketmq.GetVersion();
-//    fmt.Println(version)
-//    fmt.Println("-----TestGetVersion Finish----")
-//}
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+)
+
+func TestGetVersion(test *testing.T) {
+	expect := "Go Client V1.2.4, Support CPP Core:V1.2.X"
+	assert.Equal(test, expect, GetVersion())
+}
