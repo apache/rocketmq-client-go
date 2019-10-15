@@ -115,7 +115,7 @@ func init() {
 
 	flags.StringVar(&c.topic, "t", "BenchmarkTest", "topic")
 	flags.StringVar(&c.groupPrefix, "g", "benchmark_consumer", "group prefix")
-	flags.StringVar(&c.nameSrv, "n", "", "namesrv address list, seperated by comma")
+	flags.StringVar(&c.nameSrv, "n", "", "namesrv address list, separated by comma")
 	flags.BoolVar(&c.isPrefixEnable, "p", true, "group prefix is enable")
 	flags.StringVar(&c.filterType, "f", "", "filter type,options:TAG|SQL92, or empty")
 	flags.StringVar(&c.expression, "e", "*", "expression")

@@ -25,6 +25,7 @@ import "fmt"
 
 type rmqError int
 
+//This is error messages
 const (
 	NIL                        = rmqError(C.OK)
 	ErrNullPoint               = rmqError(C.NULL_POINTER)

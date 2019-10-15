@@ -38,9 +38,9 @@ func main1() {
 		Model:         rocketmq.Clustering,
 		ConsumerModel: rocketmq.CoCurrently,
 	}
-	ConsumeWithPush(pConfig)
+	consumeWithPush(pConfig)
 }
-func ConsumeWithPush(config *rocketmq.PushConsumerConfig) {
+func consumeWithPush(config *rocketmq.PushConsumerConfig) {
 
 	consumer, err := rocketmq.NewPushConsumer(config)
 	if err != nil {

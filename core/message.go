@@ -14,6 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
 /*
@@ -28,6 +29,7 @@ import (
 	"unsafe"
 )
 
+//Message used for send
 type Message struct {
 	Topic          string
 	Tags           string
@@ -71,6 +73,7 @@ func goMsgToC(gomsg *Message) *C.struct_CMessage {
 	return cmsg
 }
 
+//MessageExt used for consume
 type MessageExt struct {
 	Message
 	MessageID                 string
@@ -94,6 +97,7 @@ func (msgExt *MessageExt) String() string {
 		msgExt.StoreTimestamp, msgExt.QueueOffset, msgExt.CommitLogOffset, msgExt.PreparedTransactionOffset)
 }
 
+//GetProperty get the message property by key from message ext
 func (msgExt *MessageExt) GetProperty(key string) string {
 	return C.GoString(C.GetMessageProperty(msgExt.cmsgExt, C.CString(key)))
 }

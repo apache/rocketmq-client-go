@@ -44,11 +44,11 @@ func main() {
 		pConfig := &rocketmq.ProducerConfig{ClientConfig: rocketmq.ClientConfig{
 			GroupID:    "MQ_INST_xxxxxxx%GID",
 			NameServer: "http://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:80",
-             Credentials:&rocketmq.SessionCredentials{
-                 AccessKey:"xxxxxx",
-                 SecretKey:"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-                 Channel:"mq-channel",
-            },
+			Credentials: &rocketmq.SessionCredentials{
+				AccessKey: "xxxxxx",
+				SecretKey: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+				Channel:   "mq-channel",
+			},
 			LogC: &rocketmq.LogConfig{
 				Path:     "example",
 				FileSize: 64 * 1 << 10,

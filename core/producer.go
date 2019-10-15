@@ -14,6 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
 /*
@@ -37,12 +38,17 @@ import (
 	"unsafe"
 )
 
+//SendStatus The Status for send result from C apis.
 type SendStatus int
 
 const (
-	SendOK                = SendStatus(C.E_SEND_OK)
-	SendFlushDiskTimeout  = SendStatus(C.E_SEND_FLUSH_DISK_TIMEOUT)
+	//SendOK OK
+	SendOK = SendStatus(C.E_SEND_OK)
+	//SendFlushDiskTimeout Failed because broker flush error
+	SendFlushDiskTimeout = SendStatus(C.E_SEND_FLUSH_DISK_TIMEOUT)
+	//SendFlushSlaveTimeout Failed because slave broker timeout
 	SendFlushSlaveTimeout = SendStatus(C.E_SEND_FLUSH_SLAVE_TIMEOUT)
+	//SendSlaveNotAvailable Failed because slave broker error
 	SendSlaveNotAvailable = SendStatus(C.E_SEND_SLAVE_NOT_AVAILABLE)
 )
 

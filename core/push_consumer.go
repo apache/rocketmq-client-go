@@ -14,6 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
 /*
@@ -39,10 +40,13 @@ import (
 	"unsafe"
 )
 
+//ConsumeStatus the retern value for consumer
 type ConsumeStatus int
 
 const (
+	//ConsumeSuccess commit offset to broker
 	ConsumeSuccess = ConsumeStatus(C.E_CONSUME_SUCCESS)
+	//ReConsumeLater it will be send back to broker
 	ReConsumeLater = ConsumeStatus(C.E_RECONSUME_LATER)
 )
 
@@ -77,11 +81,11 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		return nil, errors.New("config is nil")
 	}
 	if config.GroupID == "" {
-		return nil, errors.New("GroupId is empty.")
+		return nil, errors.New("GroupId is empty")
 	}
 
 	if config.NameServer == "" && config.NameServerDomain == "" {
-		return nil, errors.New("NameServer and NameServerDomain is empty.")
+		return nil, errors.New("NameServer and NameServerDomain is empty")
 	}
 
 	consumer := &defaultPushConsumer{config: config}

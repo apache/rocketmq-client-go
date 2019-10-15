@@ -23,7 +23,7 @@ import (
 	"sync/atomic"
 )
 
-func ConsumeWithPush(config *rocketmq.PushConsumerConfig) {
+func consumeWithPush(config *rocketmq.PushConsumerConfig) {
 
 	consumer, err := rocketmq.NewPushConsumer(config)
 	if err != nil {
