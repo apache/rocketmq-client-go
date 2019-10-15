@@ -17,7 +17,7 @@ env:
 
 before_install:
   - cd ${TRAVIS_HOME}
-  - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.0/RHEL7.x/librocketmq.tar.gz
+  - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.4/RHEL7.x/librocketmq.tar.gz
   - tar -xzf librocketmq.tar.gz
   - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
   - sudo cp -r rocketmq /usr/local/include/
@@ -25,11 +25,12 @@ before_install:
 
 before_script:
   - cd ${TRAVIS_HOME}
-  - wget http://us.mirrors.quenda.co/apache/rocketmq/4.3.2/rocketmq-all-4.3.2-bin-release.zip
-  - unzip rocketmq-all-4.3.2-bin-release.zip
-  - cd rocketmq-all-4.3.2-bin-release
+  - wget http://us.mirrors.quenda.co/apache/rocketmq/4.5.2/rocketmq-all-4.5.2-bin-release.zip
+  - unzip rocketmq-all-4.5.2-bin-release.zip
+  - cd rocketmq-all-4.5.2-bin-release
   - perl -i -pe's/-Xms8g -Xmx8g -Xmn4g/-Xms2g -Xmx2g -Xmn1g/g' bin/runbroker.sh
   - nohup sh bin/mqnamesrv &
+  - sleep 10
   - nohup sh bin/mqbroker -n localhost:9876 &
   - sleep 10
   - ./bin/mqadmin updateTopic -n ${NAME_SERVER_ADDRESS} -b ${BROKER_ADDRESS}  -t ${TOPIC}

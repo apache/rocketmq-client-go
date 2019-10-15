@@ -22,7 +22,8 @@ import (
 	"time"
 )
 
-func main() {
+// Change to main if you want to run it directly
+func main2() {
 	pConfig := &rocketmq.ProducerConfig{
 		ClientConfig: rocketmq.ClientConfig{
 			GroupID:    "GID_XXXXXXXXXXXX",

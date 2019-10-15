@@ -22,7 +22,8 @@ import (
 	"github.com/apache/rocketmq-client-go/core"
 )
 
-func main() {
+// Change to main if you want to run it directly
+func main0() {
 	pConfig := &rocketmq.ProducerConfig{
 		ClientConfig: rocketmq.ClientConfig{
 			GroupID:    "GID_XXXXXXXXXXXX",
