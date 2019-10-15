@@ -27,7 +27,7 @@ import (
 func defaultProducerOptions() producerOptions {
 	opts := producerOptions{
 		ClientOptions:  internal.DefaultClientOptions(),
-		Selector:       NewRoundRobinQueueSelector(),
+		Selector:       NewHashQueueSelector(),
 		SendMsgTimeout: 3 * time.Second,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"

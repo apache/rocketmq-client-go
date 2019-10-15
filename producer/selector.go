@@ -18,6 +18,7 @@ limitations under the License.
 package producer
 
 import (
+	"hash/fnv"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -90,4 +91,33 @@ func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*p
 	}
 	qIndex := int(i) % len(queues)
 	return queues[qIndex]
+}
+
+type hashQueueSelector struct {
+	random QueueSelector
+}
+
+func NewHashQueueSelector() QueueSelector {
+	return &hashQueueSelector{
+		random: NewRandomQueueSelector(),
+	}
+}
+
+// hashQueueSelector choose the queue by hash if message having sharding key, otherwise choose queue by random instead.
+func (h *hashQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	key := message.GetShardingKey()
+	if len(key) == 0 {
+		return h.random.Select(message, queues)
+	}
+
+	hasher := fnv.New32a()
+	_, err := hasher.Write([]byte(key))
+	if err != nil {
+		return nil
+	}
+	queueId := int(hasher.Sum32()) % len(queues)
+	if queueId < 0 {
+		queueId = -queueId
+	}
+	return queues[queueId]
 }
