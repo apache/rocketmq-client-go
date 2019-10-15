@@ -14,14 +14,16 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package rocketmq
 
-import (
-	"github.com/stretchr/testify/assert"
-	"testing"
-)
+package main
 
-func TestGetVersion(test *testing.T) {
-	expect := "Go Client V1.2.4, Support CPP Core:V1.2.X"
-	assert.Equal(test, expect, GetVersion())
+func main() {
+	//run producer
+	main0()
+	//run consumer
+	main1()
+	//run orderly producer
+	main2()
+	//run orderly consumer
+	main3()
 }
