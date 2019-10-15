@@ -73,6 +73,6 @@ func main() {
 			},
 		}, Model: rocketmq.Clustering}
 
-		ConsumeWithPush(cConfig)
+		consumeWithPush(cConfig)
 	}
 }
