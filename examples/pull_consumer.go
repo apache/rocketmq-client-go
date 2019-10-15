@@ -24,7 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/core"
 )
 
-func ConsumeWithPull(config *rocketmq.PullConsumerConfig, topic string) {
+func consumeWithPull(config *rocketmq.PullConsumerConfig, topic string) {
 
 	consumer, err := rocketmq.NewPullConsumer(config)
 	if err != nil {

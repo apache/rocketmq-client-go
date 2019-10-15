@@ -14,10 +14,13 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
+//GoClientVersion const strings for version
 const GoClientVersion = "Go Client V1.2.4, Support CPP Core:V1.2.X"
 
+//GetVersion return go version strings
 func GetVersion() (version string) {
 	return GoClientVersion
 }

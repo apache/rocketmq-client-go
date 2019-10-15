@@ -14,14 +14,17 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package rocketmq
 
 import "fmt"
 
+//Version get go sdk version
 func Version() (version string) {
 	return GetVersion()
 }
 
+//ClientConfig save client config
 type ClientConfig struct {
 	GroupID          string
 	NameServer       string
@@ -48,8 +51,10 @@ func (config *ClientConfig) String() string {
 	return str
 }
 
+//ProducerModel Common or orderly
 type ProducerModel int
 
+//Different models
 const (
 	CommonProducer  = ProducerModel(1)
 	OrderlyProducer = ProducerModel(2)
@@ -98,6 +103,7 @@ func (config *ProducerConfig) String() string {
 	return str + "]"
 }
 
+//Producer define interface
 type Producer interface {
 	baseAPI
 	// SendMessageSync send a message with sync
@@ -121,8 +127,10 @@ func NewPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
 }
 
+//MessageModel Clustering or BroadCasting
 type MessageModel int
 
+//MessageModel
 const (
 	BroadCasting = MessageModel(1)
 	Clustering   = MessageModel(2)
@@ -139,8 +147,10 @@ func (mode MessageModel) String() string {
 	}
 }
 
+//ConsumerModel CoCurrently or Orderly
 type ConsumerModel int
 
+//ConsumerModel
 const (
 	CoCurrently = ConsumerModel(1)
 	Orderly     = ConsumerModel(2)
@@ -198,6 +208,7 @@ func (config *PushConsumerConfig) String() string {
 	return str + "]"
 }
 
+// PushConsumer apis for PushConsumer
 type PushConsumer interface {
 	baseAPI
 
@@ -225,6 +236,7 @@ type PullConsumer interface {
 	FetchSubscriptionMessageQueues(topic string) []MessageQueue
 }
 
+//SessionCredentials access config for client
 type SessionCredentials struct {
 	AccessKey string
 	SecretKey string
@@ -236,6 +248,7 @@ func (session *SessionCredentials) String() string {
 		session.AccessKey, session.SecretKey, session.Channel)
 }
 
+//SendResult status for send
 type SendResult struct {
 	Status SendStatus
 	MsgId  string

@@ -39,9 +39,10 @@ func main3() {
 		Model:         rocketmq.Clustering,
 		ConsumerModel: rocketmq.Orderly,
 	}
-	ConsumeWithOrderly(pConfig)
+	consumeWithOrderly(pConfig)
 }
-func ConsumeWithOrderly(config *rocketmq.PushConsumerConfig) {
+
+func consumeWithOrderly(config *rocketmq.PushConsumerConfig) {
 
 	consumer, err := rocketmq.NewPushConsumer(config)
 	if err != nil {
