@@ -15,7 +15,7 @@
  *  limitations under the License.
  */
 
- package rocketmq
+package rocketmq
 
 import "fmt"
 
