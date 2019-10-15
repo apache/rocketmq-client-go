@@ -17,6 +17,7 @@
 
 package rocketmq
 
+import "C"
 import (
 	"strconv"
 	"sync"
