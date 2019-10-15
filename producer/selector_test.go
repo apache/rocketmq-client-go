@@ -20,8 +20,9 @@ package producer
 import (
 	"testing"
 
-	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/apache/rocketmq-client-go/primitive"
 )
 
 func TestRoundRobin(t *testing.T) {
@@ -48,4 +49,30 @@ func TestRoundRobin(t *testing.T) {
 		expected = (i + 1) % len(queues)
 		assert.Equal(t, queues[expected], qrr, "i: %d", i)
 	}
+}
+
+func TestHashQueueSelector(t *testing.T) {
+	queues := make([]*primitive.MessageQueue, 10)
+	for i := 0; i < 10; i++ {
+		queues = append(queues, &primitive.MessageQueue{
+			QueueId: i,
+		})
+	}
+
+	s := NewHashQueueSelector()
+
+	m1 := &primitive.Message{
+		Topic: "test",
+		Body:  []byte("one message"),
+	}
+	m1.WithShardingKey("same_key")
+	q1 := s.Select(m1, queues)
+
+	m2 := &primitive.Message{
+		Topic: "test",
+		Body:  []byte("another message"),
+	}
+	m2.WithShardingKey("same_key")
+	q2 := s.Select(m2, queues)
+	assert.Equal(t, *q1, *q2)
 }

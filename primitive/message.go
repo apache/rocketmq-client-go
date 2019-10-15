@@ -58,6 +58,7 @@ const (
 	PropertyTranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
 	PropertyTranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
+	PropertyShardingKey                    = "SHARDING_KEY"
 )
 
 type Message struct {
@@ -166,12 +167,21 @@ func (m *Message) WithKeys(keys []string) *Message {
 	return m
 }
 
+func (m *Message) WithShardingKey(key string) *Message {
+	m.WithProperty(PropertyShardingKey, key)
+	return m
+}
+
 func (m *Message) GetTags() string {
 	return m.GetProperty(PropertyTags)
 }
 
 func (m *Message) GetKeys() string {
 	return m.GetProperty(PropertyKeys)
+}
+
+func (m *Message) GetShardingKey() string {
+	return m.GetProperty(PropertyShardingKey)
 }
 
 func (m *Message) String() string {
