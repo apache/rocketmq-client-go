@@ -29,7 +29,6 @@ type ClientConfig struct {
 	GroupID          string
 	NameServer       string
 	NameServerDomain string
-	GroupName        string
 	InstanceName     string
 	Credentials      *SessionCredentials
 	LogC             *LogConfig
@@ -41,7 +40,6 @@ func (config *ClientConfig) String() string {
 	str = strJoin(str, "GroupId", config.GroupID)
 	str = strJoin(str, "NameServer", config.NameServer)
 	str = strJoin(str, "NameServerDomain", config.NameServerDomain)
-	str = strJoin(str, "GroupName", config.GroupName)
 	str = strJoin(str, "InstanceName", config.InstanceName)
 
 	if config.LogC != nil {
