@@ -136,50 +136,75 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (net.Conn, er
 }
 
 func (c *remotingClient) receiveResponse(r net.Conn) {
-	scanner := c.createScanner(r)
-	for scanner.Scan() {
-		cmd, err := decode(scanner.Bytes())
+	var err error
+	header := make([]byte, 4)
+	for {
 		if err != nil {
+			rlog.Errorf("conn err: %s so close", err.Error())
 			c.closeConnection(r)
-			rlog.Errorf("decode RemotingCommand error: %s", err.Error())
 			break
 		}
-		if cmd.isResponseType() {
-			resp, exist := c.responseTable.Load(cmd.Opaque)
-			if exist {
-				c.responseTable.Delete(cmd.Opaque)
-				responseFuture := resp.(*ResponseFuture)
-				go func() {
-					responseFuture.ResponseCommand = cmd
-					responseFuture.executeInvokeCallback()
-					if responseFuture.Done != nil {
-						responseFuture.Done <- true
-					}
-				}()
-			}
-		} else {
-			f := c.processors[cmd.Code]
-			if f != nil {
-				go func() { // 单个goroutine会造成死锁
-					res := f(cmd, r.RemoteAddr())
-					if res != nil {
-						res.Opaque = cmd.Opaque
-						res.Flag |= 1 << 0
-						err := c.sendRequest(r, res)
-						if err != nil {
-							rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
-						}
-					}
-				}()
-			} else {
-				rlog.Warnf("receive broker's requests, but no func to handle, code is: %d", cmd.Code)
-			}
+
+		_, err = io.ReadFull(r, header)
+		if err != nil {
+			rlog.Errorf("io readfull error: %s", err.Error())
+			continue
 		}
+
+		var length int32
+		err = binary.Read(bytes.NewReader(header), binary.BigEndian, &length)
+		if err != nil {
+			rlog.Errorf("binary decode header: %s", err.Error())
+			continue
+		}
+
+		buf := make([]byte, length)
+		_, err = io.ReadFull(r, buf)
+		if err != nil {
+			rlog.Errorf("io readfull error: %s", err.Error())
+			continue
+		}
+
+		cmd, err := decode(buf)
+		if err != nil {
+			rlog.Errorf("decode RemotingCommand error: %s", err.Error())
+			continue
+		}
+		c.processCMD(cmd, r)
 	}
-	if scanner.Err() != nil {
-		rlog.Errorf("net: %s scanner exit, Err: %s.", r.RemoteAddr().String(), scanner.Err())
+}
+
+func (c *remotingClient) processCMD(cmd *RemotingCommand, r net.Conn) {
+	if cmd.isResponseType() {
+		resp, exist := c.responseTable.Load(cmd.Opaque)
+		if exist {
+			c.responseTable.Delete(cmd.Opaque)
+			responseFuture := resp.(*ResponseFuture)
+			go func() {
+				responseFuture.ResponseCommand = cmd
+				responseFuture.executeInvokeCallback()
+				if responseFuture.Done != nil {
+					responseFuture.Done <- true
+				}
+			}()
+		}
 	} else {
-		rlog.Infof("net: %s scanner exit.", r.RemoteAddr().String())
+		f := c.processors[cmd.Code]
+		if f != nil {
+			go func() { // 单个goroutine会造成死锁
+				res := f(cmd, r.RemoteAddr())
+				if res != nil {
+					res.Opaque = cmd.Opaque
+					res.Flag |= 1 << 0
+					err := c.sendRequest(r, res)
+					if err != nil {
+						rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
+					}
+				}
+			}()
+		} else {
+			rlog.Warnf("receive broker's requests, but no func to handle, code is: %d", cmd.Code)
+		}
 	}
 }
 
