@@ -120,6 +120,23 @@ type Producer interface {
 	SendMessageOrderlyByShardingKey(msg *Message, shardingkey string) (*SendResult, error)
 }
 
+// NewTransactionProducer create a new  trasaction producer with config
+func NewTransactionProducer(config *ProducerConfig, listener TransactionLocalListener, arg interface{}) (TransactionProducer, error) {
+	return newDefaultTransactionProducer(config, listener, arg)
+}
+
+// TransactionExecutor local executor for transaction message
+type TransactionLocalListener interface {
+	Execute(m *Message, arg interface{}) TransactionStatus
+	Check(m *MessageExt, arg interface{}) TransactionStatus
+}
+
+type TransactionProducer interface {
+	baseAPI
+	// send a transaction message with sync
+	SendMessageTransaction(msg *Message, arg interface{}) (*SendResult, error)
+}
+
 // NewPushConsumer create a new consumer with config.
 func NewPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 	return newPushConsumer(config)
