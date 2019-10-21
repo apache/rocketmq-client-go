@@ -126,6 +126,9 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 
+		pc.Rebalance()
+		time.Sleep(1 * time.Second)
+
 		go func() {
 			// initial lock.
 			time.Sleep(1000 * time.Millisecond)
@@ -521,7 +524,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
 		case primitive.PullOffsetIllegal:
-			rlog.Warnf("the pull request offset illegal, {} {}", request.String(), result.String())
+			rlog.Warnf("the pull request offset illegal, request: %s, result: %s", request.String(), result.String())
 			request.nextOffset = result.NextBeginOffset
 			pq.dropped = true
 			go func() {
