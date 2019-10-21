@@ -82,7 +82,7 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 	cs := C.CString(config.GroupID)
 	var cproduer *C.struct_CProducer
 
-	cproduer = C.CreateTransactionProducer(cs, (C.CLocalTransactionCheckerCallback)(unsafe.Pointer(C.transactionChecker_cgo)), arg)
+	cproduer = C.CreateTransactionProducer(cs, (C.CLocalTransactionCheckerCallback)(unsafe.Pointer(C.transactionChecker_cgo)), unsafe.Pointer(&arg))
 
 	C.free(unsafe.Pointer(cs))
 
@@ -218,7 +218,7 @@ func (p *defaultTransactionProducer) SendMessageTransaction(msg *Message, arg in
 	defer C.DestroyMessage(cmsg)
 
 	var sr C.struct__SendResult_
-	err := rmqError(C.SendMessageTransaction(p.cproduer, cmsg, (C.CLocalTransactionExecutorCallback)(unsafe.Pointer(C.transactionExecutor_cgo)), arg, &sr))
+	err := rmqError(C.SendMessageTransaction(p.cproduer, cmsg, (C.CLocalTransactionExecutorCallback)(unsafe.Pointer(C.transactionExecutor_cgo)), unsafe.Pointer(&arg), &sr))
 	if err != NIL {
 		log.Warnf("send message error, error is: %s", err.Error())
 		return nil, err

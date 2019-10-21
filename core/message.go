@@ -120,7 +120,7 @@ func (msgExt *MessageExt) String() string {
 func (msgExt *MessageExt) GetProperty(key string) string {
 	ck := C.CString(key)
 	defer C.free(unsafe.Pointer(ck))
-	return C.GoString(C.GetMessageProperty(msgExt.cmsgExt, C.CString(ck)))
+	return C.GoString(C.GetMessageProperty(msgExt.cmsgExt, ck))
 }
 
 func cmsgExtToGo(cmsg *C.struct_CMessageExt) *MessageExt {
