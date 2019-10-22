@@ -37,11 +37,17 @@ type Message struct {
 	Body           string
 	DelayTimeLevel int
 	Property       map[string]string
+	cmsg           *C.struct_CMessage
 }
 
 func (msg *Message) String() string {
 	return fmt.Sprintf("[Topic: %s, Tags: %s, Keys: %s, Body: %s, DelayTimeLevel: %d, Property: %v]",
 		msg.Topic, msg.Tags, msg.Keys, msg.Body, msg.DelayTimeLevel, msg.Property)
+}
+func (msg *Message) GetProperty(key string) string {
+	ck := C.CString(key)
+	defer C.free(unsafe.Pointer(ck))
+	return C.GoString(C.GetOriginMessageProperty(msg.cmsg, ck))
 }
 
 func goMsgToC(gomsg *Message) *C.struct_CMessage {
@@ -73,6 +79,19 @@ func goMsgToC(gomsg *Message) *C.struct_CMessage {
 	return cmsg
 }
 
+func cMsgToGo(cMsg *C.struct_CMessage) *Message {
+	gomsg := &Message{}
+
+	gomsg.Topic = C.GoString(C.GetOriginMessageTopic(cMsg))
+	gomsg.Tags = C.GoString(C.GetOriginMessageTags(cMsg))
+	gomsg.Keys = C.GoString(C.GetOriginMessageKeys(cMsg))
+	gomsg.Body = C.GoString(C.GetOriginMessageBody(cMsg))
+	gomsg.DelayTimeLevel = int(C.GetOriginDelayTimeLevel(cMsg))
+	gomsg.cmsg = cMsg
+
+	return gomsg
+}
+
 //MessageExt used for consume
 type MessageExt struct {
 	Message
@@ -99,7 +118,9 @@ func (msgExt *MessageExt) String() string {
 
 //GetProperty get the message property by key from message ext
 func (msgExt *MessageExt) GetProperty(key string) string {
-	return C.GoString(C.GetMessageProperty(msgExt.cmsgExt, C.CString(key)))
+	ck := C.CString(key)
+	defer C.free(unsafe.Pointer(ck))
+	return C.GoString(C.GetMessageProperty(msgExt.cmsgExt, ck))
 }
 
 func cmsgExtToGo(cmsg *C.struct_CMessageExt) *MessageExt {
