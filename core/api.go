@@ -56,6 +56,7 @@ type ProducerModel int
 const (
 	CommonProducer  = ProducerModel(1)
 	OrderlyProducer = ProducerModel(2)
+	TransProducer   = ProducerModel(3)
 )
 
 func (mode ProducerModel) String() string {
@@ -64,6 +65,8 @@ func (mode ProducerModel) String() string {
 		return "CommonProducer"
 	case OrderlyProducer:
 		return "OrderlyProducer"
+	case TransProducer:
+		return "TransProducer"
 	default:
 		return "Unknown"
 	}
