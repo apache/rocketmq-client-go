@@ -35,8 +35,8 @@ func main4() {
 				Channel:   "ALIYUN/OtherChannel",
 			},
 		},
-		//Set to Common Producer as default.
-		ProducerModel: rocketmq.CommonProducer,
+		//Set to Trans Producer as default.
+		ProducerModel: rocketmq.TransProducer,
 	}
 	sendTransactionMessage(pConfig)
 }

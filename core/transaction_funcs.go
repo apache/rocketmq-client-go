@@ -39,10 +39,10 @@ func localTransactionExecutorCallback(cproducer *C.CProducer, msg *C.CMessage, a
 	message := cMsgToGo(msg)
 	listenerWrap, exist := producer.(*defaultTransactionProducer).listenerFuncsMap.Load(cproducer)
 	if !exist {
-		status := listenerWrap.(TransactionLocalListener).Execute(message, arg)
-		return C.int(status)
+		return C.int(UnknownTransaction)
 	}
-	return C.int(UnknownTransaction)
+	status := listenerWrap.(TransactionLocalListener).Execute(message, arg)
+	return C.int(status)
 }
 
 //export localTransactionCheckerCallback
@@ -55,8 +55,8 @@ func localTransactionCheckerCallback(cproducer *C.CProducer, msg *C.CMessageExt,
 	message := cmsgExtToGo(msg)
 	listener, exist := producer.(*defaultTransactionProducer).listenerFuncsMap.Load(cproducer)
 	if !exist {
-		status := listener.(TransactionLocalListener).Check(message, arg)
-		return C.int(status)
+		return C.int(UnknownTransaction)
 	}
-	return C.int(UnknownTransaction)
+	status := listener.(TransactionLocalListener).Check(message, arg)
+	return C.int(status)
 }
