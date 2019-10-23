@@ -22,7 +22,7 @@ package remote
 
 import (
 	context "context"
-	primitive "github.com/apache/rocketmq-client-go/primitive"
+	primitive "github.com/wongxinjie/rocketmq-client-go/primitive"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 	time "time"

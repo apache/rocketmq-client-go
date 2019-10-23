@@ -20,8 +20,8 @@ package consumer
 import (
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/internal"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
 )
 
 type consumerOptions struct {

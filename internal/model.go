@@ -20,8 +20,8 @@ package internal
 import (
 	"encoding/json"
 
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/wongxinjie/rocketmq-client-go/internal/utils"
+	"github.com/wongxinjie/rocketmq-client-go/rlog"
 )
 
 type FindBrokerResult struct {

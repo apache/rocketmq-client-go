@@ -23,8 +23,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/internal/remote"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
 )
 
 var (
@@ -35,7 +35,7 @@ var (
 	ErrIllegalIP    = errors.New("IP addr error")
 )
 
-//go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal Namesrvs
+//go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package github.com/wongxinjie/rocketmq-client-go/internal  --package internal Namesrvs
 type Namesrvs interface {
 	AddBroker(routeData *TopicRouteData)
 

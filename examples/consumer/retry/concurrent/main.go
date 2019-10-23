@@ -23,9 +23,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/apache/rocketmq-client-go"
-	"github.com/apache/rocketmq-client-go/consumer"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go"
+	"github.com/wongxinjie/rocketmq-client-go/consumer"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
 )
 
 // use concurrent consumer model, when Subscribe function return consumer.ConsumeRetryLater, the message will be

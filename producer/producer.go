@@ -26,11 +26,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/apache/rocketmq-client-go/internal"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/wongxinjie/rocketmq-client-go/internal"
+	"github.com/wongxinjie/rocketmq-client-go/internal/remote"
+	"github.com/wongxinjie/rocketmq-client-go/internal/utils"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/rlog"
 )
 
 var (

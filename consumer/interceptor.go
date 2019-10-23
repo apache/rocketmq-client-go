@@ -21,9 +21,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/internal"
+	"github.com/wongxinjie/rocketmq-client-go/internal/utils"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
 )
 
 // WithTrace support rocketmq trace: https://github.com/apache/rocketmq/wiki/RIP-6-Message-Trace.

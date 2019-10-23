@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apache/rocketmq-client-go"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/producer"
+	"github.com/wongxinjie/rocketmq-client-go"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/producer"
 )
 
 func main() {

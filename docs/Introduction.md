@@ -3,7 +3,7 @@
 ### go mod
 ```
 require (
-    github.com/apache/rocketmq-client-go v2.0.0-alpha1
+    github.com/wongxinjie/rocketmq-client-go v2.0.0-alpha1
 )
 ```
 

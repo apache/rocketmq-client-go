@@ -25,7 +25,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/rocketmq-client-go/internal/utils"
+	"github.com/wongxinjie/rocketmq-client-go/internal/utils"
 )
 
 func TestHeartbeatData(t *testing.T) {

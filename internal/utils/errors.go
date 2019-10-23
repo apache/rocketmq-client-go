@@ -18,7 +18,7 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/wongxinjie/rocketmq-client-go/rlog"
 	"github.com/pkg/errors"
 )
 

@@ -20,7 +20,7 @@ package internal
 import (
 	"regexp"
 
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/wongxinjie/rocketmq-client-go/rlog"
 )
 
 const (

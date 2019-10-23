@@ -27,8 +27,8 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/wongxinjie/rocketmq-client-go/internal/remote"
+	"github.com/wongxinjie/rocketmq-client-go/primitive"
 )
 
 func TestQueryTopicRouteInfoFromServer(t *testing.T) {
