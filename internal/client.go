@@ -283,10 +283,13 @@ func (c *rmqClient) Shutdown() {
 	c.close = true
 }
 
+// Fix: run multiple instance in the same machine problem
 func (c *rmqClient) ClientID() string {
 	id := c.option.ClientIP + "@" + c.option.InstanceName
 	if c.option.UnitName != "" {
 		id += "@" + c.option.UnitName
+	} else {
+		id += "@" + strconv.Itoa(os.Getpid())
 	}
 	return id
 }

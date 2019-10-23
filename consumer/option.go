@@ -226,3 +226,16 @@ func WithStrategy(strategy AllocateStrategy) Option {
 		opts.Strategy = strategy
 	}
 }
+
+func withUnitName(unitName string) Option {
+	return func(opts *consumerOptions) {
+		opts.UnitName = unitName
+	}
+}
+
+func withConsumeTimeout(timeout time.Duration) Option {
+	return func(opts *consumerOptions) {
+		opts.ConsumeTimeout = timeout
+	}
+}
+
