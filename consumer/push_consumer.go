@@ -54,6 +54,7 @@ type pushConsumer struct {
 	subscribedTopic              map[string]string
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
+	lockTicker                   *time.Ticker
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -92,6 +93,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
 		queueLock:       newQueueLock(),
+		lockTicker:      time.NewTicker(dc.option.RebalanceLockInterval),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -131,11 +133,11 @@ func (pc *pushConsumer) Start() error {
 			time.Sleep(1000 * time.Millisecond)
 			pc.lockAll()
 
-			t := time.NewTicker(pc.option.RebalanceLockInterval)
-			for range t.C {
+			for range pc.lockTicker.C {
 				pc.lockAll()
 			}
 		}()
+
 		go func() {
 			// todo start clean msg expired
 			// TODO quit
@@ -164,6 +166,7 @@ func (pc *pushConsumer) Start() error {
 }
 
 func (pc *pushConsumer) Shutdown() error {
+	pc.lockTicker.Stop()
 	return pc.defaultConsumer.shutdown()
 }
 
