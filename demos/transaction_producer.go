@@ -41,18 +41,18 @@ func main4() {
 	sendTransactionMessage(pConfig)
 }
 
-type MyTransactionLocalListener struct {
+type myTransactionLocalListener struct {
 }
 
-func (l *MyTransactionLocalListener) Execute(m *rocketmq.Message, arg interface{}) rocketmq.TransactionStatus {
+func (l *myTransactionLocalListener) Execute(m *rocketmq.Message, arg interface{}) rocketmq.TransactionStatus {
 	return rocketmq.UnknownTransaction
 }
-func (l *MyTransactionLocalListener) Check(m *rocketmq.MessageExt, arg interface{}) rocketmq.TransactionStatus {
+func (l *myTransactionLocalListener) Check(m *rocketmq.MessageExt, arg interface{}) rocketmq.TransactionStatus {
 	return rocketmq.CommitTransaction
 }
 func sendTransactionMessage(config *rocketmq.ProducerConfig) {
-	listener := &MyTransactionLocalListener{}
-	producer, err := rocketmq.NewTransactionProducer(config, listener, listener)
+	listener := &myTransactionLocalListener{}
+	producer, err := rocketmq.NewTransactionProducer(config, listener, nil)
 
 	if err != nil {
 		fmt.Println("create Transaction producer failed, error:", err)
@@ -69,7 +69,7 @@ func sendTransactionMessage(config *rocketmq.ProducerConfig) {
 	fmt.Printf("Transaction producer: %s started... \n", producer)
 	for i := 0; i < 10; i++ {
 		msg := fmt.Sprintf("%s-%d", "Hello,Transaction MQ Message-", i)
-		result, err := producer.SendMessageTransaction(&rocketmq.Message{Topic: "YourTopicXXXXXXXX", Body: msg}, msg)
+		result, err := producer.SendMessageTransaction(&rocketmq.Message{Topic: "YourTopicXXXXXXXX", Body: msg}, nil)
 		if err != nil {
 			fmt.Println("Error:", err)
 		}

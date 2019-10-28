@@ -44,6 +44,8 @@ func (msg *Message) String() string {
 	return fmt.Sprintf("[Topic: %s, Tags: %s, Keys: %s, Body: %s, DelayTimeLevel: %d, Property: %v]",
 		msg.Topic, msg.Tags, msg.Keys, msg.Body, msg.DelayTimeLevel, msg.Property)
 }
+
+//GetProperty get message property by key string
 func (msg *Message) GetProperty(key string) string {
 	ck := C.CString(key)
 	defer C.free(unsafe.Pointer(ck))
