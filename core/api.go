@@ -128,12 +128,13 @@ func NewTransactionProducer(config *ProducerConfig, listener TransactionLocalLis
 	return newDefaultTransactionProducer(config, listener, arg)
 }
 
-// TransactionExecutor local executor for transaction message
+// TransactionLocalListener local listener for transaction message
 type TransactionLocalListener interface {
 	Execute(m *Message, arg interface{}) TransactionStatus
 	Check(m *MessageExt, arg interface{}) TransactionStatus
 }
 
+// TransactionProducer api for send transaction message
 type TransactionProducer interface {
 	baseAPI
 	// send a transaction message with sync

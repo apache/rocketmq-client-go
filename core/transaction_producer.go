@@ -45,8 +45,10 @@ import (
 	"unsafe"
 )
 
+//TransactionStatus check the status if commit or rollback
 type TransactionStatus int
 
+//TransactionStatus check the status if commit or rollback
 const (
 	CommitTransaction   = TransactionStatus(C.E_COMMIT_TRANSACTION)
 	RollbackTransaction = TransactionStatus(C.E_ROLLBACK_TRANSACTION)
