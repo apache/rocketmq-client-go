@@ -85,8 +85,11 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 	var cproduer *C.struct_CProducer
 	if config.ProducerModel == OrderlyProducer {
 		cproduer = C.CreateOrderlyProducer(cs)
-	} else {
+	} else if config.ProducerModel == CommonProducer {
 		cproduer = C.CreateProducer(cs)
+	} else {
+		C.free(unsafe.Pointer(cs))
+		return nil, errors.New("ProducerModel is invalid or empty")
 	}
 	C.free(unsafe.Pointer(cs))
 

@@ -185,33 +185,26 @@ func newPushConsumer(config *PushConsumerConfig) (PushConsumer, error) {
 		}
 	}
 
-	if config.Model != 0 {
-		var mode C.CMessageModel
-		switch config.Model {
-		case BroadCasting:
-			mode = C.BROADCASTING
-		case Clustering:
-			mode = C.CLUSTERING
-		}
-		err = rmqError(C.SetPushConsumerMessageModel(cconsumer, mode))
-
-		if err != NIL {
-			return nil, err
-		}
-
+	if config.Model == BroadCasting {
+		err = rmqError(C.SetPushConsumerMessageModel(cconsumer, C.BROADCASTING))
+	} else if config.Model == Clustering {
+		err = rmqError(C.SetPushConsumerMessageModel(cconsumer, C.CLUSTERING))
+	} else {
+		return nil, errors.New("model is invalid or empty")
+	}
+	if err != NIL {
+		return nil, err
 	}
 
-	if config.ConsumerModel != 0 {
-		switch config.ConsumerModel {
-		case Orderly:
-			err = rmqError(C.RegisterMessageCallbackOrderly(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
-		case CoCurrently:
-			err = rmqError(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
-		}
-		if err != NIL {
-			return nil, err
-		}
-
+	if config.ConsumerModel == Orderly {
+		err = rmqError(C.RegisterMessageCallbackOrderly(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+	} else if config.ConsumerModel == CoCurrently {
+		err = rmqError(C.RegisterMessageCallback(cconsumer, (C.MessageCallBack)(unsafe.Pointer(C.callback_cgo))))
+	} else {
+		return nil, errors.New("consumer model is invalid or empty")
+	}
+	if err != NIL {
+		return nil, err
 	}
 
 	consumer.cconsumer = cconsumer
