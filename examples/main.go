@@ -17,62 +17,13 @@
 
 package main
 
-import (
-	"github.com/apache/rocketmq-client-go/core"
-	"gopkg.in/alecthomas/kingpin.v2"
-	"os"
-)
-
-var (
-	rmq     = kingpin.New("rocketmq", "RocketMQ cmd tools")
-	namesrv = rmq.Flag("namesrv", "NameServer address.").Default("localhost:9876").Short('n').String()
-	topic   = rmq.Flag("topic", "topic name.").Short('t').Required().String()
-	gid     = rmq.Flag("groupId", "group Id").Short('g').Default("testGroup").String()
-	amount  = rmq.Flag("amount", "how many message to produce or consume").Default("64").Short('a').Int()
-
-	produce     = rmq.Command("produce", "send messages to RocketMQ")
-	body        = produce.Flag("body", "message body").Short('b').Required().String()
-	workerCount = produce.Flag("workerCount", "works of send message with orderly").Default("1").Short('w').Int()
-	orderly     = produce.Flag("orderly", "send msg orderly").Short('o').Bool()
-
-	consume = rmq.Command("consume", "consumes message from RocketMQ")
-)
-
 func main() {
-	switch kingpin.MustParse(rmq.Parse(os.Args[1:])) {
-	case produce.FullCommand():
-		pConfig := &rocketmq.ProducerConfig{ClientConfig: rocketmq.ClientConfig{
-			GroupID:    "MQ_INST_xxxxxxx%GID",
-			NameServer: "http://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:80",
-			Credentials: &rocketmq.SessionCredentials{
-				AccessKey: "xxxxxx",
-				SecretKey: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-				Channel:   "mq-channel",
-			},
-			LogC: &rocketmq.LogConfig{
-				Path:     "example",
-				FileSize: 64 * 1 << 10,
-				FileNum:  1,
-				Level:    rocketmq.LogLevelDebug,
-			},
-		}}
-		if *orderly {
-			sendMessageOrderly(pConfig)
-		} else {
-			sendMessage(pConfig)
-		}
-	case consume.FullCommand():
-		cConfig := &rocketmq.PushConsumerConfig{ClientConfig: rocketmq.ClientConfig{
-			GroupID:    *gid,
-			NameServer: *namesrv,
-			LogC: &rocketmq.LogConfig{
-				Path:     "example",
-				FileSize: 64 * 1 << 10,
-				FileNum:  1,
-				Level:    rocketmq.LogLevelInfo,
-			},
-		}, Model: rocketmq.Clustering}
-
-		consumeWithPush(cConfig)
-	}
+	//run producer
+	main0()
+	//run consumer
+	main1()
+	//run orderly producer
+	main2()
+	//run orderly consumer
+	main3()
 }

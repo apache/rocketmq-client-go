@@ -23,6 +23,23 @@ import (
 	"sync/atomic"
 )
 
+// Change to main if you want to run it directly
+func main1() {
+	pConfig := &rocketmq.PushConsumerConfig{
+		ClientConfig: rocketmq.ClientConfig{
+			GroupID:    "GID_XXXXXXXXXXXX",
+			NameServer: "http://XXXXXXXXXXXXXXXXXX:80",
+			Credentials: &rocketmq.SessionCredentials{
+				AccessKey: "Your Access Key",
+				SecretKey: "Your Secret Key",
+				Channel:   "ALIYUN/OtherChannel",
+			},
+		},
+		Model:         rocketmq.Clustering,
+		ConsumerModel: rocketmq.CoCurrently,
+	}
+	consumeWithPush(pConfig)
+}
 func consumeWithPush(config *rocketmq.PushConsumerConfig) {
 
 	consumer, err := rocketmq.NewPushConsumer(config)
@@ -32,10 +49,12 @@ func consumeWithPush(config *rocketmq.PushConsumerConfig) {
 	}
 
 	ch := make(chan interface{})
-	var count = (int64)(*amount)
+	var count = (int64)(1000000)
+	// ********************************************
 	// MUST subscribe topic before consumer started.
-	consumer.Subscribe(*topic, "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
-		fmt.Printf("A message received: \"%s\" \n", msg.Body)
+	// *********************************************
+	consumer.Subscribe("YourTopicXXXXXXXX", "*", func(msg *rocketmq.MessageExt) rocketmq.ConsumeStatus {
+		fmt.Printf("A message received, MessageID:%s, Body:%s \n", msg.MessageID, msg.Body)
 		if atomic.AddInt64(&count, -1) <= 0 {
 			ch <- "quit"
 		}

@@ -34,10 +34,12 @@ const (
 	ErrSendSyncFailed          = rmqError(C.PRODUCER_SEND_SYNC_FAILED)
 	ErrSendOnewayFailed        = rmqError(C.PRODUCER_SEND_ONEWAY_FAILED)
 	ErrSendOrderlyFailed       = rmqError(C.PRODUCER_SEND_ORDERLY_FAILED)
-	ErrPushConsumerStartFailed = rmqError(C.PUSHCONSUMER_ERROR_CODE_START)
+	ErrSendTransactionFailed   = rmqError(C.PRODUCER_SEND_TRANSACTION_FAILED)
+	ErrPushConsumerStartFailed = rmqError(C.PUSHCONSUMER_START_FAILED)
 	ErrPullConsumerStartFailed = rmqError(C.PULLCONSUMER_START_FAILED)
 	ErrFetchMQFailed           = rmqError(C.PULLCONSUMER_FETCH_MQ_FAILED)
 	ErrFetchMessageFailed      = rmqError(C.PULLCONSUMER_FETCH_MESSAGE_FAILED)
+	ErrNotSupportNow      = rmqError(C.NOT_SUPPORT_NOW)
 )
 
 func (e rmqError) Error() string {
@@ -54,6 +56,8 @@ func (e rmqError) Error() string {
 		return "send message with orderly failed"
 	case ErrSendOnewayFailed:
 		return "send message with oneway failed"
+	case ErrSendTransactionFailed:
+		return "send transaction message failed"
 	case ErrPushConsumerStartFailed:
 		return "start push-consumer failed"
 	case ErrPullConsumerStartFailed:
@@ -62,6 +66,8 @@ func (e rmqError) Error() string {
 		return "fetch MessageQueue failed"
 	case ErrFetchMessageFailed:
 		return "fetch Message failed"
+	case ErrNotSupportNow:
+		return "this function is not support"
 	default:
 		return fmt.Sprintf("unknow error: %v", int(e))
 	}
