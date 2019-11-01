@@ -397,8 +397,8 @@ func (tp *transactionProducer) checkTransactionState() {
 			err := tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req,
 				tp.producer.options.SendMsgTimeout)
 			rlog.Error("send ReqENDTransaction to broker error", map[string]interface{}{
-				"callback": callback.Addr.String(),
-				"request": req.String(),
+				"callback":               callback.Addr.String(),
+				"request":                req.String(),
 				rlog.LogKeyUnderlayError: err,
 			})
 		default:
@@ -429,7 +429,7 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 		if localTransactionState != primitive.CommitMessageState {
 			rlog.Error("executeLocalTransaction but state unexpected", map[string]interface{}{
 				"localState": localTransactionState,
-				"message": msg,
+				"message":    msg,
 			})
 		}
 

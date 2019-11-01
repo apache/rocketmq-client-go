@@ -33,7 +33,7 @@ var (
 
 func CheckError(action string, err error) {
 	if err != nil {
-		rlog.Error( action, map[string]interface{}{
+		rlog.Error(action, map[string]interface{}{
 			rlog.LogKeyUnderlayError: err.Error(),
 		})
 	}

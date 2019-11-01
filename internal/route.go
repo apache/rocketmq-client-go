@@ -74,7 +74,7 @@ func (s *namesrvs) cleanOfflineBroker() {
 				delete(bd.BrokerAddresses, k)
 				rlog.Info("the broker: [name=%s, ID=%d, addr=%s,] is offline, remove it", map[string]interface{}{
 					"brokerName": brokerName,
-					"brokerID": k,
+					"brokerID":   k,
 					"brokerAddr": v,
 				})
 			}
@@ -141,9 +141,9 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 	if changed {
 		s.routeDataMap.Store(topic, routeData)
 		rlog.Info("the topic route info changed", map[string]interface{}{
-			rlog.LogKeyTopic: topic,
+			rlog.LogKeyTopic:            topic,
 			rlog.LogKeyValueChangedFrom: oldRouteData,
-			rlog.LogKeyValueChangedTo:  routeData.String(),
+			rlog.LogKeyValueChangedTo:   routeData.String(),
 		})
 		for _, brokerData := range routeData.BrokerDataList {
 			s.brokerAddressesMap.Store(brokerData.BrokerName, brokerData)

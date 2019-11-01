@@ -210,7 +210,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r net.Conn) {
 					if err != nil {
 						rlog.Warning("send response to broker error", map[string]interface{}{
 							rlog.LogKeyUnderlayError: err,
-							"responseCode": res.Code,
+							"responseCode":           res.Code,
 						})
 					}
 				}
