@@ -19,6 +19,7 @@ package consumer
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -358,20 +359,35 @@ func (si *statsItem) samplingInHour() {
 
 func (si *statsItem) printAtMinutes() {
 	ss := computeStatsData(si.csListMinute)
-	rlog.Infof("[%s] [%s] Stats In One Minute, SUM: %d TPS: %.2f AVGPT: %.2f",
-		si.statsName, si.statsKey, ss.sum, ss.tps, ss.avgpt)
+	rlog.Info("Stats In One Minute, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+		"statsName": si.statsName,
+		"statsKey":  si.statsKey,
+		"SUM":       ss.sum,
+		"TPS":       fmt.Sprintf("%.2f", ss.tps),
+		"AVGPT":     ss.avgpt,
+	})
 }
 
 func (si *statsItem) printAtHour() {
 	ss := computeStatsData(si.csListHour)
-	rlog.Infof("[%s] [%s] Stats In One Hour, SUM: %d TPS: %.2f AVGPT: %.2f",
-		si.statsName, si.statsKey, ss.sum, ss.tps, ss.avgpt)
+	rlog.Info("Stats In One Hour, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+		"statsName": si.statsName,
+		"statsKey":  si.statsKey,
+		"SUM":       ss.sum,
+		"TPS":       fmt.Sprintf("%.2f", ss.tps),
+		"AVGPT":     ss.avgpt,
+	})
 }
 
 func (si *statsItem) printAtDay() {
 	ss := computeStatsData(si.csListDay)
-	rlog.Infof("[%s] [%s] Stats In One Day, SUM: %d TPS: %.2f AVGPT: %.2f",
-		si.statsName, si.statsKey, ss.sum, ss.tps, ss.avgpt)
+	rlog.Info("Stats In One Day, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+		"statsName": si.statsName,
+		"statsKey":  si.statsKey,
+		"SUM":       ss.sum,
+		"TPS":       fmt.Sprintf("%.2f", ss.tps),
+		"AVGPT":     ss.avgpt,
+	})
 }
 
 func nextMinutesTime() time.Time {

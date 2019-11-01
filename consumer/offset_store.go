@@ -123,11 +123,15 @@ func (local *localFileOffsetStore) load() {
 		return
 	}
 	if err != nil {
-		rlog.Errorf("read from store failed. err: %v \n", err)
+		rlog.Info("read from local store error, try to use bak file", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
 		data, err = utils.FileReadAll(filepath.Join(local.path, ".bak"))
 	}
 	if err != nil {
-		rlog.Debugf("load local offset: %s error: %s", local.path, err.Error())
+		rlog.Info("read from local store bak file error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
 		return
 	}
 	datas := make(map[MessageQueueKey]int64)
@@ -138,7 +142,10 @@ func (local *localFileOffsetStore) load() {
 
 	err = json.Unmarshal(data, &wrapper)
 	if err != nil {
-		rlog.Debugf("unmarshal local offset: %s error: %s", local.path, err.Error())
+		rlog.Warning("unmarshal local offset error", map[string]interface{}{
+			"local_path":             local.path,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		return
 	}
 
@@ -166,7 +173,10 @@ func (local *localFileOffsetStore) read(mq *primitive.MessageQueue, t readType) 
 func (local *localFileOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
 	local.mutex.Lock()
 	defer local.mutex.Unlock()
-	rlog.Debugf("update offset: %s to %d", mq, offset)
+	rlog.Debug("update offset", map[string]interface{}{
+		rlog.LogKeyMessageQueue: mq,
+		"new_offset":            offset,
+	})
 	key := MessageQueueKey(*mq)
 	localOffset, exist := local.OffsetTable[key]
 	if !exist {
@@ -237,10 +247,18 @@ func (r *remoteBrokerOffsetStore) persist(mqs []*primitive.MessageQueue) {
 		}
 		err := r.updateConsumeOffsetToBroker(r.group, mq, off)
 		if err != nil {
-			rlog.Warnf("update offset to broker error: %s, group: %s, queue: %s, offset: %d",
-				err.Error(), r.group, mq.String(), off)
+			rlog.Warning("update offset to broker error", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: r.group,
+				rlog.LogKeyMessageQueue:  mq.String(),
+				rlog.LogKeyUnderlayError: err.Error(),
+				"offset":                 off,
+			})
 		} else {
-			rlog.Debugf("update offset to broker success, group: %s, topic: %s, queue: %v offset: %v", r.group, mq.Topic, mq, off)
+			rlog.Info("update offset to broker success", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: r.group,
+				rlog.LogKeyMessageQueue:  mq.String(),
+				"offset":                 off,
+			})
 		}
 	}
 }
@@ -250,7 +268,9 @@ func (r *remoteBrokerOffsetStore) remove(mq *primitive.MessageQueue) {
 	defer r.mutex.Unlock()
 
 	delete(r.OffsetTable, *mq)
-	rlog.Infof("delete queueID %v of brokerName: %v \n", mq.QueueId, mq.BrokerName)
+	rlog.Info("delete mq from offset table", map[string]interface{}{
+		rlog.LogKeyMessageQueue: mq,
+	})
 }
 
 func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) int64 {
@@ -268,7 +288,10 @@ func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) i
 	case _ReadFromStore:
 		off, err := r.fetchConsumeOffsetFromBroker(r.group, mq)
 		if err != nil {
-			rlog.Errorf("fetch offset of %s error: %s", mq.String(), err.Error())
+			rlog.Error("fecth offset of mq error", map[string]interface{}{
+				rlog.LogKeyMessageQueue:  mq.String(),
+				rlog.LogKeyUnderlayError: err,
+			})
 			r.mutex.RUnlock()
 			return -1
 		}

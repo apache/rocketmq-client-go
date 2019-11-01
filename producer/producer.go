@@ -310,7 +310,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 	}
 
 	if result.MqList != nil && len(result.MqList) <= 0 {
-		rlog.Error("can not find proper message queue")
+		rlog.Error("can not find proper message queue", nil)
 		return nil
 	}
 
@@ -394,9 +394,15 @@ func (tp *transactionProducer) checkTransactionState() {
 			req := remote.NewRemotingCommand(internal.ReqENDTransaction, header, nil)
 			req.Remark = tp.errRemark(nil)
 
-			tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req, tp.producer.options.SendMsgTimeout)
+			err := tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req,
+				tp.producer.options.SendMsgTimeout)
+			rlog.Error("send ReqENDTransaction to broker error", map[string]interface{}{
+				"callback": callback.Addr.String(),
+				"request": req.String(),
+				rlog.LogKeyUnderlayError: err,
+			})
 		default:
-			rlog.Error("unknow type %v", ch)
+			rlog.Error(fmt.Sprintf("unknown type %v", ch), nil)
 		}
 	}
 }
@@ -421,7 +427,10 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 		}
 		localTransactionState = tp.listener.ExecuteLocalTransaction(*msg)
 		if localTransactionState != primitive.CommitMessageState {
-			rlog.Errorf("executeLocalTransactionBranch return %v with msg: %v\n", localTransactionState, msg)
+			rlog.Error("executeLocalTransaction but state unexpected", map[string]interface{}{
+				"localState": localTransactionState,
+				"message": msg,
+			})
 		}
 
 	case primitive.SendFlushDiskTimeout, primitive.SendFlushSlaveTimeout, primitive.SendSlaveNotAvailable:

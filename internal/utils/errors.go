@@ -18,8 +18,9 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
+
 	"github.com/apache/rocketmq-client-go/rlog"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -32,6 +33,8 @@ var (
 
 func CheckError(action string, err error) {
 	if err != nil {
-		rlog.Errorf("%s error: %s", action, err.Error())
+		rlog.Error( action, map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 }

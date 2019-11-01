@@ -34,11 +34,11 @@ func main() {
 		consumer.WithNameServer([]string{"127.0.0.1:9876"}),
 	)
 	if err != nil {
-		rlog.Fatal("fail to new pullConsumer: ", err)
+		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
 	}
 	err = c.Start()
 	if err != nil {
-		rlog.Fatal("fail to new pullConsumer: ", err)
+		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
 	}
 
 	ctx := context.Background()

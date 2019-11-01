@@ -268,14 +268,17 @@ func (td *traceDispatcher) Close() {
 
 func (td *traceDispatcher) Append(ctx TraceContext) bool {
 	if !td.running {
-		rlog.Error("traceDispatcher is closed.")
+		rlog.Error("traceDispatcher is closed.", nil)
 		return false
 	}
 	select {
 	case td.input <- ctx:
 		return true
 	default:
-		rlog.Warnf("buffer full: %d, ctx is %v", atomic.AddInt64(&td.discardCount, 1), ctx)
+		rlog.Warning("buffer full", map[string]interface{}{
+			"discardCount": atomic.AddInt64(&td.discardCount, 1),
+			"TraceContext": ctx,
+		})
 		return false
 	}
 }
@@ -319,7 +322,7 @@ func (td *traceDispatcher) process() {
 				now = time.Now().UnixNano() / int64(time.Millisecond)
 				runtime.Gosched()
 			}
-			rlog.Infof("------end trace send %v %v", td.input, td.batchCh)
+			rlog.Info(fmt.Sprintf("------end trace send %v %v", td.input, td.batchCh), nil)
 		}
 	}
 }
@@ -391,9 +394,9 @@ func (td *traceDispatcher) flush(topic, regionID string, data []TraceTransferBea
 	}
 }
 
-func (td *traceDispatcher) sendTraceDataByMQ(keyset Keyset, regionID string, data string) {
+func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, data string) {
 	msg := primitive.NewMessage(td.traceTopic, []byte(data))
-	msg.WithKeys(keyset.slice())
+	msg.WithKeys(keySet.slice())
 
 	mq, addr := td.findMq()
 	if mq == nil {
@@ -401,17 +404,24 @@ func (td *traceDispatcher) sendTraceDataByMQ(keyset Keyset, regionID string, dat
 	}
 
 	var req = td.buildSendRequest(mq, msg)
-	td.cli.InvokeAsync(context.Background(), addr, req, 5000*time.Millisecond, func(command *remote.RemotingCommand, e error) {
+	err := td.cli.InvokeAsync(context.Background(), addr, req, 5 * time.Second, func(command *remote.RemotingCommand, e error) {
 		if e != nil {
-			rlog.Error("send trace data ,the traceData is %v", data)
+			rlog.Error("send trace data error", map[string]interface{}{
+				"traceData": data,
+			})
 		}
+	})
+	rlog.Error("send trace data error when invoke", map[string]interface{}{
+		rlog.LogKeyUnderlayError: err,
 	})
 }
 
 func (td *traceDispatcher) findMq() (*primitive.MessageQueue, string) {
 	mqs, err := td.namesrvs.FetchPublishMessageQueues(td.traceTopic)
 	if err != nil {
-		rlog.Error("fetch publish message queues failed. err: %v", err)
+		rlog.Error("fetch publish message queues failed", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
 		return nil, ""
 	}
 	i := atomic.AddInt32(&td.rrindex, 1)

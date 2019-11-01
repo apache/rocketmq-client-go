@@ -140,34 +140,44 @@ func (c *remotingClient) receiveResponse(r net.Conn) {
 	header := make([]byte, 4)
 	for {
 		if err != nil {
-			rlog.Errorf("conn err: %s so close", err.Error())
+			rlog.Error("conn error, close connection", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			c.closeConnection(r)
 			break
 		}
 
 		_, err = io.ReadFull(r, header)
 		if err != nil {
-			rlog.Errorf("io readfull error: %s", err.Error())
+			rlog.Error("io ReadFull error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			continue
 		}
 
 		var length int32
 		err = binary.Read(bytes.NewReader(header), binary.BigEndian, &length)
 		if err != nil {
-			rlog.Errorf("binary decode header: %s", err.Error())
+			rlog.Error("binary decode header error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			continue
 		}
 
 		buf := make([]byte, length)
 		_, err = io.ReadFull(r, buf)
 		if err != nil {
-			rlog.Errorf("io readfull error: %s", err.Error())
+			rlog.Error("io ReadFull error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			continue
 		}
 
 		cmd, err := decode(buf)
 		if err != nil {
-			rlog.Errorf("decode RemotingCommand error: %s", err.Error())
+			rlog.Error("decode RemotingCommand error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			continue
 		}
 		c.processCMD(cmd, r)
@@ -198,12 +208,17 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r net.Conn) {
 					res.Flag |= 1 << 0
 					err := c.sendRequest(r, res)
 					if err != nil {
-						rlog.Warnf("send response to broker error: %s, type is: %d", err, res.Code)
+						rlog.Warning("send response to broker error", map[string]interface{}{
+							rlog.LogKeyUnderlayError: err,
+							"responseCode": res.Code,
+						})
 					}
 				}
 			}()
 		} else {
-			rlog.Warnf("receive broker's requests, but no func to handle, code is: %d", cmd.Code)
+			rlog.Warning("receive broker's requests, but no func to handle", map[string]interface{}{
+				"responseCode": cmd.Code,
+			})
 		}
 	}
 }
@@ -216,7 +231,9 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	scanner.Split(func(data []byte, atEOF bool) (int, []byte, error) {
 		defer func() {
 			if err := recover(); err != nil {
-				rlog.Errorf("panic: %v", err)
+				rlog.Error("scanner split panic", map[string]interface{}{
+					"panic": err,
+				})
 			}
 		}()
 		if !atEOF {
@@ -224,7 +241,9 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 				var length int32
 				err := binary.Read(bytes.NewReader(data[0:4]), binary.BigEndian, &length)
 				if err != nil {
-					rlog.Errorf("split data error: %s", err.Error())
+					rlog.Error("split data error", map[string]interface{}{
+						rlog.LogKeyUnderlayError: err,
+					})
 					return 0, nil, err
 				}
 
