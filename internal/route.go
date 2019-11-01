@@ -119,10 +119,13 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 
 	routeData, err := s.queryTopicRouteInfoFromServer(topic)
 	if err != nil {
-		rlog.Warning("query topic route from server error: %s", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err,
-		})
-		return nil
+		routeData, err = s.queryTopicRouteInfoFromServer(defaultTopic)
+		if err != nil {
+			rlog.Warning("query topic route from server error: %s", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return nil
+		}
 	}
 
 	if routeData == nil {
