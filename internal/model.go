@@ -93,10 +93,10 @@ func (data *heartbeatData) encode() []byte {
 	d, err := json.Marshal(data)
 	if err != nil {
 		rlog.Error("marshal heartbeatData error", map[string]interface{}{
-			rlog.LogKeyUnderlayError:  err,
+			rlog.LogKeyUnderlayError: err,
 		})
 		return nil
 	}
-	rlog.Debug("heartbeat: " + string(d), nil)
+	rlog.Debug("heartbeat: "+string(d), nil)
 	return d
 }

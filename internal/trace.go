@@ -404,7 +404,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 	}
 
 	var req = td.buildSendRequest(mq, msg)
-	err := td.cli.InvokeAsync(context.Background(), addr, req, 5 * time.Second, func(command *remote.RemotingCommand, e error) {
+	err := td.cli.InvokeAsync(context.Background(), addr, req, 5*time.Second, func(command *remote.RemotingCommand, e error) {
 		if e != nil {
 			rlog.Error("send trace data error", map[string]interface{}{
 				"traceData": data,

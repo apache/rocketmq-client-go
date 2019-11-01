@@ -380,7 +380,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 				m[brokerName] = int32(response.Version)
 				rlog.Debug("send heart beat to broker success", map[string]interface{}{
 					"brokerName": brokerName,
-					"brokerId": id,
+					"brokerId":   id,
 					"brokerAddr": addr,
 				})
 			}
