@@ -46,16 +46,16 @@ const (
 )
 
 type SendMessageRequestHeader struct {
-	ProducerGroup     string `json:"producerGroup"`
-	Topic             string `json:"topic"`
-	QueueId           int    `json:"queueId"`
-	SysFlag           int    `json:"sysFlag"`
-	BornTimestamp     int64  `json:"bornTimestamp"`
-	Flag              int32  `json:"flag"`
-	Properties        string `json:"properties"`
-	ReconsumeTimes    int    `json:"reconsumeTimes"`
-	UnitMode          bool   `json:"unitMode"`
-	MaxReconsumeTimes int    `json:"maxReconsumeTimes"`
+	ProducerGroup     string
+	Topic             string
+	QueueId           int
+	SysFlag           int
+	BornTimestamp     int64
+	Flag              int32
+	Properties        string
+	ReconsumeTimes    int
+	UnitMode          bool
+	MaxReconsumeTimes int
 	Batch             bool
 }
 
@@ -83,13 +83,13 @@ func (request *SendMessageRequestHeader) Decode(properties map[string]string) er
 }
 
 type EndTransactionRequestHeader struct {
-	ProducerGroup        string `json:"producerGroup"`
-	TranStateTableOffset int64  `json:"tranStateTableOffset"`
-	CommitLogOffset      int64  `json:"commitLogOffset"`
-	CommitOrRollback     int    `json:"commitOrRollback"`
-	FromTransactionCheck bool   `json:"fromTransactionCheck"`
-	MsgID                string `json:"msgId"`
-	TransactionId        string `json:"transactionId"`
+	ProducerGroup        string
+	TranStateTableOffset int64
+	CommitLogOffset      int64
+	CommitOrRollback     int
+	FromTransactionCheck bool
+	MsgID                string
+	TransactionId        string
 }
 
 func (request *EndTransactionRequestHeader) Encode() map[string]string {
@@ -145,13 +145,13 @@ func (request *CheckTransactionStateRequestHeader) Decode(ext map[string]string)
 }
 
 type ConsumerSendMsgBackRequestHeader struct {
-	Group             string `json:"group"`
-	Offset            int64  `json:"offset"`
-	DelayLevel        int    `json:"delayLevel"`
-	OriginMsgId       string `json:"originMsgId"`
-	OriginTopic       string `json:"originTopic"`
-	UnitMode          bool   `json:"unitMode"`
-	MaxReconsumeTimes int32  `json:"maxReconsumeTimes"`
+	Group             string
+	Offset            int64
+	DelayLevel        int
+	OriginMsgId       string
+	OriginTopic       string
+	UnitMode          bool
+	MaxReconsumeTimes int32
 }
 
 func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
@@ -168,17 +168,17 @@ func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
 }
 
 type PullMessageRequestHeader struct {
-	ConsumerGroup        string        `json:"consumerGroup"`
-	Topic                string        `json:"topic"`
-	QueueId              int32         `json:"queueId"`
-	QueueOffset          int64         `json:"queueOffset"`
-	MaxMsgNums           int32         `json:"maxMsgNums"`
-	SysFlag              int32         `json:"sysFlag"`
-	CommitOffset         int64         `json:"commitOffset"`
-	SuspendTimeoutMillis time.Duration `json:"suspendTimeoutMillis"`
-	SubExpression        string        `json:"subscription"`
-	SubVersion           int64         `json:"subVersion"`
-	ExpressionType       string        `json:"expressionType"`
+	ConsumerGroup        string
+	Topic                string
+	QueueId              int32
+	QueueOffset          int64
+	MaxMsgNums           int32
+	SysFlag              int32
+	CommitOffset         int64
+	SuspendTimeoutMillis time.Duration
+	SubExpression        string
+	SubVersion           int64
+	ExpressionType       string
 }
 
 func (request *PullMessageRequestHeader) Encode() map[string]string {
@@ -208,8 +208,8 @@ func (request *GetConsumerListRequestHeader) Encode() map[string]string {
 }
 
 type GetMaxOffsetRequestHeader struct {
-	Topic   string `json:"topic"`
-	QueueId int    `json:"queueId"`
+	Topic   string
+	QueueId int
 }
 
 func (request *GetMaxOffsetRequestHeader) Encode() map[string]string {
@@ -220,9 +220,9 @@ func (request *GetMaxOffsetRequestHeader) Encode() map[string]string {
 }
 
 type QueryConsumerOffsetRequestHeader struct {
-	ConsumerGroup string `json:"consumerGroup"`
-	Topic         string `json:"topic"`
-	QueueId       int    `json:"queueId"`
+	ConsumerGroup string
+	Topic         string
+	QueueId       int
 }
 
 func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -248,10 +248,10 @@ func (request *SearchOffsetRequestHeader) Encode() map[string]string {
 }
 
 type UpdateConsumerOffsetRequestHeader struct {
-	ConsumerGroup string `json:"consumerGroup"`
-	Topic         string `json:"topic"`
-	QueueId       int    `json:"queueId"`
-	CommitOffset  int64  `json:"commitOffset"`
+	ConsumerGroup string
+	Topic         string
+	QueueId       int
+	CommitOffset  int64
 }
 
 func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -264,7 +264,7 @@ func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
 }
 
 type GetRouteInfoRequestHeader struct {
-	Topic string `json:"topic"`
+	Topic string
 }
 
 func (request *GetRouteInfoRequestHeader) Encode() map[string]string {
