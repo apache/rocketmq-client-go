@@ -793,7 +793,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 					if err != nil {
 						result = -1
 					} else {
-						lastOffset, err := dc.searchOffsetByTimestamp(mq, t.Unix())
+						lastOffset, err := dc.searchOffsetByTimestamp(mq, t.Unix()*1000)
 						if err != nil {
 							result = -1
 						} else {
