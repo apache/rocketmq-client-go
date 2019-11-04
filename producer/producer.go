@@ -275,7 +275,7 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		}
 	}
 
-	req := &internal.SendMessageRequest{
+	req := &internal.SendMessageRequestHeader{
 		ProducerGroup:  p.group,
 		Topic:          mq.Topic,
 		QueueId:        mq.QueueId,

@@ -310,7 +310,7 @@ func (s *namesrvs) findBrokerVersion(brokerName, brokerAddr string) int32 {
 }
 
 func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
-	request := &GetRouteInfoRequest{
+	request := &GetRouteInfoRequestHeader{
 		Topic: topic,
 	}
 

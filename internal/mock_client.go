@@ -363,7 +363,7 @@ func (mr *MockRMQClientMockRecorder) UnregisterConsumer(group interface{}) *gomo
 }
 
 // PullMessage mocks base method
-func (m *MockRMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
+func (m *MockRMQClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error) {
 	ret := m.ctrl.Call(m, "PullMessage", ctx, brokerAddrs, request)
 	ret0, _ := ret[0].(*primitive.PullResult)
 	ret1, _ := ret[1].(error)
@@ -376,7 +376,7 @@ func (mr *MockRMQClientMockRecorder) PullMessage(ctx, brokerAddrs, request inter
 }
 
 // PullMessageAsync mocks base method
-func (m *MockRMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(*primitive.PullResult)) error {
+func (m *MockRMQClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(*primitive.PullResult)) error {
 	ret := m.ctrl.Call(m, "PullMessageAsync", ctx, brokerAddrs, request, f)
 	ret0, _ := ret[0].(error)
 	return ret0
