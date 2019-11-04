@@ -28,7 +28,7 @@ const (
 	ReqPullMessage              = int16(11)
 	ReqQueryConsumerOffset      = int16(14)
 	ReqUpdateConsumerOffset     = int16(15)
-	ReqSearchOffsetByTimestamp  = int16(30)
+	ReqSearchOffsetByTimestamp  = int16(29)
 	ReqGetMaxOffset             = int16(30)
 	ReqHeartBeat                = int16(34)
 	ReqConsumerSendMsgBack      = int16(36)
@@ -234,15 +234,15 @@ func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
 }
 
 type SearchOffsetRequestHeader struct {
-	Topic     string `json:"topic"`
-	QueueId   int    `json:"queueId"`
-	Timestamp int64  `json:"timestamp"`
+	Topic     string
+	QueueId   int
+	Timestamp int64
 }
 
 func (request *SearchOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
-	maps["Topic"] = request.Topic
-	maps["QueueId"] = strconv.Itoa(request.QueueId)
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["timestamp"] = strconv.FormatInt(request.Timestamp, 10)
 	return maps
 }
