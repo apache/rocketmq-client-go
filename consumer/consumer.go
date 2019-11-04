@@ -828,7 +828,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 			queue.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
 
-	pullRequest := &internal.PullMessageRequest{
+	pullRequest := &internal.PullMessageRequestHeader{
 		ConsumerGroup: dc.consumerGroup,
 		Topic:         queue.Topic,
 		QueueId:       int32(queue.QueueId),
@@ -898,7 +898,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 	}
 
 	if brokerAddr != "" {
-		req := &internal.GetConsumerList{
+		req := &internal.GetConsumerListRequestHeader{
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
@@ -937,7 +937,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
 	}
 
-	request := &internal.GetMaxOffsetRequest{
+	request := &internal.GetMaxOffsetRequestHeader{
 		Topic:   mq.Topic,
 		QueueId: mq.QueueId,
 	}
@@ -966,7 +966,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
 	}
 
-	request := &internal.SearchOffsetRequest{
+	request := &internal.SearchOffsetRequestHeader{
 		Topic:     mq.Topic,
 		QueueId:   mq.QueueId,
 		Timestamp: timestamp,

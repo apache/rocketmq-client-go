@@ -330,7 +330,7 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 	if broker == "" {
 		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
 	}
-	queryOffsetRequest := &internal.QueryConsumerOffsetRequest{
+	queryOffsetRequest := &internal.QueryConsumerOffsetRequestHeader{
 		ConsumerGroup: group,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
@@ -363,7 +363,7 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group string, mq p
 		return fmt.Errorf("broker: %s address not found", mq.BrokerName)
 	}
 
-	updateOffsetRequest := &internal.UpdateConsumerOffsetRequest{
+	updateOffsetRequest := &internal.UpdateConsumerOffsetRequestHeader{
 		ConsumerGroup: group,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,

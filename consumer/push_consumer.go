@@ -500,7 +500,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		sysFlag := buildSysFlag(commitOffsetEnable, true, subExpression != "", classFilter)
 
-		pullRequest := &internal.PullMessageRequest{
+		pullRequest := &internal.PullMessageRequestHeader{
 			ConsumerGroup:  pc.consumerGroup,
 			Topic:          request.mq.Topic,
 			QueueId:        int32(request.mq.QueueId),
@@ -616,7 +616,7 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 }
 
 func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLevel int) *remote.RemotingCommand {
-	req := &internal.ConsumerSendMsgBackRequest{
+	req := &internal.ConsumerSendMsgBackRequestHeader{
 		Group:             pc.consumerGroup,
 		OriginTopic:       msg.Topic,
 		Offset:            msg.CommitLogOffset,

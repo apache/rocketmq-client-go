@@ -440,7 +440,7 @@ func (td *traceDispatcher) findMq() (*primitive.MessageQueue, string) {
 
 func (td *traceDispatcher) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
-	req := &SendMessageRequest{
+	req := &SendMessageRequestHeader{
 		ProducerGroup: TraceGroupName,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
