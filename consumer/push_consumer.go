@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -55,6 +56,8 @@ type pushConsumer struct {
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
 	lockTicker                   *time.Ticker
+	done                         chan struct{}
+	closeOnce                    sync.Once
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -94,6 +97,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		subscribedTopic: make(map[string]string, 0),
 		queueLock:       newQueueLock(),
 		lockTicker:      time.NewTicker(dc.option.RebalanceLockInterval),
+		done:            make(chan struct{}, 1),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -141,8 +145,16 @@ func (pc *pushConsumer) Start() error {
 			time.Sleep(1000 * time.Millisecond)
 			pc.lockAll()
 
-			for range pc.lockTicker.C {
-				pc.lockAll()
+			for {
+				select {
+				case <-pc.lockTicker.C:
+					pc.lockAll()
+				case <-pc.done:
+					rlog.Info("push consumer close tick.", map[string]interface{}{
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+					return
+				}
 			}
 		}()
 
@@ -150,10 +162,17 @@ func (pc *pushConsumer) Start() error {
 			// todo start clean msg expired
 			// TODO quit
 			for {
-				pr := <-pc.prCh
-				go func() {
-					pc.pullMessage(&pr)
-				}()
+				select {
+				case pr := <-pc.prCh:
+					go func() {
+						pc.pullMessage(&pr)
+					}()
+				case <-pc.done:
+					rlog.Info("push consumer close pullConsumer listener.", map[string]interface{}{
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+					return
+				}
 			}
 		}()
 	})
@@ -174,8 +193,15 @@ func (pc *pushConsumer) Start() error {
 }
 
 func (pc *pushConsumer) Shutdown() error {
-	pc.lockTicker.Stop()
-	return pc.defaultConsumer.shutdown()
+	var err error
+	pc.closeOnce.Do(func() {
+		pc.lockTicker.Stop()
+		close(pc.done)
+
+		err = pc.defaultConsumer.shutdown()
+	})
+
+	return err
 }
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
@@ -357,13 +383,29 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 	pq := request.pq
 	go func() {
 		for {
-			// TODO: add exit logic
-			pc.submitToConsume(request.pq, request.mq)
+			select {
+			case <-pc.done:
+				rlog.Info("push consumer close pullMessage.", map[string]interface{}{
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
+				return
+			default:
+				pc.submitToConsume(request.pq, request.mq)
+			}
 		}
 	}()
 
 	for {
 	NEXT:
+		select {
+		case <-pc.done:
+			rlog.Info("push consumer close message handle.", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+			})
+			return
+		default:
+		}
+
 		if pq.dropped {
 			rlog.Debug("the request was dropped, so stop task", map[string]interface{}{
 				rlog.LogKeyPullRequest: request.String(),
