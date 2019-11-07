@@ -18,6 +18,9 @@
 package rlog
 
 import (
+	"os"
+	"strings"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,10 +47,21 @@ func init() {
 	r := &defaultLogger{
 		logger: logrus.New(),
 	}
+	level := os.Getenv("ROCKETMQ_GO_LOG_LEVEL")
+	switch strings.ToLower(level) {
+	case "debug":
+		r.logger.SetLevel(logrus.DebugLevel)
+	case "warn":
+		r.logger.SetLevel(logrus.WarnLevel)
+	case "error":
+		r.logger.SetLevel(logrus.ErrorLevel)
+	default:
+		r.logger.SetLevel(logrus.InfoLevel)
+	}
 	rLog = r
 }
 
-var rLog *defaultLogger
+var rLog Logger
 
 type defaultLogger struct {
 	logger *logrus.Logger
@@ -57,35 +71,40 @@ func (l *defaultLogger) Debug(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	rLog.logger.WithFields(fields).Debug(msg)
+	l.logger.WithFields(fields).Debug(msg)
 }
 
 func (l *defaultLogger) Info(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	rLog.logger.WithFields(fields).Info(msg)
+	l.logger.WithFields(fields).Info(msg)
 }
 
 func (l *defaultLogger) Warning(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	rLog.logger.WithFields(fields).Warning(msg)
+	l.logger.WithFields(fields).Warning(msg)
 }
 
 func (l *defaultLogger) Error(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	rLog.logger.WithFields(fields).WithFields(fields).Error(msg)
+	l.logger.WithFields(fields).WithFields(fields).Error(msg)
 }
 
 func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	rLog.logger.WithFields(fields).Fatal(msg)
+	l.logger.WithFields(fields).Fatal(msg)
+}
+
+// SetLogger use specified logger user customized, in general, we suggest user to replace the default logger with specified
+func SetLogger(logger Logger) {
+	rLog = logger
 }
 
 func Debug(msg string, fields map[string]interface{}) {

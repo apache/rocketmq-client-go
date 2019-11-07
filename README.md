@@ -1,6 +1,7 @@
 ## RocketMQ Client Go
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![TravisCI](https://travis-ci.org/apache/rocketmq-client-python.svg)](https://travis-ci.org/apache/rocketmq-client-go)
+[![TravisCI](https://travis-ci.org/apache/rocketmq-client-go.svg)](https://travis-ci.org/apache/rocketmq-client-go)
+[![Coverage](https://codecov.io/gh/apache/rocketmq-client-go/branch/native/graph/badge.svg)](https://codecov.io/gh/apache/rocketmq-client-go/branch/native)
 
 The RocketMQ Client in pure go, the project is developing, **there is no any guarantee in production environment**. in next versions,
 we will do our best to improve reliability, stability, usability and performance. the API may be changed, and more features will be added.
