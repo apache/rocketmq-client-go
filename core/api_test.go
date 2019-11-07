@@ -76,3 +76,44 @@ func TestPushConsumerConfig_String(t *testing.T) {
 		" MaxCacheMessageSize: 1024, MaxCacheMessageSizeInMB: 2048, ]"
 	assert.Equal(t, expect, pcConfig.String())
 }
+
+func TestPullConfig_String(t *testing.T) {
+	pConfig := PullConsumerConfig{}
+	pConfig.GroupID = "testGroup"
+	pConfig.NameServer = "localhost:9876"
+	pConfig.NameServerDomain = "domain1"
+	pConfig.InstanceName = "testProducer"
+	pConfig.LogC = &LogConfig{
+		Path:     "/rocketmq/log",
+		FileNum:  16,
+		FileSize: 1 << 20,
+		Level:    LogLevelDebug}
+
+	expect := "PushConsumerConfig=[GroupId: testGroup, NameServer: localhost:9876, NameServerDomain: domain1, InstanceName: testProducer, " +
+		"LogConfig: {Path:/rocketmq/log FileNum:16 FileSize:1048576 Level:Debug}, ]"
+	assert.Equal(t, expect, pConfig.String())
+}
+
+func TestSessionCredentials_String(t *testing.T) {
+	pConfig := SessionCredentials{}
+	pConfig.AccessKey = "AK"
+	pConfig.SecretKey = "SK"
+	pConfig.Channel = "Cloud"
+
+	expect := "[accessKey: AK, secretKey: SK, channel: Cloud]"
+	assert.Equal(t, expect, pConfig.String())
+}
+
+func TestSendResult_String(t *testing.T) {
+	pConfig := SendResult{}
+	pConfig.Status = SendOK
+	pConfig.MsgId = "MessageId"
+	pConfig.Offset = 100000
+
+	expect := "[status: SendOK, messageId: MessageId, offset: 100000]"
+	assert.Equal(t, expect, pConfig.String())
+
+	pConfig.Status = SendFlushDiskTimeout
+	expect = "[status: SendFlushDiskTimeout, messageId: MessageId, offset: 100000]"
+	assert.Equal(t, expect, pConfig.String())
+}

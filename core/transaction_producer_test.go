@@ -22,35 +22,38 @@ import (
 	"testing"
 )
 
-func TestProducer_SendStatus(t *testing.T) {
-	assert.Equal(t, "SendOK", SendStatus(int(SendOK)).String())
-	assert.Equal(t, "SendFlushDiskTimeout", SendStatus(int(SendFlushDiskTimeout)).String())
-	assert.Equal(t, "SendFlushSlaveTimeout", SendStatus(int(SendFlushSlaveTimeout)).String())
-	assert.Equal(t, "SendSlaveNotAvailable", SendStatus(int(SendSlaveNotAvailable)).String())
-	assert.Equal(t, "Unknown", SendStatus(int(-1)).String())
+func TestTransactionProducer_TransactionStatus(t *testing.T) {
+	assert.Equal(t, "CommitTransaction", TransactionStatus(int(CommitTransaction)).String())
+	assert.Equal(t, "RollbackTransaction", TransactionStatus(int(RollbackTransaction)).String())
+	assert.Equal(t, "UnknownTransaction", TransactionStatus(int(UnknownTransaction)).String())
+	assert.Equal(t, "UnknownTransaction", TransactionStatus(int(-1)).String())
 }
 
-func TestProducer_CreateProducerFailed(t *testing.T) {
+func TestTransactionProducer_CreateProducerFailed(t *testing.T) {
 	pConfig := ProducerConfig{}
 
-	producer, err := newDefaultProducer(nil)
+	producer, err := newDefaultTransactionProducer(nil, nil, nil)
 	assert.Nil(t, producer)
 	assert.Equal(t, err, errors.New("config is nil"))
-	producer, err = newDefaultProducer(&pConfig)
+	producer, err = newDefaultTransactionProducer(&pConfig, nil, nil)
 	assert.Nil(t, producer)
 	assert.Equal(t, err, errors.New("GroupId is empty"))
 	pConfig.GroupID = "testGroup"
-	producer, err = newDefaultProducer(&pConfig)
+	producer, err = newDefaultTransactionProducer(&pConfig, nil, nil)
 	assert.Nil(t, producer)
 	assert.Equal(t, err, errors.New("NameServer and NameServerDomain is empty"))
-	pConfig.NameServer = "localhost:9876"
-	pConfig.ProducerModel = TransProducer
-	producer, err = newDefaultProducer(&pConfig)
-	assert.Nil(t, producer)
-	assert.Equal(t, err, errors.New("ProducerModel is invalid or empty"))
 }
 
-func TestProducer_CreateProducer(t *testing.T) {
+type MyTransactionLocalListener struct {
+}
+
+func (l *MyTransactionLocalListener) Execute(m *Message, arg interface{}) TransactionStatus {
+	return UnknownTransaction
+}
+func (l *MyTransactionLocalListener) Check(m *MessageExt, arg interface{}) TransactionStatus {
+	return CommitTransaction
+}
+func TestTransactionProducer_CreateProducer(t *testing.T) {
 	pConfig := ProducerConfig{}
 	pConfig.GroupID = "testGroup"
 	pConfig.NameServer = "localhost:9876"
@@ -67,9 +70,8 @@ func TestProducer_CreateProducer(t *testing.T) {
 	pConfig.SendMsgTimeout = 30
 	pConfig.CompressLevel = 4
 	pConfig.MaxMessageSize = 1024
-	pConfig.ProducerModel = CommonProducer
-
-	producer, err := newDefaultProducer(&pConfig)
+	listener := &MyTransactionLocalListener{}
+	producer, err := newDefaultTransactionProducer(&pConfig, listener, nil)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, producer)
 }

@@ -36,3 +36,7 @@ func TestLogConfig_String(t *testing.T) {
 	assert.Equal(t, "{Path:/log/path1 FileNum:3 FileSize:1048576 Level:Trace}", logc.String())
 	logc.Level = LogLevelError
 }
+func TestLogLevel_String(t *testing.T) {
+	logc := LogConfig{Path: "/log/path1", FileNum: 3, FileSize: 1 << 20, Level: LogLevelDebug}
+	assert.Equal(t, "Debug", logc.Level.String())
+}
