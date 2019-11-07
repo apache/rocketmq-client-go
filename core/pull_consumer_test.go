@@ -44,8 +44,4 @@ func TestPullConsumer_CreatePullCosumerFailed(t *testing.T) {
 	producer, err = NewPullConsumer(&pConfig)
 	assert.Nil(t, producer)
 	assert.Equal(t, err, errors.New("NameServer and NameServerDomain is empty"))
-	pConfig.NameServer = "localhost:9876"
-	producer, err = NewPullConsumer(&pConfig)
-	assert.Nil(t, producer)
-	assert.Equal(t, err, errors.New("create PullConsumer failed"))
 }
