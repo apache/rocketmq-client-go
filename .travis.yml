@@ -26,4 +26,4 @@ before_install:
 script:
   - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
-  - go test ./core -coverprofile=coverage.txt -covermode=atomic && goveralls -service=travis-ci
+  - go test ./core -coverprofile=coverage.txt -covermode=atomic
