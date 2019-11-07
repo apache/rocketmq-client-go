@@ -33,6 +33,22 @@ func TestMessage_String(t *testing.T) {
 	assert.Equal(t, expect, msg.String())
 }
 
+func TestMessage_GetProperty(t *testing.T) {
+	msg := Message{
+		Topic:          "testTopic",
+		Tags:           "TagA, TagB",
+		Keys:           "Key1, Key2",
+		Body:           "Body1234567890",
+		DelayTimeLevel: 8}
+	cmsg := goMsgToC(&msg)
+	newMsg := cMsgToGo(cmsg)
+	expect := "[Topic: testTopic, Tags: TagA, TagB, Keys: Key1, Key2, Body: Body1234567890, DelayTimeLevel: 8," +
+		" Property: map[]]"
+	assert.Equal(t, expect, newMsg.String())
+	val := newMsg.GetProperty("KEY")
+	assert.Empty(t,val)
+}
+
 func TestMessageExt_String(t *testing.T) {
 	msg := Message{
 		Topic:          "testTopic",
