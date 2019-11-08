@@ -37,7 +37,7 @@ func TestPushConsumer_CreatePushConsumerFailed(t *testing.T) {
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, consumer)
 	assert.Equal(t, err, errors.New("GroupId is empty"))
-	pConfig.GroupID = "testGroup"
+	pConfig.GroupID = "testGroupFailedA"
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, consumer)
 	assert.Equal(t, err, errors.New("NameServer and NameServerDomain is empty"))
@@ -51,6 +51,7 @@ func TestPushConsumer_CreatePushConsumerFailed(t *testing.T) {
 	assert.Equal(t, err, errors.New("consumer model is invalid or empty"))
 	pConfig.ConsumerModel = CoCurrently
 	pConfig.MaxCacheMessageSizeInMB = 1024
+	pConfig.GroupID = "testGroupFailedB"
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, err)
 	assert.NotNil(t, consumer)
@@ -58,7 +59,7 @@ func TestPushConsumer_CreatePushConsumerFailed(t *testing.T) {
 
 func TestPushConsumer_CreatePushConsumer(t *testing.T) {
 	pConfig := PushConsumerConfig{}
-	pConfig.GroupID = "testGroupA"
+	pConfig.GroupID = "testGroupSuccessA"
 	pConfig.NameServer = "localhost:9876"
 	pConfig.InstanceName = "testProducerA"
 	pConfig.Credentials = &SessionCredentials{
