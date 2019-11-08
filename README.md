@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![Go Report Card](https://goreportcard.com/badge/github.com/apache/rocketmq-client-go)](https://goreportcard.com/report/github.com/apache/rocketmq-client-go)
 [![GoDoc](https://img.shields.io/badge/Godoc-reference-blue.svg)](https://godoc.org/github.com/apache/rocketmq-client-go)
+[![CodeCov](https://codecov.io/gh/apache/rocketmq-client-go/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/rocketmq-client-go)
 
 ( The alpha version of Apache RocketMQ Go in Pure Go has been released, Welcome have a try! [native version](https://github.com/apache/rocketmq-client-go/tree/native) )
 
@@ -14,8 +15,9 @@ At present, this SDK supports
 * sending message in synchronous mode
 * sending message in orderly mode
 * sending message in oneway mode
+* sending transaction message
 * consuming message using push model
-* consuming message using pull model
+* consuming message using pull model(depends cpp core)
 
 ----------
 ## How to use
