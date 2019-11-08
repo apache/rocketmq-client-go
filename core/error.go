@@ -39,7 +39,7 @@ const (
 	ErrPullConsumerStartFailed = rmqError(C.PULLCONSUMER_START_FAILED)
 	ErrFetchMQFailed           = rmqError(C.PULLCONSUMER_FETCH_MQ_FAILED)
 	ErrFetchMessageFailed      = rmqError(C.PULLCONSUMER_FETCH_MESSAGE_FAILED)
-	ErrNotSupportNow      = rmqError(C.NOT_SUPPORT_NOW)
+	ErrNotSupportNow           = rmqError(C.NOT_SUPPORT_NOW)
 )
 
 func (e rmqError) Error() string {

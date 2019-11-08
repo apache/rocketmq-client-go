@@ -46,7 +46,7 @@ func TestMessage_GetProperty(t *testing.T) {
 		" Property: map[]]"
 	assert.Equal(t, expect, newMsg.String())
 	val := newMsg.GetProperty("KEY")
-	assert.Empty(t,val)
+	assert.Empty(t, val)
 }
 
 func TestMessageExt_String(t *testing.T) {
