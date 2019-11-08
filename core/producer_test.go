@@ -91,7 +91,7 @@ func TestDefaultProducer_SendMessageSync(t *testing.T) {
 		Keys:  "Key",
 		Body:  "Body1234567890"}
 	producer.SendMessageSync(msg)
-	producer.Shutdown()
+	//producer.Shutdown()
 }
 
 func TestDefaultProducer_SendMessageOneway(t *testing.T) {
@@ -111,7 +111,7 @@ func TestDefaultProducer_SendMessageOneway(t *testing.T) {
 		Keys:  "Key",
 		Body:  "Body1234567890"}
 	producer.SendMessageOneway(msg)
-	producer.Shutdown()
+	//producer.Shutdown()
 }
 
 func TestDefaultProducer_SendMessageOrderlyByShardingKey(t *testing.T) {
@@ -131,5 +131,5 @@ func TestDefaultProducer_SendMessageOrderlyByShardingKey(t *testing.T) {
 		Keys:  "Key",
 		Body:  "Body1234567890"}
 	producer.SendMessageOrderlyByShardingKey(msg,"key")
-	producer.Shutdown()
+	//producer.Shutdown()
 }

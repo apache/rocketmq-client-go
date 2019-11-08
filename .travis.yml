@@ -30,7 +30,11 @@ before_script:
   - cd rocketmq-all-4.3.2-bin-release
   - perl -i -pe's/-Xms8g -Xmx8g -Xmn4g/-Xms2g -Xmx2g -Xmn1g/g' bin/runbroker.sh
   - nohup sh bin/mqnamesrv &
-  - nohup sh bin/mqbroker -n localhost:9876 &
+  - nohup sh bin/mqbroker -n 127.0.0.1:9876 &
+  - sleep 10
+  - sh bin/mqadmin updateTopic -b '127.0.0.1:10911' –n '127.0.0.1:9876' -t test
+  - sh bin/mqadmin updateSubGroup -b '127.0.0.1:10911' –n '127.0.0.1:9876' -g testGroup
+  - cd ..
 
 script:
   - export LD_LIBRARY_PATH=/usr/local/lib
