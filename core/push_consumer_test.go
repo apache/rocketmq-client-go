@@ -37,7 +37,7 @@ func TestPushConsumer_CreatePushConsumerFailed(t *testing.T) {
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, consumer)
 	assert.Equal(t, err, errors.New("GroupId is empty"))
-	pConfig.GroupID = "testGroup"
+	pConfig.GroupID = "testGroupFailedA"
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, consumer)
 	assert.Equal(t, err, errors.New("NameServer and NameServerDomain is empty"))
@@ -49,14 +49,16 @@ func TestPushConsumer_CreatePushConsumerFailed(t *testing.T) {
 	consumer, err = newPushConsumer(&pConfig)
 	assert.Nil(t, consumer)
 	assert.Equal(t, err, errors.New("consumer model is invalid or empty"))
-	pConfig.ConsumerModel = CoCurrently
-	pConfig.MaxCacheMessageSizeInMB = 1024
-	consumer, err = newPushConsumer(&pConfig)
+	//pConfig.ConsumerModel = CoCurrently
+	//pConfig.MaxCacheMessageSizeInMB = 1024
+	//consumer, err = newPushConsumer(&pConfig)
+	//assert.Nil(t, err)
+	//assert.NotNil(t, consumer)
 }
 
 func TestPushConsumer_CreatePushConsumer(t *testing.T) {
 	pConfig := PushConsumerConfig{}
-	pConfig.GroupID = "testGroupA"
+	pConfig.GroupID = "testGroupSuccessA"
 	pConfig.NameServer = "localhost:9876"
 	pConfig.InstanceName = "testProducerA"
 	pConfig.Credentials = &SessionCredentials{
@@ -78,7 +80,7 @@ func TestPushConsumer_CreatePushConsumer(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, consumer)
 }
-func callback_test(msg *MessageExt) ConsumeStatus {
+func callbackTest(msg *MessageExt) ConsumeStatus {
 	return ReConsumeLater
 }
 func TestPushConsumer_CreatePushConsumerSubscribe(t *testing.T) {
@@ -106,6 +108,6 @@ func TestPushConsumer_CreatePushConsumerSubscribe(t *testing.T) {
 	assert.NotNil(t, consumer)
 	err = consumer.Subscribe("Topic", "exp", nil)
 	assert.Equal(t, err, errors.New("consumeFunc is nil"))
-	err = consumer.Subscribe("Topic", "exp", callback_test)
+	err = consumer.Subscribe("Topic", "exp", callbackTest)
 	assert.Nil(t, err)
 }
