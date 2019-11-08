@@ -24,13 +24,13 @@ import (
 // HashString hashes a string to a unique hashcode.
 func HashString(s string) int {
 	val := []byte(s)
-	var h int
+	var h int32
 
 	for idx := range val {
-		h = 31*h + int(val[idx])
+		h = 31*h + int32(val[idx])
 	}
 
-	return h
+	return int(h)
 }
 
 func StrJoin(str, key string, value interface{}) string {

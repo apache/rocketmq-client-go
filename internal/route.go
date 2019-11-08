@@ -72,12 +72,18 @@ func (s *namesrvs) cleanOfflineBroker() {
 			})
 			if !isBrokerAddrExistInTopicRoute {
 				delete(bd.BrokerAddresses, k)
-				rlog.Infof("the broker: [name=%s, ID=%d, addr=%s,] is offline, remove it", brokerName, k, v)
+				rlog.Info("the broker: [name=%s, ID=%d, addr=%s,] is offline, remove it", map[string]interface{}{
+					"brokerName": brokerName,
+					"brokerID":   k,
+					"brokerAddr": v,
+				})
 			}
 		}
 		if len(bd.BrokerAddresses) == 0 {
 			s.brokerAddressesMap.Delete(brokerName)
-			rlog.Infof("the broker [name=%s] name's host is offline, remove it", brokerName)
+			rlog.Info("the broker name's host is offline, remove it", map[string]interface{}{
+				"brokerName": brokerName,
+			})
 		}
 		return true
 	})
@@ -113,12 +119,19 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 
 	routeData, err := s.queryTopicRouteInfoFromServer(topic)
 	if err != nil {
-		rlog.Warnf("query topic route from server error: %s", err)
-		return nil
+		routeData, err = s.queryTopicRouteInfoFromServer(defaultTopic)
+		if err != nil {
+			rlog.Warning("query topic route from server error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return nil
+		}
 	}
 
 	if routeData == nil {
-		rlog.Warnf("queryTopicRouteInfoFromServer return nil, Topic: %s", topic)
+		rlog.Warning("queryTopicRouteInfoFromServer return nil", map[string]interface{}{
+			rlog.LogKeyTopic: topic,
+		})
 		return nil
 	}
 
@@ -130,8 +143,11 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 
 	if changed {
 		s.routeDataMap.Store(topic, routeData)
-		rlog.Infof("the topic [%s] route info changed, old %v ,new %s", topic,
-			oldRouteData, routeData.String())
+		rlog.Info("the topic route info changed", map[string]interface{}{
+			rlog.LogKeyTopic:            topic,
+			rlog.LogKeyValueChangedFrom: oldRouteData,
+			rlog.LogKeyValueChangedTo:   routeData.String(),
+		})
 		for _, brokerData := range routeData.BrokerDataList {
 			s.brokerAddressesMap.Store(brokerData.BrokerName, brokerData)
 		}
@@ -261,7 +277,9 @@ func (s *namesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.Message
 	if !exist {
 		routeData, err = s.queryTopicRouteInfoFromServer(topic)
 		if err != nil {
-			rlog.Error("queryTopicRouteInfoFromServer failed. topic: ", topic)
+			rlog.Error("queryTopicRouteInfoFromServer failed", map[string]interface{}{
+				rlog.LogKeyTopic: topic,
+			})
 			return nil, err
 		}
 		s.routeDataMap.Store(topic, routeData)
@@ -273,9 +291,9 @@ func (s *namesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.Message
 	if err != nil {
 		return nil, err
 	}
-	publishinfo := s.routeData2PublishInfo(topic, routeData)
+	publishInfo := s.routeData2PublishInfo(topic, routeData)
 
-	return publishinfo.MqList, nil
+	return publishInfo.MqList, nil
 }
 
 func (s *namesrvs) findBrokerVersion(brokerName, brokerAddr string) int32 {
@@ -295,7 +313,7 @@ func (s *namesrvs) findBrokerVersion(brokerName, brokerAddr string) int32 {
 }
 
 func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {
-	request := &GetRouteInfoRequest{
+	request := &GetRouteInfoRequestHeader{
 		Topic: topic,
 	}
 
@@ -312,7 +330,9 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		}
 	}
 	if err != nil {
-		rlog.Errorf("connect to namesrv: %v failed.", s)
+		rlog.Error("connect to namesrv failed.", map[string]interface{}{
+			"namesrv": s,
+		})
 		return nil, err
 	}
 
@@ -325,7 +345,9 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 
 		err = routeData.decode(string(response.Body))
 		if err != nil {
-			rlog.Warnf("decode TopicRouteData error: %s", err)
+			rlog.Warning("decode TopicRouteData error: %s", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			return nil, err
 		}
 		return routeData, nil

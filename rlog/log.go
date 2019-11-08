@@ -18,82 +18,117 @@
 package rlog
 
 import (
-	"io"
+	"os"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	LogKeyConsumerGroup    = "consumerGroup"
+	LogKeyTopic            = "topic"
+	LogKeyMessageQueue     = "MessageQueue"
+	LogKeyUnderlayError    = "underlayError"
+	LogKeyBroker           = "broker"
+	LogKeyValueChangedFrom = "changedFrom"
+	LogKeyValueChangedTo   = "changeTo"
+	LogKeyPullRequest      = "PullRequest"
+)
+
 type Logger interface {
-	SetLevel(l logrus.Level)
-	SetOutput(output io.Writer)
-	Debug(i ...interface{})
-	Debugf(format string, args ...interface{})
-	Info(i ...interface{})
-	Infof(format string, args ...interface{})
-	Warn(i ...interface{})
-	Warnf(format string, args ...interface{})
-	Error(i ...interface{})
-	Errorf(format string, args ...interface{})
-	Fatal(i ...interface{})
-	Fatalf(format string, args ...interface{})
+	Debug(msg string, fields map[string]interface{})
+	Info(msg string, fields map[string]interface{})
+	Warning(msg string, fields map[string]interface{})
+	Error(msg string, fields map[string]interface{})
+	Fatal(msg string, fields map[string]interface{})
+}
+
+func init() {
+	r := &defaultLogger{
+		logger: logrus.New(),
+	}
+	level := os.Getenv("ROCKETMQ_GO_LOG_LEVEL")
+	switch strings.ToLower(level) {
+	case "debug":
+		r.logger.SetLevel(logrus.DebugLevel)
+	case "warn":
+		r.logger.SetLevel(logrus.WarnLevel)
+	case "error":
+		r.logger.SetLevel(logrus.ErrorLevel)
+	default:
+		r.logger.SetLevel(logrus.InfoLevel)
+	}
+	rLog = r
 }
 
 var rLog Logger
 
-func init() {
-	r := logrus.New()
-	r.SetLevel(logrus.InfoLevel)
-	rLog = r
+type defaultLogger struct {
+	logger *logrus.Logger
 }
 
-func SetLogger(log Logger) {
-	rLog = log
+func (l *defaultLogger) Debug(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	l.logger.WithFields(fields).Debug(msg)
 }
 
-func SetLevel(l logrus.Level) {
-	rLog.SetLevel(l)
+func (l *defaultLogger) Info(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	l.logger.WithFields(fields).Info(msg)
 }
 
-func SetOutput(output io.Writer) {
-	rLog.SetOutput(output)
+func (l *defaultLogger) Warning(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	l.logger.WithFields(fields).Warning(msg)
 }
 
-func Debug(i ...interface{}) {
-	rLog.Debug(i...)
+func (l *defaultLogger) Error(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	l.logger.WithFields(fields).WithFields(fields).Error(msg)
 }
 
-func Debugf(format string, args ...interface{}) {
-	rLog.Debugf(format, args...)
+func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	l.logger.WithFields(fields).Fatal(msg)
 }
 
-func Info(i ...interface{}) {
-	rLog.Info(i...)
+// SetLogger use specified logger user customized, in general, we suggest user to replace the default logger with specified
+func SetLogger(logger Logger) {
+	rLog = logger
 }
 
-func Infof(format string, args ...interface{}) {
-	rLog.Infof(format, args...)
+func Debug(msg string, fields map[string]interface{}) {
+	rLog.Debug(msg, fields)
 }
 
-func Warn(i ...interface{}) {
-	rLog.Warn(i...)
+func Info(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	rLog.Info(msg, fields)
 }
 
-func Warnf(format string, args ...interface{}) {
-	rLog.Warnf(format, args...)
+func Warning(msg string, fields map[string]interface{}) {
+	if msg == "" && len(fields) == 0 {
+		return
+	}
+	rLog.Warning(msg, fields)
 }
 
-func Error(i ...interface{}) {
-	rLog.Error(i...)
+func Error(msg string, fields map[string]interface{}) {
+	rLog.Error(msg, fields)
 }
 
-func Errorf(format string, args ...interface{}) {
-	rLog.Errorf(format, args...)
-}
-
-func Fatal(i ...interface{}) {
-	rLog.Fatal(i...)
-}
-
-func Fatalf(format string, args ...interface{}) {
-	rLog.Fatalf(format, args...)
+func Fatal(msg string, fields map[string]interface{}) {
+	rLog.Fatal(msg, fields)
 }

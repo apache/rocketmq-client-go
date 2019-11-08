@@ -28,7 +28,7 @@ const (
 	ReqPullMessage              = int16(11)
 	ReqQueryConsumerOffset      = int16(14)
 	ReqUpdateConsumerOffset     = int16(15)
-	ReqSearchOffsetByTimestamp  = int16(30)
+	ReqSearchOffsetByTimestamp  = int16(29)
 	ReqGetMaxOffset             = int16(30)
 	ReqHeartBeat                = int16(34)
 	ReqConsumerSendMsgBack      = int16(36)
@@ -45,21 +45,21 @@ const (
 	ReqConsumeMessageDirectly   = int16(309)
 )
 
-type SendMessageRequest struct {
-	ProducerGroup     string `json:"producerGroup"`
-	Topic             string `json:"topic"`
-	QueueId           int    `json:"queueId"`
-	SysFlag           int    `json:"sysFlag"`
-	BornTimestamp     int64  `json:"bornTimestamp"`
-	Flag              int32  `json:"flag"`
-	Properties        string `json:"properties"`
-	ReconsumeTimes    int    `json:"reconsumeTimes"`
-	UnitMode          bool   `json:"unitMode"`
-	MaxReconsumeTimes int    `json:"maxReconsumeTimes"`
+type SendMessageRequestHeader struct {
+	ProducerGroup     string
+	Topic             string
+	QueueId           int
+	SysFlag           int
+	BornTimestamp     int64
+	Flag              int32
+	Properties        string
+	ReconsumeTimes    int
+	UnitMode          bool
+	MaxReconsumeTimes int
 	Batch             bool
 }
 
-func (request *SendMessageRequest) Encode() map[string]string {
+func (request *SendMessageRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["producerGroup"] = request.ProducerGroup
 	maps["topic"] = request.Topic
@@ -78,18 +78,18 @@ func (request *SendMessageRequest) Encode() map[string]string {
 	return maps
 }
 
-func (request *SendMessageRequest) Decode(properties map[string]string) error {
+func (request *SendMessageRequestHeader) Decode(properties map[string]string) error {
 	return nil
 }
 
 type EndTransactionRequestHeader struct {
-	ProducerGroup        string `json:"producerGroup"`
-	TranStateTableOffset int64  `json:"tranStateTableOffset"`
-	CommitLogOffset      int64  `json:"commitLogOffset"`
-	CommitOrRollback     int    `json:"commitOrRollback"`
-	FromTransactionCheck bool   `json:"fromTransactionCheck"`
-	MsgID                string `json:"msgId"`
-	TransactionId        string `json:"transactionId"`
+	ProducerGroup        string
+	TranStateTableOffset int64
+	CommitLogOffset      int64
+	CommitOrRollback     int
+	FromTransactionCheck bool
+	MsgID                string
+	TransactionId        string
 }
 
 func (request *EndTransactionRequestHeader) Encode() map[string]string {
@@ -144,17 +144,17 @@ func (request *CheckTransactionStateRequestHeader) Decode(ext map[string]string)
 	}
 }
 
-type ConsumerSendMsgBackRequest struct {
-	Group             string `json:"group"`
-	Offset            int64  `json:"offset"`
-	DelayLevel        int    `json:"delayLevel"`
-	OriginMsgId       string `json:"originMsgId"`
-	OriginTopic       string `json:"originTopic"`
-	UnitMode          bool   `json:"unitMode"`
-	MaxReconsumeTimes int32  `json:"maxReconsumeTimes"`
+type ConsumerSendMsgBackRequestHeader struct {
+	Group             string
+	Offset            int64
+	DelayLevel        int
+	OriginMsgId       string
+	OriginTopic       string
+	UnitMode          bool
+	MaxReconsumeTimes int32
 }
 
-func (request *ConsumerSendMsgBackRequest) Encode() map[string]string {
+func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["group"] = request.Group
 	maps["offset"] = strconv.FormatInt(request.Offset, 10)
@@ -167,21 +167,21 @@ func (request *ConsumerSendMsgBackRequest) Encode() map[string]string {
 	return maps
 }
 
-type PullMessageRequest struct {
-	ConsumerGroup        string        `json:"consumerGroup"`
-	Topic                string        `json:"topic"`
-	QueueId              int32         `json:"queueId"`
-	QueueOffset          int64         `json:"queueOffset"`
-	MaxMsgNums           int32         `json:"maxMsgNums"`
-	SysFlag              int32         `json:"sysFlag"`
-	CommitOffset         int64         `json:"commitOffset"`
-	SuspendTimeoutMillis time.Duration `json:"suspendTimeoutMillis"`
-	SubExpression        string        `json:"subscription"`
-	SubVersion           int64         `json:"subVersion"`
-	ExpressionType       string        `json:"expressionType"`
+type PullMessageRequestHeader struct {
+	ConsumerGroup        string
+	Topic                string
+	QueueId              int32
+	QueueOffset          int64
+	MaxMsgNums           int32
+	SysFlag              int32
+	CommitOffset         int64
+	SuspendTimeoutMillis time.Duration
+	SubExpression        string
+	SubVersion           int64
+	ExpressionType       string
 }
 
-func (request *PullMessageRequest) Encode() map[string]string {
+func (request *PullMessageRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
@@ -197,35 +197,35 @@ func (request *PullMessageRequest) Encode() map[string]string {
 	return maps
 }
 
-type GetConsumerList struct {
+type GetConsumerListRequestHeader struct {
 	ConsumerGroup string `json:"consumerGroup"`
 }
 
-func (request *GetConsumerList) Encode() map[string]string {
+func (request *GetConsumerListRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.ConsumerGroup
 	return maps
 }
 
-type GetMaxOffsetRequest struct {
-	Topic   string `json:"topic"`
-	QueueId int    `json:"queueId"`
+type GetMaxOffsetRequestHeader struct {
+	Topic   string
+	QueueId int
 }
 
-func (request *GetMaxOffsetRequest) Encode() map[string]string {
+func (request *GetMaxOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
 	return maps
 }
 
-type QueryConsumerOffsetRequest struct {
-	ConsumerGroup string `json:"consumerGroup"`
-	Topic         string `json:"topic"`
-	QueueId       int    `json:"queueId"`
+type QueryConsumerOffsetRequestHeader struct {
+	ConsumerGroup string
+	Topic         string
+	QueueId       int
 }
 
-func (request *QueryConsumerOffsetRequest) Encode() map[string]string {
+func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
@@ -233,28 +233,28 @@ func (request *QueryConsumerOffsetRequest) Encode() map[string]string {
 	return maps
 }
 
-type SearchOffsetRequest struct {
-	Topic     string `json:"topic"`
-	QueueId   int    `json:"queueId"`
-	Timestamp int64  `json:"timestamp"`
+type SearchOffsetRequestHeader struct {
+	Topic     string
+	QueueId   int
+	Timestamp int64
 }
 
-func (request *SearchOffsetRequest) Encode() map[string]string {
+func (request *SearchOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
-	maps["Topic"] = request.Topic
-	maps["QueueId"] = strconv.Itoa(request.QueueId)
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["timestamp"] = strconv.FormatInt(request.Timestamp, 10)
 	return maps
 }
 
-type UpdateConsumerOffsetRequest struct {
-	ConsumerGroup string `json:"consumerGroup"`
-	Topic         string `json:"topic"`
-	QueueId       int    `json:"queueId"`
-	CommitOffset  int64  `json:"commitOffset"`
+type UpdateConsumerOffsetRequestHeader struct {
+	ConsumerGroup string
+	Topic         string
+	QueueId       int
+	CommitOffset  int64
 }
 
-func (request *UpdateConsumerOffsetRequest) Encode() map[string]string {
+func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
@@ -263,16 +263,16 @@ func (request *UpdateConsumerOffsetRequest) Encode() map[string]string {
 	return maps
 }
 
-type GetRouteInfoRequest struct {
-	Topic string `json:"topic"`
+type GetRouteInfoRequestHeader struct {
+	Topic string
 }
 
-func (request *GetRouteInfoRequest) Encode() map[string]string {
+func (request *GetRouteInfoRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["topic"] = request.Topic
 	return maps
 }
 
-func (request *GetRouteInfoRequest) Decode(properties map[string]string) error {
+func (request *GetRouteInfoRequestHeader) Decode(properties map[string]string) error {
 	return nil
 }

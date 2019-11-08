@@ -61,7 +61,11 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 		}
 	}
 	if !find {
-		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		rlog.Warning("[BUG] ConsumerId not in cidAll", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: consumerGroup,
+			"consumerId":             currentCID,
+			"cidAll":                 cidAll,
+		})
 		return nil
 	}
 
@@ -88,7 +92,7 @@ func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.Me
 	}
 
 	num := utils.MinInt(averageSize, mqSize-startIndex)
-	result := []*primitive.MessageQueue{}
+	result := make([]*primitive.MessageQueue, 0)
 	for i := 0; i < num; i++ {
 		result = append(result, mqAll[(startIndex+i)%mqSize])
 	}
@@ -113,11 +117,15 @@ func AllocateByAveragelyCircle(consumerGroup, currentCID string, mqAll []*primit
 		}
 	}
 	if !find {
-		rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+		rlog.Warning("[BUG] ConsumerId not in cidAll", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: consumerGroup,
+			"consumerId":             currentCID,
+			"cidAll":                 cidAll,
+		})
 		return nil
 	}
 
-	result := []*primitive.MessageQueue{}
+	result := make([]*primitive.MessageQueue, 0)
 	for i := index; i < len(mqAll); i++ {
 		if i%len(cidAll) == index {
 			result = append(result, mqAll[i])
@@ -156,11 +164,15 @@ func AllocateByMachineRoom(consumeridcs []string) AllocateStrategy {
 			}
 		}
 		if !find {
-			rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+			rlog.Warning("[BUG] ConsumerId not in cidAll", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: consumerGroup,
+				"consumerId":             currentCID,
+				"cidAll":                 cidAll,
+			})
 			return nil
 		}
 
-		premqAll := []*primitive.MessageQueue{}
+		var premqAll []*primitive.MessageQueue
 		for _, mq := range mqAll {
 			temp := strings.Split(mq.BrokerName, "@")
 			if len(temp) == 2 {
@@ -177,7 +189,7 @@ func AllocateByMachineRoom(consumeridcs []string) AllocateStrategy {
 		startIndex := mod * index
 		endIndex := startIndex + mod
 
-		result := []*primitive.MessageQueue{}
+		result := make([]*primitive.MessageQueue, 0)
 		for i := startIndex; i < endIndex; i++ {
 			result = append(result, mqAll[i])
 		}
@@ -204,7 +216,11 @@ func AllocateByConsistentHash(virtualNodeCnt int) AllocateStrategy {
 			}
 		}
 		if !find {
-			rlog.Warnf("[BUG] ConsumerGroup=%s, ConsumerId=%s not in cidAll:%+v", consumerGroup, currentCID, cidAll)
+			rlog.Warning("[BUG] ConsumerId not in cidAll", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: consumerGroup,
+				"consumerId":             currentCID,
+				"cidAll":                 cidAll,
+			})
 			return nil
 		}
 
@@ -214,11 +230,13 @@ func AllocateByConsistentHash(virtualNodeCnt int) AllocateStrategy {
 			c.Add(cid)
 		}
 
-		result := []*primitive.MessageQueue{}
+		result := make([]*primitive.MessageQueue, 0)
 		for _, mq := range mqAll {
 			clientNode, err := c.Get(mq.String())
 			if err != nil {
-				rlog.Warnf("[BUG] AllocateByConsistentHash err:%s", err.Error())
+				rlog.Warning("[BUG] AllocateByConsistentHash err: %s", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+				})
 			}
 			if currentCID == clientNode {
 				result = append(result, mq)

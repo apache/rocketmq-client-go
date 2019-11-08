@@ -132,7 +132,10 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
 	queues, err := c.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
-		rlog.Error(err.Error())
+		rlog.Error("get next mq error", map[string]interface{}{
+			rlog.LogKeyTopic:         topic,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		return nil
 	}
 	var index int64

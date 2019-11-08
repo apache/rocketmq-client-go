@@ -111,7 +111,7 @@ type ClientOptions struct {
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
 	if opt.InstanceName == "DEFAULT" {
-		opt.InstanceName = strconv.Itoa(os.Getegid())
+		opt.InstanceName = strconv.Itoa(os.Getpid())
 	}
 }
 
@@ -143,8 +143,8 @@ type RMQClient interface {
 
 	RegisterConsumer(group string, consumer InnerConsumer) error
 	UnregisterConsumer(group string)
-	PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error)
-	PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *primitive.PullResult)) error
+	PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error)
+	PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(result *primitive.PullResult)) error
 	RebalanceImmediately()
 	UpdatePublishInfo(topic string, data *TopicRouteData)
 }
@@ -177,7 +177,9 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	if !loaded {
 		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
-			rlog.Infof("receive broker's notification, the consumer group: %s", req.ExtFields["consumerGroup"])
+			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: req.ExtFields["consumerGroup"],
+			})
 			client.RebalanceImmediately()
 			return nil
 		})
@@ -186,7 +188,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			header.Decode(req.ExtFields)
 			msgExts := primitive.DecodeMessage(req.Body)
 			if len(msgExts) == 0 {
-				rlog.Warn("checkTransactionState, decode message failed")
+				rlog.Warning("checkTransactionState, decode message failed", nil)
 				return nil
 			}
 			msgExt := msgExts[0]
@@ -197,11 +199,11 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 			}
 			group := msgExt.GetProperty(primitive.PropertyProducerGroup)
 			if group == "" {
-				rlog.Warn("checkTransactionState, pick producer group failed")
+				rlog.Warning("checkTransactionState, pick producer group failed", nil)
 				return nil
 			}
 			if option.GroupName != group {
-				rlog.Warn("producer group is not equal.")
+				rlog.Warning("producer group is not equal", nil)
 				return nil
 			}
 			callback := CheckTransactionStateCallback{
@@ -214,7 +216,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) *
 		})
 
 		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
-			rlog.Info("receive get consumer running info request...")
+			rlog.Info("receive get consumer running info request...", nil)
 			res := remote.NewRemotingCommand(ResError, nil, nil)
 			res.Remark = "the go client has not supported consumer running info"
 			return res
@@ -261,7 +263,9 @@ func (c *rmqClient) Start() {
 					consumer := value.(InnerConsumer)
 					err := consumer.PersistConsumerOffset()
 					if err != nil {
-						rlog.Errorf("persist offset failed. err: %v", err)
+						rlog.Error("persist offset failed", map[string]interface{}{
+							rlog.LogKeyUnderlayError: err,
+						})
 					}
 					return true
 				})
@@ -349,7 +353,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		return true
 	})
 	if hbData.ProducerDatas.Len() == 0 && hbData.ConsumerDatas.Len() == 0 {
-		rlog.Info("sending heartbeat, but no producer and no consumer")
+		rlog.Info("sending heartbeat, but no producer and no consumer", nil)
 		return
 	}
 	c.namesrvs.brokerAddressesMap.Range(func(key, value interface{}) bool {
@@ -359,7 +363,9 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
 			response, err := c.remoteClient.InvokeSync(context.Background(), addr, cmd, 3*time.Second)
 			if err != nil {
-				rlog.Warnf("send heart beat to broker error: %s", err.Error())
+				rlog.Warning("send heart beat to broker error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+				})
 				return true
 			}
 			if response.Code == ResSuccess {
@@ -372,7 +378,11 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					c.namesrvs.brokerVersionMap.Store(brokerName, m)
 				}
 				m[brokerName] = int32(response.Version)
-				rlog.Debugf("send heart beat to broker[%s %d %s] success", brokerName, id, addr)
+				rlog.Debug("send heart beat to broker success", map[string]interface{}{
+					"brokerName": brokerName,
+					"brokerId":   id,
+					"brokerAddr": addr,
+				})
 			}
 		}
 		return true
@@ -406,22 +416,6 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	for topic := range subscribedTopicSet {
 		c.updateSubscribeInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
 	}
-}
-
-// SendMessageAsync send message with batch by async
-func (c *rmqClient) SendMessageAsync(ctx context.Context, brokerAddrs, brokerName string, request *SendMessageRequest,
-	msgs []*primitive.Message, f func(result *primitive.SendResult)) error {
-	return nil
-}
-
-func (c *rmqClient) SendMessageOneWay(ctx context.Context, brokerAddrs string, request *SendMessageRequest,
-	msgs []*primitive.Message) (*primitive.SendResult, error) {
-	cmd := remote.NewRemotingCommand(ReqSendBatchMessage, request, encodeMessages(msgs))
-	err := c.remoteClient.InvokeOneWay(ctx, brokerAddrs, cmd, 3*time.Second)
-	if err != nil {
-		rlog.Warnf("send messages with oneway error: %v", err)
-	}
-	return nil, err
 }
 
 func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error {
@@ -471,7 +465,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 }
 
 // PullMessage with sync
-func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequest) (*primitive.PullResult, error) {
+func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
 	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 10*time.Second)
 	if err != nil {
@@ -526,7 +520,7 @@ func (c *rmqClient) decodeCommandCustomHeader(pr *primitive.PullResult, cmd *rem
 }
 
 // PullMessageAsync pull message async
-func (c *rmqClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequest, f func(result *primitive.PullResult)) error {
+func (c *rmqClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(result *primitive.PullResult)) error {
 	return nil
 }
 

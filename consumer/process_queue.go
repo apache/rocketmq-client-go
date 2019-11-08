@@ -176,7 +176,10 @@ func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
 		if startTime != "" {
 			st, err := strconv.ParseInt(startTime, 10, 64)
 			if err != nil {
-				rlog.Warnf("parse message start consume time error: %s, origin str is: %s", startTime)
+				rlog.Warning("parse message start consume time error", map[string]interface{}{
+					"time":                   startTime,
+					rlog.LogKeyUnderlayError: err,
+				})
 				continue
 			}
 			if time.Now().Unix()-st <= int64(consumer.option.ConsumeTimeout) {
@@ -188,7 +191,9 @@ func (pq *processQueue) cleanExpiredMsg(consumer defaultConsumer) {
 
 		err := consumer.sendBack(msg, 3)
 		if err != nil {
-			rlog.Errorf("send message back to broker error: %s when clean expired messages", err.Error())
+			rlog.Error("send message back to broker error when clean expired messages", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
 			continue
 		}
 		pq.removeMessage(msg)
