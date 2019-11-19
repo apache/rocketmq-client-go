@@ -249,7 +249,9 @@ func (c *rmqClient) Start() {
 				case <-ticker.C:
 					c.UpdateTopicRouteInfo()
 				case <-c.done:
-					rlog.Info("Stopping update topic route info", nil)
+					rlog.Info("The RMQClient stopping update topic route info.", map[string]interface{}{
+						"clientID": c.ClientID(),
+					})
 					return
 				}
 			}
@@ -265,7 +267,9 @@ func (c *rmqClient) Start() {
 					c.namesrvs.cleanOfflineBroker()
 					c.SendHeartbeatToAllBrokerWithLock()
 				case <-c.done:
-					rlog.Info("Stopping clean off line broker and heart beat", nil)
+					rlog.Info("The RMQClient stopping clean off line broker and heart beat", map[string]interface{}{
+						"clientID": c.ClientID(),
+					})
 					return
 				}
 			}
@@ -289,7 +293,9 @@ func (c *rmqClient) Start() {
 						return true
 					})
 				case <-c.done:
-					rlog.Info("Stopping persist offset", nil)
+					rlog.Info("The RMQClient stopping persist offset", map[string]interface{}{
+						"clientID": c.ClientID(),
+					})
 					return
 				}
 			}
@@ -303,7 +309,9 @@ func (c *rmqClient) Start() {
 				case <-ticker.C:
 					c.RebalanceImmediately()
 				case <-c.done:
-					rlog.Info("Stopping do rebalance", nil)
+					rlog.Info("The RMQClient stopping do rebalance", map[string]interface{}{
+						"clientID": c.ClientID(),
+					})
 					return
 				}
 			}
