@@ -18,6 +18,7 @@ limitations under the License.
 package consumer
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -41,21 +42,21 @@ func TestNewLocalFileOffsetStore(t *testing.T) {
 				group:    "testGroup",
 				expectedResult: &localFileOffsetStore{
 					group: "testGroup",
-					path:  _LocalOffsetStorePath + "/testGroup/offset.json",
+					path:  filepath.Join(_LocalOffsetStorePath, "/testGroup/offset.json"),
 				},
 			}, {
 				clientId: "192.168.24.1@default",
 				group:    "",
 				expectedResult: &localFileOffsetStore{
 					group: "",
-					path:  _LocalOffsetStorePath + "/192.168.24.1@default/offset.json",
+					path:  filepath.Join(_LocalOffsetStorePath, "/192.168.24.1@default/offset.json"),
 				},
 			}, {
 				clientId: "192.168.24.1@default",
 				group:    "testGroup",
 				expectedResult: &localFileOffsetStore{
 					group: "testGroup",
-					path:  _LocalOffsetStorePath + "/192.168.24.1@default/testGroup/offset.json",
+					path:  filepath.Join(_LocalOffsetStorePath, "/192.168.24.1@default/testGroup/offset.json"),
 				},
 			},
 		}
@@ -134,6 +135,10 @@ func TestLocalFileOffsetStore(t *testing.T) {
 			localStore.persist(queues)
 			offset = localStore.read(mq, _ReadFromStore)
 			So(offset, ShouldEqual, 1)
+
+			delete(localStore.(*localFileOffsetStore).OffsetTable, MessageQueueKey(*mq))
+			offset = localStore.read(mq, _ReadMemoryThenStore)
+			So(offset, ShouldEqual, 1)
 		})
 	})
 }
@@ -204,7 +209,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 		Convey("test persist", func() {
 			queues := []*primitive.MessageQueue{mq}
 
-			namesrv.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("192.168.24.1:10911")
+			namesrv.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("192.168.24.1:10911").MaxTimes(2)
 
 			ret := &remote.RemotingCommand{
 				Code: internal.ResSuccess,
@@ -212,11 +217,18 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 					"offset": "1",
 				},
 			}
-			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil)
+			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil).MaxTimes(2)
 
 			remoteStore.persist(queues)
 			offset := remoteStore.read(mq, _ReadFromStore)
 			So(offset, ShouldEqual, 1)
+
+			remoteStore.remove(mq)
+			offset = remoteStore.read(mq, _ReadFromMemory)
+			So(offset, ShouldEqual, -1)
+			offset = remoteStore.read(mq, _ReadMemoryThenStore)
+			So(offset, ShouldEqual, 1)
+
 		})
 
 		Convey("test remove", func() {

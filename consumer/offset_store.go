@@ -161,6 +161,7 @@ func (local *localFileOffsetStore) read(mq *primitive.MessageQueue, t readType) 
 		if off >= 0 || (off == -1 && t == _ReadFromMemory) {
 			return off
 		}
+		fallthrough
 	case _ReadFromStore:
 		local.load()
 		return readFromMemory(local.OffsetTable, mq)
@@ -277,14 +278,16 @@ func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) i
 	r.mutex.RLock()
 	switch t {
 	case _ReadFromMemory, _ReadMemoryThenStore:
-		defer r.mutex.RUnlock()
 		off, exist := r.OffsetTable[*mq]
 		if exist {
+			r.mutex.RUnlock()
 			return off
 		}
 		if t == _ReadFromMemory {
+			r.mutex.RUnlock()
 			return -1
 		}
+		fallthrough
 	case _ReadFromStore:
 		off, err := r.fetchConsumeOffsetFromBroker(r.group, mq)
 		if err != nil {
