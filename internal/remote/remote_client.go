@@ -117,16 +117,16 @@ func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request 
 	return c.sendRequest(conn, request)
 }
 
-func (c *remotingClient) connect(ctx context.Context, addr string) (net.Conn, error) {
+func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrapper, error) {
 	//it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
 	if ok {
-		return conn.(net.Conn), nil
+		return conn.(*tcpConnWrapper), nil
 	}
-	var d net.Dialer
-	tcpConn, err := d.DialContext(ctx, "tcp", addr)
+
+	tcpConn, err := initConn(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -135,21 +135,27 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (net.Conn, er
 	return tcpConn, nil
 }
 
-func (c *remotingClient) receiveResponse(r net.Conn) {
+func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 	var err error
 	header := make([]byte, 4)
+	defer c.closeConnection(r)
 	for {
 		if err != nil {
+			if r.isClosed(err) {
+				return
+			}
 			rlog.Error("conn error, close connection", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
 			})
-			c.closeConnection(r)
 			break
 		}
 
 		_, err = io.ReadFull(r, header)
 		if err != nil {
-			rlog.Error("io ReadFull error", map[string]interface{}{
+			if r.isClosed(err) {
+				return
+			}
+			rlog.Error("io ReadFull error when read header", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
 			})
 			continue
@@ -167,7 +173,10 @@ func (c *remotingClient) receiveResponse(r net.Conn) {
 		buf := make([]byte, length)
 		_, err = io.ReadFull(r, buf)
 		if err != nil {
-			rlog.Error("io ReadFull error", map[string]interface{}{
+			if r.isClosed(err) {
+				return
+			}
+			rlog.Error("io ReadFull error when read payload", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
 			})
 			continue
@@ -184,7 +193,7 @@ func (c *remotingClient) receiveResponse(r net.Conn) {
 	}
 }
 
-func (c *remotingClient) processCMD(cmd *RemotingCommand, r net.Conn) {
+func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 	if cmd.isResponseType() {
 		resp, exist := c.responseTable.Load(cmd.Opaque)
 		if exist {
@@ -201,7 +210,9 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r net.Conn) {
 	} else {
 		f := c.processors[cmd.Code]
 		if f != nil {
-			go func() { // 单个goroutine会造成死锁
+			// single goroutine will be deadlock
+			// TODO: optimize with goroutine pool, https://github.com/apache/rocketmq-client-go/issues/307
+			go func() {
 				res := f(cmd, r.RemoteAddr())
 				if res != nil {
 					res.Opaque = cmd.Opaque
@@ -257,7 +268,7 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func (c *remotingClient) sendRequest(conn net.Conn, request *RemotingCommand) error {
+func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
 	var err error
 	if c.interceptor != nil {
 		err = c.interceptor(context.Background(), request, nil, func(ctx context.Context, req, reply interface{}) error {
@@ -269,7 +280,7 @@ func (c *remotingClient) sendRequest(conn net.Conn, request *RemotingCommand) er
 	return err
 }
 
-func (c *remotingClient) doRequest(conn net.Conn, request *RemotingCommand) error {
+func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
 	content, err := encode(request)
 	if err != nil {
 		return err
@@ -282,7 +293,7 @@ func (c *remotingClient) doRequest(conn net.Conn, request *RemotingCommand) erro
 	return nil
 }
 
-func (c *remotingClient) closeConnection(toCloseConn net.Conn) {
+func (c *remotingClient) closeConnection(toCloseConn *tcpConnWrapper) {
 	c.connectionTable.Range(func(key, value interface{}) bool {
 		if value == toCloseConn {
 			c.connectionTable.Delete(key)
@@ -299,14 +310,22 @@ func (c *remotingClient) ShutDown() {
 		return true
 	})
 	c.connectionTable.Range(func(key, value interface{}) bool {
-		conn := value.(net.Conn)
-		conn.Close()
+		conn := value.(*tcpConnWrapper)
+		err := conn.destroy()
+		if err != nil {
+			rlog.Warning("close remoting conn error", map[string]interface{}{
+				"remote":                 conn.RemoteAddr(),
+				rlog.LogKeyUnderlayError: err,
+			})
+		} else {
+			rlog.Info("remoting conn closed", map[string]interface{}{
+				"remote": conn.RemoteAddr(),
+			})
+		}
 		return true
 	})
 }
 
 func (c *remotingClient) RegisterInterceptor(interceptors ...primitive.Interceptor) {
-
 	c.interceptor = primitive.ChainInterceptors(interceptors...)
-
 }
