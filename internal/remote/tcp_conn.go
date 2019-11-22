@@ -19,35 +19,14 @@ package remote
 import (
 	"context"
 	"net"
-	"sync"
+
+	"go.uber.org/atomic"
 )
 
-var (
 // TODO: Adding TCP Connections Pool, https://github.com/apache/rocketmq-client-go/issues/298
-//pool = &tcpConnPool{}
-)
-
-type tcpConnPool struct {
-	count int
-	pool  map[string]net.Conn
-	mutex sync.Mutex
-}
-
-func (pool *tcpConnPool) get(addr string) *tcpConnWrapper {
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
-	return nil
-}
-
-func (pool *tcpConnPool) putBack(wrapper tcpConnWrapper) {
-	pool.mutex.Lock()
-	defer pool.mutex.Unlock()
-
-}
-
 type tcpConnWrapper struct {
 	net.Conn
-	closed bool
+	closed atomic.Bool
 }
 
 func initConn(ctx context.Context, addr string) (*tcpConnWrapper, error) {
@@ -62,12 +41,12 @@ func initConn(ctx context.Context, addr string) (*tcpConnWrapper, error) {
 }
 
 func (wrapper *tcpConnWrapper) destroy() error {
-	wrapper.closed = true
+	wrapper.closed.Swap(true)
 	return wrapper.Conn.Close()
 }
 
 func (wrapper *tcpConnWrapper) isClosed(err error) bool {
-	if !wrapper.closed {
+	if !wrapper.closed.Load() {
 		return false
 	}
 
