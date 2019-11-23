@@ -297,7 +297,7 @@ func (dc *defaultConsumer) shutdown() error {
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		k := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
-		pq.dropped = true
+		pq.WithDropped(true)
 		mqs = append(mqs, &k)
 		return true
 	})
@@ -465,7 +465,7 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 		v, exist := dc.processQueueTable.Load(_mq)
 		if exist {
 			pq := v.(*processQueue)
-			pq.locked = true
+			pq.WithLock(true)
 			pq.lastConsumeTime = time.Now()
 			pq.lastLockTime = time.Now()
 		}
@@ -522,24 +522,24 @@ func (dc *defaultConsumer) lockAll() {
 			MQs:           mqs,
 		}
 		lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
-		set := make(map[int]bool, 0)
+		set := make(map[primitive.MessageQueue]bool)
 		for idx := range lockedMQ {
 			_mq := lockedMQ[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
 				pq := v.(*processQueue)
-				pq.locked = true
+				pq.WithLock(true)
 				pq.lastConsumeTime = time.Now()
 			}
-			set[_mq.HashCode()] = true
+			set[_mq] = true
 		}
 		for idx := range mqs {
 			_mq := mqs[idx]
-			if !set[_mq.HashCode()] {
+			if !set[*_mq] {
 				v, exist := dc.processQueueTable.Load(_mq)
 				if exist {
 					pq := v.(*processQueue)
-					pq.locked = true
+					pq.WithLock(false)
 					pq.lastLockTime = time.Now()
 					rlog.Info("lock MessageQueue", map[string]interface{}{
 						"lockOK":                 false,
@@ -572,12 +572,12 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 			_mq := mqs[idx]
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
-				v.(*processQueue).locked = false
 				rlog.Info("lock MessageQueue", map[string]interface{}{
 					"lockOK":                 false,
 					rlog.LogKeyConsumerGroup: dc.consumerGroup,
 					rlog.LogKeyMessageQueue:  _mq.String(),
 				})
+				v.(*processQueue).WithLock(false)
 			}
 		}
 	}
@@ -597,6 +597,9 @@ func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []pri
 	lockOKMQSet := struct {
 		MQs []primitive.MessageQueue `json:"lockOKMQSet"`
 	}{}
+	if len(response.Body) == 0 {
+		return nil
+	}
 	err = json.Unmarshal(response.Body, &lockOKMQSet)
 	if err != nil {
 		rlog.Error("Unmarshal lock mq body error", map[string]interface{}{
@@ -660,9 +663,8 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 		pq := value.(*processQueue)
 		if mq.Topic == topic {
 			if !mqSet[mq] {
-				pq.dropped = true
+				pq.WithDropped(true)
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
-					//delete(mqSet, mq)
 					dc.processQueueTable.Delete(key)
 					changed = true
 					rlog.Debug("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
@@ -671,9 +673,9 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 					})
 				}
 			} else if pq.isPullExpired() && dc.cType == _PushConsume {
-				pq.dropped = true
+				pq.WithDropped(true)
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
-					delete(mqSet, mq)
+					dc.processQueueTable.Delete(key)
 					changed = true
 					rlog.Debug("remove unnecessary mq because pull was paused, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
