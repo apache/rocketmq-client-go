@@ -23,11 +23,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/utils"
 	gods_util "github.com/emirpasic/gods/utils"
+	uatomic "go.uber.org/atomic"
+
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
 )
 
 const (
@@ -45,10 +47,10 @@ type processQueue struct {
 	consumingMsgOrderlyTreeMap *treemap.Map
 	tryUnlockTimes             int64
 	queueOffsetMax             int64
-	dropped                    bool
+	dropped                    *uatomic.Bool
 	lastPullTime               time.Time
 	lastConsumeTime            time.Time
-	locked                     bool
+	locked                     *uatomic.Bool
 	lastLockTime               time.Time
 	consuming                  bool
 	msgAccCnt                  int64
@@ -68,6 +70,8 @@ func newProcessQueue(order bool) *processQueue {
 		msgCh:                      make(chan []*primitive.MessageExt, 32),
 		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
 		order:                      order,
+		locked:                     uatomic.NewBool(false),
+		dropped:                    uatomic.NewBool(false),
 	}
 	return pq
 }
@@ -108,6 +112,22 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 			pq.msgAccCnt = acc
 		}
 	}
+}
+
+func (pq *processQueue) WithLock(lock bool) {
+	pq.locked.Store(lock)
+}
+
+func (pq *processQueue) IsLock() bool {
+	return pq.locked.Load()
+}
+
+func (pq *processQueue) WithDropped(dropped bool) {
+	pq.dropped.Store(dropped)
+}
+
+func (pq *processQueue) IsDroppd() bool {
+	return pq.dropped.Load()
 }
 
 func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageExt) {
