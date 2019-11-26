@@ -50,54 +50,27 @@ your could download directly or build manually:
     ```
 - Send ordered message
     ```go
-    type queueSelectorByOrderID struct{}
+	func sendMessageOrderlyByShardingKey(config *rocketmq.ProducerConfig) {
+		producer, err := rocketmq.NewProducer(config)
+		if err != nil {
+			fmt.Println("create Producer failed, error:", err)
+			return
+		}
 
-    func (s queueSelectorByOrderID) Select(size int, m *rocketmq.Message, arg interface{}) int{
-       return arg.(int) % size
-    }
-    type worker struct {
-	    p            rocketmq.Producer
-	    leftMsgCount int64
-    }
+		producer.Start()
+		defer producer.Shutdown()
+		for i := 0; i < 1000; i++ {
+			msg := fmt.Sprintf("%s-%d", "Hello Lite Orderly Message", i)
+			r, err := producer.SendMessageOrderlyByShardingKey(
+				&rocketmq.Message{Topic: "YourOrderLyTopicXXXXXXXX", Body: msg}, "ShardingKey" /*orderID*/)
+			if err != nil {
+				println("Send Orderly Message Error:", err)
+			}
+			fmt.Printf("send orderly message result:%+v\n", r)
+			time.Sleep(time.Duration(1) * time.Second)
+		}
 
-    func (w *worker) run() {
-	    selector := queueSelectorByOrderID{}
-	    for atomic.AddInt64(&w.leftMsgCount, -1) >= 0 {
-		    r, err := w.p.SendMessageOrderly(
-			    &rocketmq.Message{Topic: *topic, Body: *body}, selector, 7 /*orderID*/, 3,
-		    )
-		    if err != nil {
-			    println("Send Orderly Error:", err)
-		    }
-		    fmt.Printf("send orderly result:%+v\n", r)
-	    }
-    }
-
-    func sendMessageOrderly(config *rocketmq.ProducerConfig) {
-	    producer, err := rocketmq.NewProducer(config)
-	    if err != nil {
-		    fmt.Println("create Producer failed, error:", err)
-		    return
-        }
-
-	    producer.Start()
-	    defer producer.Shutdown()
-
-	    wg := sync.WaitGroup{}
-	    wg.Add(*workerCount)
-
-	    workers := make([]worker, *workerCount)
-	    for i := range workers {
-		    workers[i].p = producer
-		    workers[i].leftMsgCount = (int64)(*amount)
-	    }
-
-	    for i := range workers {
-		    go func(w *worker) { w.run(); wg.Done() }(&workers[i])
-	    }
-
-	    wg.Wait()
-    }
+	}
     ```
 - Push Consumer
     ```go
