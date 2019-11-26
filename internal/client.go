@@ -18,7 +18,6 @@ limitations under the License.
 package internal
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,6 +35,7 @@ import (
 )
 
 const (
+	clientVersion        = "v2.0.0-alpha3"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
@@ -83,6 +83,7 @@ type InnerConsumer interface {
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
 	IsUnitMode() bool
+	GetConsumerRunningInfo() *ConsumerRunningInfo
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -220,8 +221,25 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 
 		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive get consumer running info request...", nil)
+			header := new(GetConsumerRunningInfoHeader)
+			header.Decode(req.ExtFields)
+			val, exist := clientMap.Load(header.clientID)
 			res := remote.NewRemotingCommand(ResError, nil, nil)
-			res.Remark = "the go client has not supported consumer running info"
+			if !exist {
+				res.Remark = fmt.Sprintf("Can't find specified client instance of: %s", header.clientID)
+			} else {
+				cli, ok := val.(*rmqClient)
+				var runningInfo *ConsumerRunningInfo
+				if ok {
+					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup)
+				}
+				if runningInfo != nil {
+					res.Code = ResSuccess
+
+				} else {
+					res.Remark = "the go client has not supported consumer running info"
+				}
+			}
 			return res
 		})
 	}
@@ -659,6 +677,69 @@ func (c *rmqClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
+func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		return nil
+	}
+	info := consumer.(InnerConsumer).GetConsumerRunningInfo()
+	if info != nil {
+		info.Properties[PropClientVersion] = clientVersion
+	}
+	return info
+}
+
+const (
+	PropNameServerAddr         = "PROP_NAMESERVER_ADDR"
+	PropThreadPoolCoreSize     = "PROP_THREADPOOL_CORE_SIZE"
+	PropConsumeOrderly         = "PROP_CONSUMEORDERLY"
+	PropConsumeType            = "PROP_CONSUME_TYPE"
+	PropClientVersion          = "PROP_CLIENT_VERSION"
+	PropConsumerStartTimestamp = "PROP_CONSUMER_START_TIMESTAMP"
+)
+
+type ProcessQueueInfo struct {
+	CommitOffset            int64
+	CachedMsgMinOffset      int64
+	CachedMsgMaxOffset      int64
+	CachedMsgCount          int
+	CachedMsgSizeInMiB      int64
+	TransactionMsgMinOffset int64
+	TransactionMsgMaxOffset int64
+	TransactionMsgCount     int
+	Locked                  bool
+	TryUnlockTimes          int64
+	LastLockTimestamp       int64
+	Dropped                 bool
+	LastPullTimestamp       int64
+	LastConsumeTimestamp    int64
+}
+
+type ConsumeStatus struct {
+	PullRT            float64
+	PullTPS           float64
+	ConsumeRT         float64
+	ConsumeOKTPS      float64
+	ConsumeFailedTPS  float64
+	ConsumeFailedMsgs int64
+}
+
+type ConsumerRunningInfo struct {
+	Properties       map[string]string
+	SubscriptionData map[*SubscriptionData]bool
+	MQTable          map[primitive.MessageQueue]ProcessQueueInfo
+	StatusTable      map[string]ConsumeStatus
+}
+
+func NewConsumerRunningInfo() *ConsumerRunningInfo {
+	return &ConsumerRunningInfo{
+		Properties:       make(map[string]string),
+		SubscriptionData: make(map[*SubscriptionData]bool),
+		MQTable:          make(map[primitive.MessageQueue]ProcessQueueInfo),
+		StatusTable:      make(map[string]ConsumeStatus),
+	}
+}
+
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
 	list := make([]*primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {
@@ -674,16 +755,6 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.Me
 		}
 	}
 	return list
-}
-
-func encodeMessages(message []*primitive.Message) []byte {
-	var buffer bytes.Buffer
-	index := 0
-	for index < len(message) {
-		buffer.Write(message[index].Body)
-		index++
-	}
-	return buffer.Bytes()
 }
 
 func brokerVIPChannel(brokerAddr string) string {

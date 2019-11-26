@@ -78,10 +78,6 @@ func (request *SendMessageRequestHeader) Encode() map[string]string {
 	return maps
 }
 
-func (request *SendMessageRequestHeader) Decode(properties map[string]string) error {
-	return nil
-}
-
 type EndTransactionRequestHeader struct {
 	ProducerGroup        string
 	TranStateTableOffset int64
@@ -123,23 +119,23 @@ func (request *CheckTransactionStateRequestHeader) Encode() map[string]string {
 	return maps
 }
 
-func (request *CheckTransactionStateRequestHeader) Decode(ext map[string]string) {
-	if len(ext) == 0 {
+func (request *CheckTransactionStateRequestHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
 		return
 	}
-	if v, existed := ext["tranStateTableOffset"]; existed {
+	if v, existed := properties["tranStateTableOffset"]; existed {
 		request.TranStateTableOffset, _ = strconv.ParseInt(v, 10, 0)
 	}
-	if v, existed := ext["commitLogOffset"]; existed {
+	if v, existed := properties["commitLogOffset"]; existed {
 		request.CommitLogOffset, _ = strconv.ParseInt(v, 10, 0)
 	}
-	if v, existed := ext["msgId"]; existed {
+	if v, existed := properties["msgId"]; existed {
 		request.MsgId = v
 	}
-	if v, existed := ext["transactionId"]; existed {
+	if v, existed := properties["transactionId"]; existed {
 		request.MsgId = v
 	}
-	if v, existed := ext["offsetMsgId"]; existed {
+	if v, existed := properties["offsetMsgId"]; existed {
 		request.MsgId = v
 	}
 }
@@ -273,6 +269,27 @@ func (request *GetRouteInfoRequestHeader) Encode() map[string]string {
 	return maps
 }
 
-func (request *GetRouteInfoRequestHeader) Decode(properties map[string]string) error {
-	return nil
+type GetConsumerRunningInfoHeader struct {
+	consumerGroup string
+	clientID      string
+}
+
+func (request *GetConsumerRunningInfoHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.consumerGroup
+	maps["clientId"] = request.clientID
+	return maps
+}
+
+func (request *GetConsumerRunningInfoHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
+		return
+	}
+	if v, existed := properties["consumerGroup"]; existed {
+		request.consumerGroup = v
+	}
+
+	if v, existed := properties["clientId"]; existed {
+		request.clientID = v
+	}
 }
