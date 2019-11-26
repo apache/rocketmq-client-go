@@ -565,6 +565,13 @@ func (c *rmqClient) PullMessageAsync(ctx context.Context, brokerAddrs string, re
 }
 
 func (c *rmqClient) RegisterConsumer(group string, consumer InnerConsumer) error {
+	_, exist := c.consumerMap.Load(group)
+	if exist {
+		rlog.Warning("the consumer group exist already", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: group,
+		})
+		return fmt.Errorf("the consumer group exist already")
+	}
 	c.consumerMap.Store(group, consumer)
 	return nil
 }
