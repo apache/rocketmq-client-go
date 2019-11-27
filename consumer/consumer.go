@@ -288,7 +288,7 @@ func (dc *defaultConsumer) start() error {
 	dc.client.UpdateTopicRouteInfo()
 	dc.client.Start()
 	dc.state = internal.StateRunning
-	dc.consumerStartTimestamp = time.Now().UnixNano() / 10e6
+	dc.consumerStartTimestamp = time.Now().UnixNano() / 1e6
 	return nil
 }
 

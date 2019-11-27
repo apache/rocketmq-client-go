@@ -235,9 +235,14 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				}
 				if runningInfo != nil {
 					res.Code = ResSuccess
-
+					data, err := runningInfo.Encode()
+					if err != nil {
+						res.Remark = fmt.Sprintf("json marshal error: %s", err.Error())
+					} else {
+						res.Body = data
+					}
 				} else {
-					res.Remark = "the go client has not supported consumer running info"
+					res.Remark = "there is unexpected error when get running info, please check log"
 				}
 			}
 			return res
@@ -687,57 +692,6 @@ func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
 		info.Properties[PropClientVersion] = clientVersion
 	}
 	return info
-}
-
-const (
-	PropNameServerAddr         = "PROP_NAMESERVER_ADDR"
-	PropThreadPoolCoreSize     = "PROP_THREADPOOL_CORE_SIZE"
-	PropConsumeOrderly         = "PROP_CONSUMEORDERLY"
-	PropConsumeType            = "PROP_CONSUME_TYPE"
-	PropClientVersion          = "PROP_CLIENT_VERSION"
-	PropConsumerStartTimestamp = "PROP_CONSUMER_START_TIMESTAMP"
-)
-
-type ProcessQueueInfo struct {
-	CommitOffset            int64
-	CachedMsgMinOffset      int64
-	CachedMsgMaxOffset      int64
-	CachedMsgCount          int
-	CachedMsgSizeInMiB      int64
-	TransactionMsgMinOffset int64
-	TransactionMsgMaxOffset int64
-	TransactionMsgCount     int
-	Locked                  bool
-	TryUnlockTimes          int64
-	LastLockTimestamp       int64
-	Dropped                 bool
-	LastPullTimestamp       int64
-	LastConsumeTimestamp    int64
-}
-
-type ConsumeStatus struct {
-	PullRT            float64
-	PullTPS           float64
-	ConsumeRT         float64
-	ConsumeOKTPS      float64
-	ConsumeFailedTPS  float64
-	ConsumeFailedMsgs int64
-}
-
-type ConsumerRunningInfo struct {
-	Properties       map[string]string
-	SubscriptionData map[*SubscriptionData]bool
-	MQTable          map[primitive.MessageQueue]ProcessQueueInfo
-	StatusTable      map[string]ConsumeStatus
-}
-
-func NewConsumerRunningInfo() *ConsumerRunningInfo {
-	return &ConsumerRunningInfo{
-		Properties:       make(map[string]string),
-		SubscriptionData: make(map[*SubscriptionData]bool),
-		MQTable:          make(map[primitive.MessageQueue]ProcessQueueInfo),
-		StatusTable:      make(map[string]ConsumeStatus),
-	}
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
