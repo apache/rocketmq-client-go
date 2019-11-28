@@ -52,6 +52,8 @@ type Namesrvs interface {
 	FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult
 
 	FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error)
+
+	AddrList() []string
 }
 
 // namesrvs rocketmq namesrv instance.
@@ -118,4 +120,8 @@ func (s *namesrvs) String() string {
 }
 func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
 	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
+}
+
+func (s *namesrvs) AddrList() []string {
+	return s.srvs
 }

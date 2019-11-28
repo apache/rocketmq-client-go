@@ -273,6 +273,45 @@ func (pc *pushConsumer) IsUnitMode() bool {
 	return pc.unitMode
 }
 
+func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
+	info := internal.NewConsumerRunningInfo()
+
+	pc.subscriptionDataTable.Range(func(key, value interface{}) bool {
+		topic := key.(string)
+		info.SubscriptionData[value.(*internal.SubscriptionData)] = true
+		status := internal.ConsumeStatus{
+			PullRT:            getPullRT(topic, pc.consumerGroup).avgpt,
+			PullTPS:           getPullTPS(topic, pc.consumerGroup).tps,
+			ConsumeRT:         getConsumeRT(topic, pc.consumerGroup).avgpt,
+			ConsumeOKTPS:      getConsumeOKTPS(topic, pc.consumerGroup).tps,
+			ConsumeFailedTPS:  getConsumeFailedTPS(topic, pc.consumerGroup).tps,
+			ConsumeFailedMsgs: topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + pc.consumerGroup).sum,
+		}
+		info.StatusTable[topic] = status
+		return true
+	})
+
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		mq := key.(primitive.MessageQueue)
+		pq := value.(*processQueue)
+		pInfo := pq.currentInfo()
+		pInfo.CommitOffset = pc.storage.read(&mq, _ReadMemoryThenStore)
+		info.MQTable[mq] = pInfo
+		return true
+	})
+
+	nsAddr := ""
+	for _, value := range pc.namesrv.AddrList() {
+		nsAddr += fmt.Sprintf("%s;", value)
+	}
+	info.Properties[internal.PropNameServerAddr] = nsAddr
+	info.Properties[internal.PropConsumeType] = string(pc.cType)
+	info.Properties[internal.PropConsumeOrderly] = strconv.FormatBool(pc.consumeOrderly)
+	info.Properties[internal.PropThreadPoolCoreSize] = "-1"
+	info.Properties[internal.PropConsumerStartTimestamp] = strconv.FormatInt(pc.consumerStartTimestamp, 10)
+	return info
+}
+
 func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
 	v, exit := pc.subscriptionDataTable.Load(topic)
 	if !exit {

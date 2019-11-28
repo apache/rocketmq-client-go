@@ -18,7 +18,6 @@ limitations under the License.
 package internal
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,6 +35,7 @@ import (
 )
 
 const (
+	clientVersion        = "v2.0.0-alpha3"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
@@ -83,6 +83,7 @@ type InnerConsumer interface {
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
 	IsUnitMode() bool
+	GetConsumerRunningInfo() *ConsumerRunningInfo
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -220,8 +221,30 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 
 		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive get consumer running info request...", nil)
+			header := new(GetConsumerRunningInfoHeader)
+			header.Decode(req.ExtFields)
+			val, exist := clientMap.Load(header.clientID)
 			res := remote.NewRemotingCommand(ResError, nil, nil)
-			res.Remark = "the go client has not supported consumer running info"
+			if !exist {
+				res.Remark = fmt.Sprintf("Can't find specified client instance of: %s", header.clientID)
+			} else {
+				cli, ok := val.(*rmqClient)
+				var runningInfo *ConsumerRunningInfo
+				if ok {
+					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup)
+				}
+				if runningInfo != nil {
+					res.Code = ResSuccess
+					data, err := runningInfo.Encode()
+					if err != nil {
+						res.Remark = fmt.Sprintf("json marshal error: %s", err.Error())
+					} else {
+						res.Body = data
+					}
+				} else {
+					res.Remark = "there is unexpected error when get running info, please check log"
+				}
+			}
 			return res
 		})
 	}
@@ -659,6 +682,18 @@ func (c *rmqClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
+func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		return nil
+	}
+	info := consumer.(InnerConsumer).GetConsumerRunningInfo()
+	if info != nil {
+		info.Properties[PropClientVersion] = clientVersion
+	}
+	return info
+}
+
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
 	list := make([]*primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {
@@ -674,16 +709,6 @@ func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.Me
 		}
 	}
 	return list
-}
-
-func encodeMessages(message []*primitive.Message) []byte {
-	var buffer bytes.Buffer
-	index := 0
-	for index < len(message) {
-		buffer.Write(message[index].Body)
-		index++
-	}
-	return buffer.Bytes()
 }
 
 func brokerVIPChannel(brokerAddr string) string {

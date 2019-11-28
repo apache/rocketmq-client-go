@@ -28,6 +28,7 @@ import (
 	gods_util "github.com/emirpasic/gods/utils"
 	uatomic "go.uber.org/atomic"
 
+	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
@@ -277,6 +278,28 @@ func (pq *processQueue) Max() int64 {
 	return -1
 }
 
+func (pq *processQueue) MinOrderlyCache() int64 {
+	if pq.consumingMsgOrderlyTreeMap.Empty() {
+		return -1
+	}
+	k, _ := pq.consumingMsgOrderlyTreeMap.Min()
+	if k != nil {
+		return k.(int64)
+	}
+	return -1
+}
+
+func (pq *processQueue) MaxOrderlyCache() int64 {
+	if pq.consumingMsgOrderlyTreeMap.Empty() {
+		return -1
+	}
+	k, _ := pq.consumingMsgOrderlyTreeMap.Max()
+	if k != nil {
+		return k.(int64)
+	}
+	return -1
+}
+
 func (pq *processQueue) clear() {
 	pq.mutex.Lock()
 	pq.msgCache.Clear()
@@ -301,4 +324,32 @@ func (pq *processQueue) commit() int64 {
 	})
 	pq.consumingMsgOrderlyTreeMap.Clear()
 	return offset + 1
+}
+
+func (pq *processQueue) currentInfo() internal.ProcessQueueInfo {
+	pq.mutex.RLock()
+	defer pq.mutex.RUnlock()
+	info := internal.ProcessQueueInfo{
+		Locked:               pq.locked.Load(),
+		TryUnlockTimes:       pq.tryUnlockTimes,
+		LastLockTimestamp:    pq.lastLockTime.UnixNano() / 10e6,
+		Dropped:              pq.dropped.Load(),
+		LastPullTimestamp:    pq.lastPullTime.UnixNano() / 10e6,
+		LastConsumeTimestamp: pq.lastConsumeTime.UnixNano() / 10e6,
+	}
+
+	if !pq.msgCache.Empty() {
+		info.CachedMsgMinOffset = pq.Min()
+		info.CachedMsgMaxOffset = pq.Max()
+		info.CachedMsgCount = pq.msgCache.Size()
+		info.CachedMsgSizeInMiB = pq.cachedMsgSize / int64(1024*1024)
+	}
+
+	if !pq.consumingMsgOrderlyTreeMap.Empty() {
+		info.TransactionMsgMinOffset = pq.MinOrderlyCache()
+		info.TransactionMsgMaxOffset = pq.MaxOrderlyCache()
+		info.TransactionMsgCount = pq.consumingMsgOrderlyTreeMap.Size()
+	}
+
+	return info
 }

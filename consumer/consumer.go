@@ -236,12 +236,13 @@ type defaultConsumer struct {
 	 *
 	 * See <a href="http://rocketmq.apache.org/docs/core-concept/">here</a> for further discussion.
 	 */
-	consumerGroup  string
-	model          MessageModel
-	allocate       func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
-	unitMode       bool
-	consumeOrderly bool
-	fromWhere      ConsumeFromWhere
+	consumerGroup          string
+	model                  MessageModel
+	allocate               func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
+	unitMode               bool
+	consumeOrderly         bool
+	fromWhere              ConsumeFromWhere
+	consumerStartTimestamp int64
 
 	cType     ConsumeType
 	client    internal.RMQClient
@@ -250,7 +251,7 @@ type defaultConsumer struct {
 	pause     bool
 	once      sync.Once
 	option    consumerOptions
-	// key: int, hash(*primitive.MessageQueue)
+	// key: primitive.MessageQueue
 	// value: *processQueue
 	processQueueTable sync.Map
 
@@ -287,7 +288,7 @@ func (dc *defaultConsumer) start() error {
 	dc.client.UpdateTopicRouteInfo()
 	dc.client.Start()
 	dc.state = internal.StateRunning
-
+	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
 	return nil
 }
 
