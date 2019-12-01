@@ -67,7 +67,7 @@ type Message struct {
 	Flag          int32
 	TransactionId string
 	Batch         bool
-	// QueueID is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
+	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue
 
@@ -192,7 +192,6 @@ func (m *Message) String() string {
 type MessageExt struct {
 	Message
 	MsgId                     string
-	QueueId                   int32
 	StoreSize                 int32
 	QueueOffset               int64
 	SysFlag                   int32
@@ -221,7 +220,7 @@ func (msgExt *MessageExt) IsTraceOn() string {
 func (msgExt *MessageExt) String() string {
 	return fmt.Sprintf("[Message=%s, MsgId=%s, QueueId=%d, StoreSize=%d, QueueOffset=%d, SysFlag=%d, "+
 		"BornTimestamp=%d, BornHost=%s, StoreTimestamp=%d, StoreHost=%s, CommitLogOffset=%d, BodyCRC=%d, "+
-		"ReconsumeTimes=%d, PreparedTransactionOffset=%d]", msgExt.Message.String(), msgExt.MsgId, msgExt.QueueId,
+		"ReconsumeTimes=%d, PreparedTransactionOffset=%d]", msgExt.Message.String(), msgExt.MsgId, msgExt.Queue.QueueId,
 		msgExt.StoreSize, msgExt.QueueOffset, msgExt.SysFlag, msgExt.BornTimestamp, msgExt.BornHost,
 		msgExt.StoreTimestamp, msgExt.StoreHost, msgExt.CommitLogOffset, msgExt.BodyCRC, msgExt.ReconsumeTimes,
 		msgExt.PreparedTransactionOffset)
@@ -247,7 +246,7 @@ func DecodeMessage(data []byte) []*MessageExt {
 		count += 4
 
 		// 4. queueID
-		binary.Read(buf, binary.BigEndian, &msg.QueueId)
+		binary.Read(buf, binary.BigEndian, &msg.Queue.QueueId)
 		count += 4
 
 		// 5. Flag
