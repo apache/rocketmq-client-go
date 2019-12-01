@@ -18,6 +18,10 @@ limitations under the License.
 package internal
 
 import (
+	"fmt"
+	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
@@ -63,5 +67,43 @@ func TestGetNamesrv(t *testing.T) {
 		So(index1+1, ShouldEqual, index2)
 		So(IP1, ShouldEqual, ns.srvs[index1])
 		So(IP2, ShouldEqual, ns.srvs[index2])
+	})
+}
+
+func TestUpdateNameServerAddress(t *testing.T) {
+	Convey("Test UpdateNameServerAddress method", t, func() {
+		srvs := []string{
+			"192.168.100.1",
+			"192.168.100.2",
+			"192.168.100.3",
+			"192.168.100.4",
+			"192.168.100.5",
+		}
+		http.HandleFunc("/nameserver/addrs", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, strings.Join(srvs, ";"))
+		})
+		server := &http.Server{Addr: ":0", Handler: nil}
+		listener, _ := net.Listen("tcp", ":0")
+		go server.Serve(listener)
+
+		port := listener.Addr().(*net.TCPAddr).Port
+		nameServerDommain := fmt.Sprintf("http://127.0.0.1:%d/nameserver/addrs", port)
+		fmt.Println("temporary name server domain: ", nameServerDommain)
+
+		ns := &namesrvs{
+			srvs: []string{},
+			lock: new(sync.Mutex),
+		}
+		ns.UpdateNameServerAddress(nameServerDommain, "DEFAULT")
+
+		index1 := ns.index
+		IP1 := ns.getNameServerAddress()
+
+		index2 := ns.index
+		IP2 := ns.getNameServerAddress()
+
+		So(index1+1, ShouldEqual, index2)
+		So(IP1, ShouldEqual, srvs[index1])
+		So(IP2, ShouldEqual, srvs[index2])
 	})
 }
