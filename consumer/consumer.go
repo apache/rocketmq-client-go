@@ -285,6 +285,7 @@ func (dc *defaultConsumer) start() error {
 		dc.storage = NewLocalFileOffsetStore(dc.consumerGroup, dc.client.ClientID())
 	}
 
+	dc.namesrv.UpdateNameServerAddress(dc.option.NameServerDomain, dc.option.InstanceName)
 	dc.client.UpdateTopicRouteInfo()
 	dc.client.Start()
 	dc.state = internal.StateRunning

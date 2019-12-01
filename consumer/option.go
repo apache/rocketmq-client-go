@@ -186,6 +186,13 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 	}
 }
 
+// WithNameServerDomain set NameServer domain
+func WithNameServerDomain(nameServerUrl string) Option {
+	return func(opts *consumerOptions) {
+		opts.NameServerDomain = nameServerUrl
+	}
+}
+
 // WithNamespace set the namespace of consumer
 func WithNamespace(namespace string) Option {
 	return func(opts *consumerOptions) {
