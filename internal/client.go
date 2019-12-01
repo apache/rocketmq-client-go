@@ -164,6 +164,7 @@ type rmqClient struct {
 	remoteClient remote.RemotingClient
 	hbMutex      sync.Mutex
 	close        bool
+	rbMutex      sync.Mutex
 	namesrvs     *namesrvs
 	done         chan struct{}
 	shutdownOnce sync.Once
@@ -618,6 +619,8 @@ func (c *rmqClient) SelectConsumer(group string) InnerConsumer {
 }
 
 func (c *rmqClient) RebalanceImmediately() {
+	c.rbMutex.Lock()
+	defer c.rbMutex.Unlock()
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
 		consumer.Rebalance()

@@ -50,9 +50,9 @@ type processQueue struct {
 	queueOffsetMax             int64
 	dropped                    *uatomic.Bool
 	lastPullTime               time.Time
-	lastConsumeTime            time.Time
+	lastConsumeTime            atomic.Value
 	locked                     *uatomic.Bool
-	lastLockTime               time.Time
+	lastLockTime               atomic.Value
 	consuming                  bool
 	msgAccCnt                  int64
 	lockConsume                sync.Mutex
@@ -63,11 +63,17 @@ type processQueue struct {
 func newProcessQueue(order bool) *processQueue {
 	consumingMsgOrderlyTreeMap := treemap.NewWith(gods_util.Int64Comparator)
 
+	lastConsumeTime := atomic.Value{}
+	lastConsumeTime.Store(time.Now())
+
+	lastLockTime := atomic.Value{}
+	lastLockTime.Store(time.Now())
+
 	pq := &processQueue{
 		msgCache:                   treemap.NewWith(utils.Int64Comparator),
 		lastPullTime:               time.Now(),
-		lastConsumeTime:            time.Now(),
-		lastLockTime:               time.Now(),
+		lastConsumeTime:            lastConsumeTime,
+		lastLockTime:               lastLockTime,
 		msgCh:                      make(chan []*primitive.MessageExt, 32),
 		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
 		order:                      order,
@@ -131,6 +137,22 @@ func (pq *processQueue) IsDroppd() bool {
 	return pq.dropped.Load()
 }
 
+func (pq *processQueue) UpdateLastConsumeTime() {
+	pq.lastConsumeTime.Store(time.Now())
+}
+
+func (pq *processQueue) LastConsumeTime() time.Time {
+	return pq.lastConsumeTime.Load().(time.Time)
+}
+
+func (pq *processQueue) UpdateLastLockTime() {
+	pq.lastLockTime.Store(time.Now())
+}
+
+func (pq *processQueue) LastLockTime() time.Time {
+	return pq.lastLockTime.Load().(time.Time)
+}
+
 func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageExt) {
 	pq.mutex.Lock()
 	for _, msg := range messages {
@@ -144,7 +166,7 @@ func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageE
 func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 	result := int64(-1)
 	pq.mutex.Lock()
-	pq.lastConsumeTime = time.Now()
+	pq.UpdateLastConsumeTime()
 	if !pq.msgCache.Empty() {
 		result = pq.queueOffsetMax + 1
 		removedCount := 0
@@ -169,7 +191,7 @@ func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 }
 
 func (pq *processQueue) isLockExpired() bool {
-	return time.Now().Sub(pq.lastLockTime) > _RebalanceLockMaxTime
+	return time.Now().Sub(pq.LastLockTime()) > _RebalanceLockMaxTime
 }
 
 func (pq *processQueue) isPullExpired() bool {
@@ -332,10 +354,10 @@ func (pq *processQueue) currentInfo() internal.ProcessQueueInfo {
 	info := internal.ProcessQueueInfo{
 		Locked:               pq.locked.Load(),
 		TryUnlockTimes:       pq.tryUnlockTimes,
-		LastLockTimestamp:    pq.lastLockTime.UnixNano() / 10e6,
+		LastLockTimestamp:    pq.LastLockTime().UnixNano() / int64(time.Millisecond),
 		Dropped:              pq.dropped.Load(),
-		LastPullTimestamp:    pq.lastPullTime.UnixNano() / 10e6,
-		LastConsumeTimestamp: pq.lastConsumeTime.UnixNano() / 10e6,
+		LastPullTimestamp:    pq.lastPullTime.UnixNano() / int64(time.Millisecond),
+		LastConsumeTimestamp: pq.LastConsumeTime().UnixNano() / int64(time.Millisecond),
 	}
 
 	if !pq.msgCache.Empty() {
