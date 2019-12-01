@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/user"
 	"path"
 	"regexp"
 	"strings"
@@ -144,8 +145,10 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 	}
 	nameServers := []string{}
 	//load snapshot
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
+	homeDir := ""
+	if usr, err := user.Current(); err == nil {
+		homeDir = usr.HomeDir
+	} else {
 		rlog.Error("name server domain, can't get user home directory", map[string]interface{}{
 			"err": err,
 		})
