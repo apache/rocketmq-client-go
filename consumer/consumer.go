@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -247,7 +248,7 @@ type defaultConsumer struct {
 	cType     ConsumeType
 	client    internal.RMQClient
 	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state     internal.ServiceState
+	state     int32
 	pause     bool
 	once      sync.Once
 	option    consumerOptions
@@ -287,13 +288,14 @@ func (dc *defaultConsumer) start() error {
 
 	dc.client.UpdateTopicRouteInfo()
 	dc.client.Start()
-	dc.state = internal.StateRunning
+	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
 	return nil
 }
 
 func (dc *defaultConsumer) shutdown() error {
-	dc.state = internal.StateShutdown
+	atomic.StoreInt32(&dc.state, int32(internal.StateShutdown))
+
 	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		k := key.(primitive.MessageQueue)
@@ -435,7 +437,7 @@ func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
-	if dc.state != internal.StateRunning {
+	if atomic.LoadInt32(&dc.state) != int32(internal.StateRunning) {
 		return fmt.Errorf("state not running, actually: %v", dc.state)
 	}
 	return nil

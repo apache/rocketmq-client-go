@@ -82,9 +82,10 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	}
 
 	dc := &defaultConsumer{
+		client:        internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup: defaultOpts.GroupName,
 		cType:         _PullConsume,
-		state:         internal.StateCreateJust,
+		state:         int32(internal.StateCreateJust),
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
@@ -99,7 +100,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 }
 
 func (c *defaultPullConsumer) Start() error {
-	c.state = internal.StateRunning
+	atomic.StoreInt32(&c.state, int32(internal.StateRunning))
 
 	var err error
 	c.once.Do(func() {
@@ -208,7 +209,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 }
 
 func (c *defaultPullConsumer) makeSureStateOK() error {
-	if c.state != internal.StateRunning {
+	if atomic.LoadInt32(&c.state) != int32(internal.StateRunning) {
 		return fmt.Errorf("the consumer state is [%d], not running", c.state)
 	}
 	return nil

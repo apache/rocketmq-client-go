@@ -39,7 +39,7 @@ type (
 	// groupName of consumer
 	consumeType string
 
-	ServiceState int
+	ServiceState int32
 )
 
 const (
