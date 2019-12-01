@@ -74,7 +74,7 @@ func (mr *MockNamesrvsMockRecorder) cleanOfflineBroker() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "cleanOfflineBroker", reflect.TypeOf((*MockNamesrvs)(nil).cleanOfflineBroker))
 }
 
-// UpdateTopicRouteInfo mocks base method
+// UpdateNameServerAddress mocks base method
 func (m *MockNamesrvs) UpdateNameServerAddress(nameServer, instanceName string) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateNameServerAddress", nameServer, instanceName)
