@@ -348,11 +348,6 @@ func (mq *MessageQueue) HashCode() int {
 	return result
 }
 
-func (mq MessageQueue) Equals(queue *MessageQueue) bool {
-	// TODO
-	return mq.BrokerName == queue.BrokerName && mq.Topic == queue.Topic && mq.QueueId == mq.QueueId
-}
-
 type AccessChannel int
 
 const (
