@@ -133,6 +133,10 @@ func (m *Message) UnmarshalProperties(data []byte) {
 	}
 }
 
+func (m *Message) GetProperties() map[string]string {
+	return m.properties
+}
+
 func NewMessage(topic string, body []byte) *Message {
 	msg := &Message{
 		Topic:      topic,
