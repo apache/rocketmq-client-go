@@ -134,7 +134,13 @@ func (m *Message) UnmarshalProperties(data []byte) {
 }
 
 func (m *Message) GetProperties() map[string]string {
-	return m.properties
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	result := make(map[string]string, len(m.properties))
+	for k, v := range m.properties {
+		result[k] = v
+	}
+	return result
 }
 
 func NewMessage(topic string, body []byte) *Message {
