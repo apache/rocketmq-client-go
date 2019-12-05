@@ -23,6 +23,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -92,7 +93,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
-		state:          internal.StateCreateJust,
+		state:          int32(internal.StateCreateJust),
 		prCh:           make(chan PullRequest, 4),
 		model:          defaultOpts.ConsumerModel,
 		consumeOrderly: defaultOpts.ConsumeOrderly,
@@ -130,12 +131,11 @@ func (pc *pushConsumer) Start() error {
 			"messageModel":           pc.model,
 			"unitMode":               pc.unitMode,
 		})
-		pc.state = internal.StateStartFailed
+		atomic.StoreInt32(&pc.state, int32(internal.StateStartFailed))
 		pc.validate()
 
 		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
-			pc.state = internal.StateStartFailed
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
@@ -220,7 +220,7 @@ func (pc *pushConsumer) Shutdown() error {
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
-	if pc.state != internal.StateCreateJust {
+	if atomic.LoadInt32(&pc.state) != int32(internal.StateCreateJust) {
 		return errors.New("subscribe topic only started before")
 	}
 	if pc.option.Namespace != "" {

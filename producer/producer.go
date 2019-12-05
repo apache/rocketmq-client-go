@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -42,7 +43,7 @@ var (
 type defaultProducer struct {
 	group       string
 	client      internal.RMQClient
-	state       internal.ServiceState
+	state       int32
 	options     producerOptions
 	publishInfo sync.Map
 	callbackCh  chan interface{}
@@ -77,20 +78,20 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 }
 
 func (p *defaultProducer) Start() error {
-	p.state = internal.StateRunning
+	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
 	p.client.RegisterProducer(p.group, p)
 	p.client.Start()
 	return nil
 }
 
 func (p *defaultProducer) Shutdown() error {
-	p.state = internal.StateShutdown
+	atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
 	p.client.Shutdown()
 	return nil
 }
 
 func (p *defaultProducer) checkMsg(msg *primitive.Message) error {
-	if p.state != internal.StateRunning {
+	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
 		return ErrNotRunning
 	}
 
