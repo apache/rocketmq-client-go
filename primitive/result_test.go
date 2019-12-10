@@ -49,3 +49,15 @@ func TestCreateMessageId(t *testing.T) {
 	})
 
 }
+
+func TestGetProperties(t *testing.T) {
+	msg1 := NewMessage("test", nil)
+	msg1.properties = map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+	}
+	assert.Equal(t, msg1.GetProperties(), map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+	})
+}
