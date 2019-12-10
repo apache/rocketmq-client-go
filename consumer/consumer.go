@@ -469,8 +469,8 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 		if exist {
 			pq := v.(*processQueue)
 			pq.WithLock(true)
-			pq.lastConsumeTime = time.Now()
-			pq.lastLockTime = time.Now()
+			pq.UpdateLastConsumeTime()
+			pq.UpdateLastLockTime()
 		}
 		if _mq.Equals(mq) {
 			lockOK = true
@@ -532,7 +532,7 @@ func (dc *defaultConsumer) lockAll() {
 			if exist {
 				pq := v.(*processQueue)
 				pq.WithLock(true)
-				pq.lastConsumeTime = time.Now()
+				pq.UpdateLastConsumeTime()
 			}
 			set[_mq] = true
 		}
@@ -543,7 +543,7 @@ func (dc *defaultConsumer) lockAll() {
 				if exist {
 					pq := v.(*processQueue)
 					pq.WithLock(false)
-					pq.lastLockTime = time.Now()
+					pq.UpdateLastLockTime()
 					rlog.Info("lock MessageQueue", map[string]interface{}{
 						"lockOK":                 false,
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
@@ -653,14 +653,12 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 	return result
 }
 
-// TODO 问题不少 需要再好好对一下
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
 	mqSet := make(map[primitive.MessageQueue]bool)
 	for idx := range mqs {
 		mqSet[*mqs[idx]] = true
 	}
-	// TODO
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
