@@ -148,6 +148,23 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 
+		go func() {
+			// todo start clean msg expired
+			for {
+				select {
+				case pr := <-pc.prCh:
+					go func() {
+						pc.pullMessage(&pr)
+					}()
+				case <-pc.done:
+					rlog.Info("push consumer close pullConsumer listener.", map[string]interface{}{
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+					return
+				}
+			}
+		}()
+
 		pc.Rebalance()
 		time.Sleep(1 * time.Second)
 
@@ -162,23 +179,6 @@ func (pc *pushConsumer) Start() error {
 					pc.lockAll()
 				case <-pc.done:
 					rlog.Info("push consumer close tick.", map[string]interface{}{
-						rlog.LogKeyConsumerGroup: pc.consumerGroup,
-					})
-					return
-				}
-			}
-		}()
-
-		go func() {
-			// todo start clean msg expired
-			for {
-				select {
-				case pr := <-pc.prCh:
-					go func() {
-						pc.pullMessage(&pr)
-					}()
-				case <-pc.done:
-					rlog.Info("push consumer close pullConsumer listener.", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 					return
