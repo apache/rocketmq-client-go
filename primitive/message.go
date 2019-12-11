@@ -242,6 +242,7 @@ func DecodeMessage(data []byte) []*MessageExt {
 	count := 0
 	for count < len(data) {
 		msg := &MessageExt{}
+		msg.Queue = &MessageQueue{}
 
 		// 1. total size
 		binary.Read(buf, binary.BigEndian, &msg.StoreSize)
@@ -256,7 +257,9 @@ func DecodeMessage(data []byte) []*MessageExt {
 		count += 4
 
 		// 4. queueID
-		binary.Read(buf, binary.BigEndian, &msg.Queue.QueueId)
+		var qId int32
+		binary.Read(buf, binary.BigEndian, &qId)
+		msg.Queue.QueueId = int(qId)
 		count += 4
 
 		// 5. Flag
