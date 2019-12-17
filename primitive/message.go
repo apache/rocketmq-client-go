@@ -75,6 +75,12 @@ type Message struct {
 	mutex      sync.RWMutex
 }
 
+func (m *Message) WithProperties(p map[string]string) {
+	m.mutex.Lock()
+	m.properties = p
+	m.mutex.Unlock()
+}
+
 func (m *Message) WithProperty(key, value string) {
 	if key == "" || value == "" {
 		return
@@ -197,6 +203,35 @@ func (m *Message) GetShardingKey() string {
 func (m *Message) String() string {
 	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, properties=%v, TransactionId=%s]",
 		m.Topic, string(m.Body), m.Flag, m.properties, m.TransactionId)
+}
+
+func (m *Message) Marshal() []byte {
+	// storeSize all size of message info.
+	// TOTALSIZE  MAGICCOD BODYCRC FLAG BODYSIZE BODY PROPERTYSIZE PROPERTY
+	v := m.MarshallProperties()
+	properties := []byte(v)
+	storeSize := 4 + 4 + 4 + 4 + 4 + len(m.Body) + 2 + len(properties)
+
+	buffer := make([]byte, storeSize)
+	pos := 0
+	binary.BigEndian.PutUint32(buffer[pos:], uint32(storeSize)) // 1. TOTALSIZE
+	pos += 4
+	binary.BigEndian.PutUint32(buffer[pos:], 0) // 2. MAGICCODE
+	pos += 4
+	binary.BigEndian.PutUint32(buffer[pos:], 0) // 3. BODYCRC
+	pos += 4
+	binary.BigEndian.PutUint32(buffer[pos:], uint32(m.Flag)) // 4. FLAG
+	pos += 4
+	binary.BigEndian.PutUint32(buffer[pos:], uint32(len(m.Body))) // 5. BODYSIZE
+	pos += 4
+	copy(buffer[pos:], m.Body)
+	pos += len(m.Body)
+
+	binary.BigEndian.PutUint16(buffer[pos:], uint16(len(properties))) // 7. PROPERTYSIZE
+	pos += 2
+	copy(buffer[pos:], properties)
+
+	return buffer
 }
 
 type MessageExt struct {
