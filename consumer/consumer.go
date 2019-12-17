@@ -472,7 +472,7 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 			pq.UpdateLastConsumeTime()
 			pq.UpdateLastLockTime()
 		}
-		if _mq.Equals(mq) {
+		if _mq == *mq {
 			lockOK = true
 		}
 	}
