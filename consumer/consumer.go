@@ -341,13 +341,7 @@ func (dc *defaultConsumer) subscriptionAutomatically(topic string) {
 
 func (dc *defaultConsumer) updateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
 	_, exist := dc.subscriptionDataTable.Load(topic)
-	// does subscribe, if true, replace it
 	if exist {
-		mqSet := make(map[int]*primitive.MessageQueue, 0)
-		for idx := range mqs {
-			mq := mqs[idx]
-			mqSet[mq.HashCode()] = mq
-		}
 		dc.topicSubscribeInfoTable.Store(topic, mqs)
 	}
 }
@@ -1058,11 +1052,11 @@ var (
 )
 
 func updatePullFromWhichNode(mq *primitive.MessageQueue, brokerId int64) {
-	pullFromWhichNodeTable.Store(mq.HashCode(), brokerId)
+	pullFromWhichNodeTable.Store(*mq, brokerId)
 }
 
 func recalculatePullFromWhichNode(mq *primitive.MessageQueue) int64 {
-	v, exist := pullFromWhichNodeTable.Load(mq.HashCode())
+	v, exist := pullFromWhichNodeTable.Load(*mq)
 	if exist {
 		return v.(int64)
 	}

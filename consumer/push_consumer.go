@@ -764,14 +764,10 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	//	return
 	//}
 
-	set := make(map[int]*primitive.MessageQueue, 0)
-	for k := range table {
-		set[k.HashCode()] = &k
-	}
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
-		mqHash := value.(int)
+		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
-		if set[mqHash] != nil {
+		if _, ok := table[mq]; !ok {
 			pq.WithDropped(true)
 			pq.clear()
 		}
@@ -782,18 +778,16 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	if !exist {
 		return
 	}
-	queuesOfTopic := v.(map[int]primitive.MessageQueue)
-	for k := range queuesOfTopic {
-		q := set[k]
-		if q != nil {
-			pc.storage.update(q, table[*q], false)
+	queuesOfTopic := v.([]primitive.MessageQueue)
+	for _, k := range queuesOfTopic {
+		if _, ok := table[k]; ok {
+			pc.storage.update(&k, table[k], false)
 			v, exist := pc.processQueueTable.Load(k)
 			if !exist {
 				continue
 			}
 			pq := v.(*processQueue)
-			pc.removeUnnecessaryMessageQueue(q, pq)
-			delete(queuesOfTopic, k)
+			pc.removeUnnecessaryMessageQueue(&k, pq)
 		}
 	}
 }
