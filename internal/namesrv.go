@@ -139,25 +139,7 @@ func (s *namesrvs) AddrList() []string {
 	return s.srvs
 }
 
-// UpdateNameServerAddress will update srvs.
-// docs: https://rocketmq.apache.org/docs/best-practice-namesvr/
-func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	nameServers := []string{}
-	if nameServerDomain == "" {
-		// try to get from environment variable
-		if v := os.Getenv("NAMESRV_ADDR"); v != "" {
-			nameServers = strings.Split(v, ";")
-			s.srvs = nameServers
-			return
-		}
-		// use default domain
-		nameServerDomain = DEFAULT_NAMESRV_ADDR
-	}
-
-	// local snapshot
+func getSnapshotFilePath(instanceName string) string {
 	homeDir := ""
 	if usr, err := user.Current(); err == nil {
 		homeDir = usr.HomeDir
@@ -176,8 +158,25 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		}
 	}
 	filePath := path.Join(storePath, fmt.Sprintf("nameserver_addr-%s", instanceName))
+	return filePath
+}
 
-	nameServersChanged := false
+// UpdateNameServerAddress will update srvs.
+// docs: https://rocketmq.apache.org/docs/best-practice-namesvr/
+func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if nameServerDomain == "" {
+		// try to get from environment variable
+		if v := os.Getenv("NAMESRV_ADDR"); v != "" {
+			s.srvs = strings.Split(v, ";")
+			return
+		}
+		// use default domain
+		nameServerDomain = DEFAULT_NAMESRV_ADDR
+	}
+
 	client := http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(nameServerDomain)
 	if err == nil {
@@ -187,14 +186,14 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 			oldBodyStr := strings.Join(s.srvs, ";")
 			bodyStr := string(body)
 			if bodyStr != "" && oldBodyStr != bodyStr {
-				nameServersChanged = true
-				nameServers = strings.Split(string(body), ";")
+				s.srvs = strings.Split(string(body), ";")
+
 				rlog.Info("name server address changed", map[string]interface{}{
 					"old": oldBodyStr,
 					"new": bodyStr,
 				})
-
 				// save to local snapshot
+				filePath := getSnapshotFilePath(instanceName)
 				if err := ioutil.WriteFile(filePath, body, 0644); err == nil {
 					rlog.Info("name server snapshot save successfully", map[string]interface{}{
 						"filePath": filePath,
@@ -209,6 +208,7 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 			rlog.Info("name server http fetch successfully", map[string]interface{}{
 				"addrs": bodyStr,
 			})
+			return
 		} else {
 			rlog.Error("name server http fetch failed", map[string]interface{}{
 				"NameServerDomain": nameServerDomain,
@@ -217,25 +217,21 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		}
 	}
 
-	// load local snapshot if name server domain request failed
-	if len(nameServers) == 0 {
-		// only load once when start
+	// load local snapshot if need when name server domain request failed
+	if len(s.srvs) == 0 {
+		filePath := getSnapshotFilePath(instanceName)
 		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
 			if bs, err := ioutil.ReadFile(filePath); err == nil {
 				rlog.Info("load the name server snapshot local file", map[string]interface{}{
 					"filePath": filePath,
 				})
-				nameServersChanged = true
-				nameServers = strings.Split(string(bs), ";")
+				s.srvs = strings.Split(string(bs), ";")
+				return
 			}
 		} else {
 			rlog.Warning("name server snapshot local file not exists", map[string]interface{}{
 				"filePath": filePath,
 			})
 		}
-	}
-
-	if nameServersChanged {
-		s.srvs = nameServers
 	}
 }
