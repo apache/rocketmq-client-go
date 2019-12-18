@@ -260,7 +260,7 @@ func (c *rmqClient) Start() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
 		// fetchNameServerAddr
-		if c.option.NameServerDomain != "" {
+		if len(c.option.NameServerAddrs) == 0 {
 			go func() {
 				// delay
 				ticker := time.NewTicker(60 * 2 * time.Second)

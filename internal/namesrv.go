@@ -34,6 +34,10 @@ import (
 	"time"
 )
 
+const (
+	DEFAULT_NAMESRV_ADDR = "http://jmenv.tbsite.net:8080/rocketmq/nsaddr"
+)
+
 var (
 	ipRegex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
 
@@ -136,13 +140,17 @@ func (s *namesrvs) AddrList() []string {
 }
 
 // UpdateNameServerAddress will update srvs.
+// docs: https://rocketmq.apache.org/docs/best-practice-namesvr/
 func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
+	if nameServerDomain == "" {
+		nameServerDomain = os.Getenv("NAMESRV_ADDR") // try to get from environment variable
+		if nameServerDomain == "" {
+			nameServerDomain = DEFAULT_NAMESRV_ADDR
+		}
+	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if nameServerDomain == "" {
-		return
-	}
 	nameServers := []string{}
 	//load snapshot
 	homeDir := ""
