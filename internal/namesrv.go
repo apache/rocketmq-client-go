@@ -142,16 +142,21 @@ func (s *namesrvs) AddrList() []string {
 // UpdateNameServerAddress will update srvs.
 // docs: https://rocketmq.apache.org/docs/best-practice-namesvr/
 func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
-	if nameServerDomain == "" {
-		nameServerDomain = os.Getenv("NAMESRV_ADDR") // try to get from environment variable
-		if nameServerDomain == "" {
-			nameServerDomain = DEFAULT_NAMESRV_ADDR
-		}
-	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	nameServers := []string{}
+	if nameServerDomain == "" {
+		// try to get from environment variable
+		if v := os.Getenv("NAMESRV_ADDR"); v != "" {
+			nameServers = strings.Split(v, ";")
+			s.srvs = nameServers
+			return
+		}
+		// use default domain
+		nameServerDomain = DEFAULT_NAMESRV_ADDR
+	}
+
 	//load snapshot
 	homeDir := ""
 	if usr, err := user.Current(); err == nil {
