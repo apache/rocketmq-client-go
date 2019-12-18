@@ -226,5 +226,15 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		}
 	}
 
-	s.srvs = nameServers
+	// set name servers if changed
+	if len(s.srvs) != len(nameServers) {
+		s.srvs = nameServers
+	} else {
+		for index := range s.srvs {
+			if s.srvs[index] != nameServers[index] {
+				s.srvs = nameServers
+				break
+			}
+		}
+	}
 }
