@@ -157,7 +157,7 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		nameServerDomain = DEFAULT_NAMESRV_ADDR
 	}
 
-	//load snapshot
+	// local snapshot
 	homeDir := ""
 	if usr, err := user.Current(); err == nil {
 		homeDir = usr.HomeDir
@@ -176,48 +176,39 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		}
 	}
 	filePath := path.Join(storePath, fmt.Sprintf("nameserver_addr-%s", instanceName))
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		if bs, err := ioutil.ReadFile(filePath); err == nil {
-			rlog.Info("load the name server snapshot local file", map[string]interface{}{
-				"filePath": filePath,
-			})
-			nameServers = strings.Split(string(bs), ";")
-		}
-	} else {
-		rlog.Warning("name server snapshot local file not exists", map[string]interface{}{
-			"filePath": filePath,
-		})
-	}
 
+	nameServersChanged := false
 	client := http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(nameServerDomain)
 	if err == nil {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err == nil {
-			if err := ioutil.WriteFile(filePath, body, 0644); err == nil {
-				rlog.Info("name server snapshot save successfully", map[string]interface{}{
-					"filePath": filePath,
+			oldBodyStr := strings.Join(s.srvs, ";")
+			bodyStr := string(body)
+			if bodyStr != "" && oldBodyStr != bodyStr {
+				nameServersChanged = true
+				nameServers = strings.Split(string(body), ";")
+				rlog.Info("name server address changed", map[string]interface{}{
+					"old": oldBodyStr,
+					"new": bodyStr,
 				})
-			} else {
-				rlog.Error("name server snapshot save failed", map[string]interface{}{
-					"filePath": filePath,
-					"err":      err,
-				})
-			}
 
-			if bodyStr := string(body); bodyStr != "" {
-				if oldBodyStr := strings.Join(s.srvs, ";"); oldBodyStr != "" && oldBodyStr != bodyStr {
-					rlog.Info("name server address changed", map[string]interface{}{
-						"old": oldBodyStr,
-						"new": bodyStr,
+				// save to local snapshot
+				if err := ioutil.WriteFile(filePath, body, 0644); err == nil {
+					rlog.Info("name server snapshot save successfully", map[string]interface{}{
+						"filePath": filePath,
+					})
+				} else {
+					rlog.Error("name server snapshot save failed", map[string]interface{}{
+						"filePath": filePath,
+						"err":      err,
 					})
 				}
-				nameServers = strings.Split(string(body), ";")
-				rlog.Info("name server http fetch successfully", map[string]interface{}{
-					"addrs": bodyStr,
-				})
 			}
+			rlog.Info("name server http fetch successfully", map[string]interface{}{
+				"addrs": bodyStr,
+			})
 		} else {
 			rlog.Error("name server http fetch failed", map[string]interface{}{
 				"NameServerDomain": nameServerDomain,
@@ -226,15 +217,25 @@ func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string
 		}
 	}
 
-	// set name servers if changed
-	if len(s.srvs) != len(nameServers) {
-		s.srvs = nameServers
-	} else {
-		for index := range s.srvs {
-			if s.srvs[index] != nameServers[index] {
-				s.srvs = nameServers
-				break
+	// load local snapshot if name server domain request failed
+	if len(nameServers) == 0 {
+		// only load once when start
+		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+			if bs, err := ioutil.ReadFile(filePath); err == nil {
+				rlog.Info("load the name server snapshot local file", map[string]interface{}{
+					"filePath": filePath,
+				})
+				nameServersChanged = true
+				nameServers = strings.Split(string(bs), ";")
 			}
+		} else {
+			rlog.Warning("name server snapshot local file not exists", map[string]interface{}{
+				"filePath": filePath,
+			})
 		}
+	}
+
+	if nameServersChanged {
+		s.srvs = nameServers
 	}
 }
