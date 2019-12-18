@@ -46,17 +46,19 @@ const (
 )
 
 type SendMessageRequestHeader struct {
-	ProducerGroup     string
-	Topic             string
-	QueueId           int
-	SysFlag           int
-	BornTimestamp     int64
-	Flag              int32
-	Properties        string
-	ReconsumeTimes    int
-	UnitMode          bool
-	MaxReconsumeTimes int
-	Batch             bool
+	ProducerGroup         string
+	Topic                 string
+	QueueId               int
+	SysFlag               int
+	BornTimestamp         int64
+	Flag                  int32
+	Properties            string
+	ReconsumeTimes        int
+	UnitMode              bool
+	MaxReconsumeTimes     int
+	Batch                 bool
+	DefaultTopic          string
+	DefaultTopicQueueNums string
 }
 
 func (request *SendMessageRequestHeader) Encode() map[string]string {
@@ -86,6 +88,28 @@ type EndTransactionRequestHeader struct {
 	FromTransactionCheck bool
 	MsgID                string
 	TransactionId        string
+}
+
+type SendMessageRequestV2Header struct {
+	*SendMessageRequestHeader
+}
+
+func (request *SendMessageRequestV2Header) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["a"] = request.ProducerGroup
+	maps["b"] = request.Topic
+	maps["c"] = request.DefaultTopic
+	maps["d"] = request.DefaultTopicQueueNums
+	maps["e"] = strconv.Itoa(request.QueueId)
+	maps["f"] = fmt.Sprintf("%d", request.SysFlag)
+	maps["g"] = strconv.FormatInt(request.BornTimestamp, 10)
+	maps["h"] = fmt.Sprintf("%d", request.Flag)
+	maps["i"] = request.Properties
+	maps["j"] = strconv.Itoa(request.ReconsumeTimes)
+	maps["k"] = strconv.FormatBool(request.UnitMode)
+	maps["l"] = strconv.Itoa(request.MaxReconsumeTimes)
+	maps["m"] = strconv.FormatBool(request.Batch)
+	return maps
 }
 
 func (request *EndTransactionRequestHeader) Encode() map[string]string {

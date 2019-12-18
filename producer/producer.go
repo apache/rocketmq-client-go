@@ -18,6 +18,7 @@ limitations under the License.
 package producer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -90,25 +91,57 @@ func (p *defaultProducer) Shutdown() error {
 	return nil
 }
 
-func (p *defaultProducer) checkMsg(msg *primitive.Message) error {
+func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
 		return ErrNotRunning
 	}
 
-	if msg == nil {
+	if len(msgs) == 0 {
 		return errors.New("message is nil")
 	}
 
-	if msg.Topic == "" {
+	if len(msgs[0].Topic) == 0 {
 		return errors.New("topic is nil")
 	}
 	return nil
 }
 
-func (p *defaultProducer) SendSync(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
-	if err := p.checkMsg(msg); err != nil {
+func (p *defaultProducer) encodeBatch(msgs ...*primitive.Message) *primitive.Message {
+	if len(msgs) == 1 {
+		return msgs[0]
+	}
+
+	// encode batch
+	batch := new(primitive.Message)
+	batch.Topic = msgs[0].Topic
+	batch.Queue = msgs[0].Queue
+	if len(msgs) > 1 {
+		batch.Body = MarshalMessageBatch(msgs...)
+		batch.Batch = true
+	} else {
+		batch.Body = msgs[0].Body
+		batch.Flag = msgs[0].Flag
+		batch.WithProperties(msgs[0].GetProperties())
+		batch.TransactionId = msgs[0].TransactionId
+	}
+	return batch
+}
+
+func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
+	buffer := bytes.NewBufferString("")
+	for _, msg := range msgs {
+		data := msg.Marshal()
+		buffer.Write(data)
+	}
+	return buffer.Bytes()
+}
+
+func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
+	if err := p.checkMsg(msgs...); err != nil {
 		return nil, err
 	}
+
+	msg := p.encodeBatch(msgs...)
 
 	resp := new(primitive.SendResult)
 	if p.interceptor != nil {
@@ -177,10 +210,12 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
-func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context, *primitive.SendResult, error), msg *primitive.Message) error {
-	if err := p.checkMsg(msg); err != nil {
+func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context, *primitive.SendResult, error), msgs ...*primitive.Message) error {
+	if err := p.checkMsg(msgs...); err != nil {
 		return err
 	}
+
+	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendAsync)
@@ -217,10 +252,12 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	})
 }
 
-func (p *defaultProducer) SendOneWay(ctx context.Context, msg *primitive.Message) error {
-	if err := p.checkMsg(msg); err != nil {
+func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Message) error {
+	if err := p.checkMsg(msgs...); err != nil {
 		return err
 	}
+
+	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendOneway)
@@ -286,10 +323,16 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		Properties:     msg.MarshallProperties(),
 		ReconsumeTimes: 0,
 		UnitMode:       p.options.UnitMode,
-		Batch:          false,
+		Batch:          msg.Batch,
+	}
+	cmd := internal.ReqSendMessage
+	if msg.Batch {
+		cmd = internal.ReqSendBatchMessage
+		reqv2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
+		return remote.NewRemotingCommand(cmd, reqv2, msg.Body)
 	}
 
-	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
+	return remote.NewRemotingCommand(cmd, req, msg.Body)
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
