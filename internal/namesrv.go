@@ -19,12 +19,23 @@ package internal
 
 import (
 	"errors"
+	"fmt"
+	"github.com/apache/rocketmq-client-go/internal/remote"
+	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/rlog"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"os/user"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
+)
 
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/primitive"
+const (
+	DEFAULT_NAMESRV_ADDR = "http://jmenv.tbsite.net:8080/rocketmq/nsaddr"
 )
 
 var (
@@ -37,6 +48,8 @@ var (
 
 //go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal Namesrvs
 type Namesrvs interface {
+	UpdateNameServerAddress(nameServerDomain, instanceName string)
+
 	AddBroker(routeData *TopicRouteData)
 
 	cleanOfflineBroker()
@@ -124,4 +137,101 @@ func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
 
 func (s *namesrvs) AddrList() []string {
 	return s.srvs
+}
+
+func getSnapshotFilePath(instanceName string) string {
+	homeDir := ""
+	if usr, err := user.Current(); err == nil {
+		homeDir = usr.HomeDir
+	} else {
+		rlog.Error("name server domain, can't get user home directory", map[string]interface{}{
+			"err": err,
+		})
+	}
+	storePath := path.Join(homeDir, "/logs/rocketmq-go/snapshot")
+	if _, err := os.Stat(storePath); os.IsNotExist(err) {
+		if err = os.MkdirAll(storePath, 0755); err != nil {
+			rlog.Fatal("can't create name server snapshot directory", map[string]interface{}{
+				"path": storePath,
+				"err":  err,
+			})
+		}
+	}
+	filePath := path.Join(storePath, fmt.Sprintf("nameserver_addr-%s", instanceName))
+	return filePath
+}
+
+// UpdateNameServerAddress will update srvs.
+// docs: https://rocketmq.apache.org/docs/best-practice-namesvr/
+func (s *namesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if nameServerDomain == "" {
+		// try to get from environment variable
+		if v := os.Getenv("NAMESRV_ADDR"); v != "" {
+			s.srvs = strings.Split(v, ";")
+			return
+		}
+		// use default domain
+		nameServerDomain = DEFAULT_NAMESRV_ADDR
+	}
+
+	client := http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(nameServerDomain)
+	if err == nil {
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err == nil {
+			oldBodyStr := strings.Join(s.srvs, ";")
+			bodyStr := string(body)
+			if bodyStr != "" && oldBodyStr != bodyStr {
+				s.srvs = strings.Split(string(body), ";")
+
+				rlog.Info("name server address changed", map[string]interface{}{
+					"old": oldBodyStr,
+					"new": bodyStr,
+				})
+				// save to local snapshot
+				filePath := getSnapshotFilePath(instanceName)
+				if err := ioutil.WriteFile(filePath, body, 0644); err == nil {
+					rlog.Info("name server snapshot save successfully", map[string]interface{}{
+						"filePath": filePath,
+					})
+				} else {
+					rlog.Error("name server snapshot save failed", map[string]interface{}{
+						"filePath": filePath,
+						"err":      err,
+					})
+				}
+			}
+			rlog.Info("name server http fetch successfully", map[string]interface{}{
+				"addrs": bodyStr,
+			})
+			return
+		} else {
+			rlog.Error("name server http fetch failed", map[string]interface{}{
+				"NameServerDomain": nameServerDomain,
+				"err":              err,
+			})
+		}
+	}
+
+	// load local snapshot if need when name server domain request failed
+	if len(s.srvs) == 0 {
+		filePath := getSnapshotFilePath(instanceName)
+		if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+			if bs, err := ioutil.ReadFile(filePath); err == nil {
+				rlog.Info("load the name server snapshot local file", map[string]interface{}{
+					"filePath": filePath,
+				})
+				s.srvs = strings.Split(string(bs), ";")
+				return
+			}
+		} else {
+			rlog.Warning("name server snapshot local file not exists", map[string]interface{}{
+				"filePath": filePath,
+			})
+		}
+	}
 }

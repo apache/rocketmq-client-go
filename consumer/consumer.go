@@ -271,7 +271,9 @@ type defaultConsumer struct {
 }
 
 func (dc *defaultConsumer) start() error {
-
+	if len(dc.option.NameServerAddrs) == 0 {
+		dc.namesrv.UpdateNameServerAddress(dc.option.NameServerDomain, dc.option.InstanceName)
+	}
 	if dc.model == Clustering {
 		// set retry topic
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
