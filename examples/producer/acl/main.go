@@ -60,6 +60,6 @@ func main() {
 	}
 	err = p.Shutdown()
 	if err != nil {
-		fmt.Printf("shundown producer error: %s", err.Error())
+		fmt.Printf("shutdown producer error: %s", err.Error())
 	}
 }

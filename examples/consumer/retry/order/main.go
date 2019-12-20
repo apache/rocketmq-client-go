@@ -69,4 +69,8 @@ func main() {
 		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
+	err = c.Shutdown()
+	if err != nil {
+		fmt.Printf("shundown Consumer error: %s", err.Error())
+	}
 }
