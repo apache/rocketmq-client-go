@@ -296,20 +296,29 @@ func (s *namesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.Message
 	return publishInfo.MqList, nil
 }
 
-func (s *namesrvs) findBrokerVersion(brokerName, brokerAddr string) int32 {
+func (s *namesrvs) AddBrokerVersion(brokerName, brokerAddr string, version int32) {
+	s.brokerLock.Lock()
+	defer s.brokerLock.Unlock()
 
-	versions, exist := s.brokerVersionMap.Load(brokerName)
+	m, exist := s.brokerVersionMap[brokerName]
+	if !exist {
+		m = make(map[string]int32, 4)
+		s.brokerVersionMap[brokerName] = m
+	}
+	m[brokerAddr] = version
+}
+
+func (s *namesrvs) findBrokerVersion(brokerName, brokerAddr string) int32 {
+	s.brokerLock.RLock()
+	defer s.brokerLock.RUnlock()
+
+	versions, exist := s.brokerVersionMap[brokerName]
 
 	if !exist {
 		return 0
 	}
 
-	v, exist := versions.(map[string]int32)[brokerAddr]
-
-	if exist {
-		return v
-	}
-	return 0
+	return versions[brokerAddr]
 }
 
 func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData, error) {

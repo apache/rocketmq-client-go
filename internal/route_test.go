@@ -19,6 +19,7 @@ package internal
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -65,4 +66,20 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 			assert.Equal(t, ErrTopicNotExist, err)
 		})
 	})
+}
+
+func TestAddBrokerVersion(t *testing.T) {
+	s := &namesrvs{}
+	s.brokerVersionMap = make(map[string]map[string]int32, 0)
+	s.brokerLock = new(sync.RWMutex)
+
+	v := s.findBrokerVersion("b1", "addr1")
+	assert.Equal(t, v, int32(0))
+
+	s.AddBrokerVersion("b1", "addr1", 1)
+	v = s.findBrokerVersion("b1", "addr1")
+	assert.Equal(t, v, int32(1))
+
+	v = s.findBrokerVersion("b1", "addr2")
+	assert.Equal(t, v, int32(0))
 }
