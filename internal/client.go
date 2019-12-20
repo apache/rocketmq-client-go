@@ -452,15 +452,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 				return true
 			}
 			if response.Code == ResSuccess {
-				v, exist := c.namesrvs.brokerVersionMap.Load(brokerName)
-				var m map[string]int32
-				if exist {
-					m = v.(map[string]int32)
-				} else {
-					m = make(map[string]int32, 4)
-					c.namesrvs.brokerVersionMap.Store(brokerName, m)
-				}
-				m[brokerName] = int32(response.Version)
+				c.namesrvs.AddBrokerVersion(brokerName, addr, int32(response.Version))
 				rlog.Debug("send heart beat to broker success", map[string]interface{}{
 					"brokerName": brokerName,
 					"brokerId":   id,

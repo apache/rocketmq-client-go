@@ -83,8 +83,10 @@ type namesrvs struct {
 	// brokerName -> *BrokerData
 	brokerAddressesMap sync.Map
 
-	// brokerName -> map[string]int32
-	brokerVersionMap sync.Map
+	// brokerName -> map[string]int32: brokerAddr -> version
+	brokerVersionMap map[string]map[string]int32
+	// lock for broker version read/write
+	brokerLock *sync.RWMutex
 
 	//subscribeInfoMap sync.Map
 	routeDataMap sync.Map
@@ -103,9 +105,11 @@ func NewNamesrv(addr primitive.NamesrvAddr) (*namesrvs, error) {
 	}
 	nameSrvClient := remote.NewRemotingClient()
 	return &namesrvs{
-		srvs:          addr,
-		lock:          new(sync.Mutex),
-		nameSrvClient: nameSrvClient,
+		srvs:             addr,
+		lock:             new(sync.Mutex),
+		nameSrvClient:    nameSrvClient,
+		brokerVersionMap: make(map[string]map[string]int32, 0),
+		brokerLock:       new(sync.RWMutex),
 	}, nil
 }
 
