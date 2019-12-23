@@ -340,7 +340,8 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
-		p.client.UpdatePublishInfo(topic, p.options.Namesrv.UpdateTopicRouteInfo(topic))
+		data, changed := p.options.Namesrv.UpdateTopicRouteInfo(topic)
+		p.client.UpdatePublishInfo(topic, data, changed)
 		v, exist = p.publishInfo.Load(topic)
 	}
 

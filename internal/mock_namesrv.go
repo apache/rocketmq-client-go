@@ -87,11 +87,11 @@ func (mr *MockNamesrvsMockRecorder) UpdateNameServerAddress(nameServer, instance
 }
 
 // UpdateTopicRouteInfo mocks base method
-func (m *MockNamesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
+func (m *MockNamesrvs) UpdateTopicRouteInfo(topic string) (routeData *TopicRouteData, changed bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTopicRouteInfo", topic)
 	ret0, _ := ret[0].(*TopicRouteData)
-	return ret0
+	return ret0, changed
 }
 
 // UpdateTopicRouteInfo indicates an expected call of UpdateTopicRouteInfo

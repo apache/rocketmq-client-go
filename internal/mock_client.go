@@ -398,7 +398,7 @@ func (mr *MockRMQClientMockRecorder) RebalanceImmediately() *gomock.Call {
 }
 
 // UpdatePublishInfo mocks base method
-func (m *MockRMQClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
+func (m *MockRMQClient) UpdatePublishInfo(topic string, data *TopicRouteData, changed bool) {
 	m.ctrl.Call(m, "UpdatePublishInfo", topic, data)
 }
 

@@ -112,7 +112,7 @@ func (info *TopicPublishInfo) fetchQueueIndex() int {
 	return int(qIndex) % length
 }
 
-func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
+func (s *namesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool) {
 	// Todo process lock timeout
 	s.lockNamesrv.Lock()
 	defer s.lockNamesrv.Unlock()
@@ -124,7 +124,7 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 			rlog.Warning("query topic route from server error", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
 			})
-			return nil
+			return nil, false
 		}
 	}
 
@@ -132,10 +132,11 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 		rlog.Warning("queryTopicRouteInfoFromServer return nil", map[string]interface{}{
 			rlog.LogKeyTopic: topic,
 		})
-		return nil
+		return nil, false
 	}
 
 	oldRouteData, exist := s.routeDataMap.Load(topic)
+
 	changed := true
 	if exist {
 		changed = s.topicRouteDataIsChange(oldRouteData.(*TopicRouteData), routeData)
@@ -153,7 +154,7 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) *TopicRouteData {
 		}
 	}
 
-	return routeData.clone()
+	return routeData.clone(), changed
 }
 
 func (s *namesrvs) AddBroker(routeData *TopicRouteData) {
