@@ -148,7 +148,7 @@ type RMQClient interface {
 	PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error)
 	PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(result *primitive.PullResult)) error
 	RebalanceImmediately()
-	UpdatePublishInfo(topic string, data *TopicRouteData)
+	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 }
 
 var _ RMQClient = new(rmqClient)
@@ -475,7 +475,8 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		return true
 	})
 	for topic := range publishTopicSet {
-		c.UpdatePublishInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
+		data, changed := c.namesrvs.UpdateTopicRouteInfo(topic)
+		c.UpdatePublishInfo(topic, data, changed)
 	}
 
 	subscribedTopicSet := make(map[string]bool, 0)
@@ -489,7 +490,8 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	})
 
 	for topic := range subscribedTopicSet {
-		c.updateSubscribeInfo(topic, c.namesrvs.UpdateTopicRouteInfo(topic))
+		data, changed := c.namesrvs.UpdateTopicRouteInfo(topic)
+		c.updateSubscribeInfo(topic, data, changed)
 	}
 }
 
@@ -639,36 +641,27 @@ func (c *rmqClient) RebalanceImmediately() {
 	})
 }
 
-func (c *rmqClient) UpdatePublishInfo(topic string, data *TopicRouteData) {
+func (c *rmqClient) UpdatePublishInfo(topic string, data *TopicRouteData, changed bool) {
 	if data == nil {
 		return
 	}
-	if !c.isNeedUpdatePublishInfo(topic) {
-		return
-	}
-	c.producerMap.Range(func(key, value interface{}) bool {
-		p := value.(InnerProducer)
-		publishInfo := c.namesrvs.routeData2PublishInfo(topic, data)
-		publishInfo.HaveTopicRouterInfo = true
-		p.UpdateTopicPublishInfo(topic, publishInfo)
-		return true
-	})
-}
 
-func (c *rmqClient) isNeedUpdatePublishInfo(topic string) bool {
-	var result bool
 	c.producerMap.Range(func(key, value interface{}) bool {
 		p := value.(InnerProducer)
-		if p.IsPublishTopicNeedUpdate(topic) {
-			result = true
-			return false
+		updated := changed
+		if !updated {
+			updated = p.IsPublishTopicNeedUpdate(topic)
+		}
+		if updated {
+			publishInfo := c.namesrvs.routeData2PublishInfo(topic, data)
+			publishInfo.HaveTopicRouterInfo = true
+			p.UpdateTopicPublishInfo(topic, publishInfo)
 		}
 		return true
 	})
-	return result
 }
 
-func (c *rmqClient) updateSubscribeInfo(topic string, data *TopicRouteData) {
+func (c *rmqClient) updateSubscribeInfo(topic string, data *TopicRouteData, changed bool) {
 	if data == nil {
 		return
 	}
@@ -677,8 +670,14 @@ func (c *rmqClient) updateSubscribeInfo(topic string, data *TopicRouteData) {
 	}
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
-		// TODO
-		consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
+		updated := changed
+		if !updated {
+			updated = consumer.IsSubscribeTopicNeedUpdate(topic)
+		}
+		if updated {
+			consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
+		}
+
 		return true
 	})
 }

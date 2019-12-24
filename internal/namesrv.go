@@ -54,7 +54,7 @@ type Namesrvs interface {
 
 	cleanOfflineBroker()
 
-	UpdateTopicRouteInfo(topic string) *TopicRouteData
+	UpdateTopicRouteInfo(topic string) (routeData *TopicRouteData, changed bool)
 
 	FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
