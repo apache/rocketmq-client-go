@@ -51,7 +51,7 @@ const (
 	_PersistOffset = 5 * time.Second
 
 	// Rebalance interval
-	_RebalanceInterval = 10 * time.Second
+	_RebalanceInterval = 20 * time.Second
 )
 
 var (
@@ -544,7 +544,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 // PullMessage with sync
 func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 10*time.Second)
+	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 30*time.Second)
 	if err != nil {
 		return nil, err
 	}
