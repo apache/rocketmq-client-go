@@ -31,7 +31,6 @@ type ResponseFuture struct {
 	SendRequestOK   bool
 	Err             error
 	Opaque          int32
-	Timeout         time.Duration
 	callback        func(*ResponseFuture)
 	BeginTimestamp  time.Duration
 	Done            chan bool
@@ -40,11 +39,10 @@ type ResponseFuture struct {
 }
 
 // NewResponseFuture create ResponseFuture with opaque, timeout and callback
-func NewResponseFuture(ctx context.Context, opaque int32, timeout time.Duration, callback func(*ResponseFuture)) *ResponseFuture {
+func NewResponseFuture(ctx context.Context, opaque int32, callback func(*ResponseFuture)) *ResponseFuture {
 	return &ResponseFuture{
 		Opaque:         opaque,
 		Done:           make(chan bool),
-		Timeout:        timeout,
 		callback:       callback,
 		BeginTimestamp: time.Duration(time.Now().Unix()) * time.Second,
 		ctx:            ctx,
@@ -59,24 +57,17 @@ func (r *ResponseFuture) executeInvokeCallback() {
 	})
 }
 
-func (r *ResponseFuture) isTimeout() bool {
-	elapse := time.Duration(time.Now().Unix())*time.Second - r.BeginTimestamp
-	return elapse > r.Timeout
-}
-
 func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 	var (
 		cmd *RemotingCommand
 		err error
 	)
-	ctx, cancel := context.WithTimeout(r.ctx, r.Timeout)
-	defer cancel()
 	for {
 		select {
 		case <-r.Done:
 			cmd, err = r.ResponseCommand, r.Err
 			goto done
-		case <-ctx.Done():
+		case <-r.ctx.Done():
 			err = utils.ErrRequestTimeout
 			r.Err = err
 			goto done

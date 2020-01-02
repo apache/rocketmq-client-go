@@ -333,7 +333,8 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 	)
 	for i := 0; i < s.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-		response, err = s.nameSrvClient.InvokeSync(context.Background(), s.getNameServerAddress(), rc, requestTimeout)
+		ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
+		response, err = s.nameSrvClient.InvokeSync(ctx, s.getNameServerAddress(), rc)
 
 		if err == nil {
 			break

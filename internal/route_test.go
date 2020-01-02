@@ -50,7 +50,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 		Convey("When marshal producer trace data", func() {
 
 			count := 0
-			remotingCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			remotingCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 				func(ctx context.Context, addr string, request *remote.RemotingCommand, timeout time.Duration) (*remote.RemotingCommand, error) {
 					count++
 					if count < 3 {
