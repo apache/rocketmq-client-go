@@ -241,7 +241,8 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second, func(command *remote.RemotingCommand, err error) {
+	ctx, _ = context.WithTimeout(ctx, 3*time.Second)
+	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
 		resp := new(primitive.SendResult)
 		if err != nil {
 			h(ctx, nil, err)

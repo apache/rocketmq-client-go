@@ -21,7 +21,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -50,8 +49,8 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 		Convey("When marshal producer trace data", func() {
 
 			count := 0
-			remotingCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(ctx context.Context, addr string, request *remote.RemotingCommand, timeout time.Duration) (*remote.RemotingCommand, error) {
+			remotingCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, addr string, request *remote.RemotingCommand) (*remote.RemotingCommand, error) {
 					count++
 					if count < 3 {
 						return nil, errors.New("not existed")

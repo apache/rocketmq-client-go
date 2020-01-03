@@ -33,7 +33,7 @@ import (
 )
 
 func TestNewResponseFuture(t *testing.T) {
-	future := NewResponseFuture(context.Background(), 10, time.Duration(1000), nil)
+	future := NewResponseFuture(context.Background(), 10, nil)
 	if future.Opaque != 10 {
 		t.Errorf("wrong ResponseFuture's opaque. want=%d, got=%d", 10, future.Opaque)
 	}
@@ -42,10 +42,6 @@ func TestNewResponseFuture(t *testing.T) {
 	}
 	if future.Err != nil {
 		t.Errorf("wrong RespnseFuture's Err. want=<nil>, got=%v", future.Err)
-	}
-	if future.Timeout != time.Duration(1000) {
-		t.Errorf("wrong ResponseFuture's TimeoutMills. want=%d, got=%d",
-			future.Timeout, time.Duration(1000))
 	}
 	if future.callback != nil {
 		t.Errorf("wrong ResponseFuture's callback. want=<nil>, got!=<nil>")
@@ -63,7 +59,7 @@ func TestResponseFutureTimeout(t *testing.T) {
 			r.ResponseCommand.Remark = r.ResponseCommand.Remark + "Go Client"
 		}
 	}
-	future := NewResponseFuture(context.Background(), 10, time.Duration(1000), callback)
+	future := NewResponseFuture(context.Background(), 10, callback)
 	future.ResponseCommand = NewRemotingCommand(200,
 		nil, nil)
 
@@ -83,22 +79,14 @@ func TestResponseFutureTimeout(t *testing.T) {
 
 }
 
-func TestResponseFutureIsTimeout(t *testing.T) {
-	future := NewResponseFuture(context.Background(), 10, 500*time.Millisecond, nil)
-	if future.isTimeout() != false {
-		t.Errorf("wrong ResponseFuture's istimeout. want=%t, got=%t", false, future.isTimeout())
-	}
-	time.Sleep(time.Duration(1000) * time.Millisecond)
-	assert.True(t, future.isTimeout(), "ResponseFuture's istimeout should be true")
-}
-
 func TestResponseFutureWaitResponse(t *testing.T) {
-	future := NewResponseFuture(context.Background(), 10, 500*time.Millisecond, nil)
+	ctx, _ := context.WithTimeout(context.Background(), time.Duration(1000))
+	future := NewResponseFuture(ctx, 10, nil)
 	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
 			utils.ErrRequestTimeout, err)
 	}
-	future = NewResponseFuture(context.Background(), 10, 500*time.Millisecond, nil)
+	future = NewResponseFuture(context.Background(), 10, nil)
 	responseError := errors.New("response error")
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -109,7 +97,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v. got=%v",
 			responseError, err)
 	}
-	future = NewResponseFuture(context.Background(), 10, 500*time.Millisecond, nil)
+	future = NewResponseFuture(context.Background(), 10, nil)
 	responseRemotingCommand := NewRemotingCommand(202, nil, nil)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
@@ -175,7 +163,7 @@ func TestInvokeSync(t *testing.T) {
 	go func() {
 		clientSend.Wait()
 		receiveCommand, err := client.InvokeSync(context.Background(), addr,
-			clientSendRemtingCommand, time.Second)
+			clientSendRemtingCommand)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		} else {
@@ -238,7 +226,7 @@ func TestInvokeAsync(t *testing.T) {
 			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
 			t.Logf("[Send: %d] asychronous message", index)
 			sendRemotingCommand := randomNewRemotingCommand()
-			err := client.InvokeAsync(context.Background(), addr, sendRemotingCommand, time.Second, func(r *ResponseFuture) {
+			err := client.InvokeAsync(context.Background(), addr, sendRemotingCommand, func(r *ResponseFuture) {
 				t.Logf("[Receive: %d] asychronous message response", index)
 				if string(sendRemotingCommand.Body) != string(r.ResponseCommand.Body) {
 					t.Errorf("wrong response message. want=%s, got=%s", string(sendRemotingCommand.Body),
@@ -304,8 +292,9 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()
-		err := client.InvokeAsync(context.Background(), addr, clientSendRemtingCommand,
-			time.Duration(1000), func(r *ResponseFuture) {
+		ctx, _ := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
+		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
+			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
 				assert.Equal(t, utils.ErrRequestTimeout, r.Err)
 				wg.Done()
@@ -349,7 +338,7 @@ func TestInvokeOneWay(t *testing.T) {
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()
-		err := client.InvokeOneWay(context.Background(), addr, clientSendRemtingCommand, 3*time.Second)
+		err := client.InvokeOneWay(context.Background(), addr, clientSendRemtingCommand)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		}

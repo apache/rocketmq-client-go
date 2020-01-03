@@ -134,7 +134,7 @@ type RMQClient interface {
 	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
 	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
-		timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error
+		f func(*remote.RemotingCommand, error)) error
 	InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) error
 	CheckClientInBroker()
@@ -383,15 +383,16 @@ func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote
 	if c.close {
 		return nil, ErrServiceState
 	}
-	return c.remoteClient.InvokeSync(ctx, addr, request, timeoutMillis)
+	ctx, _ = context.WithTimeout(ctx, timeoutMillis)
+	return c.remoteClient.InvokeSync(ctx, addr, request)
 }
 
 func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
-	timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
+	f func(*remote.RemotingCommand, error)) error {
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeAsync(ctx, addr, request, timeoutMillis, func(future *remote.ResponseFuture) {
+	return c.remoteClient.InvokeAsync(ctx, addr, request, func(future *remote.ResponseFuture) {
 		f(future.ResponseCommand, future.Err)
 	})
 
@@ -402,7 +403,7 @@ func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remo
 	if c.close {
 		return ErrServiceState
 	}
-	return c.remoteClient.InvokeOneWay(ctx, addr, request, timeoutMillis)
+	return c.remoteClient.InvokeOneWay(ctx, addr, request)
 }
 
 func (c *rmqClient) CheckClientInBroker() {
@@ -444,7 +445,9 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
-			response, err := c.remoteClient.InvokeSync(context.Background(), addr, cmd, 3*time.Second)
+
+			ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
+			response, err := c.remoteClient.InvokeSync(ctx, addr, cmd)
 			if err != nil {
 				rlog.Warning("send heart beat to broker error", map[string]interface{}{
 					rlog.LogKeyUnderlayError: err,
@@ -544,7 +547,8 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 // PullMessage with sync
 func (c *rmqClient) PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error) {
 	cmd := remote.NewRemotingCommand(ReqPullMessage, request, nil)
-	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd, 30*time.Second)
+	ctx, _ = context.WithTimeout(ctx, 30*time.Second)
+	res, err := c.remoteClient.InvokeSync(ctx, brokerAddrs, cmd)
 	if err != nil {
 		return nil, err
 	}

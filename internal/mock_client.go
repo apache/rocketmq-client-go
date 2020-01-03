@@ -191,6 +191,18 @@ func (mr *MockInnerConsumerMockRecorder) IsUnitMode() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsUnitMode", reflect.TypeOf((*MockInnerConsumer)(nil).IsUnitMode))
 }
 
+// GetConsumerRunningInfo mocks base method
+func (m *MockInnerConsumer) GetConsumerRunningInfo() *ConsumerRunningInfo {
+	ret := m.ctrl.Call(m, "GetConsumerRunningInfo")
+	ret0, _ := ret[0].(*ConsumerRunningInfo)
+	return ret0
+}
+
+// GetConsumerRunningInfo indicates an expected call of GetConsumerRunningInfo
+func (mr *MockInnerConsumerMockRecorder) GetConsumerRunningInfo() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConsumerRunningInfo", reflect.TypeOf((*MockInnerConsumer)(nil).GetConsumerRunningInfo))
+}
+
 // MockRMQClient is a mock of RMQClient interface
 type MockRMQClient struct {
 	ctrl     *gomock.Controller
@@ -270,15 +282,15 @@ func (mr *MockRMQClientMockRecorder) InvokeSync(ctx, addr, request, timeoutMilli
 }
 
 // InvokeAsync mocks base method
-func (m *MockRMQClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand, timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
-	ret := m.ctrl.Call(m, "InvokeAsync", ctx, addr, request, timeoutMillis, f)
+func (m *MockRMQClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand, f func(*remote.RemotingCommand, error)) error {
+	ret := m.ctrl.Call(m, "InvokeAsync", ctx, addr, request, f)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InvokeAsync indicates an expected call of InvokeAsync
-func (mr *MockRMQClientMockRecorder) InvokeAsync(ctx, addr, request, timeoutMillis, f interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeAsync", reflect.TypeOf((*MockRMQClient)(nil).InvokeAsync), ctx, addr, request, timeoutMillis, f)
+func (mr *MockRMQClientMockRecorder) InvokeAsync(ctx, addr, request, f interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvokeAsync", reflect.TypeOf((*MockRMQClient)(nil).InvokeAsync), ctx, addr, request, f)
 }
 
 // InvokeOneWay mocks base method
@@ -399,10 +411,10 @@ func (mr *MockRMQClientMockRecorder) RebalanceImmediately() *gomock.Call {
 
 // UpdatePublishInfo mocks base method
 func (m *MockRMQClient) UpdatePublishInfo(topic string, data *TopicRouteData, changed bool) {
-	m.ctrl.Call(m, "UpdatePublishInfo", topic, data)
+	m.ctrl.Call(m, "UpdatePublishInfo", topic, data, changed)
 }
 
 // UpdatePublishInfo indicates an expected call of UpdatePublishInfo
-func (mr *MockRMQClientMockRecorder) UpdatePublishInfo(topic, data interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePublishInfo", reflect.TypeOf((*MockRMQClient)(nil).UpdatePublishInfo), topic, data)
+func (mr *MockRMQClientMockRecorder) UpdatePublishInfo(topic, data, changed interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePublishInfo", reflect.TypeOf((*MockRMQClient)(nil).UpdatePublishInfo), topic, data, changed)
 }
