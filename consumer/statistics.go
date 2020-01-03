@@ -29,6 +29,7 @@ import (
 
 var (
 	csListLock sync.Mutex
+	closeOnce  sync.Once
 
 	topicAndGroupConsumeOKTPS     *statsItemSet
 	topicAndGroupConsumeRT        *statsItemSet
@@ -98,11 +99,13 @@ func GetConsumeStatus(group, topic string) ConsumeStatus {
 }
 
 func ShutDownStatis() {
-	close(topicAndGroupConsumeOKTPS.closed)
-	close(topicAndGroupConsumeRT.closed)
-	close(topicAndGroupConsumeFailedTPS.closed)
-	close(topicAndGroupPullTPS.closed)
-	close(topicAndGroupPullRT.closed)
+	closeOnce.Do(func() {
+		close(topicAndGroupConsumeOKTPS.closed)
+		close(topicAndGroupConsumeRT.closed)
+		close(topicAndGroupConsumeFailedTPS.closed)
+		close(topicAndGroupPullTPS.closed)
+		close(topicAndGroupPullRT.closed)
+	})
 }
 
 func getPullRT(group, topic string) statsSnapshot {
