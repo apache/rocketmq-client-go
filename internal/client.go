@@ -48,7 +48,7 @@ const (
 	_HeartbeatBrokerInterval = 30 * time.Second
 
 	// Offset persistent interval for consumer
-	_PersistOffset = 5 * time.Second
+	_PersistOffsetInterval = 5 * time.Second
 
 	// Rebalance interval
 	_RebalanceInterval = 20 * time.Second
@@ -320,7 +320,7 @@ func (c *rmqClient) Start() {
 
 		// schedule persist offset
 		go func() {
-			ticker := time.NewTicker(_PersistOffset)
+			ticker := time.NewTicker(_PersistOffsetInterval)
 			defer ticker.Stop()
 			for {
 				select {
