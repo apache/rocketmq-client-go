@@ -201,13 +201,11 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
 			go primitive.WithRecover(func() {
-				func() {
-					responseFuture.ResponseCommand = cmd
-					responseFuture.executeInvokeCallback()
-					if responseFuture.Done != nil {
-						responseFuture.Done <- true
-					}
-				}()
+				responseFuture.ResponseCommand = cmd
+				responseFuture.executeInvokeCallback()
+				if responseFuture.Done != nil {
+					responseFuture.Done <- true
+				}
 			})
 		}
 	} else {
@@ -221,10 +219,12 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 					res.Opaque = cmd.Opaque
 					res.Flag |= 1 << 0
 					err := c.sendRequest(r, res)
-					rlog.Warning("send response to broker error", map[string]interface{}{
-						rlog.LogKeyUnderlayError: err,
-						"responseCode":           res.Code,
-					})
+					if err != nil {
+						rlog.Warning("send response to broker error", map[string]interface{}{
+							rlog.LogKeyUnderlayError: err,
+							"responseCode":           res.Code,
+						})
+					}
 				}
 			})
 		} else {
