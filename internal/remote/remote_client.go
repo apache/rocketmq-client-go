@@ -137,8 +137,8 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrap
 
 func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 	var err error
-	header := make([]byte, 4)
-	defer c.closeConnection(r)
+	header := primitive.GetHeader()
+	defer primitive.BackHeader(header)
 	for {
 		if err != nil {
 			if r.isClosed(err) {
@@ -171,6 +171,7 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 		}
 
 		buf := make([]byte, length)
+
 		_, err = io.ReadFull(r, buf)
 		if err != nil {
 			if r.isClosed(err) {
