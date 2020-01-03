@@ -27,9 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
-	"github.com/json-iterator/go"
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
@@ -808,7 +808,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 }
 
 func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
-		offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
+	offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
 
 	brokerResult := dc.tryFindBroker(queue)
 	if brokerResult == nil {

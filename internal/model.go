@@ -21,9 +21,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/json-iterator/go"
 	"sort"
 	"strings"
-	"github.com/json-iterator/go"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
