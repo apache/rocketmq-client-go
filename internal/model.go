@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/json-iterator/go"
 	"sort"
 	"strings"
 
@@ -95,7 +96,7 @@ func NewHeartbeatData(clientID string) *heartbeatData {
 }
 
 func (data *heartbeatData) encode() []byte {
-	d, err := json.Marshal(data)
+	d, err := jsoniter.Marshal(data)
 	if err != nil {
 		rlog.Error("marshal heartbeatData error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
