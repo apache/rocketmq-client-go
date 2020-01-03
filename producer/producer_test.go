@@ -20,7 +20,6 @@ package producer
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -192,7 +191,7 @@ func TestASync(t *testing.T) {
 
 	client.EXPECT().InvokeAsync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, addr string, request *remote.RemotingCommand,
-			timeoutMillis time.Duration, f func(*remote.RemotingCommand, error)) error {
+			f func(*remote.RemotingCommand, error)) error {
 			// mock invoke callback
 			f(nil, nil)
 			return nil
