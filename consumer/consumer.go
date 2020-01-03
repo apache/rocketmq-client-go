@@ -19,7 +19,6 @@ package consumer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/json-iterator/go"
 
 	"github.com/apache/rocketmq-client-go/internal"
 	"github.com/apache/rocketmq-client-go/internal/remote"
@@ -583,7 +583,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 }
 
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
-	data, _ := json.Marshal(body)
+	data, _ := jsoniter.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqLockBatchMQ, nil, data)
 	response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
 	if err != nil {
@@ -599,7 +599,7 @@ func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []pri
 	if len(response.Body) == 0 {
 		return nil
 	}
-	err = json.Unmarshal(response.Body, &lockOKMQSet)
+	err = jsoniter.Unmarshal(response.Body, &lockOKMQSet)
 	if err != nil {
 		rlog.Error("Unmarshal lock mq body error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
@@ -610,7 +610,7 @@ func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []pri
 }
 
 func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, oneway bool) {
-	data, _ := json.Marshal(body)
+	data, _ := jsoniter.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqUnlockBatchMQ, nil, data)
 	if oneway {
 		err := dc.client.InvokeOneWay(context.Background(), addr, request, 3*time.Second)
@@ -808,7 +808,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 }
 
 func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
-	offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
+		offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
 
 	brokerResult := dc.tryFindBroker(queue)
 	if brokerResult == nil {

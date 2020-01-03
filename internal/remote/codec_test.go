@@ -17,9 +17,15 @@
 package remote
 
 import (
+	"encoding/json"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"testing"
+	"unsafe"
+
+	"github.com/json-iterator/go"
+	"github.com/stretchr/testify/assert"
 )
 
 type testHeader struct {
@@ -336,4 +342,26 @@ func TestCommandRocketMQEncodeDecode(t *testing.T) {
 	if newCmd.Remark != cmd.Remark {
 		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
 	}
+}
+
+func TestCommandJsonIter(t *testing.T) {
+	var h testHeader
+	cmd := NewRemotingCommand(192, h, []byte("Hello RocketMQCodecs"))
+	cmdData, err := json.Marshal(cmd)
+	assert.Nil(t, err)
+	fmt.Printf("cmd data from json: %v\n", *(*string)(unsafe.Pointer(&cmdData)))
+
+	data, err := jsoniter.Marshal(cmd)
+	assert.Nil(t, err)
+	fmt.Printf("cmd data from jsoniter: %v\n", *(*string)(unsafe.Pointer(&data)))
+
+	var cmdResp RemotingCommand
+	err = json.Unmarshal(cmdData, &cmdResp)
+	assert.Nil(t, err)
+	fmt.Printf("cmd: %#v language: %v\n", cmdResp, cmdResp.Language)
+
+	var cmdResp2 RemotingCommand
+	err = json.Unmarshal(data, &cmdResp2)
+	assert.Nil(t, err)
+	fmt.Printf("cmd: %#v language: %v\n", cmdResp2, cmdResp2.Language)
 }

@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math/rand"
 	"sort"
@@ -29,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/internal/remote"
@@ -460,7 +460,7 @@ type TopicRouteData struct {
 
 func (routeData *TopicRouteData) decode(data string) error {
 	res := gjson.Parse(data)
-	err := json.Unmarshal([]byte(res.Get("queueDatas").String()), &routeData.QueueDataList)
+	err := jsoniter.Unmarshal([]byte(res.Get("queueDatas").String()), &routeData.QueueDataList)
 
 	if err != nil {
 		return err
@@ -532,7 +532,7 @@ func (routeData *TopicRouteData) equals(data *TopicRouteData) bool {
 }
 
 func (routeData *TopicRouteData) String() string {
-	data, _ := json.Marshal(routeData)
+	data, _ := jsoniter.Marshal(routeData)
 	return string(data)
 }
 

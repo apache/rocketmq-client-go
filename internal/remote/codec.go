@@ -19,9 +19,10 @@ package remote
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
+
+	"github.com/json-iterator/go"
 )
 
 var opaque int32
@@ -53,7 +54,7 @@ func (lc *LanguageCode) UnmarshalJSON(b []byte) error {
 	switch string(b) {
 	case "JAVA":
 		*lc = _Java
-	case "GO":
+	case "GO", `"GO"`:
 		*lc = _Go
 	default:
 		*lc = _Unknown
@@ -74,7 +75,7 @@ func (lc LanguageCode) String() string {
 
 type RemotingCommand struct {
 	Code      int16             `json:"code"`
-	Language  LanguageCode      `json:"language,string"`
+	Language  LanguageCode      `json:"language"`
 	Version   int16             `json:"version"`
 	Opaque    int32             `json:"opaque"`
 	Flag      int32             `json:"flag"`
@@ -239,7 +240,7 @@ type serializer interface {
 type jsonCodec struct{}
 
 func (c *jsonCodec) encodeHeader(command *RemotingCommand) ([]byte, error) {
-	buf, err := json.Marshal(command)
+	buf, err := jsoniter.Marshal(command)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +251,7 @@ func (c *jsonCodec) decodeHeader(header []byte) (*RemotingCommand, error) {
 	command := &RemotingCommand{}
 	command.ExtFields = make(map[string]string)
 	command.Body = make([]byte, 0)
-	err := json.Unmarshal(header, command)
+	err := jsoniter.Unmarshal(header, command)
 	if err != nil {
 		return nil, err
 	}

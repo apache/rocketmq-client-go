@@ -3,6 +3,7 @@ module github.com/apache/rocketmq-client-go
 require (
 	github.com/emirpasic/gods v1.12.0
 	github.com/golang/mock v1.3.1
+	github.com/json-iterator/go v1.1.9
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.1
 	github.com/smartystreets/goconvey v0.0.0-20190710185942-9d28bd7c0945

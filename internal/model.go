@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"github.com/json-iterator/go"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 	"github.com/apache/rocketmq-client-go/primitive"
@@ -95,7 +96,7 @@ func NewHeartbeatData(clientID string) *heartbeatData {
 }
 
 func (data *heartbeatData) encode() []byte {
-	d, err := json.Marshal(data)
+	d, err := jsoniter.Marshal(data)
 	if err != nil {
 		rlog.Error("marshal heartbeatData error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
