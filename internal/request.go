@@ -210,10 +210,11 @@ func (request *PullMessageRequestHeader) Encode() map[string]string {
 	maps["maxMsgNums"] = fmt.Sprintf("%d", request.MaxMsgNums)
 	maps["sysFlag"] = fmt.Sprintf("%d", request.SysFlag)
 	maps["commitOffset"] = fmt.Sprintf("%d", request.CommitOffset)
-	maps["suspendTimeoutMillis"] = fmt.Sprintf("%d", request.SuspendTimeoutMillis)
+	maps["suspendTimeoutMillis"] = fmt.Sprintf("%d", request.SuspendTimeoutMillis/time.Millisecond)
 	maps["subscription"] = request.SubExpression
 	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
 	maps["expressionType"] = request.ExpressionType
+
 	return maps
 }
 
