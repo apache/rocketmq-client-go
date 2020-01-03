@@ -216,18 +216,16 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			// single goroutine will be deadlock
 			// TODO: optimize with goroutine pool, https://github.com/apache/rocketmq-client-go/issues/307
 			go primitive.WithRecover(func() {
-				func() {
-					res := f(cmd, r.RemoteAddr())
-					if res != nil {
-						res.Opaque = cmd.Opaque
-						res.Flag |= 1 << 0
-						err := c.sendRequest(r, res)
-						rlog.Warning("send response to broker error", map[string]interface{}{
-							rlog.LogKeyUnderlayError: err,
-							"responseCode":           res.Code,
-						})
-					}
-				}()
+				res := f(cmd, r.RemoteAddr())
+				if res != nil {
+					res.Opaque = cmd.Opaque
+					res.Flag |= 1 << 0
+					err := c.sendRequest(r, res)
+					rlog.Warning("send response to broker error", map[string]interface{}{
+						rlog.LogKeyUnderlayError: err,
+						"responseCode":           res.Code,
+					})
+				}
 			})
 		} else {
 			rlog.Warning("receive broker's requests, but no func to handle", map[string]interface{}{
