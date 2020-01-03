@@ -410,7 +410,9 @@ func NewTransactionProducer(listener primitive.TransactionListener, opts ...Opti
 }
 
 func (tp *transactionProducer) Start() error {
-	go tp.checkTransactionState()
+	go primitive.WithRecover(func() {
+		tp.checkTransactionState()
+	})
 	return tp.producer.Start()
 }
 func (tp *transactionProducer) Shutdown() error {

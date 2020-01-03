@@ -95,7 +95,9 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	if err != nil {
 		return err
 	}
-	go c.receiveAsync(resp)
+	go primitive.WithRecover(func() {
+		c.receiveAsync(resp)
+	})
 	return nil
 }
 
@@ -127,7 +129,9 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrap
 		return nil, err
 	}
 	c.connectionTable.Store(addr, tcpConn)
-	go c.receiveResponse(tcpConn)
+	go primitive.WithRecover(func() {
+		c.receiveResponse(tcpConn)
+	})
 	return tcpConn, nil
 }
 
@@ -196,33 +200,35 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 		if exist {
 			c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
-			go func() {
-				responseFuture.ResponseCommand = cmd
-				responseFuture.executeInvokeCallback()
-				if responseFuture.Done != nil {
-					responseFuture.Done <- true
-				}
-			}()
+			go primitive.WithRecover(func() {
+				func() {
+					responseFuture.ResponseCommand = cmd
+					responseFuture.executeInvokeCallback()
+					if responseFuture.Done != nil {
+						responseFuture.Done <- true
+					}
+				}()
+			})
 		}
 	} else {
 		f := c.processors[cmd.Code]
 		if f != nil {
 			// single goroutine will be deadlock
 			// TODO: optimize with goroutine pool, https://github.com/apache/rocketmq-client-go/issues/307
-			go func() {
-				res := f(cmd, r.RemoteAddr())
-				if res != nil {
-					res.Opaque = cmd.Opaque
-					res.Flag |= 1 << 0
-					err := c.sendRequest(r, res)
-					if err != nil {
+			go primitive.WithRecover(func() {
+				func() {
+					res := f(cmd, r.RemoteAddr())
+					if res != nil {
+						res.Opaque = cmd.Opaque
+						res.Flag |= 1 << 0
+						err := c.sendRequest(r, res)
 						rlog.Warning("send response to broker error", map[string]interface{}{
 							rlog.LogKeyUnderlayError: err,
 							"responseCode":           res.Code,
 						})
 					}
-				}
-			}()
+				}()
+			})
 		} else {
 			rlog.Warning("receive broker's requests, but no func to handle", map[string]interface{}{
 				"responseCode": cmd.Code,

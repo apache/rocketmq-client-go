@@ -282,7 +282,7 @@ func (c *rmqClient) Start() {
 		}
 
 		// schedule update route info
-		go func() {
+		go primitive.WithRecover(func() {
 			// delay
 			ticker := time.NewTicker(_PullNameServerInterval)
 			defer ticker.Stop()
@@ -298,10 +298,9 @@ func (c *rmqClient) Start() {
 					return
 				}
 			}
-		}()
+		})
 
-		// TODO cleanOfflineBroker & sendHeartbeatToAllBrokerWithLock
-		go func() {
+		go primitive.WithRecover(func() {
 			ticker := time.NewTicker(_HeartbeatBrokerInterval)
 			defer ticker.Stop()
 			for {
@@ -316,10 +315,10 @@ func (c *rmqClient) Start() {
 					return
 				}
 			}
-		}()
+		})
 
 		// schedule persist offset
-		go func() {
+		go primitive.WithRecover(func() {
 			ticker := time.NewTicker(_PersistOffsetInterval)
 			defer ticker.Stop()
 			for {
@@ -342,9 +341,9 @@ func (c *rmqClient) Start() {
 					return
 				}
 			}
-		}()
+		})
 
-		go func() {
+		go primitive.WithRecover(func() {
 			ticker := time.NewTicker(_RebalanceInterval)
 			defer ticker.Stop()
 			for {
@@ -358,7 +357,7 @@ func (c *rmqClient) Start() {
 					return
 				}
 			}
-		}()
+		})
 	})
 }
 

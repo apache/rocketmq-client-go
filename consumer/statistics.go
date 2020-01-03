@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/primitive"
 	"github.com/apache/rocketmq-client-go/rlog"
 )
 
@@ -148,7 +149,7 @@ func newStatsItemSet(statsName string) *statsItemSet {
 }
 
 func (sis *statsItemSet) init() {
-	go func() {
+	go primitive.WithRecover(func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -160,9 +161,9 @@ func (sis *statsItemSet) init() {
 
 			}
 		}
-	}()
+	})
 
-	go func() {
+	go primitive.WithRecover(func() {
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
 		for {
@@ -173,9 +174,9 @@ func (sis *statsItemSet) init() {
 				sis.samplingInMinutes()
 			}
 		}
-	}()
+	})
 
-	go func() {
+	go primitive.WithRecover(func() {
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
@@ -186,9 +187,9 @@ func (sis *statsItemSet) init() {
 				sis.samplingInHour()
 			}
 		}
-	}()
+	})
 
-	go func() {
+	go primitive.WithRecover(func() {
 		time.Sleep(nextMinutesTime().Sub(time.Now()))
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
@@ -200,9 +201,9 @@ func (sis *statsItemSet) init() {
 				sis.printAtMinutes()
 			}
 		}
-	}()
+	})
 
-	go func() {
+	go primitive.WithRecover(func() {
 		time.Sleep(nextHourTime().Sub(time.Now()))
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
@@ -214,9 +215,9 @@ func (sis *statsItemSet) init() {
 				sis.printAtHour()
 			}
 		}
-	}()
+	})
 
-	go func() {
+	go primitive.WithRecover(func() {
 		time.Sleep(nextMonthTime().Sub(time.Now()))
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -228,7 +229,7 @@ func (sis *statsItemSet) init() {
 				sis.printAtDay()
 			}
 		}
-	}()
+	})
 }
 
 func (sis *statsItemSet) samplingInSeconds() {
