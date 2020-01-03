@@ -233,3 +233,33 @@ func WithStrategy(strategy AllocateStrategy) Option {
 		opts.Strategy = strategy
 	}
 }
+
+func WithPullBatchSize(batchSize int32) Option {
+	return func(options *consumerOptions) {
+		options.PullBatchSize = batchSize
+	}
+}
+
+func WithRebalanceLockInterval(interval time.Duration) Option {
+	return func(options *consumerOptions) {
+		options.RebalanceLockInterval = interval
+	}
+}
+
+func WithAutoCommit(auto bool) Option {
+	return func(options *consumerOptions) {
+		options.AutoCommit = auto
+	}
+}
+
+func WithSuspendCurrentQueueTimeMillis(suspendT time.Duration) Option {
+	return func(options *consumerOptions) {
+		options.SuspendCurrentQueueTimeMillis = suspendT
+	}
+}
+
+func WithPullInterval(interval time.Duration) Option {
+	return func(options *consumerOptions) {
+		options.PullInterval = interval
+	}
+}
