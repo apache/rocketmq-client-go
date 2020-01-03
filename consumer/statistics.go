@@ -98,11 +98,11 @@ func GetConsumeStatus(group, topic string) ConsumeStatus {
 }
 
 func ShutDownStatis() {
-	topicAndGroupConsumeOKTPS.closed = true
-	topicAndGroupConsumeRT.closed = true
-	topicAndGroupConsumeFailedTPS.closed = true
-	topicAndGroupPullTPS.closed = true
-	topicAndGroupPullRT.closed = true
+	close(topicAndGroupConsumeOKTPS.closed)
+	close(topicAndGroupConsumeRT.closed)
+	close(topicAndGroupConsumeFailedTPS.closed)
+	close(topicAndGroupPullTPS.closed)
+	close(topicAndGroupPullRT.closed)
 }
 
 func getPullRT(group, topic string) statsSnapshot {
@@ -132,12 +132,13 @@ func getConsumeFailedTPS(group, topic string) statsSnapshot {
 type statsItemSet struct {
 	statsName      string
 	statsItemTable sync.Map
-	closed         bool
+	closed         chan struct{}
 }
 
 func newStatsItemSet(statsName string) *statsItemSet {
 	sis := &statsItemSet{
 		statsName: statsName,
+		closed:    make(chan struct{}),
 	}
 	sis.init()
 	return sis
@@ -145,47 +146,84 @@ func newStatsItemSet(statsName string) *statsItemSet {
 
 func (sis *statsItemSet) init() {
 	go func() {
-		for !sis.closed {
-			sis.samplingInSeconds()
-			time.Sleep(10 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.samplingInSeconds()
+
+			}
 		}
 	}()
 
 	go func() {
-		for !sis.closed {
-			sis.samplingInMinutes()
-			time.Sleep(10 * time.Minute)
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.samplingInMinutes()
+			}
 		}
 	}()
 
 	go func() {
-		for !sis.closed {
-			sis.samplingInHour()
-			time.Sleep(time.Hour)
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.samplingInHour()
+			}
 		}
 	}()
 
 	go func() {
 		time.Sleep(nextMinutesTime().Sub(time.Now()))
-		for !sis.closed {
-			sis.printAtMinutes()
-			time.Sleep(time.Minute)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.printAtMinutes()
+			}
 		}
 	}()
 
 	go func() {
 		time.Sleep(nextHourTime().Sub(time.Now()))
-		for !sis.closed {
-			sis.printAtHour()
-			time.Sleep(time.Hour)
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.printAtHour()
+			}
 		}
 	}()
 
 	go func() {
 		time.Sleep(nextMonthTime().Sub(time.Now()))
-		for !sis.closed {
-			sis.printAtDay()
-			time.Sleep(24 * time.Hour)
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sis.closed:
+				return
+			case <-ticker.C:
+				sis.printAtDay()
+			}
 		}
 	}()
 }
