@@ -37,9 +37,6 @@ func TestNewResponseFuture(t *testing.T) {
 	if future.Opaque != 10 {
 		t.Errorf("wrong ResponseFuture's opaque. want=%d, got=%d", 10, future.Opaque)
 	}
-	if future.SendRequestOK != false {
-		t.Errorf("wrong ResposneFutrue's sendRequestOK. want=%t, got=%t", false, future.SendRequestOK)
-	}
 	if future.Err != nil {
 		t.Errorf("wrong RespnseFuture's Err. want=<nil>, got=%v", future.Err)
 	}
