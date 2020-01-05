@@ -212,6 +212,7 @@ func (pc *pushConsumer) Shutdown() error {
 		pc.lockTicker.Stop()
 		close(pc.done)
 
+		pc.client.UnregisterConsumer(pc.consumerGroup)
 		err = pc.defaultConsumer.shutdown()
 	})
 

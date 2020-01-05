@@ -87,6 +87,7 @@ func (p *defaultProducer) Start() error {
 
 func (p *defaultProducer) Shutdown() error {
 	atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
+	p.client.UnregisterProducer(p.group)
 	p.client.Shutdown()
 	return nil
 }

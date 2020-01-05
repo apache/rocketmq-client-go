@@ -113,7 +113,6 @@ func (info *TopicPublishInfo) fetchQueueIndex() int {
 }
 
 func (s *namesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool) {
-	// Todo process lock timeout
 	s.lockNamesrv.Lock()
 	defer s.lockNamesrv.Unlock()
 
@@ -256,16 +255,6 @@ func (s *namesrvs) FetchSubscribeMessageQueues(topic string) ([]*primitive.Messa
 		}
 	}
 	return mqs, nil
-}
-
-func (s *namesrvs) FindMQByTopic(topic string) *primitive.MessageQueue {
-	mqs, err := s.FetchPublishMessageQueues(topic)
-	if err != nil {
-		return nil
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	i := utils.AbsInt(r.Int())
-	return mqs[i%len(mqs)]
 }
 
 func (s *namesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
