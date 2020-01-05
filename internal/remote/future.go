@@ -20,7 +20,6 @@ package remote
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/apache/rocketmq-client-go/internal/utils"
 )
@@ -28,11 +27,9 @@ import (
 // ResponseFuture
 type ResponseFuture struct {
 	ResponseCommand *RemotingCommand
-	SendRequestOK   bool
 	Err             error
 	Opaque          int32
 	callback        func(*ResponseFuture)
-	BeginTimestamp  time.Duration
 	Done            chan bool
 	callbackOnce    sync.Once
 	ctx             context.Context
@@ -41,11 +38,10 @@ type ResponseFuture struct {
 // NewResponseFuture create ResponseFuture with opaque, timeout and callback
 func NewResponseFuture(ctx context.Context, opaque int32, callback func(*ResponseFuture)) *ResponseFuture {
 	return &ResponseFuture{
-		Opaque:         opaque,
-		Done:           make(chan bool),
-		callback:       callback,
-		BeginTimestamp: time.Duration(time.Now().Unix()) * time.Second,
-		ctx:            ctx,
+		Opaque:   opaque,
+		Done:     make(chan bool),
+		callback: callback,
+		ctx:      ctx,
 	}
 }
 
@@ -62,17 +58,12 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 		cmd *RemotingCommand
 		err error
 	)
-	for {
-		select {
-		case <-r.Done:
-			cmd, err = r.ResponseCommand, r.Err
-			goto done
-		case <-r.ctx.Done():
-			err = utils.ErrRequestTimeout
-			r.Err = err
-			goto done
-		}
+	select {
+	case <-r.Done:
+		cmd, err = r.ResponseCommand, r.Err
+	case <-r.ctx.Done():
+		err = utils.ErrRequestTimeout
+		r.Err = err
 	}
-done:
 	return cmd, err
 }
