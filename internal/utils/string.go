@@ -17,10 +17,6 @@ limitations under the License.
 
 package utils
 
-import (
-	"fmt"
-)
-
 // HashString hashes a string to a unique hashcode.
 func HashString(s string) int {
 	val := []byte(s)
@@ -31,12 +27,4 @@ func HashString(s string) int {
 	}
 
 	return int(h)
-}
-
-func StrJoin(str, key string, value interface{}) string {
-	if key == "" || value == "" {
-		return str
-	}
-
-	return str + key + ": " + fmt.Sprint(value) + ", "
 }
