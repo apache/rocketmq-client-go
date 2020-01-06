@@ -80,7 +80,6 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	if err != nil {
 		return nil, err
 	}
-	resp.SendRequestOK = true
 	return resp.waitResponse()
 }
 
@@ -96,7 +95,6 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	if err != nil {
 		return err
 	}
-	resp.SendRequestOK = true
 	go c.receiveAsync(resp)
 	return nil
 }
