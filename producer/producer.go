@@ -421,7 +421,7 @@ func (tp *transactionProducer) Shutdown() error {
 func (tp *transactionProducer) checkTransactionState() {
 	for ch := range tp.producer.callbackCh {
 		switch callback := ch.(type) {
-		case internal.CheckTransactionStateCallback:
+		case *internal.CheckTransactionStateCallback:
 			localTransactionState := tp.listener.CheckLocalTransaction(callback.Msg)
 			uniqueKey := callback.Msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
 			if uniqueKey == "" {
@@ -442,11 +442,13 @@ func (tp *transactionProducer) checkTransactionState() {
 
 			err := tp.producer.client.InvokeOneWay(context.Background(), callback.Addr.String(), req,
 				tp.producer.options.SendMsgTimeout)
-			rlog.Error("send ReqENDTransaction to broker error", map[string]interface{}{
-				"callback":               callback.Addr.String(),
-				"request":                req.String(),
-				rlog.LogKeyUnderlayError: err,
-			})
+			if err != nil {
+				rlog.Error("send ReqENDTransaction to broker error", map[string]interface{}{
+					"callback":               callback.Addr.String(),
+					"request":                req.String(),
+					rlog.LogKeyUnderlayError: err,
+				})
+			}
 		default:
 			rlog.Error(fmt.Sprintf("unknown type %v", ch), nil)
 		}
@@ -471,7 +473,7 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 		if len(transactionId) > 0 {
 			msg.TransactionId = transactionId
 		}
-		localTransactionState = tp.listener.ExecuteLocalTransaction(*msg)
+		localTransactionState = tp.listener.ExecuteLocalTransaction(msg)
 		if localTransactionState != primitive.CommitMessageState {
 			rlog.Error("executeLocalTransaction but state unexpected", map[string]interface{}{
 				"localState": localTransactionState,

@@ -42,7 +42,7 @@ func NewDemoListener() *DemoListener {
 	}
 }
 
-func (dl *DemoListener) ExecuteLocalTransaction(msg primitive.Message) primitive.LocalTransactionState {
+func (dl *DemoListener) ExecuteLocalTransaction(msg *primitive.Message) primitive.LocalTransactionState {
 	nextIndex := atomic.AddInt32(&dl.transactionIndex, 1)
 	fmt.Printf("nextIndex: %v for transactionID: %v\n", nextIndex, msg.TransactionId)
 	status := nextIndex % 3
@@ -52,8 +52,8 @@ func (dl *DemoListener) ExecuteLocalTransaction(msg primitive.Message) primitive
 	return primitive.UnknowState
 }
 
-func (dl *DemoListener) CheckLocalTransaction(msg primitive.MessageExt) primitive.LocalTransactionState {
-	fmt.Printf("msg transactionID : %v\n", msg.TransactionId)
+func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primitive.LocalTransactionState {
+	fmt.Printf("%v msg transactionID : %v\n", time.Now(), msg.TransactionId)
 	v, existed := dl.localTrans.Load(msg.TransactionId)
 	if !existed {
 		fmt.Printf("unknow msg: %v, return Commit", msg)
@@ -74,8 +74,6 @@ func (dl *DemoListener) CheckLocalTransaction(msg primitive.MessageExt) primitiv
 		fmt.Printf("checkLocalTransaction default COMMIT_MESSAGE: %v\n", msg)
 		return primitive.CommitMessageState
 	}
-
-	return primitive.UnknowState
 }
 
 func main() {

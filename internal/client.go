@@ -212,9 +212,9 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				rlog.Warning("producer group is not equal", nil)
 				return nil
 			}
-			callback := CheckTransactionStateCallback{
+			callback := &CheckTransactionStateCallback{
 				Addr:   addr,
-				Msg:    *msgExt,
+				Msg:    msgExt,
 				Header: *header,
 			}
 			callbackCh <- callback

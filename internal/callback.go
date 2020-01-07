@@ -26,6 +26,6 @@ import (
 // remotingClient callback TransactionProducer
 type CheckTransactionStateCallback struct {
 	Addr   net.Addr
-	Msg    primitive.MessageExt
+	Msg    *primitive.MessageExt
 	Header CheckTransactionStateRequestHeader
 }
