@@ -51,6 +51,7 @@ func TestShutdown(t *testing.T) {
 	assert.Nil(t, err)
 
 	client.EXPECT().Shutdown().Return()
+	client.EXPECT().UnregisterProducer(gomock.Any()).Return()
 	err = p.Shutdown()
 	assert.Nil(t, err)
 

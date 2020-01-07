@@ -131,6 +131,7 @@ type RMQClient interface {
 	ClientID() string
 
 	RegisterProducer(group string, producer InnerProducer)
+	UnregisterProducer(group string)
 	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
 	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
@@ -146,7 +147,6 @@ type RMQClient interface {
 	RegisterConsumer(group string, consumer InnerConsumer) error
 	UnregisterConsumer(group string)
 	PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error)
-	PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(result *primitive.PullResult)) error
 	RebalanceImmediately()
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 }
@@ -600,11 +600,6 @@ func (c *rmqClient) decodeCommandCustomHeader(pr *primitive.PullResult, cmd *rem
 	}
 }
 
-// PullMessageAsync pull message async
-func (c *rmqClient) PullMessageAsync(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader, f func(result *primitive.PullResult)) error {
-	return nil
-}
-
 func (c *rmqClient) RegisterConsumer(group string, consumer InnerConsumer) error {
 	_, exist := c.consumerMap.Load(group)
 	if exist {
@@ -618,6 +613,7 @@ func (c *rmqClient) RegisterConsumer(group string, consumer InnerConsumer) error
 }
 
 func (c *rmqClient) UnregisterConsumer(group string) {
+	c.consumerMap.Delete(group)
 }
 
 func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) {
@@ -625,14 +621,7 @@ func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) {
 }
 
 func (c *rmqClient) UnregisterProducer(group string) {
-}
-
-func (c *rmqClient) SelectProducer(group string) InnerProducer {
-	return nil
-}
-
-func (c *rmqClient) SelectConsumer(group string) InnerConsumer {
-	return nil
+	c.producerMap.Delete(group)
 }
 
 func (c *rmqClient) RebalanceImmediately() {
