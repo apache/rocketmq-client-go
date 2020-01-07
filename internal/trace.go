@@ -257,7 +257,9 @@ func (td *traceDispatcher) GetTraceTopicName() string {
 func (td *traceDispatcher) Start() {
 	td.running = true
 	td.cli.Start()
-	go td.process()
+	go primitive.WithRecover(func() {
+		td.process()
+	})
 }
 
 func (td *traceDispatcher) Close() {
@@ -299,7 +301,9 @@ func (td *traceDispatcher) process() {
 			batch = append(batch, ctx)
 			if count == batchSize {
 				count = 0
-				go td.batchCommit(batch)
+				go primitive.WithRecover(func() {
+					td.batchCommit(batch)
+				})
 				batch = make([]TraceContext, 0)
 			}
 		case <-td.ticker.C:
@@ -308,12 +312,16 @@ func (td *traceDispatcher) process() {
 				count++
 				lastput = time.Now()
 				if len(batch) > 0 {
-					go td.batchCommit(batch)
+					go primitive.WithRecover(func() {
+						td.batchCommit(batch)
+					})
 					batch = make([]TraceContext, 0)
 				}
 			}
 		case <-td.ctx.Done():
-			go td.batchCommit(batch)
+			go primitive.WithRecover(func() {
+				td.batchCommit(batch)
+			})
 			batch = make([]TraceContext, 0)
 
 			now := time.Now().UnixNano() / int64(time.Millisecond)

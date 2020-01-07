@@ -66,7 +66,6 @@ type pushConsumer struct {
 	subscribedTopic              map[string]string
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
-	lockTicker                   *time.Ticker
 	done                         chan struct{}
 	closeOnce                    sync.Once
 }
@@ -107,7 +106,6 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
 		queueLock:       newQueueLock(),
-		lockTicker:      time.NewTicker(dc.option.RebalanceLockInterval),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
 	}
@@ -168,14 +166,16 @@ func (pc *pushConsumer) Start() error {
 		pc.Rebalance()
 		time.Sleep(1 * time.Second)
 
-		go func() {
+		go primitive.WithRecover(func() {
 			// initial lock.
 			time.Sleep(1000 * time.Millisecond)
 			pc.lockAll()
 
+			lockTicker := time.NewTicker(pc.option.RebalanceLockInterval)
+			defer lockTicker.Stop()
 			for {
 				select {
-				case <-pc.lockTicker.C:
+				case <-lockTicker.C:
 					pc.lockAll()
 				case <-pc.done:
 					rlog.Info("push consumer close tick.", map[string]interface{}{
@@ -184,7 +184,7 @@ func (pc *pushConsumer) Start() error {
 					return
 				}
 			}
-		}()
+		})
 	})
 
 	if err != nil {
@@ -209,7 +209,6 @@ func (pc *pushConsumer) Start() error {
 func (pc *pushConsumer) Shutdown() error {
 	var err error
 	pc.closeOnce.Do(func() {
-		pc.lockTicker.Stop()
 		close(pc.done)
 
 		pc.client.UnregisterConsumer(pc.consumerGroup)
@@ -438,7 +437,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 	})
 	var sleepTime time.Duration
 	pq := request.pq
-	go func() {
+	go primitive.WithRecover(func() {
 		for {
 			select {
 			case <-pc.done:
@@ -450,7 +449,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				pc.submitToConsume(request.pq, request.mq)
 			}
 		}
-	}()
+	})
 
 	for {
 	NEXT:
@@ -683,13 +682,13 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			})
 			request.nextOffset = result.NextBeginOffset
 			pq.WithDropped(true)
-			go func() {
+			go primitive.WithRecover(func() {
 				time.Sleep(10 * time.Second)
 				pc.storage.update(request.mq, request.nextOffset, false)
 				pc.storage.persist([]*primitive.MessageQueue{request.mq})
 				pc.storage.remove(request.mq)
 				rlog.Warning(fmt.Sprintf("fix the pull request offset: %s", request.String()), nil)
-			}()
+			})
 		default:
 			rlog.Warning(fmt.Sprintf("unknown pull status: %v", result.Status), nil)
 			sleepTime = _PullDelayTimeWhenError
@@ -866,7 +865,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			subMsgs = msgs[count:next]
 			count = next - 1
 		}
-		go func() {
+		go primitive.WithRecover(func() {
 		RETRY:
 			if pq.IsDroppd() {
 				rlog.Info("the message queue not be able to consume, because it was dropped", map[string]interface{}{
@@ -948,7 +947,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					"message":               msgs,
 				})
 			}
-		}()
+		})
 	}
 }
 
