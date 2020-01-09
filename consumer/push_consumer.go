@@ -226,22 +226,14 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
-	data := buildSubscriptionData(topic, selector)
-	pc.subscriptionDataTable.Store(topic, data)
-	pc.subscribedTopic[topic] = ""
 
+	pc.initSubscribe(topic, selector, f)
 	if pc.option.ConsumerModel == Clustering {
 		// add retry topic for clustering mode
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		retryData := buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, retryData)
-		pc.subscribedTopic[retryTopic] = ""
+		pc.initSubscribe(retryTopic, MessageSelector{Expression: _SubAll}, f)
 	}
 
-	pc.consumeFunc.Add(&PushConsumerCallback{
-		f:     f,
-		topic: topic,
-	})
 	return nil
 }
 
@@ -1151,4 +1143,15 @@ func (pc *pushConsumer) submitConsumeRequestLater(suspendTimeMillis int64) {
 		suspendTimeMillis = 30000
 	}
 	time.Sleep(time.Duration(suspendTimeMillis) * time.Millisecond)
+}
+
+func (pc *pushConsumer) initSubscribe(topic string, selector MessageSelector,
+	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) {
+	data := buildSubscriptionData(topic, selector)
+	pc.subscriptionDataTable.Store(topic, data)
+	pc.subscribedTopic[topic] = ""
+	pc.consumeFunc.Add(&PushConsumerCallback{
+		f:     f,
+		topic: topic,
+	})
 }
