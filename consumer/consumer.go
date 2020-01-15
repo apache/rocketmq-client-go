@@ -61,8 +61,8 @@ const (
 type ConsumeType string
 
 const (
-	_PullConsume = ConsumeType("pull")
-	_PushConsume = ConsumeType("push")
+	_PullConsume = ConsumeType("CONSUME_ACTIVELY")
+	_PushConsume = ConsumeType("CONSUME_PASSIVELY")
 
 	_SubAll = "*"
 )
