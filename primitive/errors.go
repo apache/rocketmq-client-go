@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"errors"
+	"strconv"
 )
 
 var (
@@ -26,3 +27,12 @@ var (
 	ErrMultiIP      = errors.New("multiple IP addr does not support")
 	ErrIllegalIP    = errors.New("IP addr error")
 )
+
+type MQBrokerErr struct {
+	ResponseCode int16
+	ErrorMessage string
+}
+
+func (e MQBrokerErr) Error() string {
+	return "CODE: " + strconv.Itoa(int(e.ResponseCode)) + "  DESC: " + e.ErrorMessage
+}
