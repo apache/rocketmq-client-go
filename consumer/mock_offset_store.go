@@ -22,7 +22,7 @@ limitations under the License.
 package consumer
 
 import (
-	primitive "github.com/apache/rocketmq-client-go/primitive"
+	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )
