@@ -25,7 +25,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 // MockNamesrvs is a mock of Namesrvs interface

@@ -19,7 +19,7 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/primitive"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
