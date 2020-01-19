@@ -9,8 +9,8 @@ there are many works need to continue in this project, like unit test, integrati
 optimization, documents, etc. so, any contribution is very welcome. if you want do something, please browse issue list and select one,
 or create a new issue.
 
-- [2.0.0 Production Ready Road map](https://github.com/apache/rocketmq-client-go/issues/57)
-- [The alpha1 feature list](https://github.com/apache/rocketmq-client-go/issues/54)
+- [2.0.0 Production Ready Road map](https://github.com/apache/rocketmq-client-go/v2/issues/57)
+- [The alpha1 feature list](https://github.com/apache/rocketmq-client-go/v2/issues/54)
 
 ----------
 ## Features
@@ -33,7 +33,7 @@ in 2.0.0-alpha1, support:
 * Mailing Lists: <https://rocketmq.apache.org/about/contact/>
 * Home: <https://rocketmq.apache.org>
 * Docs: <https://rocketmq.apache.org/docs/quick-start/>
-* Issues: <https://github.com/apache/rocketmq-client-go/issues>
+* Issues: <https://github.com/apache/rocketmq-client-go/v2/issues>
 * Ask: <https://stackoverflow.com/questions/tagged/rocketmq>
 * Slack: <https://rocketmq-community.slack.com/>
  
