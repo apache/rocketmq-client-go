@@ -40,21 +40,21 @@ const (
 )
 
 type processQueue struct {
-	msgCache                   *treemap.Map
-	mutex                      sync.RWMutex
 	cachedMsgCount             int64
 	cachedMsgSize              int64
-	consumeLock                sync.Mutex
-	consumingMsgOrderlyTreeMap *treemap.Map
 	tryUnlockTimes             int64
 	queueOffsetMax             int64
+	msgAccCnt                  int64
+	msgCache                   *treemap.Map
+	mutex                      sync.RWMutex
+	consumeLock                sync.Mutex
+	consumingMsgOrderlyTreeMap *treemap.Map
 	dropped                    *uatomic.Bool
 	lastPullTime               time.Time
 	lastConsumeTime            atomic.Value
 	locked                     *uatomic.Bool
 	lastLockTime               atomic.Value
 	consuming                  bool
-	msgAccCnt                  int64
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
 	order                      bool
