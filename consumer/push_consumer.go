@@ -162,7 +162,7 @@ func (pc *pushConsumer) Start() error {
 				}
 			}
 		}()
-		
+
 		go primitive.WithRecover(func() {
 			// initial lock.
 			time.Sleep(1000 * time.Millisecond)
