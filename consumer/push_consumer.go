@@ -168,6 +168,10 @@ func (pc *pushConsumer) Start() error {
 
 		go primitive.WithRecover(func() {
 			// initial lock.
+			if !pc.consumeOrderly {
+				return
+			}
+
 			time.Sleep(1000 * time.Millisecond)
 			pc.lockAll()
 
