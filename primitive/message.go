@@ -364,7 +364,7 @@ func DecodeMessage(data []byte) []*MessageExt {
 		}
 		count += 2 + int(propertiesLength)
 
-		msg.MsgId = createMessageId(hostBytes, port, msg.CommitLogOffset)
+		msg.MsgId = CreateMessageId(hostBytes, port, msg.CommitLogOffset)
 		//count += 16
 		if msg.properties == nil {
 			msg.properties = make(map[string]string, 0)
@@ -436,11 +436,12 @@ type MessageID struct {
 	Offset int64
 }
 
-func createMessageId(addr []byte, port int32, offset int64) string {
-	buffer := new(bytes.Buffer)
+func CreateMessageId(addr []byte, port int32, offset int64) string {
+	buffer := GetBuffer()
+	defer BackBuffer(buffer)
 	buffer.Write(addr)
-	binary.Write(buffer, binary.BigEndian, port)
-	binary.Write(buffer, binary.BigEndian, offset)
+	_ = binary.Write(buffer, binary.BigEndian, port)
+	_ = binary.Write(buffer, binary.BigEndian, offset)
 	return strings.ToUpper(hex.EncodeToString(buffer.Bytes()))
 }
 
