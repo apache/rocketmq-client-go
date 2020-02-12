@@ -163,9 +163,6 @@ func (pc *pushConsumer) Start() error {
 			}
 		}()
 
-		pc.Rebalance()
-		time.Sleep(1 * time.Second)
-
 		go primitive.WithRecover(func() {
 			// initial lock.
 			if !pc.consumeOrderly {
@@ -203,9 +200,9 @@ func (pc *pushConsumer) Start() error {
 			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 		}
 	}
-	pc.client.RebalanceImmediately()
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
+	pc.client.RebalanceImmediately()
 
 	return err
 }
@@ -233,14 +230,6 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
-
-	if pc.option.ConsumerModel == Clustering {
-		// add retry topic for clustering mode
-		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		retryData := buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, retryData)
-		pc.subscribedTopic[retryTopic] = ""
-	}
 
 	pc.consumeFunc.Add(&PushConsumerCallback{
 		f:     f,
