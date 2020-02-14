@@ -16,7 +16,7 @@ download specific release according you OS: [rocketmq-client-cpp-2.0.0](https://
 - debian
     ```bash
         wget https://github.com/apache/rocketmq-client-cpp/releases/download/2.0.0/rocketmq-client-cpp-2.0.0.amd64.deb
-        sudo dpkg -i rocketmq-client-cpp-2.0.0-centos7.x86_64.rpm
+        sudo dpkg -i rocketmq-client-cpp-2.0.0.amd64.deb
     ```
 - macOS
     ```bash
