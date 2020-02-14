@@ -4,24 +4,34 @@
 rocketmq-client-go is a lightweight wrapper around [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), so you need install 
 `librocketmq` first.
 
-#### include file
-```bash
-git clone https://github.com/apache/rocketmq-client-cpp
-
-# By default, CFLAGS contains `/usr/local/include`
-sudo mkdir -p /usr/local/include/rocketmq/
-sudo cp rocketmq-client-cpp/include/* /usr/local/include/rocketmq
-```
-
-#### binary library
-your could download directly or build manually:
-
-- download specific release: [rocketmq-client-cpp](https://archive.apache.org/dist/rocketmq/rocketmq-client-cpp/1.2.4/rocketmq-client-cpp-1.2.4-bin-release.tar.gz)
- and unzip the package, please choose the right version according to your OS and unzip it, then copy the library files to to your `LDFLAGS` directory(as default, `/usr/local/lib/` works finely).
- Please make sure your `LDFLAGS` directory is under the `LD_LIBRARY_PATH`.
-- build from source: [Build and Install](https://github.com/apache/rocketmq-client-cpp/tree/master#build-and-install)
-
-### install
+#### Download by binary release.
+download specific release according you OS: [rocketmq-client-cpp-2.0.0](https://github.com/apache/rocketmq-client-cpp/releases/tag/2.0.0)
+- centos
+    
+    take centos7 as example, you can install the library in centos6 by the same method.
+    ```bash
+        wget https://github.com/apache/rocketmq-client-cpp/releases/download/2.0.0/rocketmq-client-cpp-2.0.0-centos7.x86_64.rpm
+        sudo rpm -ivh rocketmq-client-cpp-2.0.0-centos7.x86_64.rpm
+    ```
+- debian
+    ```bash
+        wget https://github.com/apache/rocketmq-client-cpp/releases/download/2.0.0/rocketmq-client-cpp-2.0.0.amd64.deb
+        sudo dpkg -i rocketmq-client-cpp-2.0.0.amd64.deb
+    ```
+- macOS
+    ```bash
+        wget https://github.com/apache/rocketmq-client-cpp/releases/download/2.0.0/rocketmq-client-cpp-2.0.0-bin-release.darwin.tar.gz
+        tar -xzf rocketmq-client-cpp-2.0.0-bin-release.darwin.tar.gz
+        cd rocketmq-client-cpp
+        mkdir /usr/local/include/rocketmq
+        cp include/* /usr/local/include/rocketmq
+        cp lib/* /usr/local/lib
+    ```
+#### Build from source
+you can also build it manually from source according to [Build and Install](https://github.com/apache/rocketmq-client-cpp/tree/master#build-and-install)
+### Gcc install
+gcc/g++ 4.8+ is needed in the cgo compile, please make sure is it installed in you machine.
+### SDK install
 1. Go Version: 1.10 or later
 2. `go get github.com/apache/rocketmq-client-go`
 
