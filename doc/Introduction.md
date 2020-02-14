@@ -5,7 +5,7 @@ rocketmq-client-go is a lightweight wrapper around [rocketmq-client-cpp](https:/
 `librocketmq` first.
 
 #### Download by binary release.
-download specific release according you OS: [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp/releases/tag/2.0.0)
+download specific release according you OS: [rocketmq-client-cpp-2.0.0](https://github.com/apache/rocketmq-client-cpp/releases/tag/2.0.0)
 - centos
     
     take centos7 as example, you can install the library in centos6 by the same method.
