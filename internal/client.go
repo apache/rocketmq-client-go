@@ -499,7 +499,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		return true
 	})
 	for topic := range publishTopicSet {
-		data, changed := c.namesrvs.UpdateTopicRouteInfo(topic)
+		data, changed, _ := c.namesrvs.UpdateTopicRouteInfo(topic)
 		c.UpdatePublishInfo(topic, data, changed)
 	}
 
@@ -514,7 +514,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	})
 
 	for topic := range subscribedTopicSet {
-		data, changed := c.namesrvs.UpdateTopicRouteInfo(topic)
+		data, changed, _ := c.namesrvs.UpdateTopicRouteInfo(topic)
 		c.updateSubscribeInfo(topic, data, changed)
 	}
 }
