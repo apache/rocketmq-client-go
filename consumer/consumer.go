@@ -396,12 +396,12 @@ func (dc *defaultConsumer) doBalance() {
 			sort.SliceStable(mqAll, func(i, j int) bool {
 				v := strings.Compare(mqAll[i].Topic, mqAll[j].Topic)
 				if v != 0 {
-					return v > 0
+					return v < 0
 				}
 
 				v = strings.Compare(mqAll[i].BrokerName, mqAll[j].BrokerName)
 				if v != 0 {
-					return v > 0
+					return v < 0
 				}
 				return (mqAll[i].QueueId - mqAll[j].QueueId) < 0
 			})
