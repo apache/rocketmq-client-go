@@ -679,13 +679,11 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			})
 			request.nextOffset = result.NextBeginOffset
 			pq.WithDropped(true)
-			go primitive.WithRecover(func() {
-				time.Sleep(10 * time.Second)
-				pc.storage.update(request.mq, request.nextOffset, false)
-				pc.storage.persist([]*primitive.MessageQueue{request.mq})
-				pc.storage.remove(request.mq)
-				rlog.Warning(fmt.Sprintf("fix the pull request offset: %s", request.String()), nil)
-			})
+			time.Sleep(10 * time.Second)
+			pc.storage.update(request.mq, request.nextOffset, false)
+			pc.storage.persist([]*primitive.MessageQueue{request.mq})
+			pc.processQueueTable.Delete(request.mq)
+			rlog.Warning(fmt.Sprintf("fix the pull request offset: %s", request.String()), nil)
 		default:
 			rlog.Warning(fmt.Sprintf("unknown pull status: %v", result.Status), nil)
 			sleepTime = _PullDelayTimeWhenError
