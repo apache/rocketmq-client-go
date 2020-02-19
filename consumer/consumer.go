@@ -31,11 +31,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
-	"github.com/apache/rocketmq-client-go/internal"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/v2/internal"
+	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 const (
@@ -290,7 +290,6 @@ func (dc *defaultConsumer) start() error {
 		dc.storage = NewLocalFileOffsetStore(dc.consumerGroup, dc.client.ClientID())
 	}
 
-	dc.client.UpdateTopicRouteInfo()
 	dc.client.Start()
 	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
@@ -397,12 +396,12 @@ func (dc *defaultConsumer) doBalance() {
 			sort.SliceStable(mqAll, func(i, j int) bool {
 				v := strings.Compare(mqAll[i].Topic, mqAll[j].Topic)
 				if v != 0 {
-					return v > 0
+					return v < 0
 				}
 
 				v = strings.Compare(mqAll[i].BrokerName, mqAll[j].BrokerName)
 				if v != 0 {
-					return v > 0
+					return v < 0
 				}
 				return (mqAll[i].QueueId - mqAll[j].QueueId) < 0
 			})

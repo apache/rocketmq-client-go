@@ -31,10 +31,10 @@ import (
 	"github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 const (
@@ -118,13 +118,10 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool) {
 
 	routeData, err := s.queryTopicRouteInfoFromServer(topic)
 	if err != nil {
-		routeData, err = s.queryTopicRouteInfoFromServer(defaultTopic)
-		if err != nil {
-			rlog.Warning("query topic route from server error", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
-			})
-			return nil, false
-		}
+		rlog.Warning("query topic route from server error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, false
 	}
 
 	if routeData == nil {

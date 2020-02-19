@@ -28,11 +28,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/apache/rocketmq-client-go/internal"
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/v2/internal"
+	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 // In most scenarios, this is the mostly recommended usage to consume messages.
@@ -163,11 +163,12 @@ func (pc *pushConsumer) Start() error {
 			}
 		}()
 
-		pc.Rebalance()
-		time.Sleep(1 * time.Second)
-
 		go primitive.WithRecover(func() {
 			// initial lock.
+			if !pc.consumeOrderly {
+				return
+			}
+
 			time.Sleep(1000 * time.Millisecond)
 			pc.lockAll()
 
@@ -199,9 +200,9 @@ func (pc *pushConsumer) Start() error {
 			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 		}
 	}
-	pc.client.RebalanceImmediately()
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
+	pc.client.RebalanceImmediately()
 
 	return err
 }
@@ -229,14 +230,6 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
-
-	if pc.option.ConsumerModel == Clustering {
-		// add retry topic for clustering mode
-		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		retryData := buildSubscriptionData(retryTopic, MessageSelector{Expression: _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, retryData)
-		pc.subscribedTopic[retryTopic] = ""
-	}
 
 	pc.consumeFunc.Add(&PushConsumerCallback{
 		f:     f,
@@ -624,6 +617,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			})
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
+		}
+
+		if brokerResult.Slave {
+			pullRequest.SysFlag = clearCommitOffsetFlag(pullRequest.SysFlag)
 		}
 
 		result, err := pc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)

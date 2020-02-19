@@ -38,7 +38,7 @@ in 2.0.0-rc1, support:
 * Mailing Lists: <https://rocketmq.apache.org/about/contact/>
 * Home: <https://rocketmq.apache.org>
 * Docs: <https://rocketmq.apache.org/docs/quick-start/>
-* Issues: <https://github.com/apache/rocketmq-client-go/issues>
+* Issues: <https://github.com/apache/rocketmq-client-go/v2/issues>
 * Ask: <https://stackoverflow.com/questions/tagged/rocketmq>
 * Slack: <https://rocketmq-community.slack.com/>
  

@@ -28,10 +28,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/internal/remote"
-	"github.com/apache/rocketmq-client-go/internal/utils"
-	"github.com/apache/rocketmq-client-go/primitive"
-	"github.com/apache/rocketmq-client-go/rlog"
+	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 const (
@@ -123,7 +123,7 @@ func (opt *ClientOptions) String() string {
 		opt.InstanceName, opt.UnitMode, opt.UnitName, opt.VIPChannelEnabled)
 }
 
-//go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/internal  --package internal RMQClient
+//go:generate mockgen -source client.go -destination mock_client.go -self_package github.com/apache/rocketmq-client-go/v2/internal  --package internal RMQClient
 type RMQClient interface {
 	Start()
 	Shutdown()
@@ -262,15 +262,19 @@ func (c *rmqClient) Start() {
 		}
 		// fetchNameServerAddr
 		if len(c.option.NameServerAddrs) == 0 {
-			go func() {
-				// delay
-				ticker := time.NewTicker(60 * 2 * time.Second)
+			go primitive.WithRecover(func() {
+				op := func() {
+					c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
+				}
+				time.Sleep(10 * time.Second)
+				op()
+
+				ticker := time.NewTicker(2 * time.Minute)
 				defer ticker.Stop()
-				time.Sleep(50 * time.Millisecond)
 				for {
 					select {
 					case <-ticker.C:
-						c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
+						op()
 					case <-c.done:
 						rlog.Info("The RMQClient stopping update name server domain info.", map[string]interface{}{
 							"clientID": c.ClientID(),
@@ -278,19 +282,24 @@ func (c *rmqClient) Start() {
 						return
 					}
 				}
-			}()
+			})
 		}
 
 		// schedule update route info
 		go primitive.WithRecover(func() {
 			// delay
+			op := func() {
+				c.UpdateTopicRouteInfo()
+			}
+			time.Sleep(10 * time.Millisecond)
+			op()
+
 			ticker := time.NewTicker(_PullNameServerInterval)
 			defer ticker.Stop()
-			time.Sleep(50 * time.Millisecond)
 			for {
 				select {
 				case <-ticker.C:
-					c.UpdateTopicRouteInfo()
+					op()
 				case <-c.done:
 					rlog.Info("The RMQClient stopping update topic route info.", map[string]interface{}{
 						"clientID": c.ClientID(),
@@ -301,13 +310,20 @@ func (c *rmqClient) Start() {
 		})
 
 		go primitive.WithRecover(func() {
+			op := func() {
+				c.namesrvs.cleanOfflineBroker()
+				c.SendHeartbeatToAllBrokerWithLock()
+			}
+
+			time.Sleep(time.Second)
+			op()
+
 			ticker := time.NewTicker(_HeartbeatBrokerInterval)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-ticker.C:
-					c.namesrvs.cleanOfflineBroker()
-					c.SendHeartbeatToAllBrokerWithLock()
+					op()
 				case <-c.done:
 					rlog.Info("The RMQClient stopping clean off line broker and heart beat", map[string]interface{}{
 						"clientID": c.ClientID(),
@@ -319,21 +335,27 @@ func (c *rmqClient) Start() {
 
 		// schedule persist offset
 		go primitive.WithRecover(func() {
+			op := func() {
+				c.consumerMap.Range(func(key, value interface{}) bool {
+					consumer := value.(InnerConsumer)
+					err := consumer.PersistConsumerOffset()
+					if err != nil {
+						rlog.Error("persist offset failed", map[string]interface{}{
+							rlog.LogKeyUnderlayError: err,
+						})
+					}
+					return true
+				})
+			}
+			time.Sleep(10 * time.Second)
+			op()
+
 			ticker := time.NewTicker(_PersistOffsetInterval)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-ticker.C:
-					c.consumerMap.Range(func(key, value interface{}) bool {
-						consumer := value.(InnerConsumer)
-						err := consumer.PersistConsumerOffset()
-						if err != nil {
-							rlog.Error("persist offset failed", map[string]interface{}{
-								rlog.LogKeyUnderlayError: err,
-							})
-						}
-						return true
-					})
+					op()
 				case <-c.done:
 					rlog.Info("The RMQClient stopping persist offset", map[string]interface{}{
 						"clientID": c.ClientID(),
