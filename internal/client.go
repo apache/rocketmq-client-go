@@ -679,9 +679,6 @@ func (c *rmqClient) updateSubscribeInfo(topic string, data *TopicRouteData, chan
 	if data == nil {
 		return
 	}
-	if !c.isNeedUpdateSubscribeInfo(topic) {
-		return
-	}
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
 		updated := changed
