@@ -12,7 +12,10 @@
 ( The alpha version of Apache RocketMQ Go in Pure Go has been released, Welcome have a try! [native version](https://github.com/apache/rocketmq-client-go/tree/native) )
 
 * The client is using cgo to call [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), which has been proven robust and widely adopted within Alibaba Group by many business units for more than three years.
-
+----------
+## [Due Diligence](https://github.com/apache/rocketmq-client-go/issues/423)
+[Here](https://github.com/apache/rocketmq-client-go/issues/423), we sincerely invite you to take a minute to feedback on your usage scenario. 
+[Click Here](https://github.com/apache/rocketmq-client-go/issues/423) or go to [ISSUE #423](https://github.com/apache/rocketmq-client-go/issues/423) if you accept.
 ----------
 ## Features
 At present, this SDK supports
