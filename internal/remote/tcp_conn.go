@@ -19,6 +19,7 @@ package remote
 import (
 	"context"
 	"net"
+	"strings"
 
 	"go.uber.org/atomic"
 )
@@ -31,13 +32,33 @@ type tcpConnWrapper struct {
 
 func initConn(ctx context.Context, addr string) (*tcpConnWrapper, error) {
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", addr)
+
+	dstAddr := addr
+	if !isIPV4(dstAddr) {
+		i := strings.LastIndex(addr, ":")
+		dstAddr = "[" + addr[:i] + "]:" + addr[i+1:]
+	}
+
+	conn, err := d.DialContext(ctx, "tcp", dstAddr)
 	if err != nil {
 		return nil, err
 	}
 	return &tcpConnWrapper{
 		Conn: conn,
 	}, nil
+}
+
+// reference by net.ParseIP
+func isIPV4(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '.':
+			return true
+		case ':':
+			return false
+		}
+	}
+	return false
 }
 
 func (wrapper *tcpConnWrapper) destroy() error {

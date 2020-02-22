@@ -124,6 +124,7 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrap
 	if ok {
 		return conn.(*tcpConnWrapper), nil
 	}
+
 	tcpConn, err := initConn(ctx, addr)
 	if err != nil {
 		return nil, err
