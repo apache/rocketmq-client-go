@@ -36,3 +36,33 @@ type MQBrokerErr struct {
 func (e MQBrokerErr) Error() string {
 	return "CODE: " + strconv.Itoa(int(e.ResponseCode)) + "  DESC: " + e.ErrorMessage
 }
+
+func NewRemotingErr(s string) error {
+	return &RemotingErr{s: s}
+}
+
+type RemotingErr struct {
+	s string
+}
+
+func (e *RemotingErr) Error() string {
+	return e.s
+}
+
+func NewMQClientErr(code int16, msg string) error {
+	return &MQClientErr{code: code, msg: msg}
+}
+
+type MQClientErr struct {
+	code int16
+	msg  string
+}
+
+func (e MQClientErr) Error() string {
+	return "CODE: " + strconv.Itoa(int(e.code)) + "  DESC: " + e.msg
+}
+
+func IsRemotingErr(err error) bool {
+	_, ok := err.(*RemotingErr)
+	return ok
+}
