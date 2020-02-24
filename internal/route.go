@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
@@ -592,6 +592,10 @@ func (b *BrokerData) Equals(bd *BrokerData) bool {
 	}
 
 	if b.BrokerName != bd.BrokerName {
+		return false
+	}
+
+	if len(b.BrokerAddresses) != len(bd.BrokerAddresses) {
 		return false
 	}
 
