@@ -26,9 +26,11 @@ import (
 
 func defaultProducerOptions() producerOptions {
 	opts := producerOptions{
-		ClientOptions:  internal.DefaultClientOptions(),
-		Selector:       NewHashQueueSelector(),
-		SendMsgTimeout: 3 * time.Second,
+		ClientOptions:         internal.DefaultClientOptions(),
+		Selector:              NewRoundRobinQueueSelector(),
+		SendMsgTimeout:        3 * time.Second,
+		DefaultTopicQueueNums: 4,
+		CreateTopicKey:        "TBW102",
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -36,8 +38,11 @@ func defaultProducerOptions() producerOptions {
 
 type producerOptions struct {
 	internal.ClientOptions
-	Selector       QueueSelector
-	SendMsgTimeout time.Duration
+	Selector              QueueSelector
+	SendMsgTimeout        time.Duration
+	DefaultTopicQueueNums int
+	CreateTopicKey        string // "TBW102" Will be created at broker when isAutoCreateTopicEnable. when topic is not created,
+	// and broker open isAutoCreateTopicEnable, topic will use "TBW102" config to create topic
 }
 
 type Option func(*producerOptions)
@@ -107,5 +112,17 @@ func WithQueueSelector(s QueueSelector) Option {
 func WithCredentials(c primitive.Credentials) Option {
 	return func(options *producerOptions) {
 		options.ClientOptions.Credentials = c
+	}
+}
+
+func WithDefaultTopicQueueNums(queueNum int) Option {
+	return func(options *producerOptions) {
+		options.DefaultTopicQueueNums = queueNum
+	}
+}
+
+func WithCreateTopicKey(topic string) Option {
+	return func(options *producerOptions) {
+		options.CreateTopicKey = topic
 	}
 }

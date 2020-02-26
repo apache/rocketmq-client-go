@@ -41,9 +41,20 @@ func TestCreateMessageId(t *testing.T) {
 		b := []byte{10, 93, 233, 58}
 		port := int32(10911)
 		offset := int64(4391252)
-		id := createMessageId(b, port, offset)
-
+		id := CreateMessageId(b, port, offset)
 		Convey("generated messageId should be equal to expected", func() {
+			assert.Equal(t, "0A5DE93A00002A9F0000000000430154", id)
+		})
+
+		b2 := []byte("127.0.0.1")
+		port2 := int32(11)
+		offset2 := int64(12)
+		id2 := CreateMessageId(b2, port2, offset2)
+		Convey("new generated messageId should be equal to expected", func() {
+			assert.Equal(t, "3132372E302E302E310000000B000000000000000C", id2)
+		})
+
+		Convey("ex-generated messageId should not change", func() {
 			assert.Equal(t, "0A5DE93A00002A9F0000000000430154", id)
 		})
 	})

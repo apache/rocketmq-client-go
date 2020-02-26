@@ -21,11 +21,10 @@ limitations under the License.
 package internal
 
 import (
-	"reflect"
+	reflect "reflect"
 
-	"github.com/golang/mock/gomock"
-
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockNamesrvs is a mock of Namesrvs interface
@@ -53,49 +52,59 @@ func (m *MockNamesrvs) EXPECT() *MockNamesrvsMockRecorder {
 
 // UpdateNameServerAddress mocks base method
 func (m *MockNamesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateNameServerAddress", nameServerDomain, instanceName)
 }
 
 // UpdateNameServerAddress indicates an expected call of UpdateNameServerAddress
 func (mr *MockNamesrvsMockRecorder) UpdateNameServerAddress(nameServerDomain, instanceName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNameServerAddress", reflect.TypeOf((*MockNamesrvs)(nil).UpdateNameServerAddress), nameServerDomain, instanceName)
 }
 
 // AddBroker mocks base method
 func (m *MockNamesrvs) AddBroker(routeData *TopicRouteData) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddBroker", routeData)
 }
 
 // AddBroker indicates an expected call of AddBroker
 func (mr *MockNamesrvsMockRecorder) AddBroker(routeData interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBroker", reflect.TypeOf((*MockNamesrvs)(nil).AddBroker), routeData)
 }
 
 // cleanOfflineBroker mocks base method
 func (m *MockNamesrvs) cleanOfflineBroker() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "cleanOfflineBroker")
 }
 
 // cleanOfflineBroker indicates an expected call of cleanOfflineBroker
 func (mr *MockNamesrvsMockRecorder) cleanOfflineBroker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "cleanOfflineBroker", reflect.TypeOf((*MockNamesrvs)(nil).cleanOfflineBroker))
 }
 
 // UpdateTopicRouteInfo mocks base method
-func (m *MockNamesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool) {
+func (m *MockNamesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTopicRouteInfo", topic)
 	ret0, _ := ret[0].(*TopicRouteData)
 	ret1, _ := ret[1].(bool)
-	return ret0, ret1
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // UpdateTopicRouteInfo indicates an expected call of UpdateTopicRouteInfo
 func (mr *MockNamesrvsMockRecorder) UpdateTopicRouteInfo(topic interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTopicRouteInfo", reflect.TypeOf((*MockNamesrvs)(nil).UpdateTopicRouteInfo), topic)
 }
 
 // FetchPublishMessageQueues mocks base method
 func (m *MockNamesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchPublishMessageQueues", topic)
 	ret0, _ := ret[0].([]*primitive.MessageQueue)
 	ret1, _ := ret[1].(error)
@@ -104,11 +113,13 @@ func (m *MockNamesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.Mes
 
 // FetchPublishMessageQueues indicates an expected call of FetchPublishMessageQueues
 func (mr *MockNamesrvsMockRecorder) FetchPublishMessageQueues(topic interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchPublishMessageQueues", reflect.TypeOf((*MockNamesrvs)(nil).FetchPublishMessageQueues), topic)
 }
 
 // FindBrokerAddrByTopic mocks base method
 func (m *MockNamesrvs) FindBrokerAddrByTopic(topic string) string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindBrokerAddrByTopic", topic)
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -116,11 +127,13 @@ func (m *MockNamesrvs) FindBrokerAddrByTopic(topic string) string {
 
 // FindBrokerAddrByTopic indicates an expected call of FindBrokerAddrByTopic
 func (mr *MockNamesrvsMockRecorder) FindBrokerAddrByTopic(topic interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBrokerAddrByTopic", reflect.TypeOf((*MockNamesrvs)(nil).FindBrokerAddrByTopic), topic)
 }
 
 // FindBrokerAddrByName mocks base method
 func (m *MockNamesrvs) FindBrokerAddrByName(brokerName string) string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindBrokerAddrByName", brokerName)
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -128,11 +141,13 @@ func (m *MockNamesrvs) FindBrokerAddrByName(brokerName string) string {
 
 // FindBrokerAddrByName indicates an expected call of FindBrokerAddrByName
 func (mr *MockNamesrvsMockRecorder) FindBrokerAddrByName(brokerName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBrokerAddrByName", reflect.TypeOf((*MockNamesrvs)(nil).FindBrokerAddrByName), brokerName)
 }
 
 // FindBrokerAddressInSubscribe mocks base method
 func (m *MockNamesrvs) FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindBrokerAddressInSubscribe", brokerName, brokerId, onlyThisBroker)
 	ret0, _ := ret[0].(*FindBrokerResult)
 	return ret0
@@ -140,11 +155,13 @@ func (m *MockNamesrvs) FindBrokerAddressInSubscribe(brokerName string, brokerId 
 
 // FindBrokerAddressInSubscribe indicates an expected call of FindBrokerAddressInSubscribe
 func (mr *MockNamesrvsMockRecorder) FindBrokerAddressInSubscribe(brokerName, brokerId, onlyThisBroker interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBrokerAddressInSubscribe", reflect.TypeOf((*MockNamesrvs)(nil).FindBrokerAddressInSubscribe), brokerName, brokerId, onlyThisBroker)
 }
 
 // FetchSubscribeMessageQueues mocks base method
 func (m *MockNamesrvs) FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchSubscribeMessageQueues", topic)
 	ret0, _ := ret[0].([]*primitive.MessageQueue)
 	ret1, _ := ret[1].(error)
@@ -153,11 +170,13 @@ func (m *MockNamesrvs) FetchSubscribeMessageQueues(topic string) ([]*primitive.M
 
 // FetchSubscribeMessageQueues indicates an expected call of FetchSubscribeMessageQueues
 func (mr *MockNamesrvsMockRecorder) FetchSubscribeMessageQueues(topic interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSubscribeMessageQueues", reflect.TypeOf((*MockNamesrvs)(nil).FetchSubscribeMessageQueues), topic)
 }
 
 // AddrList mocks base method
 func (m *MockNamesrvs) AddrList() []string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddrList")
 	ret0, _ := ret[0].([]string)
 	return ret0
@@ -165,5 +184,6 @@ func (m *MockNamesrvs) AddrList() []string {
 
 // AddrList indicates an expected call of AddrList
 func (mr *MockNamesrvsMockRecorder) AddrList() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddrList", reflect.TypeOf((*MockNamesrvs)(nil).AddrList))
 }

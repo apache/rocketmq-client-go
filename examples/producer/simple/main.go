@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -38,9 +39,14 @@ func main() {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
-	for i := 0; i < 1000; i++ {
-		res, err := p.SendSync(context.Background(), primitive.NewMessage("test",
-			[]byte("Hello RocketMQ Go Client!")))
+	topic := "test"
+
+	for i := 0; i < 10; i++ {
+		msg := &primitive.Message{
+			Topic: topic,
+			Body:  []byte("Hello RocketMQ Go Client! " + strconv.Itoa(i)),
+		}
+		res, err := p.SendSync(context.Background(), msg)
 
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)
