@@ -262,6 +262,7 @@ func (c *rmqClient) Start() {
 		}
 		// fetchNameServerAddr
 		if len(c.option.NameServerAddrs) == 0 {
+			c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
 			go primitive.WithRecover(func() {
 				op := func() {
 					c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
