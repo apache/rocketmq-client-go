@@ -70,6 +70,13 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 	}
 }
 
+// WithNameServerDomain set NameServer domain
+func WithNameServerDomain(nameServerUrl string) Option {
+	return func(opts *producerOptions) {
+		opts.NameServerDomain = nameServerUrl
+	}
+}
+
 // WithNamespace set the namespace of producer
 func WithNamespace(namespace string) Option {
 	return func(opts *producerOptions) {
