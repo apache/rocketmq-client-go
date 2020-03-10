@@ -483,11 +483,11 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerId":   id,
 					"brokerAddr": addr,
 				})
-			}else {
+			} else {
 				rlog.Warning("send heart beat to broker failed", map[string]interface{}{
-					"brokerName": brokerName,
-					"brokerId":   id,
-					"brokerAddr": addr,
+					"brokerName":   brokerName,
+					"brokerId":     id,
+					"brokerAddr":   addr,
 					"responseCode": response.Code,
 				})
 			}
