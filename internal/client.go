@@ -449,7 +449,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		consumer := value.(InnerConsumer)
 		cData := consumerData{
 			GroupName:         key.(string),
-			CType:             "PUSH",
+			CType:             "CONSUME_PASSIVELY",
 			MessageModel:      "CLUSTERING",
 			Where:             "CONSUME_FROM_FIRST_OFFSET",
 			UnitMode:          consumer.IsUnitMode(),
@@ -482,6 +482,13 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerName": brokerName,
 					"brokerId":   id,
 					"brokerAddr": addr,
+				})
+			}else {
+				rlog.Warning("send heart beat to broker failed", map[string]interface{}{
+					"brokerName": brokerName,
+					"brokerId":   id,
+					"brokerAddr": addr,
+					"responseCode": response.Code,
 				})
 			}
 		}
