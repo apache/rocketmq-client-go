@@ -344,6 +344,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 	if s.Size() == 0 {
 		rlog.Error("namesrv list empty. UpdateNameServerAddress should be called first.", map[string]interface{}{
 			"namesrv": s,
+			"topic":   topic,
 		})
 		return nil, primitive.NewRemotingErr("namesrv list empty")
 	}
@@ -360,6 +361,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 	if err != nil {
 		rlog.Error("connect to namesrv failed.", map[string]interface{}{
 			"namesrv": s,
+			"topic":   topic,
 		})
 		return nil, primitive.NewRemotingErr(err.Error())
 	}
@@ -375,6 +377,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		if err != nil {
 			rlog.Warning("decode TopicRouteData error: %s", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
+				"topic":                  topic,
 			})
 			return nil, err
 		}
