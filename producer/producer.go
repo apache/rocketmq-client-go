@@ -80,6 +80,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 
 func (p *defaultProducer) Start() error {
 	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
+	if len(p.options.NameServerAddrs) == 0 {
+		p.options.Namesrv.UpdateNameServerAddress(p.options.NameServerDomain, p.options.InstanceName)
+	}
+
 	p.client.RegisterProducer(p.group, p)
 	p.client.Start()
 	return nil
