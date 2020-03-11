@@ -339,6 +339,15 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		response *remote.RemotingCommand
 		err      error
 	)
+
+	//if s.Size() == 0, response will be nil, lead to panic below.
+	if s.Size() == 0 {
+		rlog.Error("namesrv list empty. UpdateNameServerAddress should be called first.", map[string]interface{}{
+			"namesrv": s,
+		})
+		return nil, primitive.NewRemotingErr("namesrv list empty")
+	}
+
 	for i := 0; i < s.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
 		ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
