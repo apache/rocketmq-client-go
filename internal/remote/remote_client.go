@@ -141,32 +141,28 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 	defer primitive.BackHeader(header)
 	for {
 		if err != nil {
+			// conn has been closed actively
 			if r.isClosed(err) {
 				return
 			}
-			rlog.Error("conn error, close connection", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
-			})
+			if err != io.EOF {
+				rlog.Error("conn error, close connection", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+				})
+			}
+			c.closeConnection(r)
+			r.destroy()
 			break
 		}
 
 		_, err = io.ReadFull(r, header)
 		if err != nil {
-			if r.isClosed(err) {
-				return
-			}
-			rlog.Error("io ReadFull error when read header", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
-			})
 			continue
 		}
 
 		var length int32
 		err = binary.Read(bytes.NewReader(header), binary.BigEndian, &length)
 		if err != nil {
-			rlog.Error("binary decode header error", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
-			})
 			continue
 		}
 
@@ -174,12 +170,6 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 
 		_, err = io.ReadFull(r, buf)
 		if err != nil {
-			if r.isClosed(err) {
-				return
-			}
-			rlog.Error("io ReadFull error when read payload", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
-			})
 			continue
 		}
 
@@ -317,10 +307,6 @@ func (c *remotingClient) ShutDown() {
 			rlog.Warning("close remoting conn error", map[string]interface{}{
 				"remote":                 conn.RemoteAddr(),
 				rlog.LogKeyUnderlayError: err,
-			})
-		} else {
-			rlog.Info("remoting conn closed", map[string]interface{}{
-				"remote": conn.RemoteAddr(),
 			})
 		}
 		return true
