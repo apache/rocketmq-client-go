@@ -547,6 +547,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	for i := 0; i < len(msgs); i++ {
 		msgIDs = append(msgIDs, msgs[i].GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex))
 	}
+	uniqueMsgId := strings.Join(msgIDs, ",")
 
 	regionId := cmd.ExtFields[primitive.PropertyMsgRegion]
 	trace := cmd.ExtFields[primitive.PropertyTraceSwitch]
@@ -559,7 +560,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	off, _ := strconv.ParseInt(cmd.ExtFields["queueOffset"], 10, 64)
 
 	resp.Status = status
-	resp.MsgID = cmd.ExtFields["msgId"]
+	resp.MsgID = uniqueMsgId
 	resp.OffsetMsgID = cmd.ExtFields["msgId"]
 	resp.MessageQueue = &primitive.MessageQueue{
 		Topic:      msgs[0].Topic,
@@ -567,7 +568,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 		QueueId:    qId,
 	}
 	resp.QueueOffset = off
-	//TransactionID: sendResponse.TransactionId,
+	resp.TransactionID = cmd.ExtFields["transactionId"]
 	resp.RegionID = regionId
 	resp.TraceOn = trace != "" && trace != _TranceOff
 	return nil
