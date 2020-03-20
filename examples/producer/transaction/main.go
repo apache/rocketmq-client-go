@@ -79,7 +79,7 @@ func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primiti
 func main() {
 	p, _ := rocketmq.NewTransactionProducer(
 		NewDemoListener(),
-		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		producer.WithRetry(1),
 	)
 	err := p.Start()

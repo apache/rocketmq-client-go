@@ -104,6 +104,8 @@ type consumerOptions struct {
 	//
 	AutoCommit            bool
 	RebalanceLockInterval time.Duration
+
+	Resolver primitive.NsResolver
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -115,6 +117,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		MaxReconsumeTimes:          -1,
 		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
+		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -125,6 +128,7 @@ type Option func(*consumerOptions)
 func defaultPullConsumerOptions() consumerOptions {
 	opts := consumerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
+		Resolver:      primitive.NewHttpResolver("DEFAULT"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -176,20 +180,6 @@ func WithGroupName(group string) Option {
 func WithInstance(name string) Option {
 	return func(options *consumerOptions) {
 		options.InstanceName = name
-	}
-}
-
-// WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers primitive.NamesrvAddr) Option {
-	return func(opts *consumerOptions) {
-		opts.NameServerAddrs = nameServers
-	}
-}
-
-// WithNameServerDomain set NameServer domain
-func WithNameServerDomain(nameServerUrl string) Option {
-	return func(opts *consumerOptions) {
-		opts.NameServerDomain = nameServerUrl
 	}
 }
 
@@ -261,5 +251,25 @@ func WithSuspendCurrentQueueTimeMillis(suspendT time.Duration) Option {
 func WithPullInterval(interval time.Duration) Option {
 	return func(options *consumerOptions) {
 		options.PullInterval = interval
+	}
+}
+
+func WithNsResovler(resolver primitive.NsResolver) Option {
+	return func(options *consumerOptions) {
+		options.Resolver = resolver
+	}
+}
+
+// WithNameServer set NameServer address, only support one NameServer cluster in alpha2
+func WithNameServer(nameServers primitive.NamesrvAddr) Option {
+	return func(options *consumerOptions) {
+		options.Resolver = primitive.NewPassthroughResolver(nameServers)
+	}
+}
+
+// WithNameServerDomain set NameServer domain
+func WithNameServerDomain(nameServerUrl string) Option {
+	return func(opts *consumerOptions) {
+		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
 	}
 }

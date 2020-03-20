@@ -27,7 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
@@ -273,9 +274,6 @@ type defaultConsumer struct {
 }
 
 func (dc *defaultConsumer) start() error {
-	if len(dc.option.NameServerAddrs) == 0 {
-		dc.namesrv.UpdateNameServerAddress(dc.option.NameServerDomain, dc.option.InstanceName)
-	}
 	if dc.model == Clustering {
 		// set retry topic
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)

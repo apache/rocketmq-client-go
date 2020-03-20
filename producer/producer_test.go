@@ -35,7 +35,7 @@ const (
 
 func TestShutdown(t *testing.T) {
 	p, _ := NewDefaultProducer(
-		WithNameServer([]string{"127.0.0.1:9876"}),
+		WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		WithRetry(2),
 		WithQueueSelector(NewManualQueueSelector()),
 	)
@@ -98,7 +98,7 @@ func mockB4Send(p *defaultProducer) {
 
 func TestSync(t *testing.T) {
 	p, _ := NewDefaultProducer(
-		WithNameServer([]string{"127.0.0.1:9876"}),
+		WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		WithRetry(2),
 		WithQueueSelector(NewManualQueueSelector()),
 	)
@@ -149,7 +149,7 @@ func TestSync(t *testing.T) {
 
 func TestASync(t *testing.T) {
 	p, _ := NewDefaultProducer(
-		WithNameServer([]string{"127.0.0.1:9876"}),
+		WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		WithRetry(2),
 		WithQueueSelector(NewManualQueueSelector()),
 	)
@@ -211,7 +211,7 @@ func TestASync(t *testing.T) {
 
 func TestOneway(t *testing.T) {
 	p, _ := NewDefaultProducer(
-		WithNameServer([]string{"127.0.0.1:9876"}),
+		WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		WithRetry(2),
 		WithQueueSelector(NewManualQueueSelector()),
 	)

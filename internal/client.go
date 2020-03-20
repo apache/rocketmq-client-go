@@ -97,8 +97,6 @@ func DefaultClientOptions() ClientOptions {
 
 type ClientOptions struct {
 	GroupName         string
-	NameServerAddrs   primitive.NamesrvAddr
-	NameServerDomain  string
 	Namesrv           *namesrvs
 	ClientIP          string
 	InstanceName      string
@@ -109,6 +107,7 @@ type ClientOptions struct {
 	Interceptors      []primitive.Interceptor
 	Credentials       primitive.Credentials
 	Namespace         string
+	Resolver          primitive.NsResolver
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -260,31 +259,27 @@ func (c *rmqClient) Start() {
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
-		// fetchNameServerAddr
-		if len(c.option.NameServerAddrs) == 0 {
-			c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
-			go primitive.WithRecover(func() {
-				op := func() {
-					c.namesrvs.UpdateNameServerAddress(c.option.NameServerDomain, c.option.InstanceName)
-				}
-				time.Sleep(10 * time.Second)
-				op()
+		go primitive.WithRecover(func() {
+			op := func() {
+				c.namesrvs.UpdateNameServerAddress()
+			}
+			time.Sleep(10 * time.Second)
+			op()
 
-				ticker := time.NewTicker(2 * time.Minute)
-				defer ticker.Stop()
-				for {
-					select {
-					case <-ticker.C:
-						op()
-					case <-c.done:
-						rlog.Info("The RMQClient stopping update name server domain info.", map[string]interface{}{
-							"clientID": c.ClientID(),
-						})
-						return
-					}
+			ticker := time.NewTicker(2 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					op()
+				case <-c.done:
+					rlog.Info("The RMQClient stopping update name server domain info.", map[string]interface{}{
+						"clientID": c.ClientID(),
+					})
+					return
 				}
-			})
-		}
+			}
+		})
 
 		// schedule update route info
 		go primitive.WithRecover(func() {

@@ -224,7 +224,7 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 		t = TraceTopicPrefix + traceCfg.TraceTopic
 	}
 
-	srvs, err := NewNamesrv(traceCfg.NamesrvAddrs)
+	srvs, err := NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
 	if err != nil {
 		panic(errors.Wrap(err, "new Namesrv failed."))
 	}

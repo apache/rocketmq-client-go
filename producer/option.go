@@ -31,6 +31,7 @@ func defaultProducerOptions() producerOptions {
 		SendMsgTimeout:        3 * time.Second,
 		DefaultTopicQueueNums: 4,
 		CreateTopicKey:        "TBW102",
+		Resolver:              primitive.NewHttpResolver("DEFAULT"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -43,6 +44,7 @@ type producerOptions struct {
 	DefaultTopicQueueNums int
 	CreateTopicKey        string // "TBW102" Will be created at broker when isAutoCreateTopicEnable. when topic is not created,
 	// and broker open isAutoCreateTopicEnable, topic will use "TBW102" config to create topic
+	Resolver primitive.NsResolver
 }
 
 type Option func(*producerOptions)
@@ -60,20 +62,6 @@ func WithGroupName(group string) Option {
 func WithInstanceName(name string) Option {
 	return func(opts *producerOptions) {
 		opts.InstanceName = name
-	}
-}
-
-// WithNameServer set NameServer address, only support one NameServer cluster in alpha2
-func WithNameServer(nameServers primitive.NamesrvAddr) Option {
-	return func(opts *producerOptions) {
-		opts.NameServerAddrs = nameServers
-	}
-}
-
-// WithNameServerDomain set NameServer domain
-func WithNameServerDomain(nameServerUrl string) Option {
-	return func(opts *producerOptions) {
-		opts.NameServerDomain = nameServerUrl
 	}
 }
 
@@ -131,5 +119,25 @@ func WithDefaultTopicQueueNums(queueNum int) Option {
 func WithCreateTopicKey(topic string) Option {
 	return func(options *producerOptions) {
 		options.CreateTopicKey = topic
+	}
+}
+
+func WithNsResovler(resolver primitive.NsResolver) Option {
+	return func(options *producerOptions) {
+		options.Resolver = resolver
+	}
+}
+
+// WithNameServer set NameServer address, only support one NameServer cluster in alpha2
+func WithNameServer(nameServers primitive.NamesrvAddr) Option {
+	return func(options *producerOptions) {
+		options.Resolver = primitive.NewPassthroughResolver(nameServers)
+	}
+}
+
+// WithNameServerDomain set NameServer domain
+func WithNameServerDomain(nameServerUrl string) Option {
+	return func(opts *producerOptions) {
+		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
 	}
 }

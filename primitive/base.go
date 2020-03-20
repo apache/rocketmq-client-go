@@ -95,3 +95,31 @@ func WithRecover(fn func()) {
 
 	fn()
 }
+
+func Diff(origin, latest []string) bool {
+	if len(origin) != len(latest) {
+		return true
+	}
+
+	// check added
+	originFilter := make(map[string]struct{}, len(origin))
+	for _, srv := range origin {
+		originFilter[srv] = struct{}{}
+	}
+
+	latestFilter := make(map[string]struct{}, len(latest))
+	for _, srv := range latest {
+		if _, ok := originFilter[srv]; !ok {
+			return true // added
+		}
+		latestFilter[srv] = struct{}{}
+	}
+
+	// check delete
+	for _, srv := range origin {
+		if _, ok := latestFilter[srv]; !ok {
+			return true // deleted
+		}
+	}
+	return false
+}
