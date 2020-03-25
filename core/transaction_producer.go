@@ -82,20 +82,20 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 
 	producer := &defaultTransactionProducer{config: config}
 	cs := C.CString(config.GroupID)
-	var cproduer *C.struct_CProducer
+	var cproducer *C.struct_CProducer
 
-	cproduer = C.CreateTransactionProducer(cs, (C.CLocalTransactionCheckerCallback)(unsafe.Pointer(C.transactionChecker_cgo)), unsafe.Pointer(&arg))
+	cproducer = C.CreateTransactionProducer(cs, (C.CLocalTransactionCheckerCallback)(unsafe.Pointer(C.transactionChecker_cgo)), unsafe.Pointer(&arg))
 
 	C.free(unsafe.Pointer(cs))
 
-	if cproduer == nil {
+	if cproducer == nil {
 		return nil, errors.New("create transaction Producer failed")
 	}
 
 	var err rmqError
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
-		err = rmqError(C.SetProducerNameServerAddress(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerAddress(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -104,7 +104,7 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 
 	if config.NameServerDomain != "" {
 		cs = C.CString(config.NameServerDomain)
-		err = rmqError(C.SetProducerNameServerDomain(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerDomain(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -113,7 +113,7 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 
 	if config.InstanceName != "" {
 		cs = C.CString(config.InstanceName)
-		err = rmqError(C.SetProducerInstanceName(cproduer, cs))
+		err = rmqError(C.SetProducerInstanceName(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -124,7 +124,7 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 		ak := C.CString(config.Credentials.AccessKey)
 		sk := C.CString(config.Credentials.SecretKey)
 		ch := C.CString(config.Credentials.Channel)
-		err = rmqError(C.SetProducerSessionCredentials(cproduer, ak, sk, ch))
+		err = rmqError(C.SetProducerSessionCredentials(cproducer, ak, sk, ch))
 
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
@@ -136,53 +136,53 @@ func newDefaultTransactionProducer(config *ProducerConfig, listener TransactionL
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		err = rmqError(C.SetProducerLogPath(cproduer, cs))
+		err = rmqError(C.SetProducerLogPath(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
 		}
 
-		err = rmqError(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		err = rmqError(C.SetProducerLogFileNumAndSize(cproducer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if err != NIL {
 			return nil, err
 		}
 
-		err = rmqError(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
+		err = rmqError(C.SetProducerLogLevel(cproducer, C.CLogLevel(config.LogC.Level)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.SendMsgTimeout > 0 {
-		err = rmqError(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
+		err = rmqError(C.SetProducerSendMsgTimeout(cproducer, C.int(config.SendMsgTimeout)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.CompressLevel > 0 {
-		err = rmqError(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
+		err = rmqError(C.SetProducerCompressLevel(cproducer, C.int(config.CompressLevel)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.MaxMessageSize > 0 {
-		err = rmqError(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
+		err = rmqError(C.SetProducerMaxMessageSize(cproducer, C.int(config.MaxMessageSize)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
-	producer.cproduer = cproduer
-	transactionProducerMap.Store(cproduer, producer)
-	producer.listenerFuncsMap.Store(cproduer, listener)
+	producer.cproducer = cproducer
+	transactionProducerMap.Store(cproducer, producer)
+	producer.listenerFuncsMap.Store(cproducer, listener)
 	return producer, nil
 }
 
 type defaultTransactionProducer struct {
 	config           *ProducerConfig
-	cproduer         *C.struct_CProducer
+	cproducer         *C.struct_CProducer
 	listenerFuncsMap sync.Map
 }
 
@@ -192,7 +192,7 @@ func (p *defaultTransactionProducer) String() string {
 
 // Start the producer.
 func (p *defaultTransactionProducer) Start() error {
-	err := rmqError(C.StartProducer(p.cproduer))
+	err := rmqError(C.StartProducer(p.cproducer))
 	if err != NIL {
 		return err
 	}
@@ -201,13 +201,13 @@ func (p *defaultTransactionProducer) Start() error {
 
 // Shutdown the producer.
 func (p *defaultTransactionProducer) Shutdown() error {
-	err := rmqError(C.ShutdownProducer(p.cproduer))
+	err := rmqError(C.ShutdownProducer(p.cproducer))
 
 	if err != NIL {
 		return err
 	}
 
-	err = rmqError(int(C.DestroyProducer(p.cproduer)))
+	err = rmqError(int(C.DestroyProducer(p.cproducer)))
 	if err != NIL {
 		return err
 	}
@@ -220,7 +220,7 @@ func (p *defaultTransactionProducer) SendMessageTransaction(msg *Message, arg in
 	defer C.DestroyMessage(cmsg)
 
 	var sr C.struct__SendResult_
-	err := rmqError(C.SendMessageTransaction(p.cproduer, cmsg, (C.CLocalTransactionExecutorCallback)(unsafe.Pointer(C.transactionExecutor_cgo)), unsafe.Pointer(&arg), &sr))
+	err := rmqError(C.SendMessageTransaction(p.cproducer, cmsg, (C.CLocalTransactionExecutorCallback)(unsafe.Pointer(C.transactionExecutor_cgo)), unsafe.Pointer(&arg), &sr))
 	if err != NIL {
 		log.Warnf("send message error, error is: %s", err.Error())
 		return nil, err

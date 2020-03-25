@@ -19,6 +19,7 @@ package rocketmq
 
 /*
 #include <rocketmq/CCommon.h>
+#include <rocketmq/CErrorMessage.h>
 */
 import "C"
 import "fmt"
@@ -71,4 +72,9 @@ func (e rmqError) Error() string {
 	default:
 		return fmt.Sprintf("unknow error: %v", int(e))
 	}
+}
+
+// GetLatestErrorMessage Get latest detailed error message from CPP-SDK
+func GetLatestErrorMessage() string {
+	return C.GoString(C.GetLatestErrorMessage())
 }
