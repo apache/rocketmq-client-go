@@ -393,7 +393,12 @@ func (c *rmqClient) Shutdown() {
 }
 
 func (c *rmqClient) ClientID() string {
-	id := c.option.ClientIP + "@" + c.option.InstanceName
+	id := c.option.ClientIP + "@"
+	if c.option.InstanceName == "DEFAULT" {
+		id += strconv.Itoa(os.Getpid())
+	} else {
+		id += c.option.InstanceName
+	}
 	if c.option.UnitName != "" {
 		id += "@" + c.option.UnitName
 	}
