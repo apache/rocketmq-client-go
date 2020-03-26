@@ -82,25 +82,25 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 
 	producer := &defaultProducer{config: config}
 	cs := C.CString(config.GroupID)
-	var cproduer *C.struct_CProducer
+	var cproducer *C.struct_CProducer
 	if config.ProducerModel == OrderlyProducer {
-		cproduer = C.CreateOrderlyProducer(cs)
+		cproducer = C.CreateOrderlyProducer(cs)
 	} else if config.ProducerModel == CommonProducer {
-		cproduer = C.CreateProducer(cs)
+		cproducer = C.CreateProducer(cs)
 	} else {
 		C.free(unsafe.Pointer(cs))
 		return nil, errors.New("ProducerModel is invalid or empty")
 	}
 	C.free(unsafe.Pointer(cs))
 
-	if cproduer == nil {
+	if cproducer == nil {
 		return nil, errors.New("create Producer failed")
 	}
 
 	var err rmqError
 	if config.NameServer != "" {
 		cs = C.CString(config.NameServer)
-		err = rmqError(C.SetProducerNameServerAddress(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerAddress(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -109,7 +109,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 
 	if config.NameServerDomain != "" {
 		cs = C.CString(config.NameServerDomain)
-		err = rmqError(C.SetProducerNameServerDomain(cproduer, cs))
+		err = rmqError(C.SetProducerNameServerDomain(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -118,7 +118,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 
 	if config.InstanceName != "" {
 		cs = C.CString(config.InstanceName)
-		err = rmqError(C.SetProducerInstanceName(cproduer, cs))
+		err = rmqError(C.SetProducerInstanceName(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
@@ -129,7 +129,7 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 		ak := C.CString(config.Credentials.AccessKey)
 		sk := C.CString(config.Credentials.SecretKey)
 		ch := C.CString(config.Credentials.Channel)
-		err = rmqError(C.SetProducerSessionCredentials(cproduer, ak, sk, ch))
+		err = rmqError(C.SetProducerSessionCredentials(cproducer, ak, sk, ch))
 
 		C.free(unsafe.Pointer(ak))
 		C.free(unsafe.Pointer(sk))
@@ -141,51 +141,51 @@ func newDefaultProducer(config *ProducerConfig) (*defaultProducer, error) {
 
 	if config.LogC != nil {
 		cs = C.CString(config.LogC.Path)
-		err = rmqError(C.SetProducerLogPath(cproduer, cs))
+		err = rmqError(C.SetProducerLogPath(cproducer, cs))
 		C.free(unsafe.Pointer(cs))
 		if err != NIL {
 			return nil, err
 		}
 
-		err = rmqError(C.SetProducerLogFileNumAndSize(cproduer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
+		err = rmqError(C.SetProducerLogFileNumAndSize(cproducer, C.int(config.LogC.FileNum), C.long(config.LogC.FileSize)))
 		if err != NIL {
 			return nil, err
 		}
 
-		err = rmqError(C.SetProducerLogLevel(cproduer, C.CLogLevel(config.LogC.Level)))
+		err = rmqError(C.SetProducerLogLevel(cproducer, C.CLogLevel(config.LogC.Level)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.SendMsgTimeout > 0 {
-		err = rmqError(C.SetProducerSendMsgTimeout(cproduer, C.int(config.SendMsgTimeout)))
+		err = rmqError(C.SetProducerSendMsgTimeout(cproducer, C.int(config.SendMsgTimeout)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.CompressLevel > 0 {
-		err = rmqError(C.SetProducerCompressLevel(cproduer, C.int(config.CompressLevel)))
+		err = rmqError(C.SetProducerCompressLevel(cproducer, C.int(config.CompressLevel)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
 	if config.MaxMessageSize > 0 {
-		err = rmqError(C.SetProducerMaxMessageSize(cproduer, C.int(config.MaxMessageSize)))
+		err = rmqError(C.SetProducerMaxMessageSize(cproducer, C.int(config.MaxMessageSize)))
 		if err != NIL {
 			return nil, err
 		}
 	}
 
-	producer.cproduer = cproduer
+	producer.cproducer = cproducer
 	return producer, nil
 }
 
 type defaultProducer struct {
 	config   *ProducerConfig
-	cproduer *C.struct_CProducer
+	cproducer *C.struct_CProducer
 }
 
 func (p *defaultProducer) String() string {
@@ -194,7 +194,7 @@ func (p *defaultProducer) String() string {
 
 // Start the producer.
 func (p *defaultProducer) Start() error {
-	err := rmqError(C.StartProducer(p.cproduer))
+	err := rmqError(C.StartProducer(p.cproducer))
 	if err != NIL {
 		return err
 	}
@@ -203,13 +203,13 @@ func (p *defaultProducer) Start() error {
 
 // Shutdown the producer.
 func (p *defaultProducer) Shutdown() error {
-	err := rmqError(C.ShutdownProducer(p.cproduer))
+	err := rmqError(C.ShutdownProducer(p.cproducer))
 
 	if err != NIL {
 		return err
 	}
 
-	err = rmqError(int(C.DestroyProducer(p.cproduer)))
+	err = rmqError(int(C.DestroyProducer(p.cproducer)))
 	if err != NIL {
 		return err
 	}
@@ -222,7 +222,7 @@ func (p *defaultProducer) SendMessageSync(msg *Message) (*SendResult, error) {
 	defer C.DestroyMessage(cmsg)
 
 	var sr C.struct__SendResult_
-	err := rmqError(C.SendMessageSync(p.cproduer, cmsg, &sr))
+	err := rmqError(C.SendMessageSync(p.cproducer, cmsg, &sr))
 
 	if err != NIL {
 		log.Warnf("send message error, error is: %s", err.Error())
@@ -247,7 +247,7 @@ func (p *defaultProducer) SendMessageOrderly(msg *Message, selector MessageQueue
 
 	var sr C.struct__SendResult_
 	err := rmqError(C.SendMessageOrderly(
-		p.cproduer,
+		p.cproducer,
 		cmsg,
 		(C.QueueSelectorCallback)(unsafe.Pointer(C.queueSelectorCallback_cgo)),
 		unsafe.Pointer(&key),
@@ -270,7 +270,7 @@ func (p *defaultProducer) SendMessageOneway(msg *Message) error {
 	cmsg := goMsgToC(msg)
 	defer C.DestroyMessage(cmsg)
 
-	err := rmqError(C.SendMessageOneway(p.cproduer, cmsg))
+	err := rmqError(C.SendMessageOneway(p.cproducer, cmsg))
 	if err != NIL {
 		log.Warnf("send message with oneway error, error is: %s", err.Error())
 		return err
@@ -291,7 +291,7 @@ func (p *defaultProducer) SendMessageOrderlyByShardingKey(msg *Message, sharding
 	defer C.free(unsafe.Pointer(cshardingkey))
 	var sr C.struct__SendResult_
 	err := rmqError(C.SendMessageOrderlyByShardingKey(
-		p.cproduer,
+		p.cproducer,
 		cmsg,
 		cshardingkey,
 		&sr))
