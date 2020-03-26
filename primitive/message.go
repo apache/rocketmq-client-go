@@ -237,6 +237,7 @@ func (m *Message) Marshal() []byte {
 type MessageExt struct {
 	Message
 	MsgId                     string
+	OffsetMsgId               string
 	StoreSize                 int32
 	QueueOffset               int64
 	SysFlag                   int32
@@ -263,9 +264,9 @@ func (msgExt *MessageExt) IsTraceOn() string {
 }
 
 func (msgExt *MessageExt) String() string {
-	return fmt.Sprintf("[Message=%s, MsgId=%s, QueueId=%d, StoreSize=%d, QueueOffset=%d, SysFlag=%d, "+
+	return fmt.Sprintf("[Message=%s, MsgId=%s, OffsetMsgId=%s,QueueId=%d, StoreSize=%d, QueueOffset=%d, SysFlag=%d, "+
 		"BornTimestamp=%d, BornHost=%s, StoreTimestamp=%d, StoreHost=%s, CommitLogOffset=%d, BodyCRC=%d, "+
-		"ReconsumeTimes=%d, PreparedTransactionOffset=%d]", msgExt.Message.String(), msgExt.MsgId, msgExt.Queue.QueueId,
+		"ReconsumeTimes=%d, PreparedTransactionOffset=%d]", msgExt.Message.String(), msgExt.MsgId, msgExt.OffsetMsgId, msgExt.Queue.QueueId,
 		msgExt.StoreSize, msgExt.QueueOffset, msgExt.SysFlag, msgExt.BornTimestamp, msgExt.BornHost,
 		msgExt.StoreTimestamp, msgExt.StoreHost, msgExt.CommitLogOffset, msgExt.BodyCRC, msgExt.ReconsumeTimes,
 		msgExt.PreparedTransactionOffset)
@@ -364,10 +365,16 @@ func DecodeMessage(data []byte) []*MessageExt {
 		}
 		count += 2 + int(propertiesLength)
 
-		msg.MsgId = CreateMessageId(hostBytes, port, msg.CommitLogOffset)
+		msg.OffsetMsgId = CreateMessageId(hostBytes, port, msg.CommitLogOffset)
 		//count += 16
 		if msg.properties == nil {
 			msg.properties = make(map[string]string, 0)
+		}
+		msgID := msg.GetProperty(PropertyUniqueClientMessageIdKeyIndex)
+		if len(msgID) == 0 {
+			msg.MsgId = msg.OffsetMsgId
+		} else {
+			msg.MsgId = msgID
 		}
 		msgs = append(msgs, msg)
 	}
