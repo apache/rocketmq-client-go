@@ -89,9 +89,21 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(ctx.RegionId)
 		buffer.WriteRune(contentSplitter)
-		buffer.WriteString(ctx.GroupName)
+		ss := strings.Split(ctx.GroupName, "%")
+		if len(ss) == 2 {
+			buffer.WriteString(ss[1])
+		} else {
+			buffer.WriteString(ctx.GroupName)
+		}
+
 		buffer.WriteRune(contentSplitter)
-		buffer.WriteString(bean.Topic)
+		ssTopic := strings.Split(bean.Topic, "%")
+		if len(ssTopic) == 2 {
+			buffer.WriteString(ssTopic[1])
+		} else {
+			buffer.WriteString(bean.Topic)
+		}
+		//buffer.WriteString(bean.Topic)
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(bean.MsgId)
 		buffer.WriteRune(contentSplitter)
@@ -119,7 +131,12 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(ctx.RegionId)
 			buffer.WriteRune(contentSplitter)
-			buffer.WriteString(ctx.GroupName)
+			ss := strings.Split(ctx.GroupName, "%")
+			if len(ss) == 2 {
+				buffer.WriteString(ss[1])
+			} else {
+				buffer.WriteString(ctx.GroupName)
+			}
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(ctx.RequestId)
 			buffer.WriteRune(contentSplitter)
