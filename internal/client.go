@@ -393,7 +393,12 @@ func (c *rmqClient) Shutdown() {
 }
 
 func (c *rmqClient) ClientID() string {
-	id := c.option.ClientIP + "@" + c.option.InstanceName
+	id := c.option.ClientIP + "@"
+	if c.option.InstanceName == "DEFAULT" {
+		id += strconv.Itoa(os.Getpid())
+	} else {
+		id += c.option.InstanceName
+	}
 	if c.option.UnitName != "" {
 		id += "@" + c.option.UnitName
 	}
@@ -466,6 +471,19 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		brokerName := key.(string)
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
+			rlog.Debug("try to send heart beat to broker", map[string]interface{}{
+				"brokerName": brokerName,
+				"brokerId":   id,
+				"brokerAddr": addr,
+			})
+			if hbData.ConsumerDatas.Len() == 0 && id != 0 {
+				rlog.Debug("notice, will not send heart beat to broker", map[string]interface{}{
+					"brokerName": brokerName,
+					"brokerId":   id,
+					"brokerAddr": addr,
+				})
+				continue
+			}
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
 
 			ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)

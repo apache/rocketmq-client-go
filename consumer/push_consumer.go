@@ -831,6 +831,11 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 
 			msgCtx, _ := primitive.GetConsumerCtx(ctx)
 			msgCtx.Success = realReply.ConsumeResult == ConsumeSuccess
+			if realReply.ConsumeResult == ConsumeSuccess {
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
+			} else {
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
+			}
 			return e
 		})
 		return container.ConsumeResult, err
