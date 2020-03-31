@@ -9,7 +9,7 @@
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Percentage of issues still open")
 ![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)
 
-( The alpha version of Apache RocketMQ Go in Pure Go has been released, Welcome have a try! [native version](https://github.com/apache/rocketmq-client-go/tree/native) )
+(The Apache RocketMQ Client in Pure Go has been released, Welcome have a try on [the native prodoct ready version](https://github.com/apache/rocketmq-client-go/tree/native))
 
 * The client is using cgo to call [rocketmq-client-cpp](https://github.com/apache/rocketmq-client-cpp), which has been proven robust and widely adopted within Alibaba Group by many business units for more than three years.
 ----------
