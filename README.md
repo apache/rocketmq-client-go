@@ -7,22 +7,22 @@
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Percentage of issues still open")
 ![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)
 
-The RocketMQ Client in pure go, the project is developing, **there is no any guarantee in production environment**. in next versions,
-we will do our best to improve reliability, stability, usability and performance. the API may be changed, and more features will be added.
-there are many works need to continue in this project, like unit test, integration test, stable test, new feature,
-optimization, documents, etc. so, any contribution is very welcome. if you want do something, please browse issue list and select one,
-or create a new issue.
+This is the first product ready RocketMQ Client in pure go, it supports almost the full features of Apache RocketMQ, sunch as pub and sub messages, ACL, tracing and so on, there are many works need to continue for this project, like unit test, integration test, stable test, new feature,
+optimization, documents, etc. and any contribution is very welcome. if you want do something, please browse issue list and select one, or create a new issue.
 
-- [2.0.0 Production Ready Road map](https://github.com/apache/rocketmq-client-go/issues/57)
+[Here](https://github.com/apache/rocketmq-client-go/issues/423), we sincerely invite you to take a minute to feedback on your usage scenario. 
+[Click Here](https://github.com/apache/rocketmq-client-go/issues/423) or go to [ISSUE #423](https://github.com/apache/rocketmq-client-go/issues/423) if you accept.
 
 ----------
 ## Features
-in 2.0.0-rc1, support:
+For 2.0.0 version, it supports:
 * sending message in synchronous mode
 * sending message in asynchronous mode
 * sending message in oneway mode
 * sending orderly messages
 * consuming message using push model
+* message tracing for pub and sub messages
+* ACL for producers and consumers
 
 ----------
 ## How to use
