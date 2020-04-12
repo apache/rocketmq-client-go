@@ -122,6 +122,7 @@ func WithCreateTopicKey(topic string) Option {
 	}
 }
 
+// WithNsResovler set nameserver resolver to fetch nameserver addr
 func WithNsResovler(resolver primitive.NsResolver) Option {
 	return func(options *producerOptions) {
 		options.Resolver = resolver

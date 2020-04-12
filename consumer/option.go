@@ -254,6 +254,7 @@ func WithPullInterval(interval time.Duration) Option {
 	}
 }
 
+// WithNsResovler set nameserver resolver to fetch nameserver addr
 func WithNsResovler(resolver primitive.NsResolver) Option {
 	return func(options *consumerOptions) {
 		options.Resolver = resolver
