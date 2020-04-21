@@ -84,6 +84,9 @@ type InnerConsumer interface {
 	Rebalance()
 	IsUnitMode() bool
 	GetConsumerRunningInfo() *ConsumerRunningInfo
+	GetcType() string
+	GetModel() string
+	GetWhere() string
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -454,9 +457,9 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		consumer := value.(InnerConsumer)
 		cData := consumerData{
 			GroupName:         key.(string),
-			CType:             "CONSUME_PASSIVELY",
-			MessageModel:      "CLUSTERING",
-			Where:             "CONSUME_FROM_FIRST_OFFSET",
+			CType:             consumeType(consumer.GetcType()),
+			MessageModel:      strings.ToUpper(consumer.GetModel()),
+			Where:             consumer.GetWhere(),
 			UnitMode:          consumer.IsUnitMode(),
 			SubscriptionDatas: consumer.SubscriptionDataList(),
 		}
