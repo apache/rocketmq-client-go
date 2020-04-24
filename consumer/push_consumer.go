@@ -267,6 +267,28 @@ func (pc *pushConsumer) IsUnitMode() bool {
 	return pc.unitMode
 }
 
+func (pc *pushConsumer) GetcType() string {
+	return string(pc.cType)
+}
+
+func (pc *pushConsumer) GetModel() string {
+	return pc.model.String()
+}
+
+func (pc *pushConsumer) GetWhere() string {
+	switch pc.fromWhere {
+	case ConsumeFromLastOffset:
+		return "CONSUME_FROM_LAST_OFFSET"
+	case ConsumeFromFirstOffset:
+		return "CONSUME_FROM_FIRST_OFFSET"
+	case ConsumeFromTimestamp:
+		return "CONSUME_FROM_TIMESTAMP"
+	default:
+		return "UNKOWN"
+	}
+
+}
+
 func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 	info := internal.NewConsumerRunningInfo()
 
