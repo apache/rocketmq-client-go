@@ -97,6 +97,7 @@ func DefaultClientOptions() ClientOptions {
 
 type ClientOptions struct {
 	GroupName         string
+	NameServerAddrs   primitive.NamesrvAddr
 	Namesrv           *namesrvs
 	ClientIP          string
 	InstanceName      string
