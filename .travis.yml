@@ -4,7 +4,7 @@ go:
   - "1.11.x"
   - "1.12.x"
 
-go_import_path: github.com/apache/rocketmq-client-go/v2.0.0
+go_import_path: github.com/apache/rocketmq-client-go/v2.0.0-rc1
 
 env:
   global:
@@ -27,7 +27,7 @@ before_script:
   - nohup sh bin/mqbroker -n localhost:9876 &
 
 script:
-  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go/v2.0.0
+  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go/v2.0.0-rc1
   - go fmt ./... && [[ -z `git status -s` ]]
   - go mod vendor && go test ./... -coverprofile=coverage.txt -covermode=atomic
 
