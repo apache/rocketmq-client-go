@@ -44,3 +44,21 @@ func TestVerifyIP(t *testing.T) {
 	err = verifyIP(IPs)
 	assert.Equal(t, "multiple IP addr does not support", err.Error())
 }
+
+func TestBase(t *testing.T) {
+	a := []string{}
+	b := []string{}
+	assert.False(t, Diff(a, b))
+
+	a = []string{"a"}
+	b = []string{"a", "b"}
+	assert.True(t, Diff(a, b))
+
+	a = []string{"a", "b", "c"}
+	b = []string{"c", "a", "b"}
+	assert.False(t, Diff(a, b))
+
+	a = []string{"b", "a"}
+	b = []string{"a", "c"}
+	assert.True(t, Diff(a, b))
+}

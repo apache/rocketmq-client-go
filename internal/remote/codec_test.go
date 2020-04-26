@@ -24,7 +24,8 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/stretchr/testify/assert"
 )
 

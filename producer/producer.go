@@ -57,7 +57,7 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -80,9 +80,6 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 
 func (p *defaultProducer) Start() error {
 	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-	if len(p.options.NameServerAddrs) == 0 {
-		p.options.Namesrv.UpdateNameServerAddress(p.options.NameServerDomain, p.options.InstanceName)
-	}
 
 	p.client.RegisterProducer(p.group, p)
 	p.client.Start()

@@ -29,7 +29,7 @@ import (
 
 func main() {
 	p, _ := rocketmq.NewProducer(
-		producer.WithNameServer([]string{"127.0.0.1:9876"}),
+		producer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		producer.WithRetry(2),
 	)
 	err := p.Start()
