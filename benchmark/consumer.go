@@ -26,8 +26,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	rocketmq "github.com/apache/rocketmq-client-go/core"
 )
 
 type statiBenchmarkConsumerSnapshot struct {
@@ -126,49 +124,49 @@ func init() {
 }
 
 func (c *consumer) consumeMsg(stati *statiBenchmarkConsumerSnapshot, exit chan struct{}) {
-	consumer, err := rocketmq.NewPushConsumer(&rocketmq.PushConsumerConfig{
-		ClientConfig: rocketmq.ClientConfig{
-			GroupID:    c.groupID,
-			NameServer: c.nameSrv,
-		},
-		ThreadCount:         c.instanceCount,
-		MessageBatchMaxSize: 16,
-	})
-	if err != nil {
-		panic("new push consumer error:" + err.Error())
-	}
-
-	consumer.Subscribe(c.topic, c.expression, func(m *rocketmq.MessageExt) rocketmq.ConsumeStatus {
-		atomic.AddInt64(&stati.receiveMessageTotal, 1)
-		now := time.Now().UnixNano() / int64(time.Millisecond)
-		b2cRT := now - m.BornTimestamp
-		atomic.AddInt64(&stati.born2ConsumerTotalRT, b2cRT)
-		s2cRT := now - m.StoreTimestamp
-		atomic.AddInt64(&stati.store2ConsumerTotalRT, s2cRT)
-
-		for {
-			old := atomic.LoadInt64(&stati.born2ConsumerMaxRT)
-			if old >= b2cRT || atomic.CompareAndSwapInt64(&stati.born2ConsumerMaxRT, old, b2cRT) {
-				break
-			}
-		}
-
-		for {
-			old := atomic.LoadInt64(&stati.store2ConsumerMaxRT)
-			if old >= s2cRT || atomic.CompareAndSwapInt64(&stati.store2ConsumerMaxRT, old, s2cRT) {
-				break
-			}
-		}
-
-		return rocketmq.ConsumeSuccess
-	})
-	println("Start")
-	consumer.Start()
-	select {
-	case <-exit:
-		consumer.Shutdown()
-		return
-	}
+	//consumer, err := rocketmq.NewPushConsumer(&rocketmq.PushConsumerConfig{
+	//	ClientConfig: rocketmq.ClientConfig{
+	//		GroupID:    c.groupID,
+	//		NameServer: c.nameSrv,
+	//	},
+	//	ThreadCount:         c.instanceCount,
+	//	MessageBatchMaxSize: 16,
+	//})
+	//if err != nil {
+	//	panic("new push consumer error:" + err.Error())
+	//}
+	//
+	//consumer.Subscribe(c.topic, c.expression, func(m *rocketmq.MessageExt) rocketmq.ConsumeStatus {
+	//	atomic.AddInt64(&stati.receiveMessageTotal, 1)
+	//	now := time.Now().UnixNano() / int64(time.Millisecond)
+	//	b2cRT := now - m.BornTimestamp
+	//	atomic.AddInt64(&stati.born2ConsumerTotalRT, b2cRT)
+	//	s2cRT := now - m.StoreTimestamp
+	//	atomic.AddInt64(&stati.store2ConsumerTotalRT, s2cRT)
+	//
+	//	for {
+	//		old := atomic.LoadInt64(&stati.born2ConsumerMaxRT)
+	//		if old >= b2cRT || atomic.CompareAndSwapInt64(&stati.born2ConsumerMaxRT, old, b2cRT) {
+	//			break
+	//		}
+	//	}
+	//
+	//	for {
+	//		old := atomic.LoadInt64(&stati.store2ConsumerMaxRT)
+	//		if old >= s2cRT || atomic.CompareAndSwapInt64(&stati.store2ConsumerMaxRT, old, s2cRT) {
+	//			break
+	//		}
+	//	}
+	//
+	//	return rocketmq.ConsumeSuccess
+	//})
+	//println("Start")
+	//consumer.Start()
+	//select {
+	//case <-exit:
+	//	consumer.Shutdown()
+	//	return
+	//}
 }
 
 func (c *consumer) run(args []string) {
@@ -214,15 +212,15 @@ func (c *consumer) run(args []string) {
 
 	wg := sync.WaitGroup{}
 
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		c.consumeMsg(&stati, exitChan)
 		wg.Done()
 	}()
 
 	// snapshot
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		ticker := time.NewTicker(time.Second)
 		for {
@@ -237,8 +235,8 @@ func (c *consumer) run(args []string) {
 	}()
 
 	// print statistic
+	wg.Add(1)
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		ticker := time.NewTicker(time.Second * 10)
 		for {
