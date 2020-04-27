@@ -241,7 +241,18 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 		t = TraceTopicPrefix + traceCfg.TraceTopic
 	}
 
-	srvs, err := NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
+	if len(traceCfg.NamesrvAddrs) == 0 && traceCfg.Resolver == nil {
+		panic("no NamesrvAddrs or Resolver configured")
+	}
+
+	var srvs *namesrvs
+	var err error
+	if len(traceCfg.NamesrvAddrs) > 0 {
+		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
+	} else {
+		srvs, err = NewNamesrv(traceCfg.Resolver)
+	}
+
 	if err != nil {
 		panic(errors.Wrap(err, "new Namesrv failed."))
 	}
