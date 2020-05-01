@@ -119,7 +119,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
 
-	data := buildSubscriptionData(mq.Topic, selector)
+	data := BuildSubscriptionData(mq.Topic, selector)
 	result, err := c.pull(context.Background(), mq, data, c.nextOffsetOf(mq), numbers)
 
 	if err != nil {
@@ -197,7 +197,7 @@ func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQue
 
 	c.subscriptionAutomatically(mq.Topic)
 
-	sysFlag := buildSysFlag(false, true, true, false)
+	sysFlag := BuildSysFlag(false, true, true, false)
 
 	pullResp, err := c.pullInner(ctx, mq, data, offset, numbers, sysFlag, 0)
 	if err != nil {
@@ -226,7 +226,7 @@ func (c *defaultPullConsumer) PullFrom(ctx context.Context, queue *primitive.Mes
 	}
 
 	selector := MessageSelector{}
-	data := buildSubscriptionData(queue.Topic, selector)
+	data := BuildSubscriptionData(queue.Topic, selector)
 
 	return c.pull(ctx, queue, data, offset, numbers)
 }

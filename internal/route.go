@@ -619,3 +619,35 @@ func (b *BrokerData) Equals(bd *BrokerData) bool {
 
 	return true
 }
+
+func (b *BrokerData) GetSlaves() []string {
+	addrs := make([]string, 0)
+	for id, addr := range b.BrokerAddresses {
+		if id != MasterId {
+			addrs = append(addrs, addr)
+		}
+	}
+	return addrs
+}
+
+func (b *BrokerData) MasterAddr() string {
+	return b.BrokerAddresses[MasterId]
+}
+
+func (b *BrokerData) brokers() []string {
+	ls := make([]string, len(b.BrokerAddresses))
+	for _, v := range b.BrokerAddresses {
+		ls = append(ls, v)
+	}
+	return ls
+}
+
+func (b *BrokerData) SelectBrokerAddr() string {
+	addr := b.BrokerAddresses[MasterId]
+	if len(addr) == 0 {
+		addrs := b.brokers()
+		i := rand.Intn(len(addrs))
+		addr = addrs[i]
+	}
+	return addr
+}

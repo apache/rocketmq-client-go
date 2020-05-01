@@ -253,6 +253,52 @@ func (info ConsumerRunningInfo) Encode() ([]byte, error) {
 	return []byte(jsonData), nil
 }
 
+func (info *ConsumerRunningInfo) Decode(data []byte) error {
+	iter := jsoniter.ParseBytes(jsoniter.ConfigCompatibleWithStandardLibrary, data)
+
+	decodeMQKV := func() {
+		q := primitive.MessageQueue{}
+		iter.ReadVal(&q)
+		iter.NextToken()
+		pq := ProcessQueueInfo{}
+		iter.ReadVal(&pq)
+		info.MQTable[q] = pq
+	}
+	decodeMQTable := func() {
+		decodeMQKV()
+		t := iter.NextToken()
+		for t == ',' {
+			decodeMQKV()
+			t = iter.NextToken()
+		}
+	}
+
+	_ = iter.ReadMapCB(func(iterator *jsoniter.Iterator, key string) bool {
+		switch key {
+		case "mqTable":
+			iter.NextToken()
+			info.MQTable = make(map[primitive.MessageQueue]ProcessQueueInfo)
+			decodeMQTable()
+		case "properties":
+			info.Properties = make(map[string]string)
+			iter.ReadVal(&info.Properties)
+		case "statusTable":
+			info.StatusTable = make(map[string]ConsumeStatus)
+			iter.ReadVal(&info.StatusTable)
+		case "subscriptionSet":
+			subs := make([]*SubscriptionData, 0)
+			iter.ReadVal(&subs)
+			info.SubscriptionData = make(map[*SubscriptionData]bool)
+			for i := range subs {
+				info.SubscriptionData[subs[i]] = true
+			}
+		}
+		return true
+	})
+
+	return nil
+}
+
 func NewConsumerRunningInfo() *ConsumerRunningInfo {
 	return &ConsumerRunningInfo{
 		Properties:       make(map[string]string),

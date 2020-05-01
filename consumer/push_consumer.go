@@ -228,7 +228,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
-	data := buildSubscriptionData(topic, selector)
+	data := BuildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
 
@@ -612,7 +612,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			subExpression = sd.SubString
 		}
 
-		sysFlag := buildSysFlag(commitOffsetEnable, true, subExpression != "", classFilter)
+		sysFlag := BuildSysFlag(commitOffsetEnable, true, subExpression != "", classFilter)
 
 		pullRequest := &internal.PullMessageRequestHeader{
 			ConsumerGroup:        pc.consumerGroup,

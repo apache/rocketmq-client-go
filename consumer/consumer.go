@@ -277,7 +277,7 @@ func (dc *defaultConsumer) start() error {
 	if dc.model == Clustering {
 		// set retry topic
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
-		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
+		sub := BuildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
 		dc.subscriptionDataTable.Store(retryTopic, sub)
 	}
 
@@ -336,7 +336,7 @@ func (dc *defaultConsumer) subscriptionAutomatically(topic string) {
 		s := MessageSelector{
 			Expression: _SubAll,
 		}
-		dc.subscriptionDataTable.Store(topic, buildSubscriptionData(topic, s))
+		dc.subscriptionDataTable.Store(topic, BuildSubscriptionData(topic, s))
 	}
 }
 
@@ -979,7 +979,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
 }
 
-func buildSubscriptionData(topic string, selector MessageSelector) *internal.SubscriptionData {
+func BuildSubscriptionData(topic string, selector MessageSelector) *internal.SubscriptionData {
 	subData := &internal.SubscriptionData{
 		Topic:     topic,
 		SubString: selector.Expression,
@@ -1014,7 +1014,7 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 	return subData
 }
 
-func buildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {
+func BuildSysFlag(commitOffset, suspend, subscription, classFilter bool) int32 {
 	var flag int32 = 0
 	if commitOffset {
 		flag |= 0x1 << 0

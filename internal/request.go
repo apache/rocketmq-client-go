@@ -26,10 +26,13 @@ import (
 const (
 	ReqSendMessage              = int16(10)
 	ReqPullMessage              = int16(11)
+	ReqQueryMessage             = int16(12)
 	ReqQueryConsumerOffset      = int16(14)
 	ReqUpdateConsumerOffset     = int16(15)
 	ReqSearchOffsetByTimestamp  = int16(29)
 	ReqGetMaxOffset             = int16(30)
+	ReqGetMinOffset             = int16(31)
+	ReqViewMessageByID          = int16(33)
 	ReqHeartBeat                = int16(34)
 	ReqConsumerSendMsgBack      = int16(36)
 	ReqENDTransaction           = int16(37)
@@ -228,6 +231,18 @@ func (request *GetConsumerListRequestHeader) Encode() map[string]string {
 	return maps
 }
 
+type GetMinOffsetRequestHeader struct {
+	Topic   string
+	QueueId int
+}
+
+func (request *GetMinOffsetRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	return maps
+}
+
 type GetMaxOffsetRequestHeader struct {
 	Topic   string
 	QueueId int
@@ -294,27 +309,61 @@ func (request *GetRouteInfoRequestHeader) Encode() map[string]string {
 	return maps
 }
 
-type GetConsumerRunningInfoHeader struct {
-	consumerGroup string
-	clientID      string
+type GetConsumerRunningInfoRequestHeader struct {
+	ConsumerGroup string
+	ClientID      string
 }
 
-func (request *GetConsumerRunningInfoHeader) Encode() map[string]string {
+func (request *GetConsumerRunningInfoRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
-	maps["consumerGroup"] = request.consumerGroup
-	maps["clientId"] = request.clientID
+	maps["consumerGroup"] = request.ConsumerGroup
+	maps["clientId"] = request.ClientID
 	return maps
 }
 
-func (request *GetConsumerRunningInfoHeader) Decode(properties map[string]string) {
+func (request *GetConsumerRunningInfoRequestHeader) Decode(properties map[string]string) {
 	if len(properties) == 0 {
 		return
 	}
-	if v, existed := properties["consumerGroup"]; existed {
-		request.consumerGroup = v
+	if v, existed := properties["ConsumerGroup"]; existed {
+		request.ConsumerGroup = v
 	}
 
 	if v, existed := properties["clientId"]; existed {
-		request.clientID = v
+		request.ClientID = v
 	}
+}
+
+type QueryMessageRequestHeader struct {
+	Topic          string
+	Key            string
+	MaxNum         int
+	BeginTimestamp int64
+	EndTimestamp   int64
+}
+
+func (request *QueryMessageRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["key"] = request.Key
+	maps["maxNum"] = fmt.Sprintf("%d", request.MaxNum)
+	maps["beginTimestamp"] = strconv.FormatInt(request.BeginTimestamp, 10)
+	maps["endTimestamp"] = fmt.Sprintf("%d", request.EndTimestamp)
+
+	return maps
+}
+
+func (request *QueryMessageRequestHeader) Decode(properties map[string]string) error {
+	return nil
+}
+
+type ViewMessageRequestHeader struct {
+	Offset int64
+}
+
+func (request *ViewMessageRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["offset"] = strconv.FormatInt(request.Offset, 10)
+
+	return maps
 }

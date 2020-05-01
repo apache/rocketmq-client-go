@@ -226,17 +226,17 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 
 		client.remoteClient.RegisterRequestFunc(ReqGetConsumerRunningInfo, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive get consumer running info request...", nil)
-			header := new(GetConsumerRunningInfoHeader)
+			header := new(GetConsumerRunningInfoRequestHeader)
 			header.Decode(req.ExtFields)
-			val, exist := clientMap.Load(header.clientID)
+			val, exist := clientMap.Load(header.ClientID)
 			res := remote.NewRemotingCommand(ResError, nil, nil)
 			if !exist {
-				res.Remark = fmt.Sprintf("Can't find specified client instance of: %s", header.clientID)
+				res.Remark = fmt.Sprintf("Can't find specified client instance of: %s", header.ClientID)
 			} else {
 				cli, ok := val.(*rmqClient)
 				var runningInfo *ConsumerRunningInfo
 				if ok {
-					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup)
+					runningInfo = cli.getConsumerRunningInfo(header.ConsumerGroup)
 				}
 				if runningInfo != nil {
 					res.Code = ResSuccess

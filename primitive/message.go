@@ -237,6 +237,7 @@ func (m *Message) Marshal() []byte {
 type MessageExt struct {
 	Message
 	MsgId                     string
+	QueueId                   int32
 	OffsetMsgId               string
 	StoreSize                 int32
 	QueueOffset               int64
@@ -295,7 +296,9 @@ func DecodeMessage(data []byte) []*MessageExt {
 		// 4. queueID
 		var qId int32
 		binary.Read(buf, binary.BigEndian, &qId)
+		// TODO: xujianhai666 wrong usage of Queue, which is only valid for msg produce
 		msg.Queue.QueueId = int(qId)
+		msg.QueueId = qId
 		count += 4
 
 		// 5. Flag
