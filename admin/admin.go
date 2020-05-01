@@ -392,7 +392,7 @@ func (a *admin) SearchKey(ctx context.Context, topic string, key string, maxNum 
 				}
 				lock.Unlock()
 			default:
-				rlog.Warning(fmt.Sprintf("invoke addr: %s failed with code: %d msg: %s", addr, command.Code),
+				rlog.Warning(fmt.Sprintf("invoke addr: %s failed with code: %d", addr, command.Code),
 					map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
 					})

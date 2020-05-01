@@ -396,15 +396,6 @@ func (mq *MessageQueue) String() string {
 	return fmt.Sprintf("MessageQueue [topic=%s, brokerName=%s, queueId=%d]", mq.Topic, mq.BrokerName, mq.QueueId)
 }
 
-func (mq *MessageQueue) HashCode() int {
-	result := 1
-	result = 31*result + utils.HashString(mq.BrokerName)
-	result = 31*result + mq.QueueId
-	result = 31*result + utils.HashString(mq.Topic)
-
-	return result
-}
-
 type AccessChannel int
 
 const (

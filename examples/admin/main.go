@@ -218,11 +218,11 @@ func TestView(t *testing.T) {
 					for offset := startOffset.Offset; offset <= end.Offset && offset < startOffset.Offset+5; offset++ {
 						messageExts, err := testAdmin.ViewMessageByQueueOffset(context.Background(), end.MessageQueue, int64(offset))
 						if err != nil {
-							t.Log("view broker:%v,queue:%v,offset:%v message by offset error!%v", end.BrokerName, end.QueueId, end.Offset, err)
+							log.Printf("view broker:%v,queue:%v,offset:%v message by offset error!%v", end.BrokerName, end.QueueId, end.Offset, err)
 							continue
 						}
 						if messageExts != nil {
-							t.Log("message ext: %v for queue: %v with offset: %d", messageExts, end.MessageQueue, messageExts.QueueOffset)
+							log.Printf("message ext: %v for queue: %v with offset: %d", messageExts, end.MessageQueue, messageExts.QueueOffset)
 						}
 					}
 				}
