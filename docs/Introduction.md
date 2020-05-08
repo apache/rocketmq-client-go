@@ -3,20 +3,20 @@
 ### go mod
 ```
 require (
-    github.com/apache/rocketmq-client-go/v2 v2.0.0-rc1
+    github.com/apache/rocketmq-client-go/v2 v2.1.0-rc3
 )
 ```
 
 ### Set Logger
 Go Client define the `Logger` interface for log output, user can specify implementation of private.
 in default, client use `logrus`.
-```go
+```
 rlog.SetLogger(Logger)
 ```
 
 ### Send message
 #### Interface
-```go
+```
 Producer interface {
 	Start() error
 	Shutdown() error
@@ -27,12 +27,13 @@ Producer interface {
 
 #### Examples
 - create a new `Producer` instance
-```go
-opt := producer.ProducerOptions{
-    NameServerAddr:           "127.0.0.1:9876",
-    RetryTimesWhenSendFailed: 2,
-}
-p := producer.NewProducer(opt)
+```
+p, err := rocketmq.NewProducer(
+		producer.WithNameServer(endPoint),
+		//producer.WithNsResovler(primitive.NewPassthroughResolver(endPoint)),
+		producer.WithRetry(2),
+		producer.WithGroupName("GID_xxxxxx"),
+	)
 ```
 
 - start the producer
@@ -41,7 +42,7 @@ err := p.Start()
 ```
 
 - send message with sync
-```go
+```
 result, err := p.SendSync(context.Background(), &primitive.Message{
     Topic: "test",
     Body:  []byte("Hello RocketMQ Go Client!"),
@@ -51,7 +52,7 @@ result, err := p.SendSync(context.Background(), &primitive.Message{
 ```
 
 - or send message with oneway
-```go 
+```
 err := p.SendOneWay(context.Background(), &primitive.Message{
     Topic: "test",
     Body:  []byte("Hello RocketMQ Go Client!"),
@@ -60,36 +61,43 @@ err := p.SendOneWay(context.Background(), &primitive.Message{
 Full examples: [producer](../examples/producer)
 
 ### Consume Message
-alpha1 only support `PushConsumer`
+now only support `PushConsumer`
 
 #### Interface
-```go
+```
 PushConsumer interface {
+	// Start the PullConsumer for consuming message
 	Start() error
-	Shutdown()
-	Subscribe(topic string, selector MessageSelector,
-		f func(*ConsumeMessageContext, []*primitive.MessageExt) (ConsumeResult, error)) error
+
+	// Shutdown the PullConsumer, all offset of MessageQueue will be sync to broker before process exit
+	Shutdown() error
+	// Subscribe a topic for consuming
+	Subscribe(topic string, selector consumer.MessageSelector,
+		f func(context.Context, ...*primitive.MessageExt) (consumer.ConsumeResult, error)) error
 }
 ```
 
 #### Usage
 - Create a `PushConsumer` instance
-```go
-c := consumer.NewPushConsumer("testGroup", consumer.ConsumerOption{
-    NameServerAddr: "127.0.0.1:9876",
-    ConsumerModel:  consumer.Clustering,
-    FromWhere:      consumer.ConsumeFromFirstOffset,
-})
+```
+c, err := rocketmq.NewPushConsumer(
+		consumer.WithNameServer(endPoint),
+        consumer.WithConsumerModel(consumer.Clustering),
+		consumer.WithGroupName("GID_XXXXXX"),
+	)
 ```
 
 - Subscribe a topic(only support one topic now), and define your consuming function
-```go
+```
 err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
     msgs []*primitive.MessageExt) (consumer.ConsumeResult, error) {
-    fmt.Println(msgs)
+    fmt.Printf("subscribe callback: %v \n", msgs)
     return consumer.ConsumeSuccess, nil
 })
 ```
 - start the consumer(**NOTE: MUST after subscribe**)
+```
+err = c.Start()
+```
 
 Full examples: [consumer](../examples/consumer)
