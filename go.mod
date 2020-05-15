@@ -18,6 +18,4 @@ require (
 
 replace stathat.com/c/consistent v1.0.0 => github.com/stathat/consistent v1.0.0
 
-replace github.com/json-iterator/go => github.com/xujianhai666/go v1.1.10-0.20200118093701-ae604587eee1
-
 go 1.13
