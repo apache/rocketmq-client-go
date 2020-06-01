@@ -51,7 +51,7 @@ type SendResult struct {
 }
 
 func NewSendResult() *SendResult {
-	return &SendResult{Status:SendUnknownError}
+	return &SendResult{Status: SendUnknownError}
 }
 
 // SendResult send message result to string(detail result)
