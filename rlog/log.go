@@ -41,6 +41,7 @@ type Logger interface {
 	Warning(msg string, fields map[string]interface{})
 	Error(msg string, fields map[string]interface{})
 	Fatal(msg string, fields map[string]interface{})
+	Level(level string)
 }
 
 func init() {
@@ -101,10 +102,28 @@ func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
 	}
 	l.logger.WithFields(fields).Fatal(msg)
 }
+func (l *defaultLogger) Level(level string) {
+	switch strings.ToLower(level) {
+	case "debug":
+		l.logger.SetLevel(logrus.DebugLevel)
+	case "warn":
+		l.logger.SetLevel(logrus.WarnLevel)
+	case "error":
+		l.logger.SetLevel(logrus.ErrorLevel)
+	default:
+		l.logger.SetLevel(logrus.InfoLevel)
+	}
+}
 
 // SetLogger use specified logger user customized, in general, we suggest user to replace the default logger with specified
 func SetLogger(logger Logger) {
 	rLog = logger
+}
+func SetLogLevel(level string) {
+	if level == "" {
+		return
+	}
+	rLog.Level(level)
 }
 
 func Debug(msg string, fields map[string]interface{}) {
