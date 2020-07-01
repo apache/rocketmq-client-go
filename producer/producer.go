@@ -57,7 +57,7 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -80,9 +80,6 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 
 func (p *defaultProducer) Start() error {
 	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-	if len(p.options.NameServerAddrs) == 0 {
-		p.options.Namesrv.UpdateNameServerAddress(p.options.NameServerDomain, p.options.InstanceName)
-	}
 
 	p.client.RegisterProducer(p.group, p)
 	p.client.Start()
@@ -148,7 +145,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 
 	msg := p.encodeBatch(msgs...)
 
-	resp := new(primitive.SendResult)
+	resp := primitive.NewSendResult()
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendSync)
 		producerCtx := &primitive.ProducerCtx{
@@ -248,7 +245,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 
 	ctx, _ = context.WithTimeout(ctx, 3*time.Second)
 	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
-		resp := new(primitive.SendResult)
+		resp := primitive.NewSendResult()
 		if err != nil {
 			h(ctx, nil, err)
 		} else {
@@ -369,7 +366,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 		return nil
 	}
 
-	if result.MqList != nil && len(result.MqList) <= 0 {
+	if len(result.MqList) <= 0 {
 		rlog.Error("can not find proper message queue", nil)
 		return nil
 	}

@@ -20,7 +20,9 @@ package primitive
 // config for message trace.
 type TraceConfig struct {
 	TraceTopic   string
+	GroupName    string
 	Access       AccessChannel
 	NamesrvAddrs []string
+	Resolver     NsResolver
 	Credentials  // acl config for trace. omit if acl is closed on broker.
 }

@@ -51,15 +51,15 @@ func (m *MockNamesrvs) EXPECT() *MockNamesrvsMockRecorder {
 }
 
 // UpdateNameServerAddress mocks base method
-func (m *MockNamesrvs) UpdateNameServerAddress(nameServerDomain, instanceName string) {
+func (m *MockNamesrvs) UpdateNameServerAddress() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateNameServerAddress", nameServerDomain, instanceName)
+	m.ctrl.Call(m, "UpdateNameServerAddress")
 }
 
 // UpdateNameServerAddress indicates an expected call of UpdateNameServerAddress
-func (mr *MockNamesrvsMockRecorder) UpdateNameServerAddress(nameServerDomain, instanceName interface{}) *gomock.Call {
+func (mr *MockNamesrvsMockRecorder) UpdateNameServerAddress() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNameServerAddress", reflect.TypeOf((*MockNamesrvs)(nil).UpdateNameServerAddress), nameServerDomain, instanceName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNameServerAddress", reflect.TypeOf((*MockNamesrvs)(nil).UpdateNameServerAddress))
 }
 
 // AddBroker mocks base method

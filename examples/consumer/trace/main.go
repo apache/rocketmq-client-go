@@ -31,13 +31,13 @@ import (
 func main() {
 	namesrvs := []string{"127.0.0.1:9876"}
 	traceCfg := &primitive.TraceConfig{
-		Access:       primitive.Local,
-		NamesrvAddrs: namesrvs,
+		Access:   primitive.Local,
+		Resolver: primitive.NewPassthroughResolver(namesrvs),
 	}
 
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
-		consumer.WithNameServer(namesrvs),
+		consumer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		consumer.WithTrace(traceCfg),
 	)
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,

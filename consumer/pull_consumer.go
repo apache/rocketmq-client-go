@@ -76,7 +76,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		apply(&defaultOpts)
 	}
 
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}

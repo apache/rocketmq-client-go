@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,7 +76,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.NameServerAddrs)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -264,6 +265,28 @@ func (pc *pushConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 
 func (pc *pushConsumer) IsUnitMode() bool {
 	return pc.unitMode
+}
+
+func (pc *pushConsumer) GetcType() string {
+	return string(pc.cType)
+}
+
+func (pc *pushConsumer) GetModel() string {
+	return pc.model.String()
+}
+
+func (pc *pushConsumer) GetWhere() string {
+	switch pc.fromWhere {
+	case ConsumeFromLastOffset:
+		return "CONSUME_FROM_LAST_OFFSET"
+	case ConsumeFromFirstOffset:
+		return "CONSUME_FROM_FIRST_OFFSET"
+	case ConsumeFromTimestamp:
+		return "CONSUME_FROM_TIMESTAMP"
+	default:
+		return "UNKOWN"
+	}
+
 }
 
 func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
@@ -803,6 +826,12 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 	}
 
 	f, exist := pc.consumeFunc.Contains(subMsgs[0].Topic)
+
+	// fix lost retry message
+	if !exist && strings.HasPrefix(subMsgs[0].Topic, internal.RetryGroupTopicPrefix) {
+		f, exist = pc.consumeFunc.Contains(subMsgs[0].GetProperty(primitive.PropertyRetryTopic))
+	}
+
 	if !exist {
 		return ConsumeRetryLater, fmt.Errorf("the consume callback missing for topic: %s", subMsgs[0].Topic)
 	}
@@ -824,6 +853,11 @@ func (pc *pushConsumer) consumeInner(ctx context.Context, subMsgs []*primitive.M
 
 			msgCtx, _ := primitive.GetConsumerCtx(ctx)
 			msgCtx.Success = realReply.ConsumeResult == ConsumeSuccess
+			if realReply.ConsumeResult == ConsumeSuccess {
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
+			} else {
+				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
+			}
 			return e
 		})
 		return container.ConsumeResult, err

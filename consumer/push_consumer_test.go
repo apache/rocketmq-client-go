@@ -20,11 +20,12 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
-	"testing"
 )
 
 func mockB4Start(c *pushConsumer) {
@@ -35,7 +36,7 @@ func TestStart(t *testing.T) {
 	Convey("test Start method", t, func() {
 		c, _ := NewPushConsumer(
 			WithGroupName("testGroup"),
-			WithNameServer([]string{"127.0.0.1:9876"}),
+			WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 			WithConsumerModel(BroadCasting),
 		)
 

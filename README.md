@@ -1,28 +1,31 @@
-## RocketMQ Client Go
+## RocketMQ Client Go 
+[![TravisCI](https://travis-ci.org/apache/rocketmq-client-go.svg)](https://travis-ci.org/apache/rocketmq-client-go) 
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![TravisCI](https://travis-ci.org/apache/rocketmq-client-go.svg)](https://travis-ci.org/apache/rocketmq-client-go)
-[![Coverage](https://codecov.io/gh/apache/rocketmq-client-go/branch/native/graph/badge.svg)](https://codecov.io/gh/apache/rocketmq-client-go/branch/native)
+[![Go Report Card](https://goreportcard.com/badge/github.com/apache/rocketmq-client-go)](https://goreportcard.com/report/github.com/apache/rocketmq-client-go)
+[![GoDoc](https://img.shields.io/badge/Godoc-reference-blue.svg)](https://godoc.org/github.com/apache/rocketmq-client-go)
+[![CodeCov](https://codecov.io/gh/apache/rocketmq-client-go/branch/master/graph/badge.svg)](https://codecov.io/gh/apache/rocketmq-client-go)
 [![GitHub release](https://img.shields.io/badge/release-download-default.svg)](https://github.com/apache/rocketmq-client-go/releases)
 [![Average time to resolve an issue](http://isitmaintained.com/badge/resolution/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Average time to resolve an issue")
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Percentage of issues still open")
 ![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)
 
-The RocketMQ Client in pure go, the project is developing, **there is no any guarantee in production environment**. in next versions,
-we will do our best to improve reliability, stability, usability and performance. the API may be changed, and more features will be added.
-there are many works need to continue in this project, like unit test, integration test, stable test, new feature,
-optimization, documents, etc. so, any contribution is very welcome. if you want do something, please browse issue list and select one,
-or create a new issue.
+A product ready RocketMQ Client in pure go, which supports almost the full features of Apache RocketMQ, such as pub and sub messages, ACL, tracing and so on.
 
-- [2.0.0 Production Ready Road map](https://github.com/apache/rocketmq-client-go/issues/57)
+----------
+## [Due Diligence](https://github.com/apache/rocketmq-client-go/issues/423)
+[Here](https://github.com/apache/rocketmq-client-go/issues/423), we sincerely invite you to take a minute to feedback on your usage scenario. 
+[Click Here](https://github.com/apache/rocketmq-client-go/issues/423) or go to [ISSUE #423](https://github.com/apache/rocketmq-client-go/issues/423) if you accept.
 
 ----------
 ## Features
-in 2.0.0-rc1, support:
+For 2.0.0 version, it supports:
 * sending message in synchronous mode
 * sending message in asynchronous mode
 * sending message in oneway mode
 * sending orderly messages
 * consuming message using push model
+* message tracing for pub and sub messages
+* ACL for producers and consumers
 
 ----------
 ## How to use
@@ -38,7 +41,7 @@ in 2.0.0-rc1, support:
 * Mailing Lists: <https://rocketmq.apache.org/about/contact/>
 * Home: <https://rocketmq.apache.org>
 * Docs: <https://rocketmq.apache.org/docs/quick-start/>
-* Issues: <https://github.com/apache/rocketmq-client-go/v2/issues>
+* Issues: <https://github.com/apache/rocketmq-client-go/issues>
 * Ask: <https://stackoverflow.com/questions/tagged/rocketmq>
 * Slack: <https://rocketmq-community.slack.com/>
  

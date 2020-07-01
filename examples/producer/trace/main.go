@@ -31,12 +31,12 @@ import (
 func main() {
 	namesrvs := []string{"127.0.0.1:9876"}
 	traceCfg := &primitive.TraceConfig{
-		Access:       primitive.Local,
-		NamesrvAddrs: namesrvs,
+		Access:   primitive.Local,
+		Resolver: primitive.NewPassthroughResolver(namesrvs),
 	}
 
 	p, _ := rocketmq.NewProducer(
-		producer.WithNameServer(namesrvs),
+		producer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		producer.WithRetry(2),
 		producer.WithTrace(traceCfg))
 	err := p.Start()

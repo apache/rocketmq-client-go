@@ -89,9 +89,21 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(ctx.RegionId)
 		buffer.WriteRune(contentSplitter)
-		buffer.WriteString(ctx.GroupName)
+		ss := strings.Split(ctx.GroupName, "%")
+		if len(ss) == 2 {
+			buffer.WriteString(ss[1])
+		} else {
+			buffer.WriteString(ctx.GroupName)
+		}
+
 		buffer.WriteRune(contentSplitter)
-		buffer.WriteString(bean.Topic)
+		ssTopic := strings.Split(bean.Topic, "%")
+		if len(ssTopic) == 2 {
+			buffer.WriteString(ssTopic[1])
+		} else {
+			buffer.WriteString(bean.Topic)
+		}
+		//buffer.WriteString(bean.Topic)
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(bean.MsgId)
 		buffer.WriteRune(contentSplitter)
@@ -119,7 +131,12 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(ctx.RegionId)
 			buffer.WriteRune(contentSplitter)
-			buffer.WriteString(ctx.GroupName)
+			ss := strings.Split(ctx.GroupName, "%")
+			if len(ss) == 2 {
+				buffer.WriteString(ss[1])
+			} else {
+				buffer.WriteString(ctx.GroupName)
+			}
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(ctx.RequestId)
 			buffer.WriteRune(contentSplitter)
@@ -224,7 +241,18 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 		t = TraceTopicPrefix + traceCfg.TraceTopic
 	}
 
-	srvs, err := NewNamesrv(traceCfg.NamesrvAddrs)
+	if len(traceCfg.NamesrvAddrs) == 0 && traceCfg.Resolver == nil {
+		panic("no NamesrvAddrs or Resolver configured")
+	}
+
+	var srvs *namesrvs
+	var err error
+	if len(traceCfg.NamesrvAddrs) > 0 {
+		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
+	} else {
+		srvs, err = NewNamesrv(traceCfg.Resolver)
+	}
+
 	if err != nil {
 		panic(errors.Wrap(err, "new Namesrv failed."))
 	}
@@ -233,6 +261,9 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	}
 
 	cliOp := DefaultClientOptions()
+	cliOp.GroupName = traceCfg.GroupName
+	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
+	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
@@ -301,8 +332,9 @@ func (td *traceDispatcher) process() {
 			batch = append(batch, ctx)
 			if count == batchSize {
 				count = 0
+				batchSend := batch
 				go primitive.WithRecover(func() {
-					td.batchCommit(batch)
+					td.batchCommit(batchSend)
 				})
 				batch = make([]TraceContext, 0)
 			}
@@ -312,15 +344,17 @@ func (td *traceDispatcher) process() {
 				count++
 				lastput = time.Now()
 				if len(batch) > 0 {
+					batchSend := batch
 					go primitive.WithRecover(func() {
-						td.batchCommit(batch)
+						td.batchCommit(batchSend)
 					})
 					batch = make([]TraceContext, 0)
 				}
 			}
 		case <-td.ctx.Done():
+			batchSend := batch
 			go primitive.WithRecover(func() {
-				td.batchCommit(batch)
+				td.batchCommit(batchSend)
 			})
 			batch = make([]TraceContext, 0)
 
@@ -403,10 +437,14 @@ func (td *traceDispatcher) flush(topic, regionID string, data []TraceTransferBea
 }
 
 func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, data string) {
-	msg := primitive.NewMessage(td.traceTopic, []byte(data))
+	traceTopic := td.traceTopic
+	if td.access == primitive.Cloud {
+		traceTopic = td.traceTopic + regionID
+	}
+	msg := primitive.NewMessage(traceTopic, []byte(data))
 	msg.WithKeys(keySet.slice())
 
-	mq, addr := td.findMq()
+	mq, addr := td.findMq(regionID)
 	if mq == nil {
 		return
 	}
@@ -414,19 +452,32 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 	var req = td.buildSendRequest(mq, msg)
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
+		resp := primitive.NewSendResult()
 		if e != nil {
-			rlog.Error("send trace data error", map[string]interface{}{
+			rlog.Info("send trace data error.", map[string]interface{}{
 				"traceData": data,
+			})
+		} else {
+			td.cli.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+			rlog.Debug("send trace data success:", map[string]interface{}{
+				"SendResult": resp,
+				"traceData":  data,
 			})
 		}
 	})
-	rlog.Error("send trace data error when invoke", map[string]interface{}{
-		rlog.LogKeyUnderlayError: err,
-	})
+	if err != nil {
+		rlog.Info("send trace data error when invoke", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+	}
 }
 
-func (td *traceDispatcher) findMq() (*primitive.MessageQueue, string) {
-	mqs, err := td.namesrvs.FetchPublishMessageQueues(td.traceTopic)
+func (td *traceDispatcher) findMq(regionID string) (*primitive.MessageQueue, string) {
+	traceTopic := td.traceTopic
+	if td.access == primitive.Cloud {
+		traceTopic = td.traceTopic + regionID
+	}
+	mqs, err := td.namesrvs.FetchPublishMessageQueues(traceTopic)
 	if err != nil {
 		rlog.Error("fetch publish message queues failed", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

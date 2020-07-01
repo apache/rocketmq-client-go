@@ -50,6 +50,10 @@ type SendResult struct {
 	TraceOn       bool
 }
 
+func NewSendResult() *SendResult {
+	return &SendResult{Status: SendUnknownError}
+}
+
 // SendResult send message result to string(detail result)
 func (result *SendResult) String() string {
 	return fmt.Sprintf("SendResult [sendStatus=%d, msgIds=%s, offsetMsgId=%s, queueOffset=%d, messageQueue=%s]",

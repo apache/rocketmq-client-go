@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 )
 
 var opaque int32
