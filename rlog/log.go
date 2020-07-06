@@ -42,6 +42,7 @@ type Logger interface {
 	Error(msg string, fields map[string]interface{})
 	Fatal(msg string, fields map[string]interface{})
 	Level(level string)
+	OutputPath(path string) error
 }
 
 func init() {
@@ -102,6 +103,7 @@ func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
 	}
 	l.logger.WithFields(fields).Fatal(msg)
 }
+
 func (l *defaultLogger) Level(level string) {
 	switch strings.ToLower(level) {
 	case "debug":
@@ -115,6 +117,17 @@ func (l *defaultLogger) Level(level string) {
 	}
 }
 
+func (l *defaultLogger) OutputPath(path string) (err error) {
+	var file *os.File
+	file, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return
+	}
+
+	l.logger.Out = file
+	return
+}
+
 // SetLogger use specified logger user customized, in general, we suggest user to replace the default logger with specified
 func SetLogger(logger Logger) {
 	rLog = logger
@@ -124,6 +137,14 @@ func SetLogLevel(level string) {
 		return
 	}
 	rLog.Level(level)
+}
+
+func SetOutputPath(path string) (err error) {
+	if "" == path {
+		return
+	}
+
+	return rLog.OutputPath(path)
 }
 
 func Debug(msg string, fields map[string]interface{}) {
