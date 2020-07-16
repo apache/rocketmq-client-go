@@ -42,7 +42,7 @@ type Logger interface {
 	Error(msg string, fields map[string]interface{})
 	Fatal(msg string, fields map[string]interface{})
 	Level(level string)
-	OutputPath(path string) error
+	OutputPath(path string) (err error)
 }
 
 func init() {
