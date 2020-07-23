@@ -64,19 +64,19 @@ func TestDeleteTopic(t *testing.T) {
 	testAdmin := initAdmin(t)
 
 	topic := "newOne"
-	clusterName := "DefaultCluster"
-	nameSrvAddr := "127.0.0.1:9876"
-	brokerAddr := "127.0.0.1:10911"
+	//clusterName := "DefaultCluster"
+	//nameSrvAddr := "127.0.0.1:9876"
+	//brokerAddr := "127.0.0.1:10911"
 
 	err := testAdmin.DeleteTopic(
 		context.Background(),
 		WithTopicDelete(topic),
-		WithBrokerAddrDelete(brokerAddr),
-		WithClusterName(clusterName),
-		WithNameSrvAddr(nameSrvAddr),
+		//WithBrokerAddrDelete(),
+		//WithClusterName(clusterName),
+		//WithNameSrvAddr(strings.Split(nameSrvAddr, ",")),
 	)
 	assert(err)
-	log.Printf("delete topic [%v] from cluster [%v] success", topic, clusterName)
+	log.Printf("delete topic [%v] from Cluster success", topic)
 	log.Printf("delete topic [%v] from NameServer success", topic)
 }
 
@@ -94,21 +94,14 @@ func TestTopicList(t *testing.T) {
 	//assert(err)
 	log.Printf("Topic List: %v", list)
 }
-
+*/
 func TestGetBrokerClusterInfo(t *testing.T) {
 	testAdmin := initAdmin(t)
 
-	mq := &primitive.MessageQueue{
-		Topic:      topic,
-		BrokerName: brokerName,
-		QueueId:    0,
-	}
-
-	list, err := testAdmin.GetBrokerClusterInfo(context.Background(), mq)
+	list, err := testAdmin.GetBrokerClusterInfo(context.Background())
 	assert(err)
 	log.Printf("Broker Cluster Info: %#v", list)
 }
-*/
 
 func assert(err error) {
 	if err != nil {

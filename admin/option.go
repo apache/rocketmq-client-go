@@ -100,7 +100,7 @@ func defaultTopicConfigDelete() TopicConfigDelete {
 type TopicConfigDelete struct {
 	Topic       string
 	ClusterName string
-	NameSrvAddr string
+	NameSrvAddr []string
 	BrokerAddr  string
 }
 
@@ -124,7 +124,7 @@ func WithClusterName(ClusterName string) OptionDelete {
 	}
 }
 
-func WithNameSrvAddr(NameSrvAddr string) OptionDelete {
+func WithNameSrvAddr(NameSrvAddr []string) OptionDelete {
 	return func(opts *TopicConfigDelete) {
 		opts.NameSrvAddr = NameSrvAddr
 	}

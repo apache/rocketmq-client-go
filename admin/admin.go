@@ -31,7 +31,7 @@ import (
 type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
 	TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
-	GetBrokerClusterInfo(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
+	GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
 
@@ -49,7 +49,7 @@ func defaultAdminOptions() *adminOptions {
 	opts := &adminOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 	}
-	opts.GroupName = "TOOLS_CONSUMER"
+	opts.GroupName = "TOOLS_ADMIN"
 	opts.InstanceName = time.Now().String()
 	return opts
 }
@@ -58,13 +58,6 @@ func defaultAdminOptions() *adminOptions {
 func WithResolver(resolver primitive.NsResolver) AdminOption {
 	return func(options *adminOptions) {
 		options.Resolver = resolver
-	}
-}
-
-// WithGroupName consumer group name
-func WithGroupName(groupName string) AdminOption {
-	return func(options *adminOptions) {
-		options.GroupName = groupName
 	}
 }
 
@@ -89,7 +82,7 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	//log.Printf("Client: %#v", namesrv.srvs)
 	return &admin{
 		cli:     cli,
 		namesrv: namesrv,
@@ -141,16 +134,9 @@ func (a *admin) TopicList(ctx context.Context, mq *primitive.MessageQueue) (*rem
 }
 
 // DeleteTopicInBroker delete topic in broker.
-func (a *admin) GetBrokerClusterInfo(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error) {
-	brokerAddr, err := a.getAddr(mq)
-	if err != nil {
-		return nil, err
-	}
-	request := &internal.TopicListRequestHeader{
-		Topic: "list",
-	}
-	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, request, nil)
-	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, "", cmd, 5*time.Second)
 
 	return response, err
 }
@@ -181,13 +167,26 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	for _, apply := range opts {
 		apply(&cfg)
 	}
+	//delete topic in broker
+	if cfg.BrokerAddr == "" {
+		a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
+		cfg.BrokerAddr = a.namesrv.FindBrokerAddrByTopic(cfg.Topic)
+	}
 
 	if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
 		return err
 	}
 
-	if _, err := a.deleteTopicInNameServer(ctx, cfg.Topic, cfg.NameSrvAddr); err != nil {
-		return err
+	//delete topic in nameserver
+	if len(cfg.NameSrvAddr) == 0 {
+		a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
+		cfg.NameSrvAddr = a.namesrv.AddrList()
+	}
+
+	for _, nameSrvAddr := range cfg.NameSrvAddr {
+		if _, err := a.deleteTopicInNameServer(ctx, cfg.Topic, nameSrvAddr); err != nil {
+			return err
+		}
 	}
 	return nil
 }
