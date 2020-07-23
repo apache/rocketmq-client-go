@@ -101,3 +101,25 @@ err = c.Start()
 ```
 
 Full examples: [consumer](../examples/consumer)
+
+
+### Admin: Topic Operation
+
+#### Examples
+- create topic
+```
+err := testAdmin.CreateTopic(
+	WithTopicCreate("newTopic"),
+	WithBrokerAddrCreate("127.0.0.1:10911"),
+)
+```
+
+- delete topic
+`ClusterName` not supported yet
+```
+err := testAdmin.DeleteTopic(
+	WithTopicDelete("newTopic"),
+	WithBrokerAddrDelete("127.0.0.1:10911"),
+	WithNameSrvAddr(nameSrvAddr),
+)
+```
