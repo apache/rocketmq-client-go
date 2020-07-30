@@ -705,7 +705,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(10 * time.Second)
 			pc.storage.update(request.mq, request.nextOffset, false)
 			pc.storage.persist([]*primitive.MessageQueue{request.mq})
-			pc.processQueueTable.Delete(request.mq)
+			pc.processQueueTable.Delete(*request.mq)
 			rlog.Warning(fmt.Sprintf("fix the pull request offset: %s", request.String()), nil)
 		default:
 			rlog.Warning(fmt.Sprintf("unknown pull status: %v", result.Status), nil)
