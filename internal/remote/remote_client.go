@@ -194,6 +194,14 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 				responseFuture.ResponseCommand = cmd
 				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
+					defer func() {
+						if err := recover(); err != nil {
+							rlog.Error("put responseFuture.Done error, maybe caused by timeout: %s", map[string]interface{}{
+								rlog.LogKeyUnderlayError: err,
+							})
+							return
+						}
+					}()
 					responseFuture.Done <- true
 				}
 			})
