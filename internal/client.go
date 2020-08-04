@@ -183,7 +183,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 		namesrvs:     option.Namesrv,
 		done:         make(chan struct{}),
 	}
-	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
+	actual, loaded := clientMap.LoadOrStore(client.ClientID()+"@"+option.Namesrv.String(), client)
 	if !loaded {
 		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
