@@ -15,35 +15,57 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package admin
+package main
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"testing"
 
+	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
-func initAdmin(t *testing.T) Admin {
-	var err error
-
-	testAdmin, err := NewAdmin(WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
-	assert(err)
+func initAdmin() admin.Admin {
+	testAdmin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	return testAdmin
 }
 
-func TestCreateTopic(t *testing.T) {
-	testAdmin := initAdmin(t)
+func main() {
+	testAdmin := initAdmin()
+
+	topic := "newOne"
+	//clusterName := "DefaultCluster"
+	//nameSrvAddr := "127.0.0.1:9876"
 	brokerAddr := "127.0.0.1:10911"
 
+	//create topic
 	err := testAdmin.CreateTopic(
 		context.Background(),
-		WithTopicCreate("newOne"),
-		WithBrokerAddrCreate(brokerAddr),
+		admin.WithTopicCreate(topic),
+		admin.WithBrokerAddrCreate(brokerAddr),
 	)
-	assert(err)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	log.Printf("create topic to %v success", brokerAddr)
+
+	//deletetopic
+	err = testAdmin.DeleteTopic(
+		context.Background(),
+		admin.WithTopicDelete(topic),
+		//WithBrokerAddrDelete(),
+		//WithClusterName(clusterName),
+		//WithNameSrvAddr(strings.Split(nameSrvAddr, ",")),
+	)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	log.Printf("delete topic [%v] from Cluster success", topic)
+	log.Printf("delete topic [%v] from NameServer success", topic)
 }
 
 /*
@@ -59,27 +81,6 @@ func TestCreateTopic(t *testing.T) {
 }
 */
 
-//TODO: another implementation like sarama, without clusterName/namSrvAddr as input(would be in admin)
-func TestDeleteTopic(t *testing.T) {
-	testAdmin := initAdmin(t)
-
-	topic := "newOne"
-	//clusterName := "DefaultCluster"
-	//nameSrvAddr := "127.0.0.1:9876"
-	//brokerAddr := "127.0.0.1:10911"
-
-	err := testAdmin.DeleteTopic(
-		context.Background(),
-		WithTopicDelete(topic),
-		//WithBrokerAddrDelete(),
-		//WithClusterName(clusterName),
-		//WithNameSrvAddr(strings.Split(nameSrvAddr, ",")),
-	)
-	assert(err)
-	log.Printf("delete topic [%v] from Cluster success", topic)
-	log.Printf("delete topic [%v] from NameServer success", topic)
-}
-
 /*
 func TestTopicList(t *testing.T) {
 	testAdmin := initAdmin(t)
@@ -94,7 +95,7 @@ func TestTopicList(t *testing.T) {
 	//assert(err)
 	log.Printf("Topic List: %v", list)
 }
-*/
+
 func TestGetBrokerClusterInfo(t *testing.T) {
 	testAdmin := initAdmin(t)
 
@@ -102,9 +103,4 @@ func TestGetBrokerClusterInfo(t *testing.T) {
 	assert(err)
 	log.Printf("Broker Cluster Info: %#v", list)
 }
-
-func assert(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
+*/

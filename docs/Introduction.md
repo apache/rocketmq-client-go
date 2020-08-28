@@ -119,7 +119,7 @@ err := testAdmin.CreateTopic(
 ```
 err := testAdmin.DeleteTopic(
 	WithTopicDelete("newTopic"),
-	WithBrokerAddrDelete("127.0.0.1:10911"),
-	WithNameSrvAddr(nameSrvAddr),
+	WithBrokerAddrDelete("127.0.0.1:10911"),	//optional
+	WithNameSrvAddr(nameSrvAddr),				//optional
 )
 ```

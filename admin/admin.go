@@ -30,8 +30,8 @@ import (
 
 type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
-	TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
-	GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
+	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
 
@@ -126,6 +126,7 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	return err
 }
 
+/*
 // DeleteTopicInBroker delete topic in broker.
 func (a *admin) TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error) {
 	cmd := remote.NewRemotingCommand(internal.ReqGetAllTopicListFromNameServer, nil, nil)
@@ -140,7 +141,7 @@ func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingComma
 
 	return response, err
 }
-
+*/
 // DeleteTopicInBroker delete topic in broker.
 func (a *admin) deleteTopicInBroker(ctx context.Context, topic string, brokerAddr string) (*remote.RemotingCommand, error) {
 	request := &internal.DeleteTopicRequestHeader{
