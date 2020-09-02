@@ -9,8 +9,7 @@
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Percentage of issues still open")
 ![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)
 
-This is the first product ready RocketMQ Client in pure go, it supports almost the full features of Apache RocketMQ, sunch as pub and sub messages, ACL, tracing and so on, there are many works need to continue for this project, like unit test, integration test, stable test, new feature,
-optimization, documents, etc. and any contribution is very welcome. if you want do something, please browse issue list and select one, or create a new issue.
+A product ready RocketMQ Client in pure go, which supports almost the full features of Apache RocketMQ, such as pub and sub messages, ACL, tracing and so on.
 
 ----------
 ## [Due Diligence](https://github.com/apache/rocketmq-client-go/issues/423)
