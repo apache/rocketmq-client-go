@@ -120,7 +120,7 @@ func (s *namesrvs) getNameServerAddress() string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	addr := s.srvs[s.index]
+	addr := s.srvs[s.index%len(s.srvs)]
 	index := s.index + 1
 	if index < 0 {
 		index = -index
