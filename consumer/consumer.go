@@ -754,7 +754,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 		case ConsumeFromLastOffset:
 			if lastOffset == -1 {
 				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
-					lastOffset = 0
+					result = 0
 				} else {
 					lastOffset, err := dc.queryMaxOffset(mq)
 					if err == nil {
