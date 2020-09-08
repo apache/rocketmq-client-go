@@ -22,7 +22,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
@@ -136,20 +135,4 @@ type PullConsumer interface {
 // The PullConsumer will be supported in next release
 func NewPullConsumer(opts ...consumer.Option) (PullConsumer, error) {
 	return nil, errors.New("pull consumer has not supported")
-}
-
-func createTopic(opts ...admin.OptionCreate) error {
-	Admin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
-	if err != nil {
-		return err
-	}
-	return Admin.CreateTopic(context.Background(), opts...)
-}
-
-func deleteTopic(opts ...admin.OptionDelete) error {
-	Admin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
-	if err != nil {
-		return err
-	}
-	return Admin.DeleteTopic(context.Background(), opts...)
 }
