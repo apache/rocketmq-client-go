@@ -19,7 +19,6 @@ package admin
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -87,19 +86,6 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 		namesrv: namesrv,
 		opts:    defaultOpts,
 	}, nil
-}
-
-func (a *admin) getAddr(mq *primitive.MessageQueue) (string, error) {
-	broker := a.namesrv.FindBrokerAddrByName(mq.BrokerName)
-	if len(broker) == 0 {
-		a.namesrv.UpdateTopicRouteInfo(mq.Topic)
-		broker = a.namesrv.FindBrokerAddrByName(mq.BrokerName)
-
-		if len(broker) == 0 {
-			return "", fmt.Errorf("broker: %s address not found", mq.BrokerName)
-		}
-	}
-	return broker, nil
 }
 
 // CreateTopic create topic.
