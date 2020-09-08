@@ -110,8 +110,9 @@ Full examples: [consumer](../examples/consumer)
 ```
 testAdmin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
 err = testAdmin.CreateTopic(
-	WithTopicCreate("newTopic"),
-	WithBrokerAddrCreate("127.0.0.1:10911"),
+	context.Background(),
+	admin.WithTopicCreate("newTopic"),
+	admin.WithBrokerAddrCreate("127.0.0.1:10911"),
 )
 ```
 
@@ -119,8 +120,9 @@ err = testAdmin.CreateTopic(
 `ClusterName` not supported yet
 ```
 err = testAdmin.DeleteTopic(
-	WithTopicDelete("newTopic"),
-	//WithBrokerAddrDelete("127.0.0.1:10911"),	//optional
-	//WithNameSrvAddr(nameSrvAddr),				//optional
+	context.Background(),
+	admin.WithTopicDelete("newTopic"),
+	//admin.WithBrokerAddrDelete("127.0.0.1:10911"),	//optional
+	//admin.WithNameSrvAddr(nameSrvAddr),				//optional
 )
 ```

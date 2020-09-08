@@ -25,6 +25,7 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type Admin interface {
@@ -109,6 +110,18 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
 	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
+	if err != nil {
+		rlog.Error("create topic error", map[string]interface{}{
+			rlog.LogKeyTopic:         cfg.Topic,
+			rlog.LogKeyBroker:        cfg.BrokerAddr,
+			rlog.LogKeyUnderlayError: err,
+		})
+	} else {
+		rlog.Info("create topic success", map[string]interface{}{
+			rlog.LogKeyTopic:  cfg.Topic,
+			rlog.LogKeyBroker: cfg.BrokerAddr,
+		})
+	}
 	return err
 }
 
@@ -145,6 +158,13 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	}
 
 	if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
+		if err != nil {
+			rlog.Error("delete topic in broker error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        cfg.BrokerAddr,
+				rlog.LogKeyUnderlayError: err,
+			})
+		}
 		return err
 	}
 
@@ -156,9 +176,21 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 
 	for _, nameSrvAddr := range cfg.NameSrvAddr {
 		if _, err := a.deleteTopicInNameServer(ctx, cfg.Topic, nameSrvAddr); err != nil {
+			if err != nil {
+				rlog.Error("delete topic in name server error", map[string]interface{}{
+					rlog.LogKeyTopic:         cfg.Topic,
+					"nameServer":             nameSrvAddr,
+					rlog.LogKeyUnderlayError: err,
+				})
+			}
 			return err
 		}
 	}
+	rlog.Info("delete topic success", map[string]interface{}{
+		rlog.LogKeyTopic:  cfg.Topic,
+		rlog.LogKeyBroker: cfg.BrokerAddr,
+		"nameServer":      cfg.NameSrvAddr,
+	})
 	return nil
 }
 
