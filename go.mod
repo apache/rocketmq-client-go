@@ -12,7 +12,6 @@ require (
 	github.com/tidwall/match v1.0.1 // indirect
 	github.com/tidwall/pretty v0.0.0-20190325153808-1166b9ac2b65 // indirect
 	go.uber.org/atomic v1.5.1
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	stathat.com/c/consistent v1.0.0
 )
 

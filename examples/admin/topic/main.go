@@ -57,7 +57,7 @@ func main() {
 	err = testAdmin.DeleteTopic(
 		context.Background(),
 		admin.WithTopicDelete(topic),
-		//WithBrokerAddrDelete(),
+		//WithBrokerAddrDelete(brokerAddr),
 		//WithClusterName(clusterName),
 		//WithNameSrvAddr(strings.Split(nameSrvAddr, ",")),
 	)
@@ -67,40 +67,3 @@ func main() {
 	log.Printf("delete topic [%v] from Cluster success", topic)
 	log.Printf("delete topic [%v] from NameServer success", topic)
 }
-
-/*
-//TODO: another implementation like sarama, without brokerAddr as input(would be in admin)
-func TestCreateTopic(t *testing.T) {
-	testAdmin := initAdmin(t)
-	newTopic := "newOne"
-	brokerAddr := "172.29.193.44:10911"
-
-	err := testAdmin.CreateTopic(context.Background(), newTopic, brokerAddr)
-	assert(err)
-	log.Printf("create topic to %v success", brokerAddr)
-}
-*/
-
-/*
-func TestTopicList(t *testing.T) {
-	testAdmin := initAdmin(t)
-
-	mq := &primitive.MessageQueue{
-		Topic:      topic,
-		BrokerName: brokerName,
-		QueueId:    0,
-	}
-
-	list := testAdmin.TopicList(context.Background(), mq)
-	//assert(err)
-	log.Printf("Topic List: %v", list)
-}
-
-func TestGetBrokerClusterInfo(t *testing.T) {
-	testAdmin := initAdmin(t)
-
-	list, err := testAdmin.GetBrokerClusterInfo(context.Background())
-	assert(err)
-	log.Printf("Broker Cluster Info: %#v", list)
-}
-*/

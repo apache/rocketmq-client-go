@@ -38,7 +38,7 @@ type Admin interface {
 	Close() error
 }
 
-// TODO: 超时的内容, 全部转移到 ctx
+// TODO: move outdated context to ctx
 type adminOptions struct {
 	internal.ClientOptions
 }
@@ -104,6 +104,7 @@ func (a *admin) getAddr(mq *primitive.MessageQueue) (string, error) {
 }
 
 // CreateTopic create topic.
+// TODO: another implementation like sarama, without brokerAddr as input
 func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	cfg := defaultTopicConfigCreate()
 	for _, apply := range opts {
@@ -126,22 +127,6 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	return err
 }
 
-/*
-// DeleteTopicInBroker delete topic in broker.
-func (a *admin) TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error) {
-	cmd := remote.NewRemotingCommand(internal.ReqGetAllTopicListFromNameServer, nil, nil)
-	response, err := a.cli.InvokeSync(ctx, "", cmd, 5*time.Second)
-	return response, err
-}
-
-// DeleteTopicInBroker delete topic in broker.
-func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error) {
-	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
-	response, err := a.cli.InvokeSync(ctx, "", cmd, 5*time.Second)
-
-	return response, err
-}
-*/
 // DeleteTopicInBroker delete topic in broker.
 func (a *admin) deleteTopicInBroker(ctx context.Context, topic string, brokerAddr string) (*remote.RemotingCommand, error) {
 	request := &internal.DeleteTopicRequestHeader{
