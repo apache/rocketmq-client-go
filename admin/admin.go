@@ -30,11 +30,10 @@ import (
 
 type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
+	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
+	//TODO
 	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
-
-	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
-
 	Close() error
 }
 
