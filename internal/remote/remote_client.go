@@ -194,7 +194,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 				responseFuture.ResponseCommand = cmd
 				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
-					responseFuture.Done <- true
+					close(responseFuture.Done)
 				}
 			})
 		}
