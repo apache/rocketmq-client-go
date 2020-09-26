@@ -929,7 +929,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	brokerAddr := dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
 		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.Topic)
+		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
@@ -958,7 +958,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	brokerAddr := dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if brokerAddr == "" {
 		dc.namesrv.UpdateTopicRouteInfo(mq.Topic)
-		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.Topic)
+		brokerAddr = dc.namesrv.FindBrokerAddrByName(mq.BrokerName)
 	}
 	if brokerAddr == "" {
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
