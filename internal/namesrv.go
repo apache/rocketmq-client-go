@@ -127,7 +127,10 @@ func (s *namesrvs) getNameServerAddress() string {
 	}
 	index %= len(s.srvs)
 	s.index = index
-	return strings.TrimLeft(addr, "http(s)://")
+	if strings.HasPrefix(addr, "https") {
+		return strings.TrimPrefix(addr, "https://")
+	}
+	return strings.TrimPrefix(addr, "http://")
 }
 
 func (s *namesrvs) Size() int {
