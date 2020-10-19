@@ -101,3 +101,28 @@ err = c.Start()
 ```
 
 Full examples: [consumer](../examples/consumer)
+
+
+### Admin: Topic Operation
+
+#### Examples
+- create topic
+```
+testAdmin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})))
+err = testAdmin.CreateTopic(
+	context.Background(),
+	admin.WithTopicCreate("newTopic"),
+	admin.WithBrokerAddrCreate("127.0.0.1:10911"),
+)
+```
+
+- delete topic
+`ClusterName` not supported yet
+```
+err = testAdmin.DeleteTopic(
+	context.Background(),
+	admin.WithTopicDelete("newTopic"),
+	//admin.WithBrokerAddrDelete("127.0.0.1:10911"),	//optional
+	//admin.WithNameSrvAddr(nameSrvAddr),				//optional
+)
+```

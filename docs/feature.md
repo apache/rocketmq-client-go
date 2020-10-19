@@ -71,3 +71,16 @@
     - [ ] VIPChannel
     - [ ] RPCHook
     
+## Admin
+
+### Topic/Cluster
+- [x] updateTopic
+- [x] deleteTopic
+- [ ] updateSubGroup
+- [ ] deleteSubGroup
+- [ ] updateBrokerConfig
+- [ ] updateTopicPerm
+- [ ] listTopic
+- [ ] topicRoute
+- [ ] topicStatus
+- [ ] topicClusterList

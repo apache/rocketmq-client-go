@@ -24,25 +24,33 @@ import (
 )
 
 const (
-	ReqSendMessage              = int16(10)
-	ReqPullMessage              = int16(11)
-	ReqQueryConsumerOffset      = int16(14)
-	ReqUpdateConsumerOffset     = int16(15)
-	ReqSearchOffsetByTimestamp  = int16(29)
-	ReqGetMaxOffset             = int16(30)
-	ReqHeartBeat                = int16(34)
-	ReqConsumerSendMsgBack      = int16(36)
-	ReqENDTransaction           = int16(37)
-	ReqGetConsumerListByGroup   = int16(38)
-	ReqLockBatchMQ              = int16(41)
-	ReqUnlockBatchMQ            = int16(42)
-	ReqGetRouteInfoByTopic      = int16(105)
-	ReqSendBatchMessage         = int16(320)
-	ReqCheckTransactionState    = int16(39)
-	ReqNotifyConsumerIdsChanged = int16(40)
-	ReqResetConsuemrOffset      = int16(220)
-	ReqGetConsumerRunningInfo   = int16(307)
-	ReqConsumeMessageDirectly   = int16(309)
+	ReqSendMessage                   = int16(10)
+	ReqPullMessage                   = int16(11)
+	ReqQueryMessage                  = int16(12)
+	ReqQueryConsumerOffset           = int16(14)
+	ReqUpdateConsumerOffset          = int16(15)
+	ReqCreateTopic                   = int16(17)
+	ReqSearchOffsetByTimestamp       = int16(29)
+	ReqGetMaxOffset                  = int16(30)
+	ReqGetMinOffset                  = int16(31)
+	ReqViewMessageByID               = int16(33)
+	ReqHeartBeat                     = int16(34)
+	ReqConsumerSendMsgBack           = int16(36)
+	ReqENDTransaction                = int16(37)
+	ReqGetConsumerListByGroup        = int16(38)
+	ReqLockBatchMQ                   = int16(41)
+	ReqUnlockBatchMQ                 = int16(42)
+	ReqGetRouteInfoByTopic           = int16(105)
+	ReqGetBrokerClusterInfo          = int16(106)
+	ReqSendBatchMessage              = int16(320)
+	ReqCheckTransactionState         = int16(39)
+	ReqNotifyConsumerIdsChanged      = int16(40)
+	ReqGetAllTopicListFromNameServer = int16(206)
+	ReqDeleteTopicInBroker           = int16(215)
+	ReqDeleteTopicInNameSrv          = int16(216)
+	ReqResetConsuemrOffset           = int16(220)
+	ReqGetConsumerRunningInfo        = int16(307)
+	ReqConsumeMessageDirectly        = int16(309)
 )
 
 type SendMessageRequestHeader struct {
@@ -317,4 +325,85 @@ func (request *GetConsumerRunningInfoHeader) Decode(properties map[string]string
 	if v, existed := properties["clientId"]; existed {
 		request.clientID = v
 	}
+}
+
+type QueryMessageRequestHeader struct {
+	Topic          string
+	Key            string
+	MaxNum         int
+	BeginTimestamp int64
+	EndTimestamp   int64
+}
+
+func (request *QueryMessageRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["key"] = request.Key
+	maps["maxNum"] = fmt.Sprintf("%d", request.MaxNum)
+	maps["beginTimestamp"] = strconv.FormatInt(request.BeginTimestamp, 10)
+	maps["endTimestamp"] = fmt.Sprintf("%d", request.EndTimestamp)
+
+	return maps
+}
+
+func (request *QueryMessageRequestHeader) Decode(properties map[string]string) error {
+	return nil
+}
+
+type ViewMessageRequestHeader struct {
+	Offset int64
+}
+
+func (request *ViewMessageRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["offset"] = strconv.FormatInt(request.Offset, 10)
+
+	return maps
+}
+
+type CreateTopicRequestHeader struct {
+	Topic           string
+	DefaultTopic    string
+	ReadQueueNums   int
+	WriteQueueNums  int
+	Perm            int
+	TopicFilterType string
+	TopicSysFlag    int
+	Order           bool
+}
+
+func (request *CreateTopicRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["defaultTopic"] = request.DefaultTopic
+	maps["readQueueNums"] = fmt.Sprintf("%d", request.ReadQueueNums)
+	maps["writeQueueNums"] = fmt.Sprintf("%d", request.WriteQueueNums)
+	maps["perm"] = fmt.Sprintf("%d", request.Perm)
+	maps["topicFilterType"] = request.TopicFilterType
+	maps["topicSysFlag"] = fmt.Sprintf("%d", request.TopicSysFlag)
+	maps["order"] = strconv.FormatBool(request.Order)
+
+	return maps
+}
+
+type TopicListRequestHeader struct {
+	Topic string
+}
+
+func (request *TopicListRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+
+	return maps
+}
+
+type DeleteTopicRequestHeader struct {
+	Topic string
+}
+
+func (request *DeleteTopicRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+
+	return maps
 }
