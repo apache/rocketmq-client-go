@@ -64,7 +64,7 @@ func goMsgToC(gomsg *Message) *C.struct_CMessage {
 	C.free(unsafe.Pointer(cs))
 
 	cs = C.CString(gomsg.Body)
-	C.SetMessageBody(cmsg, cs)
+	C.SetByteMessageBody(cmsg, cs, C.int(len(gomsg.Body)))
 	C.free(unsafe.Pointer(cs))
 
 	C.SetDelayTimeLevel(cmsg, C.int(gomsg.DelayTimeLevel))
@@ -85,7 +85,7 @@ func cMsgToGo(cMsg *C.struct_CMessage) *Message {
 	gomsg.Topic = C.GoString(C.GetOriginMessageTopic(cMsg))
 	gomsg.Tags = C.GoString(C.GetOriginMessageTags(cMsg))
 	gomsg.Keys = C.GoString(C.GetOriginMessageKeys(cMsg))
-	gomsg.Body = C.GoString(C.GetOriginMessageBody(cMsg))
+	gomsg.Body = C.GoStringN(C.GetOriginMessageBody(cMsg), C.GetOriginMessageBodyLength(cMsg))
 	gomsg.DelayTimeLevel = int(C.GetOriginDelayTimeLevel(cMsg))
 	gomsg.cmsg = cMsg
 
@@ -129,7 +129,7 @@ func cmsgExtToGo(cmsg *C.struct_CMessageExt) *MessageExt {
 	gomsg.Topic = C.GoString(C.GetMessageTopic(cmsg))
 	gomsg.Tags = C.GoString(C.GetMessageTags(cmsg))
 	gomsg.Keys = C.GoString(C.GetMessageKeys(cmsg))
-	gomsg.Body = C.GoString(C.GetMessageBody(cmsg))
+	gomsg.Body = C.GoStringN(C.GetMessageBody(cmsg), C.GetMessageBodyLength(cmsg))
 	gomsg.MessageID = C.GoString(C.GetMessageId(cmsg))
 	gomsg.DelayTimeLevel = int(C.GetMessageDelayTimeLevel(cmsg))
 	gomsg.QueueId = int(C.GetMessageQueueId(cmsg))
