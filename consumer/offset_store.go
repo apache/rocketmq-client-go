@@ -26,13 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/json-iterator/go"
-
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type readType int
@@ -101,7 +100,7 @@ func (mq *MessageQueueKey) UnmarshalText(text []byte) error {
 type localFileOffsetStore struct {
 	group       string
 	path        string
-	OffsetTable map[MessageQueueKey]int64
+	OffsetTable *sync.Map // concurrent safe , map[MessageQueueKey]int64
 	// mutex for offset file
 	mutex sync.Mutex
 }
@@ -110,7 +109,7 @@ func NewLocalFileOffsetStore(clientID, group string) OffsetStore {
 	store := &localFileOffsetStore{
 		group:       group,
 		path:        filepath.Join(_LocalOffsetStorePath, clientID, group, "offset.json"),
-		OffsetTable: make(map[MessageQueueKey]int64),
+		OffsetTable: new(sync.Map),
 	}
 	store.load()
 	return store
@@ -151,7 +150,9 @@ func (local *localFileOffsetStore) load() {
 	}
 
 	if datas != nil {
-		local.OffsetTable = datas
+		for k, v := range datas {
+			local.OffsetTable.Store(k, v)
+		}
 	}
 }
 
@@ -180,17 +181,17 @@ func (local *localFileOffsetStore) update(mq *primitive.MessageQueue, offset int
 		"new_offset":            offset,
 	})
 	key := MessageQueueKey(*mq)
-	localOffset, exist := local.OffsetTable[key]
+	localOffset, exist := local.OffsetTable.Load(key)
 	if !exist {
-		local.OffsetTable[key] = offset
+		local.OffsetTable.Store(key, offset)
 		return
 	}
 	if increaseOnly {
-		if localOffset < offset {
-			local.OffsetTable[key] = offset
+		if localOffset.(int64) < offset {
+			local.OffsetTable.Store(key, offset)
 		}
 	} else {
-		local.OffsetTable[key] = offset
+		local.OffsetTable.Store(key, offset)
 	}
 }
 
@@ -201,8 +202,16 @@ func (local *localFileOffsetStore) persist(mqs []*primitive.MessageQueue) {
 	local.mutex.Lock()
 	defer local.mutex.Unlock()
 
+	datas := make(map[MessageQueueKey]int64)
+	local.OffsetTable.Range(func(key, value interface{}) bool {
+		k := key.(MessageQueueKey)
+		v := value.(int64)
+		datas[k] = v
+		return true
+	})
+
 	wrapper := OffsetSerializeWrapper{
-		OffsetTable: local.OffsetTable,
+		OffsetTable: datas,
 	}
 
 	data, _ := jsoniter.Marshal(wrapper)
@@ -377,11 +386,12 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group string, mq p
 	return r.client.InvokeOneWay(context.Background(), broker, cmd, 5*time.Second)
 }
 
-func readFromMemory(table map[MessageQueueKey]int64, mq *primitive.MessageQueue) int64 {
-	localOffset, exist := table[MessageQueueKey(*mq)]
+func readFromMemory(table *sync.Map, mq *primitive.MessageQueue) int64 {
+	// map[MessageQueueKey]int64
+	localOffset, exist := table.Load(MessageQueueKey(*mq))
 	if !exist {
 		return -1
 	}
 
-	return localOffset
+	return localOffset.(int64)
 }
