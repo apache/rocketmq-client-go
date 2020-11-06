@@ -131,3 +131,21 @@ func TesHttpReslverWithSnapshotFileOnce(t *testing.T) {
 		So(Diff(addrs1, srvs), ShouldBeFalse)
 	})
 }
+
+func TestDNSResolver(t *testing.T) {
+	Convey("Test UpdateNameServerAddress Use DNS", t, func() {
+		srvs := []string{
+			"examples.com:9876",
+		}
+
+		hosts, _ := net.LookupHost("examples.com")
+		expectedHosts := make([]string, 0)
+		for _, host:=range hosts{
+			expectedHosts = append(expectedHosts, host + ":9876")
+		}
+		resolver := NewDNSResolver(srvs)
+		addrs := resolver.Resolve()
+
+		So(Diff(expectedHosts, addrs), ShouldBeFalse)
+	})
+}
