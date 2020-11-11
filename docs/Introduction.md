@@ -30,7 +30,7 @@ Producer interface {
 ```
 p, err := rocketmq.NewProducer(
 		producer.WithNameServer(endPoint),
-		//producer.WithNsResovler(primitive.NewPassthroughResolver(endPoint)),
+		//producer.WithNsResolver(primitive.NewPassthroughResolver(endPoint)),
 		producer.WithRetry(2),
 		producer.WithGroupName("GID_xxxxxx"),
 	)

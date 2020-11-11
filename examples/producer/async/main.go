@@ -31,7 +31,7 @@ import (
 // Package main implements a async producer to send message.
 func main() {
 	p, _ := rocketmq.NewProducer(
-		producer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		producer.WithRetry(2),
 		producer.WithQueueSelector(producer.NewManualQueueSelector()))
 
