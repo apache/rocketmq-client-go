@@ -222,9 +222,11 @@ func (pc *pushConsumer) Shutdown() error {
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
-	if atomic.LoadInt32(&pc.state) != int32(internal.StateCreateJust) {
-		return errors.New("subscribe topic only started before")
+	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
+		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
+		return errors.New("cannot subscribe topic since client either failed to start or has been shutdown.")
 	}
+
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
