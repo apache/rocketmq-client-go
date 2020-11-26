@@ -31,7 +31,7 @@ import (
 func main() {
 	c, err := rocketmq.NewPullConsumer(
 		consumer.WithGroupName("testGroup"),
-		consumer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 	)
 	if err != nil {
 		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)

@@ -30,7 +30,7 @@ import (
 
 func main() {
 	p, err := rocketmq.NewProducer(
-		producer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		producer.WithRetry(2),
 		producer.WithCredentials(primitive.Credentials{
 			AccessKey: "RocketMQ",

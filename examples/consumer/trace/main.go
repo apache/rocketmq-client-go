@@ -37,7 +37,7 @@ func main() {
 
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
-		consumer.WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 		consumer.WithTrace(traceCfg),
 	)
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,

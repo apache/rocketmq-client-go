@@ -36,7 +36,7 @@ func TestStart(t *testing.T) {
 	Convey("test Start method", t, func() {
 		c, _ := NewPushConsumer(
 			WithGroupName("testGroup"),
-			WithNsResovler(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+			WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 			WithConsumerModel(BroadCasting),
 		)
 
