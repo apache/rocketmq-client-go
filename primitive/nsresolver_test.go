@@ -140,8 +140,8 @@ func TestDNSResolver(t *testing.T) {
 
 		hosts, _ := net.LookupHost("examples.com")
 		expectedHosts := make([]string, 0)
-		for _, host:=range hosts{
-			expectedHosts = append(expectedHosts, host + ":9876")
+		for _, host := range hosts {
+			expectedHosts = append(expectedHosts, host+":9876")
 		}
 		resolver := NewDNSResolver(srvs)
 		addrs := resolver.Resolve()
