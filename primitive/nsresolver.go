@@ -19,7 +19,6 @@ package primitive
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"os/user"
@@ -81,44 +80,6 @@ func (p *passthroughResolver) Resolve() []string {
 
 func (p *passthroughResolver) Description() string {
 	return fmt.Sprintf("passthrough resolver of %v", p.addr)
-}
-
-type dnsResolver struct {
-	addrs    []string
-	failback NsResolver
-}
-
-func NewDNSResolver(addrs []string) *dnsResolver {
-	return &dnsResolver{
-		addrs:    addrs,
-		failback: NewEnvResolver(),
-	}
-}
-
-func (p *dnsResolver) Resolve() []string {
-	finalAddrs := make([]string, 0, len(p.addrs))
-	for _, addr := range p.addrs {
-		// example.com:9876
-		domainPort := strings.Split(addr, ":")
-		if len(domainPort) != 2 {
-			continue
-		}
-		ns, err := net.LookupHost(domainPort[0])
-		if err != nil {
-			continue
-		}
-		for _, host := range ns {
-			finalAddrs = append(finalAddrs, host+":"+domainPort[1])
-		}
-	}
-	if len(finalAddrs) > 0 {
-		return finalAddrs
-	}
-	return p.failback.Resolve()
-}
-
-func (p *dnsResolver) Description() string {
-	return fmt.Sprintf("dns resolver of %v", p.addrs)
 }
 
 const (
