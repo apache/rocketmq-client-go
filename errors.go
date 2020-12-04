@@ -18,12 +18,12 @@ limitations under the License.
 package rocketmq
 
 import (
-	"github.com/pkg/errors"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 )
 
 var (
-	ErrRequestTimeout = errors.New("request timeout")
-	ErrMQEmpty        = errors.New("MessageQueue is nil")
-	ErrOffset         = errors.New("offset < 0")
-	ErrNumbers        = errors.New("numbers < 0")
+	ErrRequestTimeout = utils.ErrRequestTimeout
+	ErrMQEmpty        = utils.ErrMQEmpty
+	ErrOffset         = utils.ErrOffset
+	ErrNumbers        = utils.ErrNumbers
 )
