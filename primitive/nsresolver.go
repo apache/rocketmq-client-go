@@ -130,9 +130,10 @@ func (h *HttpResolver) Description() string {
 
 func (h *HttpResolver) get() []string {
 	resp, err := h.cli.Get(h.domain)
-	if err != nil {
+	if err != nil || resp.StatusCode != 200 {
 		rlog.Error("name server http fetch failed", map[string]interface{}{
 			"NameServerDomain": h.domain,
+			"StatusCode":       resp.StatusCode,
 			"err":              err,
 		})
 		return nil
