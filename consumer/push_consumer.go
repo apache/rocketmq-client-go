@@ -692,6 +692,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		case primitive.PullNoNewMsg:
 			rlog.Debug(fmt.Sprintf("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d",
 				request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset), nil)
+			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
 		case primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
