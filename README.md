@@ -7,7 +7,7 @@
 [![GitHub release](https://img.shields.io/badge/release-download-default.svg)](https://github.com/apache/rocketmq-client-go/releases)
 [![Average time to resolve an issue](http://isitmaintained.com/badge/resolution/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Average time to resolve an issue")
 [![Percentage of issues still open](http://isitmaintained.com/badge/open/apache/rocketmq-client-go.svg)](http://isitmaintained.com/project/apache/rocketmq-client-go "Percentage of issues still open")
-![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)
+[![Twitter Follow](https://img.shields.io/twitter/follow/ApacheRocketMQ?style=social)](https://twitter.com/intent/follow?screen_name=ApacheRocketMQ)
 
 A product ready RocketMQ Client in pure go, which supports almost the full features of Apache RocketMQ, such as pub and sub messages, ACL, tracing and so on.
 
