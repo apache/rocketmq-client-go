@@ -47,6 +47,12 @@ func (msg *Message) String() string {
 
 //GetProperty get message property by key string
 func (msg *Message) GetProperty(key string) string {
+	if msg.Property != nil {
+		v, ok := msg.Property["key"]
+		if ok {
+			return v
+		}
+	}
 	ck := C.CString(key)
 	defer C.free(unsafe.Pointer(ck))
 	return C.GoString(C.GetOriginMessageProperty(msg.cmsg, ck))
