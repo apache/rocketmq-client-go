@@ -54,7 +54,7 @@ func TestMarshal2Bean(t *testing.T) {
 				},
 			}
 			bean := traceCtx.marshal2Bean()
-			assert.Equal(t, "Pub1563780533299DefaultRegionProducerGroupNameTopicTest0A5DE93A833B18B4AAC26F842A2F0000TagAOrderID188210.93.233.58:1091111357200A5DE93A00002A9F000000000042E322true\x02",
+			assert.Equal(t,"Pub1563780533299DefaultRegionProducerGroupNameTopicTest0A5DE93A833B18B4AAC26F842A2F0000TagAOrderID188210.93.233.58:1091111357200A5DE93A00002A9F000000000042E322true10.93.233.58\x02",
 				bean.transData)
 			assert.Equal(t, []string{"0A5DE93A833B18B4AAC26F842A2F0000", "OrderID1882"}, bean.transKey)
 
@@ -81,7 +81,7 @@ func TestMarshal2Bean(t *testing.T) {
 			bean = traceCtx.marshal2Bean()
 
 			Convey("transData should equal to expected", func() {
-				So(bean.transData, ShouldEqual, "SubBefore1563789119096CID_JODIE_10A5DE93A96A818B4AAC26FFAFA7800070A5DE93A973418B4AAC26FFAFA5A00000OrderID1882")
+				So(bean.transData, ShouldEqual, "SubBefore1563789119096CID_JODIE_10A5DE93A96A818B4AAC26FFAFA7800070A5DE93A973418B4AAC26FFAFA5A00000OrderID188210.93.233.58")
 			})
 
 			Convey("transkey should equal to expected", func() {
@@ -113,7 +113,7 @@ func TestMarshal2Bean(t *testing.T) {
 			}
 			bean := traceCtx.marshal2Bean()
 			Convey("transData should equal to expected", func() {
-				So(bean.transData, ShouldEqual, "SubAfter0A5DE93A96A818B4AAC26FFAFA7800070A5DE93A973418B4AAC26FFAFA5A00000trueOrderID18820")
+				So(bean.transData, ShouldEqual, "SubAfter0A5DE93A96A818B4AAC26FFAFA7800070A5DE93A973418B4AAC26FFAFA5A00000trueOrderID188201563789119096CID_JODIE_1")
 			})
 			Convey("transkey should equal to expected", func() {
 				expectedKey := []string{"0A5DE93A973418B4AAC26FFAFA5A0000", "OrderID1882"}
