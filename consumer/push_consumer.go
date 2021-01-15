@@ -465,6 +465,12 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 				return
 			default:
 				pc.submitToConsume(request.pq, request.mq)
+				if request.pq.IsDroppd() {
+					rlog.Info("push consumer quit pullMessage for dropped queue.", map[string]interface{}{
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+					return
+				}
 			}
 		}
 	})
