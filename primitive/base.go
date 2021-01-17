@@ -18,12 +18,7 @@ limitations under the License.
 package primitive
 
 import (
-	"regexp"
 	"strings"
-)
-
-var (
-	ipRegex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
 )
 
 type NamesrvAddr []string
@@ -39,46 +34,9 @@ func NewNamesrvAddr(s ...string) (NamesrvAddr, error) {
 		ss = strings.Split(s[0], ";")
 	}
 
-	for _, srv := range ss {
-		if err := verifyIP(srv); err != nil {
-			return nil, err
-		}
-	}
-
 	addrs := make(NamesrvAddr, 0)
 	addrs = append(addrs, ss...)
 	return addrs, nil
-}
-
-func (addr NamesrvAddr) Check() error {
-	for _, srv := range addr {
-		if err := verifyIP(srv); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var (
-	httpPrefixRegex, _ = regexp.Compile("^(http|https)://")
-)
-
-func verifyIP(ip string) error {
-	if httpPrefixRegex.MatchString(ip) {
-		return nil
-	}
-	if strings.Contains(ip, ";") {
-		return ErrMultiIP
-	}
-	ips := ipRegex.FindAllString(ip, -1)
-	if len(ips) == 0 {
-		return ErrIllegalIP
-	}
-
-	if len(ips) > 1 {
-		return ErrMultiIP
-	}
-	return nil
 }
 
 var PanicHandler func(interface{})
