@@ -127,7 +127,7 @@ func (bp *producerBenchmark) produceMsg(stati *statiBenchmarkProducerSnapshot, e
 	p, err := rocketmq.NewProducer(
 		producer.WithNameServer([]string{bp.nameSrv}),
 		producer.WithRetry(2),
-		)
+	)
 
 	if err != nil {
 		fmt.Printf("new producer error: %s\n", err)
@@ -141,12 +141,12 @@ func (bp *producerBenchmark) produceMsg(stati *statiBenchmarkProducerSnapshot, e
 	topic, tag := bp.topic, "benchmark-producer"
 	msgStr := buildMsg(bp.bodySize)
 
-	AGAIN:
-		select {
-		case <-exit:
-			return
-		default:
-		}
+AGAIN:
+	select {
+	case <-exit:
+		return
+	default:
+	}
 
 	now := time.Now()
 	r, err := p.SendSync(context.Background(), primitive.NewMessage(topic, []byte(msgStr)))

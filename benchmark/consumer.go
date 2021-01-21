@@ -136,9 +136,7 @@ func (bc *consumerBenchmark) consumeMsg(stati *statiBenchmarkConsumerSnapshot, e
 		panic("new push consumer error:" + err.Error())
 	}
 
-	selector := consumer.MessageSelector{
-
-	}
+	selector := consumer.MessageSelector{}
 	err = c.Subscribe(bc.topic, selector, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		for _, msg := range msgs {
