@@ -18,8 +18,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/producer"
 	"os"
 	"os/signal"
 	"sync"
@@ -93,7 +97,7 @@ func (s *produceSnapshots) printStati() {
 	)
 }
 
-type producer struct {
+type producerBenchmark struct {
 	topic         string
 	nameSrv       string
 	groupID       string
@@ -105,8 +109,8 @@ type producer struct {
 }
 
 func init() {
-	p := &producer{}
-	flags := flag.NewFlagSet("consumer", flag.ExitOnError)
+	p := &producerBenchmark{}
+	flags := flag.NewFlagSet("producer", flag.ExitOnError)
 	p.flags = flags
 
 	flags.StringVar(&p.topic, "t", "", "topic name")
@@ -116,60 +120,62 @@ func init() {
 	flags.IntVar(&p.testMinutes, "m", 10, "test minutes")
 	flags.IntVar(&p.bodySize, "s", 32, "body size")
 
-	registerCommand("consumer", p)
+	registerCommand("producer", p)
 }
 
-func (bp *producer) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan struct{}) {
-	//p, err := rocketmq.NewProducer(&rocketmq.ProducerConfig{
-	//	ClientConfig: rocketmq.ClientConfig{GroupID: bp.groupID, NameServer: bp.nameSrv},
-	//})
-	//if err != nil {
-	//	fmt.Printf("new consumer error:%s\n", err)
-	//	return
-	//}
-	//
-	//p.Start()
-	//defer p.Shutdown()
+func (bp *producerBenchmark) produceMsg(stati *statiBenchmarkProducerSnapshot, exit chan struct{}) {
+	p, err := rocketmq.NewProducer(
+		producer.WithNameServer([]string{bp.nameSrv}),
+		producer.WithRetry(2),
+		)
 
-	//topic, tag := bp.topic, "benchmark-consumer"
-	//
-	//AGAIN:
-	//	select {
-	//	case <-exit:
-	//		return
-	//	default:
-	//	}
+	if err != nil {
+		fmt.Printf("new producer error: %s\n", err)
+		return
+	}
 
-	//now := time.Now()
-	//r, err := p.SendMessageSync(&rocketmq.Message{
-	//	Topic: bp.topic, Body: buildMsg(bp.bodySize),
-	//})
-	//
-	//if err != nil {
-	//	fmt.Printf("send message sync error:%s", err)
-	//	goto AGAIN
-	//}
-	//
-	//if r.Status == rocketmq.SendOK {
-	//	atomic.AddInt64(&stati.receiveResponseSuccessCount, 1)
-	//	atomic.AddInt64(&stati.sendRequestSuccessCount, 1)
-	//	currentRT := int64(time.Since(now) / time.Millisecond)
-	//	atomic.AddInt64(&stati.sendMessageSuccessTimeTotal, currentRT)
-	//	prevRT := atomic.LoadInt64(&stati.sendMessageMaxRT)
-	//	for currentRT > prevRT {
-	//		if atomic.CompareAndSwapInt64(&stati.sendMessageMaxRT, prevRT, currentRT) {
-	//			break
-	//		}
-	//		prevRT = atomic.LoadInt64(&stati.sendMessageMaxRT)
-	//	}
-	//	goto AGAIN
-	//}
-	//
-	//fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
-	//goto AGAIN
+	err = p.Start()
+
+	defer p.Shutdown()
+
+	topic, tag := bp.topic, "benchmark-producer"
+	msgStr := buildMsg(bp.bodySize)
+
+	AGAIN:
+		select {
+		case <-exit:
+			return
+		default:
+		}
+
+	now := time.Now()
+	r, err := p.SendSync(context.Background(), primitive.NewMessage(topic, []byte(msgStr)))
+
+	if err != nil {
+		fmt.Printf("send message sync error:%s", err)
+		goto AGAIN
+	}
+
+	if r.Status == primitive.SendOK {
+		atomic.AddInt64(&stati.receiveResponseSuccessCount, 1)
+		atomic.AddInt64(&stati.sendRequestSuccessCount, 1)
+		currentRT := int64(time.Since(now) / time.Millisecond)
+		atomic.AddInt64(&stati.sendMessageSuccessTimeTotal, currentRT)
+		prevRT := atomic.LoadInt64(&stati.sendMessageMaxRT)
+		for currentRT > prevRT {
+			if atomic.CompareAndSwapInt64(&stati.sendMessageMaxRT, prevRT, currentRT) {
+				break
+			}
+			prevRT = atomic.LoadInt64(&stati.sendMessageMaxRT)
+		}
+		goto AGAIN
+	}
+
+	fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
+	goto AGAIN
 }
 
-func (bp *producer) run(args []string) {
+func (bp *producerBenchmark) run(args []string) {
 	bp.flags.Parse(args)
 
 	if bp.topic == "" {
@@ -266,6 +272,6 @@ func (bp *producer) run(args []string) {
 	fmt.Println("TEST DONE")
 }
 
-func (bp *producer) usage() {
+func (bp *producerBenchmark) usage() {
 	bp.flags.Usage()
 }
