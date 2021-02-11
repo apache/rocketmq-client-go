@@ -20,12 +20,56 @@ package utils
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"io/ioutil"
-	"net"
+	"sync"
 )
 
-func GetAddressByBytes(data []byte) string {
-	return net.IPv4(data[0], data[1], data[2], data[3]).String()
+var zlibWriterPools []sync.Pool
+
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
+
+func init() {
+	zlibWriterPools = make([]sync.Pool, zlib.BestCompression)
+	for i := 0; i < zlib.BestCompression; i++ {
+		compressLevel := i
+		zlibWriterPools[i] = sync.Pool{
+			New: func() interface{} {
+				z, _ := zlib.NewWriterLevel(nil, compressLevel+1)
+				return z
+			},
+		}
+	}
+}
+
+func Compress(raw []byte, compressLevel int) ([]byte, error) {
+	if compressLevel < zlib.BestSpeed || compressLevel > zlib.BestCompression {
+		return nil, errors.New("unsupported compress level")
+	}
+
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer bufPool.Put(buf)
+	writerPool := zlibWriterPools[compressLevel-1]
+	writer := writerPool.Get().(*zlib.Writer)
+	defer writerPool.Put(writer)
+	buf.Reset()
+	writer.Reset(buf)
+	_, e := writer.Write(raw)
+	if e != nil {
+		return nil, e
+	}
+
+	e = writer.Close()
+	if e != nil {
+		return nil, e
+	}
+	result := make([]byte, buf.Len())
+	buf.Read(result)
+	return result, nil
 }
 
 func UnCompress(data []byte) []byte {

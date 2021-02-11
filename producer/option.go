@@ -26,12 +26,14 @@ import (
 
 func defaultProducerOptions() producerOptions {
 	opts := producerOptions{
-		ClientOptions:         internal.DefaultClientOptions(),
-		Selector:              NewRoundRobinQueueSelector(),
-		SendMsgTimeout:        3 * time.Second,
-		DefaultTopicQueueNums: 4,
-		CreateTopicKey:        "TBW102",
-		Resolver:              primitive.NewHttpResolver("DEFAULT"),
+		ClientOptions:              internal.DefaultClientOptions(),
+		Selector:                   NewRoundRobinQueueSelector(),
+		SendMsgTimeout:             3 * time.Second,
+		DefaultTopicQueueNums:      4,
+		CreateTopicKey:             "TBW102",
+		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
+		CompressMsgBodyOverHowmuch: 4096,
+		CompressLevel:              5,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -44,7 +46,9 @@ type producerOptions struct {
 	DefaultTopicQueueNums int
 	CreateTopicKey        string // "TBW102" Will be created at broker when isAutoCreateTopicEnable. when topic is not created,
 	// and broker open isAutoCreateTopicEnable, topic will use "TBW102" config to create topic
-	Resolver primitive.NsResolver
+	Resolver                   primitive.NsResolver
+	CompressMsgBodyOverHowmuch int
+	CompressLevel              int
 }
 
 type Option func(*producerOptions)
@@ -140,5 +144,21 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 func WithNameServerDomain(nameServerUrl string) Option {
 	return func(opts *producerOptions) {
 		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+	}
+}
+
+// WithCompressMsgBodyOverHowmuch set compression threshold
+func WithCompressMsgBodyOverHowmuch(threshold int) Option {
+	return func(opts *producerOptions) {
+		opts.CompressMsgBodyOverHowmuch = threshold
+	}
+}
+
+// WithCompressLevel set compress level (0~9)
+// 0 stands for best speed
+// 9 stands for best compression ratio
+func WithCompressLevel(level int) Option {
+	return func(opts *producerOptions) {
+		opts.CompressLevel = level
 	}
 }

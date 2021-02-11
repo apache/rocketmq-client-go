@@ -59,3 +59,7 @@ func FakeIP() []byte {
 	buf.WriteString(strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 10))
 	return buf.Bytes()[4:8]
 }
+
+func GetAddressByBytes(data []byte) string {
+	return net.IPv4(data[0], data[1], data[2], data[3]).String()
+}

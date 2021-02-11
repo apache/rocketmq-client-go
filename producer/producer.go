@@ -302,12 +302,34 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 	return err
 }
 
+func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
+	if msg.Compress {
+		return true
+	}
+	if msg.Batch {
+		return false
+	}
+	if len(msg.Body) < p.options.CompressMsgBodyOverHowmuch {
+		return false
+	}
+	compressedBody, e := utils.Compress(msg.Body, p.options.CompressLevel)
+	if e != nil {
+		return false
+	}
+	msg.Body = compressedBody
+	msg.Compress = true
+	return true
+}
+
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
 	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
 		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
 	sysFlag := 0
+	if p.tryCompressMsg(msg) {
+		sysFlag = primitive.SetCompressedFlag(sysFlag)
+	}
 	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
 	if v != "" {
 		tranMsg, err := strconv.ParseBool(v)
