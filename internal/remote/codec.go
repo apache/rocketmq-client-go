@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
@@ -132,6 +133,43 @@ var (
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // + len  |   4bytes   |     4bytes    | (21 + r_len + e_len) bytes | remain bytes +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+func (command *RemotingCommand) WriteTo(w io.Writer) error {
+	var (
+		header []byte
+		err    error
+	)
+
+	switch codecType {
+	case JsonCodecs:
+		header, err = jsonSerializer.encodeHeader(command)
+	case RocketMQCodecs:
+		header, err = rocketMqSerializer.encodeHeader(command)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	frameSize := 4 + len(header) + len(command.Body)
+	err = binary.Write(w, binary.BigEndian, int32(frameSize))
+	if err != nil {
+		return err
+	}
+
+	err = binary.Write(w, binary.BigEndian, markProtocolType(int32(len(header))))
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(header)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(command.Body)
+	return err
+}
+
 func encode(command *RemotingCommand) ([]byte, error) {
 	var (
 		header []byte
