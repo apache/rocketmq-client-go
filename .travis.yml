@@ -19,7 +19,7 @@ before_install:
   - cd ${TRAVIS_HOME}
   - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.5/RHEL7.x/librocketmq.tar.gz
   - tar -xzf librocketmq.tar.gz
-  - sudo cp librocketmq.so librocketmq_client_core.so /usr/local/lib/
+  - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
   - sudo cp -r rocketmq /usr/local/include/
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
 
