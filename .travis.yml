@@ -17,7 +17,7 @@ env:
 
 before_install:
   - cd ${TRAVIS_HOME}
-  - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.4/RHEL7.x/librocketmq.tar.gz
+  - wget https://opensource-rocketmq-client-us.oss-us-west-1.aliyuncs.com/cpp-client/linux/1.2.5/RHEL7.x/librocketmq.tar.gz
   - tar -xzf librocketmq.tar.gz
   - sudo cp librocketmq.so librocketmq.a /usr/local/lib/
   - sudo cp -r rocketmq /usr/local/include/
@@ -26,4 +26,6 @@ before_install:
 script:
   - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+  - go get github.com/sirupsen/logrus
+  - go get github.com/stretchr/testify/assert
   - go test ./core
