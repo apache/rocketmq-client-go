@@ -26,4 +26,6 @@ before_install:
 script:
   - export LD_LIBRARY_PATH=/usr/local/lib
   - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go
+  - go get github.com/sirupsen/logrus
+  - go get github.com/stretchr/testify/assert
   - go test ./core
