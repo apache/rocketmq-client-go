@@ -384,6 +384,9 @@ func (c *rmqClient) Start() {
 }
 
 func (c *rmqClient) removeClient() {
+	rlog.Info("will remove client from clientMap", map[string]interface{}{
+		"clientID": c.ClientID(),
+	})
 	clientMap.Delete(c.ClientID())
 }
 
