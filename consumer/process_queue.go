@@ -98,6 +98,10 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		if found {
 			continue
 		}
+		_, found = pq.consumingMsgOrderlyTreeMap.Get(msg.QueueOffset)
+		if found {
+			continue
+		}
 		pq.msgCache.Put(msg.QueueOffset, msg)
 		validMessageCount++
 		pq.queueOffsetMax = msg.QueueOffset
