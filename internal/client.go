@@ -39,7 +39,7 @@ const (
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
-	_TranceOff = "false"
+	_TraceOff = "false"
 
 	// Pulling topic information interval from the named server
 	_PullNameServerInterval = 30 * time.Second
@@ -587,7 +587,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	resp.QueueOffset = off
 	resp.TransactionID = cmd.ExtFields["transactionId"]
 	resp.RegionID = regionId
-	resp.TraceOn = trace != "" && trace != _TranceOff
+	resp.TraceOn = trace != "" && trace != _TraceOff
 	return nil
 }
 
