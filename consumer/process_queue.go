@@ -98,11 +98,16 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		if found {
 			continue
 		}
+		// put msg first, make sure no message lost
+		// https://github.com/apache/rocketmq-client-go/issues/618
+		pq.msgCache.Put(msg.QueueOffset, msg)
+
+		// make sure cachedMsgCount not big than real
+		// https://github.com/apache/rocketmq-client-go/issues/615
 		_, found = pq.consumingMsgOrderlyTreeMap.Get(msg.QueueOffset)
 		if found {
 			continue
 		}
-		pq.msgCache.Put(msg.QueueOffset, msg)
 		validMessageCount++
 		pq.queueOffsetMax = msg.QueueOffset
 		atomic.AddInt64(&pq.cachedMsgSize, int64(len(msg.Body)))
