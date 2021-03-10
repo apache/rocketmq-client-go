@@ -59,6 +59,7 @@ const (
 	PropertyTranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 	PropertyShardingKey                    = "SHARDING_KEY"
+	PropertyTransactionID                  = "__transactionId__"
 )
 
 type Message struct {
