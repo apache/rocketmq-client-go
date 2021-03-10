@@ -362,3 +362,45 @@ func TestConsumerRunningInfo_MarshalJSON(t *testing.T) {
 		})
 	})
 }
+
+func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
+	Convey("test ConsumeMessageDirectlyResult MarshalJson", t, func() {
+		Convey("test consume success", func(){
+			consumeMessageDirectlyResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeMessageDirectlyResult.ConsumeResult = ConsumeSuccess
+			data, err := consumeMessageDirectlyResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+
+		Convey("test consume timeout", func(){
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeResult.ConsumeResult = ReturnNull
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+
+		Convey("test consume exception", func(){
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 5,
+			}
+			consumeResult.ConsumeResult = ThrowException
+			consumeResult.Remark = "Unknown Exception"
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+	})
+
+}

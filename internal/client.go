@@ -84,6 +84,7 @@ type InnerConsumer interface {
 	Rebalance()
 	IsUnitMode() bool
 	GetConsumerRunningInfo() *ConsumerRunningInfo
+	ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *ConsumeMessageDirectlyResult
 	GetcType() string
 	GetModel() string
 	GetWhere() string
@@ -248,6 +249,36 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 					}
 				} else {
 					res.Remark = "there is unexpected error when get running info, please check log"
+				}
+			}
+			return res
+		})
+
+		client.remoteClient.RegisterRequestFunc(ReqConsumeMessageDirectly, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive consume message directly request...", nil)
+			header := new(ConsumeMessageDirectlyHeader)
+			header.Decode(req.ExtFields)
+			val, exist := clientMap.Load(header.clientID)
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			if !exist {
+				res.Remark = fmt.Sprintf("Can't find specified client instance of: %s", header.clientID)
+			} else {
+				cli, ok := val.(*rmqClient)
+				msg := primitive.DecodeMessage(req.Body)[0]
+				var consumeMessageDirectlyResult *ConsumeMessageDirectlyResult
+				if ok {
+					consumeMessageDirectlyResult = cli.consumeMessageDirectly(msg, header.consumerGroup, header.brokerName)
+				}
+				if consumeMessageDirectlyResult != nil {
+					res.Code = ResSuccess
+					data, err := consumeMessageDirectlyResult.Encode()
+					if err != nil {
+						res.Remark = fmt.Sprintf("json marshal error: %s", err.Error())
+					} else {
+						res.Body = data
+					}
+				} else {
+					res.Remark = "there is unexpected error when consume message directly, please check log"
 				}
 			}
 			return res
@@ -742,6 +773,15 @@ func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
 		info.Properties[PropClientVersion] = clientVersion
 	}
 	return info
+}
+
+func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group string, brokerName string) *ConsumeMessageDirectlyResult {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		return nil
+	}
+	res := consumer.(InnerConsumer).ConsumeMessageDirectly(msg, brokerName)
+	return res
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {

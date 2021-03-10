@@ -261,3 +261,30 @@ func NewConsumerRunningInfo() *ConsumerRunningInfo {
 		StatusTable:      make(map[string]ConsumeStatus),
 	}
 }
+
+type ConsumeMessageDirectlyResult struct {
+	Order          bool          `json:"order"`
+	AutoCommit     bool          `json:"autoCommit"`
+	ConsumeResult  ConsumeResult `json:"consumeResult"`
+	Remark         string        `json:"remark"`
+	SpentTimeMills int64         `json:"spentTimeMills"`
+}
+
+type ConsumeResult int
+
+const (
+	ConsumeSuccess ConsumeResult = iota
+	ConsumeRetryLater
+	Rollback
+	Commit
+	ThrowException
+	ReturnNull
+)
+
+func (result ConsumeMessageDirectlyResult) Encode() ([]byte, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
