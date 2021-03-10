@@ -365,7 +365,7 @@ func TestConsumerRunningInfo_MarshalJSON(t *testing.T) {
 
 func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 	Convey("test ConsumeMessageDirectlyResult MarshalJson", t, func() {
-		Convey("test consume success", func(){
+		Convey("test consume success", func() {
 			consumeMessageDirectlyResult := ConsumeMessageDirectlyResult{
 				Order:          false,
 				AutoCommit:     true,
@@ -377,7 +377,7 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
 		})
 
-		Convey("test consume timeout", func(){
+		Convey("test consume timeout", func() {
 			consumeResult := ConsumeMessageDirectlyResult{
 				Order:          false,
 				AutoCommit:     true,
@@ -389,7 +389,7 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
 		})
 
-		Convey("test consume exception", func(){
+		Convey("test consume exception", func() {
 			consumeResult := ConsumeMessageDirectlyResult{
 				Order:          false,
 				AutoCommit:     true,
