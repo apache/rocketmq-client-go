@@ -324,7 +324,7 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 	res := &internal.ConsumeMessageDirectlyResult{
 		Order:          false,
 		AutoCommit:     true,
-		SpentTimeMills: consumeRT.Milliseconds(),
+		SpentTimeMills: int64(consumeRT / time.Millisecond),
 	}
 
 	if err != nil {
