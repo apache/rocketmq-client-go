@@ -241,7 +241,8 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	return nil
 }
 
-func (pc *pushConsumer) Unsubscribe(string) error {
+func (pc *pushConsumer) Unsubscribe(topic string) error {
+	pc.subscriptionDataTable.Delete(topic)
 	return nil
 }
 
