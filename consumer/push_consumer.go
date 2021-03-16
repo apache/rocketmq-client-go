@@ -562,7 +562,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 		// reset time
 		sleepTime = pc.option.PullInterval
-		pq.lastPullTime = time.Now()
+		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
 			rlog.Warning("consumer state error", map[string]interface{}{
