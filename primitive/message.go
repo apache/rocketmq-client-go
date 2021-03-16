@@ -67,6 +67,7 @@ type Message struct {
 	Flag          int32
 	TransactionId string
 	Batch         bool
+	Compress      bool
 	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue
@@ -496,6 +497,10 @@ func ResetTransactionValue(flag int, typeFlag int) int {
 
 func ClearCompressedFlag(flag int) int {
 	return flag & (^CompressedFlag)
+}
+
+func SetCompressedFlag(flag int) int {
+	return flag | CompressedFlag
 }
 
 var (
