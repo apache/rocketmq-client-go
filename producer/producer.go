@@ -462,13 +462,20 @@ func (tp *transactionProducer) checkTransactionState() {
 			if uniqueKey == "" {
 				uniqueKey = callback.Msg.MsgId
 			}
+			transactionId := callback.Msg.GetProperty(primitive.PropertyTransactionID)
+			if transactionId == "" {
+				transactionId = callback.Header.TransactionId
+			}
+			if transactionId == "" {
+				transactionId = callback.Msg.TransactionId
+			}
 			header := &internal.EndTransactionRequestHeader{
 				CommitLogOffset:      callback.Header.CommitLogOffset,
 				ProducerGroup:        tp.producer.group,
 				TranStateTableOffset: callback.Header.TranStateTableOffset,
 				FromTransactionCheck: true,
 				MsgID:                uniqueKey,
-				TransactionId:        callback.Header.TransactionId,
+				TransactionId:        transactionId,
 				CommitOrRollback:     tp.transactionState(localTransactionState),
 			}
 
