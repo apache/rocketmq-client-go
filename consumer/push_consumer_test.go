@@ -52,6 +52,23 @@ func TestStart(t *testing.T) {
 			return ConsumeSuccess, nil
 		})
 
+		_, exists := c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeTrue)
+
+		err = c.Unsubscribe("TopicTest")
+		So(err, ShouldBeNil)
+		_, exists = c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeFalse)
+
+		err = c.Subscribe("TopicTest", MessageSelector{}, func(ctx context.Context,
+			msgs ...*primitive.MessageExt) (ConsumeResult, error) {
+			fmt.Printf("subscribe callback: %v \n", msgs)
+			return ConsumeSuccess, nil
+		})
+
+		_, exists = c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeTrue)
+
 		client.EXPECT().ClientID().Return("127.0.0.1@DEFAULT")
 		client.EXPECT().Start().Return()
 		client.EXPECT().RegisterConsumer(gomock.Any(), gomock.Any()).Return(nil)
