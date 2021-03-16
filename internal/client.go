@@ -414,11 +414,19 @@ func (c *rmqClient) Start() {
 	})
 }
 
+func (c *rmqClient) removeClient() {
+	rlog.Info("will remove client from clientMap", map[string]interface{}{
+		"clientID": c.ClientID(),
+	})
+	clientMap.Delete(c.ClientID())
+}
+
 func (c *rmqClient) Shutdown() {
 	c.shutdownOnce.Do(func() {
 		close(c.done)
 		c.close = true
 		c.remoteClient.ShutDown()
+		c.removeClient()
 	})
 }
 
