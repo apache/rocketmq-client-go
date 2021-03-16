@@ -717,7 +717,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 }
 
 func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
-	if pr.pq.cachedMsgCount == 0 {
+	if atomic.LoadInt64(&pr.pq.cachedMsgCount) == 0 {
 		rlog.Info("request msgCount is 0", map[string]interface{}{
 			rlog.LogKeyPullRequest: pr.String(),
 		})
