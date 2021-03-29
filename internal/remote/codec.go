@@ -215,7 +215,7 @@ func encode(command *RemotingCommand) ([]byte, error) {
 }
 
 func decode(data []byte) (*RemotingCommand, error) {
-	buf := bytes.NewBuffer(data)
+	buf := bytes.NewReader(data)
 	length := int32(len(data))
 	var oriHeaderLen int32
 	err := binary.Read(buf, binary.BigEndian, &oriHeaderLen)
@@ -225,8 +225,7 @@ func decode(data []byte) (*RemotingCommand, error) {
 
 	headerLength := oriHeaderLen & 0xFFFFFF
 	headerData := make([]byte, headerLength)
-	err = binary.Read(buf, binary.BigEndian, &headerData)
-	if err != nil {
+	if _, err = io.ReadFull(buf, headerData); err != nil {
 		return nil, err
 	}
 
@@ -246,8 +245,7 @@ func decode(data []byte) (*RemotingCommand, error) {
 	bodyLength := length - 4 - headerLength
 	if bodyLength > 0 {
 		bodyData := make([]byte, bodyLength)
-		err = binary.Read(buf, binary.BigEndian, &bodyData)
-		if err != nil {
+		if _, err = io.ReadFull(buf, bodyData); err != nil {
 			return nil, err
 		}
 		command.Body = bodyData
@@ -463,8 +461,7 @@ func (c *rmqCodec) decodeHeader(data []byte) (*RemotingCommand, error) {
 
 	if remarkLen > 0 {
 		var remarkData = make([]byte, remarkLen)
-		err = binary.Read(buf, binary.BigEndian, &remarkData)
-		if err != nil {
+		if _, err = io.ReadFull(buf, remarkData); err != nil {
 			return nil, err
 		}
 		command.Remark = string(remarkData)
@@ -477,8 +474,7 @@ func (c *rmqCodec) decodeHeader(data []byte) (*RemotingCommand, error) {
 
 	if extFieldsLen > 0 {
 		extFieldsData := make([]byte, extFieldsLen)
-		err = binary.Read(buf, binary.BigEndian, &extFieldsData)
-		if err != nil {
+		if _, err := io.ReadFull(buf, extFieldsData); err != nil {
 			return nil, err
 		}
 
@@ -515,10 +511,9 @@ func (c *rmqCodec) decodeHeader(data []byte) (*RemotingCommand, error) {
 	return command, nil
 }
 
-func getExtFieldsData(buff *bytes.Buffer, length int32) (string, error) {
+func getExtFieldsData(buff io.Reader, length int32) (string, error) {
 	var data = make([]byte, length)
-	err := binary.Read(buff, binary.BigEndian, &data)
-	if err != nil {
+	if _, err := io.ReadFull(buff, data); err != nil {
 		return "", err
 	}
 
