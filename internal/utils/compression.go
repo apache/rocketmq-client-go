@@ -53,7 +53,7 @@ func Compress(raw []byte, compressLevel int) ([]byte, error) {
 
 	buf := bufPool.Get().(*bytes.Buffer)
 	defer bufPool.Put(buf)
-	writerPool := zlibWriterPools[compressLevel-1]
+	writerPool := &zlibWriterPools[compressLevel-1]
 	writer := writerPool.Get().(*zlib.Writer)
 	defer writerPool.Put(writer)
 	buf.Reset()
