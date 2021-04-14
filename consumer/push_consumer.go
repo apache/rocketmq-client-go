@@ -492,7 +492,7 @@ func (pc *pushConsumer) validate() {
 		}
 	}
 
-	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535 {
+	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535*time.Millisecond {
 		rlog.Error("option.PullInterval out of range [0, 65535]", nil)
 	}
 
