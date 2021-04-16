@@ -44,6 +44,7 @@ func (manualQueueSelector) Select(message *primitive.Message, queues []*primitiv
 
 // randomQueueSelector choose a random queue each time.
 type randomQueueSelector struct {
+	mux    sync.Mutex
 	rander *rand.Rand
 }
 
@@ -53,8 +54,10 @@ func NewRandomQueueSelector() QueueSelector {
 	return s
 }
 
-func (r randomQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+func (r *randomQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	r.mux.Lock()
 	i := r.rander.Intn(len(queues))
+	r.mux.Unlock()
 	return queues[i]
 }
 
