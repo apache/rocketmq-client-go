@@ -73,14 +73,15 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	if err != nil {
 		return nil, err
 	}
-	resp := NewResponseFuture(ctx, request.Opaque, nil)
-	c.responseTable.Store(resp.Opaque, resp)
-	defer c.responseTable.Delete(request.Opaque)
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
-	return resp.waitResponse()
+	
+	resp := NewResponseFuture(ctx, request.Opaque, nil)
+	c.responseTable.Store(resp.Opaque, resp)
+	
+	return resp.waitResponse(c)
 }
 
 // InvokeAsync send request without blocking, just return immediately.
@@ -89,12 +90,14 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	if err != nil {
 		return err
 	}
-	resp := NewResponseFuture(ctx, request.Opaque, callback)
-	c.responseTable.Store(resp.Opaque, resp)
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return err
 	}
+	
+	resp := NewResponseFuture(ctx, request.Opaque, callback)
+	c.responseTable.Store(resp.Opaque, resp)
+	
 	go primitive.WithRecover(func() {
 		c.receiveAsync(resp)
 	})
@@ -102,7 +105,7 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 }
 
 func (c *remotingClient) receiveAsync(f *ResponseFuture) {
-	_, err := f.waitResponse()
+	_, err := f.waitResponse(c)
 	if err != nil {
 		f.executeInvokeCallback()
 	}
@@ -143,6 +146,9 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 		if err != nil {
 			// conn has been closed actively
 			if r.isClosed(err) {
+				rlog.Debug("conn has been closed actively", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+				})
 				return
 			}
 			if err != io.EOF {
@@ -190,7 +196,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 		if exist {
 			c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
-			go primitive.WithRecover(func() {
+			// go primitive.WithRecover(func() {
 				responseFuture.ResponseCommand = cmd
 				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
