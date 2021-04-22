@@ -194,6 +194,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 	if cmd.isResponseType() {
 		resp, exist := c.responseTable.Load(cmd.Opaque)
 		if exist {
+			//c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
 			go primitive.WithRecover(func() {
 				responseFuture.ResponseCommand = cmd
