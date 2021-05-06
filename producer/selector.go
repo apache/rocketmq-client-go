@@ -21,7 +21,6 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -64,35 +63,32 @@ func (r *randomQueueSelector) Select(message *primitive.Message, queues []*primi
 // roundRobinQueueSelector choose the queue by roundRobin.
 type roundRobinQueueSelector struct {
 	sync.Locker
-	indexer map[string]*int32
+	indexer map[string]*uint32
 }
 
 func NewRoundRobinQueueSelector() QueueSelector {
 	s := &roundRobinQueueSelector{
 		Locker:  new(sync.Mutex),
-		indexer: map[string]*int32{},
+		indexer: map[string]*uint32{},
 	}
 	return s
 }
 
 func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
 	t := message.Topic
-	if _, exist := r.indexer[t]; !exist {
-		r.Lock()
-		if _, exist := r.indexer[t]; !exist {
-			var v = int32(0)
-			r.indexer[t] = &v
-		}
-		r.Unlock()
-	}
-	index := r.indexer[t]
+	var idx *uint32
 
-	i := atomic.AddInt32(index, 1)
-	if i < 0 {
-		i = -i
-		atomic.StoreInt32(index, 0)
+	r.Lock()
+	idx, exist := r.indexer[t]
+	if !exist {
+		var v uint32 = 0
+		idx = &v
+		r.indexer[t] = idx
 	}
-	qIndex := int(i) % len(queues)
+	*idx++
+	r.Unlock()
+
+	qIndex := *idx % uint32(len(queues))
 	return queues[qIndex]
 }
 
