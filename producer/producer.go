@@ -150,6 +150,11 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 
 	msg := p.encodeBatch(msgs...)
 
+	mq := p.selectMessageQueue(msg)
+	if mq == nil {
+		return nil, fmt.Errorf("the topic=%s route info not found", msg.Topic)
+	}
+
 	resp := primitive.NewSendResult()
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendSync)
@@ -163,20 +168,58 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 		ctx = primitive.WithProducerCtx(ctx, producerCtx)
 
 		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
-			var err error
 			realReq := req.(*primitive.Message)
 			realReply := reply.(*primitive.SendResult)
-			err = p.sendSync(ctx, realReq, realReply)
-			return err
+			return p.sendSyncWithQueue(ctx, mq, realReq, realReply)
 		})
 		return resp, err
 	}
 
-	err := p.sendSync(ctx, msg, resp)
+	err := p.sendSyncWithQueue(ctx, mq, msg, resp)
 	return resp, err
 }
 
-func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, resp *primitive.SendResult) error {
+func (p *defaultProducer) SendSyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, msgs ...*primitive.Message) (*primitive.SendResult, error) {
+
+	if err := p.checkMsg(msgs...); err != nil {
+		return nil, err
+	}
+
+	if mq == nil {
+		return nil, errors.Errorf("the message queue is nil")
+	}
+	mq = p.queueWithNamespace(mq)
+
+	p.messagesWithNamespace(msgs...)
+
+	msg := p.encodeBatch(msgs...)
+
+	resp := primitive.NewSendResult()
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendSync)
+		producerCtx := &primitive.ProducerCtx{
+			ProducerGroup:     p.group,
+			CommunicationMode: primitive.SendSync,
+			BornHost:          utils.LocalIP,
+			Message:           *msg,
+			SendResult:        resp,
+		}
+		ctx = primitive.WithProducerCtx(ctx, producerCtx)
+
+		err := p.interceptor(ctx, msg, resp, func(ctx context.Context, req, reply interface{}) error {
+			realReq := req.(*primitive.Message)
+			realReply := reply.(*primitive.SendResult)
+			return p.sendSyncWithQueue(ctx, mq, realReq, realReply)
+		})
+
+		return resp, err
+	}
+
+	err := p.sendSyncWithQueue(ctx, mq, msg, resp)
+	return resp, err
+}
+
+func (p *defaultProducer) sendSyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, msg *primitive.Message, resp *primitive.SendResult) error {
 
 	retryTime := 1 + p.options.RetryTimes
 
@@ -184,17 +227,19 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
+	if msg.Topic != mq.Topic {
+		return fmt.Errorf("message's topic[%s] not equal mq's topic[%s]", msg.Topic, mq.Topic)
+	}
+
 	var producerCtx *primitive.ProducerCtx
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg)
-		if mq == nil {
-			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
-			continue
-		}
-
 		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
-			return fmt.Errorf("topic=%s route info not found", mq.Topic)
+			p.tryToFindTopicPublishInfo(mq.Topic)
+			addr = p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+			if addr == "" {
+				return fmt.Errorf("topic=%s route info not found", mq.Topic)
+			}
 		}
 
 		if p.interceptor != nil {
@@ -222,26 +267,60 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 
 	msg := p.encodeBatch(msgs...)
 
+	mq := p.selectMessageQueue(msg)
+	if mq == nil {
+		return fmt.Errorf("the topic=%s route info not found", msg.Topic)
+	}
+
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendAsync)
 
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
-			return p.sendAsync(ctx, msg, f)
+			return p.sendAsyncWithQueue(ctx, mq, msg, f)
+
 		})
 	}
-	return p.sendAsync(ctx, msg, f)
+	return p.sendAsyncWithQueue(ctx, mq, msg, f)
 }
 
-func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+func (p *defaultProducer) SendAsyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, f func(context.Context, *primitive.SendResult, error), msgs ...*primitive.Message) error {
 
-	mq := p.selectMessageQueue(msg)
+	if err := p.checkMsg(msgs...); err != nil {
+		return err
+	}
+
 	if mq == nil {
-		return errors.Errorf("the topic=%s route info not found", msg.Topic)
+		return errors.Errorf("the message queue is nil")
+	}
+	mq = p.queueWithNamespace(mq)
+
+	p.messagesWithNamespace(msgs...)
+
+	msg := p.encodeBatch(msgs...)
+
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendAsync)
+
+		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsyncWithQueue(ctx, mq, msg, f)
+		})
+	}
+	return p.sendAsyncWithQueue(ctx, mq, msg, f)
+}
+
+func (p *defaultProducer) sendAsyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+
+	if msg.Topic != mq.Topic {
+		return fmt.Errorf("message's topic[%s] not equal mq's topic[%s]", msg.Topic, mq.Topic)
 	}
 
 	addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
-		return errors.Errorf("topic=%s route info not found", mq.Topic)
+		p.tryToFindTopicPublishInfo(mq.Topic)
+		addr = p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+		if addr == "" {
+			return errors.Errorf("topic=%s route info not found", mq.Topic)
+		}
 	}
 
 	ctx, _ = context.WithTimeout(ctx, 3*time.Second)
@@ -312,6 +391,19 @@ func (p *defaultProducer) messagesWithNamespace(msgs ...*primitive.Message) {
 	}
 }
 
+func (p *defaultProducer) queueWithNamespace(mq *primitive.MessageQueue) *primitive.MessageQueue {
+
+	if mq == nil || p.options.Namespace == "" {
+		return mq
+	}
+
+	return &primitive.MessageQueue{
+		Topic:      p.options.Namespace + "%" + mq.Topic,
+		BrokerName: mq.BrokerName,
+		QueueId:    mq.QueueId,
+	}
+}
+
 func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
 	if msg.Compress {
 		return true
@@ -371,8 +463,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
-	topic := msg.Topic
+	result := p.tryToFindTopicPublishInfo(msg.Topic)
+	if result == nil {
+		return nil
+	}
+	return p.options.Selector.Select(msg, result.MqList)
+}
 
+func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.TopicPublishInfo {
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
 		data, changed, err := p.options.Namesrv.UpdateTopicRouteInfo(topic)
@@ -402,8 +500,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 		rlog.Error("can not find proper message queue", nil)
 		return nil
 	}
-
-	return p.options.Selector.Select(msg, result.MqList)
+	return result
 }
 
 func (p *defaultProducer) PublishTopicList() []string {

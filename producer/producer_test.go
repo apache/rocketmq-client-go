@@ -158,6 +158,59 @@ func TestSync(t *testing.T) {
 	assert.Equal(t, expectedResp, resp)
 }
 
+func TestSyncWithQueue(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	p.client = client
+
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().Start().Return()
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msg := &primitive.Message{
+		Topic: topic,
+		Body:  []byte("this is a message body"),
+	}
+	msg.WithProperty("key", "value")
+
+	queue := &primitive.MessageQueue{
+		Topic:      topic,
+		BrokerName: "aa",
+		QueueId:    0,
+	}
+
+	expectedResp := &primitive.SendResult{
+		Status:       primitive.SendOK,
+		MsgID:        "111",
+		QueueOffset:  0,
+		OffsetMsgID:  "0",
+		MessageQueue: queue,
+	}
+
+	mockB4Send(p)
+
+	client.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().ProcessSendResponse(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
+			resp.Status = expectedResp.Status
+			resp.MsgID = expectedResp.MsgID
+			resp.QueueOffset = expectedResp.QueueOffset
+			resp.OffsetMsgID = expectedResp.OffsetMsgID
+			resp.MessageQueue = expectedResp.MessageQueue
+		})
+	resp, err := p.SendSyncWithQueue(ctx, queue, msg)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedResp, resp)
+}
+
 func TestASync(t *testing.T) {
 	p, _ := NewDefaultProducer(
 		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
@@ -217,6 +270,71 @@ func TestASync(t *testing.T) {
 		})
 
 	err = p.SendAsync(ctx, f, msg)
+	assert.Nil(t, err)
+}
+
+func TestASyncWithQueue(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+		WithQueueSelector(NewManualQueueSelector()),
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	p.client = client
+
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().Start().Return()
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msg := &primitive.Message{
+		Topic: topic,
+		Body:  []byte("this is a message body"),
+	}
+	msg.WithProperty("key", "value")
+
+	queue := &primitive.MessageQueue{
+		Topic:      topic,
+		BrokerName: "aa",
+		QueueId:    0,
+	}
+
+	expectedResp := &primitive.SendResult{
+		Status:       primitive.SendOK,
+		MsgID:        "111",
+		QueueOffset:  0,
+		OffsetMsgID:  "0",
+		MessageQueue: queue,
+	}
+
+	f := func(ctx context.Context, resp *primitive.SendResult, err error) {
+		assert.Nil(t, err)
+		assert.Equal(t, expectedResp, resp)
+	}
+
+	mockB4Send(p)
+
+	client.EXPECT().InvokeAsync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, addr string, request *remote.RemotingCommand,
+			f func(*remote.RemotingCommand, error)) error {
+			// mock invoke callback
+			f(nil, nil)
+			return nil
+		})
+	client.EXPECT().ProcessSendResponse(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
+			resp.Status = expectedResp.Status
+			resp.MsgID = expectedResp.MsgID
+			resp.QueueOffset = expectedResp.QueueOffset
+			resp.OffsetMsgID = expectedResp.OffsetMsgID
+			resp.MessageQueue = expectedResp.MessageQueue
+		})
+
+	err = p.SendAsyncWithQueue(ctx, queue, f, msg)
 	assert.Nil(t, err)
 }
 
