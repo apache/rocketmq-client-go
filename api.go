@@ -30,10 +30,13 @@ import (
 type Producer interface {
 	Start() error
 	Shutdown() error
-	SendSync(ctx context.Context, mq ...*primitive.Message) (*primitive.SendResult, error)
-	SendAsync(ctx context.Context, mq func(ctx context.Context, result *primitive.SendResult, err error),
-		msg ...*primitive.Message) error
-	SendOneWay(ctx context.Context, mq ...*primitive.Message) error
+	SendSync(ctx context.Context, messages ...*primitive.Message) (*primitive.SendResult, error)
+	SendSyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, messages ...*primitive.Message) (*primitive.SendResult, error)
+	SendAsync(ctx context.Context, f func(ctx context.Context, result *primitive.SendResult, err error),
+		messages ...*primitive.Message) error
+	SendAsyncWithQueue(ctx context.Context, mq *primitive.MessageQueue, f func(ctx context.Context, result *primitive.SendResult, err error),
+		messages ...*primitive.Message) error
+	SendOneWay(ctx context.Context, messages ...*primitive.Message) error
 }
 
 func NewProducer(opts ...producer.Option) (Producer, error) {
