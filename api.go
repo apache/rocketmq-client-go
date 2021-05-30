@@ -55,7 +55,7 @@ type PushConsumer interface {
 	Start() error
 
 	// Shutdown the PullConsumer, all offset of MessageQueue will be sync to broker before process exit
-	Shutdown() error
+	Shutdown(ctx context.Context) error
 	// Subscribe a topic for consuming
 	Subscribe(topic string, selector consumer.MessageSelector,
 		f func(context.Context, ...*primitive.MessageExt) (consumer.ConsumeResult, error)) error

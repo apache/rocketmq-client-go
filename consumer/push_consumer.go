@@ -208,13 +208,13 @@ func (pc *pushConsumer) Start() error {
 	return err
 }
 
-func (pc *pushConsumer) Shutdown() error {
+func (pc *pushConsumer) Shutdown(ctx context.Context) error {
 	var err error
 	pc.closeOnce.Do(func() {
 		close(pc.done)
 
 		pc.client.UnregisterConsumer(pc.consumerGroup)
-		err = pc.defaultConsumer.shutdown()
+		err = pc.defaultConsumer.shutdown(ctx)
 	})
 
 	return err
@@ -967,6 +967,10 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			count = next - 1
 		}
 		go primitive.WithRecover(func() {
+			pc.activeConsuming++
+			defer func() {
+				pc.activeConsuming--
+			}()
 		RETRY:
 			if pq.IsDroppd() {
 				rlog.Info("the message queue not be able to consume, because it was dropped", map[string]interface{}{

@@ -271,6 +271,9 @@ type defaultConsumer struct {
 	namesrv internal.Namesrvs
 
 	pullFromWhichNodeTable sync.Map
+
+	// active consuming numbers
+	activeConsuming int
 }
 
 func (dc *defaultConsumer) start() error {
@@ -294,7 +297,7 @@ func (dc *defaultConsumer) start() error {
 	return nil
 }
 
-func (dc *defaultConsumer) shutdown() error {
+func (dc *defaultConsumer) shutdown(ctx context.Context) error {
 	atomic.StoreInt32(&dc.state, int32(internal.StateShutdown))
 
 	mqs := make([]*primitive.MessageQueue, 0)
@@ -307,6 +310,19 @@ func (dc *defaultConsumer) shutdown() error {
 	})
 	dc.storage.persist(mqs)
 	dc.client.Shutdown()
+
+	// now wait until all active consumings finish
+	for {
+		if dc.activeConsuming == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			// do nothing and move to next loop
+		}
+	}
 	return nil
 }
 

@@ -168,7 +168,9 @@ func (bc *consumerBenchmark) consumeMsg(stati *statiBenchmarkConsumerSnapshot, e
 	c.Start()
 	select {
 	case <-exit:
-		c.Shutdown()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c.Shutdown(ctx)
 		return
 	}
 }
