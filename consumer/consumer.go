@@ -271,6 +271,8 @@ type defaultConsumer struct {
 	namesrv internal.Namesrvs
 
 	pullFromWhichNodeTable sync.Map
+
+	stat *StatsManager
 }
 
 func (dc *defaultConsumer) start() error {
@@ -291,6 +293,7 @@ func (dc *defaultConsumer) start() error {
 	dc.client.Start()
 	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
+	dc.stat = NewStatsManager()
 	return nil
 }
 
@@ -305,6 +308,7 @@ func (dc *defaultConsumer) shutdown() error {
 		mqs = append(mqs, &k)
 		return true
 	})
+	dc.stat.ShutDownStat()
 	dc.storage.persist(mqs)
 	dc.client.Shutdown()
 	return nil

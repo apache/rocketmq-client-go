@@ -350,7 +350,7 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 		res.ConsumeResult = internal.ConsumeRetryLater
 	}
 
-	increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
+	pc.stat.increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
 
 	return res
 }
@@ -362,12 +362,12 @@ func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 		topic := key.(string)
 		info.SubscriptionData[value.(*internal.SubscriptionData)] = true
 		status := internal.ConsumeStatus{
-			PullRT:            getPullRT(topic, pc.consumerGroup).avgpt,
-			PullTPS:           getPullTPS(topic, pc.consumerGroup).tps,
-			ConsumeRT:         getConsumeRT(topic, pc.consumerGroup).avgpt,
-			ConsumeOKTPS:      getConsumeOKTPS(topic, pc.consumerGroup).tps,
-			ConsumeFailedTPS:  getConsumeFailedTPS(topic, pc.consumerGroup).tps,
-			ConsumeFailedMsgs: topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + pc.consumerGroup).sum,
+			PullRT:            pc.stat.getPullRT(topic, pc.consumerGroup).avgpt,
+			PullTPS:           pc.stat.getPullTPS(topic, pc.consumerGroup).tps,
+			ConsumeRT:         pc.stat.getConsumeRT(topic, pc.consumerGroup).avgpt,
+			ConsumeOKTPS:      pc.stat.getConsumeOKTPS(topic, pc.consumerGroup).tps,
+			ConsumeFailedTPS:  pc.stat.getConsumeFailedTPS(topic, pc.consumerGroup).tps,
+			ConsumeFailedMsgs: pc.stat.topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + pc.consumerGroup).sum,
 		}
 		info.StatusTable[topic] = status
 		return true
@@ -743,7 +743,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			request.nextOffset = result.NextBeginOffset
 
 			rt := time.Now().Sub(beginTime) / time.Millisecond
-			increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
+			pc.stat.increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
 			pc.processPullResult(request.mq, result, sd)
 
@@ -751,7 +751,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			firstMsgOffset := int64(math.MaxInt64)
 			if msgFounded != nil && len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
-				increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
+				pc.stat.increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
 				pq.putMessage(msgFounded...)
 			}
 			if result.NextBeginOffset < prevRequestOffset || firstMsgOffset < prevRequestOffset {
@@ -1007,14 +1007,14 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
 			}
 
-			increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
+			pc.stat.increaseConsumeRT(pc.consumerGroup, mq.Topic, int64(consumeRT/time.Millisecond))
 
 			if !pq.IsDroppd() {
 				msgBackFailed := make([]*primitive.MessageExt, 0)
 				if result == ConsumeSuccess {
-					increaseConsumeOKTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
+					pc.stat.increaseConsumeOKTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
 				} else {
-					increaseConsumeFailedTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
+					pc.stat.increaseConsumeFailedTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
 					if pc.model == BroadCasting {
 						for i := 0; i < len(subMsgs); i++ {
 							rlog.Warning("BROADCASTING, the message consume failed, drop it", map[string]interface{}{
