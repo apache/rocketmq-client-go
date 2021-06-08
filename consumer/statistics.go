@@ -28,23 +28,24 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
-var (
-	csListLock sync.Mutex
-	closeOnce  sync.Once
-
+type StatsManager struct {
+	startOnce                     sync.Once
+	closeOnce                     sync.Once
 	topicAndGroupConsumeOKTPS     *statsItemSet
 	topicAndGroupConsumeRT        *statsItemSet
 	topicAndGroupConsumeFailedTPS *statsItemSet
 	topicAndGroupPullTPS          *statsItemSet
 	topicAndGroupPullRT           *statsItemSet
-)
+}
 
-func init() {
-	topicAndGroupConsumeOKTPS = newStatsItemSet("CONSUME_OK_TPS")
-	topicAndGroupConsumeRT = newStatsItemSet("CONSUME_RT")
-	topicAndGroupConsumeFailedTPS = newStatsItemSet("CONSUME_FAILED_TPS")
-	topicAndGroupPullTPS = newStatsItemSet("PULL_TPS")
-	topicAndGroupPullRT = newStatsItemSet("PULL_RT")
+func NewStatsManager() *StatsManager {
+	mgr := &StatsManager{}
+	mgr.topicAndGroupConsumeOKTPS = newStatsItemSet("CONSUME_OK_TPS")
+	mgr.topicAndGroupConsumeRT = newStatsItemSet("CONSUME_RT")
+	mgr.topicAndGroupConsumeFailedTPS = newStatsItemSet("CONSUME_FAILED_TPS")
+	mgr.topicAndGroupPullTPS = newStatsItemSet("PULL_TPS")
+	mgr.topicAndGroupPullRT = newStatsItemSet("PULL_RT")
+	return mgr
 }
 
 type ConsumeStatus struct {
@@ -56,81 +57,104 @@ type ConsumeStatus struct {
 	ConsumeFailedMsgs int64
 }
 
-func increasePullRT(group, topic string, rt int64) {
-	topicAndGroupPullRT.addValue(topic+"@"+group, rt, 1)
+func (mgr *StatsManager) increasePullRT(group, topic string, rt int64) {
+	mgr.topicAndGroupPullRT.addValue(topic+"@"+group, rt, 1)
 }
 
-func increasePullTPS(group, topic string, msgs int) {
-	topicAndGroupPullTPS.addValue(topic+"@"+group, int64(msgs), 1)
+func (mgr *StatsManager) increasePullTPS(group, topic string, msgs int) {
+	mgr.topicAndGroupPullTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
-func increaseConsumeRT(group, topic string, rt int64) {
-	topicAndGroupConsumeRT.addValue(topic+"@"+group, rt, 1)
+func (mgr *StatsManager) increaseConsumeRT(group, topic string, rt int64) {
+	mgr.topicAndGroupConsumeRT.addValue(topic+"@"+group, rt, 1)
 }
 
-func increaseConsumeOKTPS(group, topic string, msgs int) {
-	topicAndGroupConsumeOKTPS.addValue(topic+"@"+group, int64(msgs), 1)
+func (mgr *StatsManager) increaseConsumeOKTPS(group, topic string, msgs int) {
+	mgr.topicAndGroupConsumeOKTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
-func increaseConsumeFailedTPS(group, topic string, msgs int) {
-	topicAndGroupConsumeFailedTPS.addValue(topic+"@"+group, int64(msgs), 1)
+func (mgr *StatsManager) increaseConsumeFailedTPS(group, topic string, msgs int) {
+	mgr.topicAndGroupConsumeFailedTPS.addValue(topic+"@"+group, int64(msgs), 1)
 }
 
-func GetConsumeStatus(group, topic string) ConsumeStatus {
+func (mgr *StatsManager) GetConsumeStatus(group, topic string) ConsumeStatus {
 	cs := ConsumeStatus{}
-	ss := getPullRT(group, topic)
+	ss := mgr.getPullRT(group, topic)
 	cs.PullTPS = ss.tps
 
-	ss = getPullTPS(group, topic)
+	ss = mgr.getPullTPS(group, topic)
 	cs.PullTPS = ss.tps
 
-	ss = getConsumeRT(group, topic)
+	ss = mgr.getConsumeRT(group, topic)
 	cs.ConsumeRT = ss.avgpt
 
-	ss = getConsumeOKTPS(group, topic)
+	ss = mgr.getConsumeOKTPS(group, topic)
 	cs.ConsumeOKTPS = ss.tps
 
-	ss = getConsumeFailedTPS(group, topic)
+	ss = mgr.getConsumeFailedTPS(group, topic)
 
 	cs.ConsumeFailedTPS = ss.tps
 
-	ss = topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + group)
+	ss = mgr.topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + group)
 	cs.ConsumeFailedMsgs = ss.sum
 	return cs
 }
 
-func ShutDownStatis() {
-	closeOnce.Do(func() {
-		close(topicAndGroupConsumeOKTPS.closed)
-		close(topicAndGroupConsumeRT.closed)
-		close(topicAndGroupConsumeFailedTPS.closed)
-		close(topicAndGroupPullTPS.closed)
-		close(topicAndGroupPullRT.closed)
+func (mgr *StatsManager) ShutDownStat() {
+	mgr.closeOnce.Do(func() {
+		close(mgr.topicAndGroupConsumeOKTPS.closed)
+		close(mgr.topicAndGroupConsumeRT.closed)
+		close(mgr.topicAndGroupConsumeFailedTPS.closed)
+		close(mgr.topicAndGroupPullTPS.closed)
+		close(mgr.topicAndGroupPullRT.closed)
 	})
 }
 
-func getPullRT(group, topic string) statsSnapshot {
-	return topicAndGroupPullRT.getStatsDataInMinute(topic + "@" + group)
+func (mgr *StatsManager) getPullRT(group, topic string) statsSnapshot {
+	return mgr.topicAndGroupPullRT.getStatsDataInMinute(topic + "@" + group)
 }
 
-func getPullTPS(group, topic string) statsSnapshot {
-	return topicAndGroupPullTPS.getStatsDataInMinute(topic + "@" + group)
+func (mgr *StatsManager) getPullTPS(group, topic string) statsSnapshot {
+	return mgr.topicAndGroupPullTPS.getStatsDataInMinute(topic + "@" + group)
 }
 
-func getConsumeRT(group, topic string) statsSnapshot {
-	ss := topicAndGroupPullRT.getStatsDataInMinute(topic + "@" + group)
+func (mgr *StatsManager) getConsumeRT(group, topic string) statsSnapshot {
+	ss := mgr.topicAndGroupPullRT.getStatsDataInMinute(topic + "@" + group)
 	if ss.sum == 0 {
-		return topicAndGroupConsumeRT.getStatsDataInHour(topic + "@" + group)
+		return mgr.topicAndGroupConsumeRT.getStatsDataInHour(topic + "@" + group)
 	}
 	return ss
 }
 
-func getConsumeOKTPS(group, topic string) statsSnapshot {
-	return topicAndGroupConsumeOKTPS.getStatsDataInMinute(topic + "@" + group)
+func (mgr *StatsManager) getConsumeOKTPS(group, topic string) statsSnapshot {
+	return mgr.topicAndGroupConsumeOKTPS.getStatsDataInMinute(topic + "@" + group)
 }
 
-func getConsumeFailedTPS(group, topic string) statsSnapshot {
-	return topicAndGroupConsumeFailedTPS.getStatsDataInMinute(topic + "@" + group)
+func (mgr *StatsManager) getConsumeFailedTPS(group, topic string) statsSnapshot {
+	return mgr.topicAndGroupConsumeFailedTPS.getStatsDataInMinute(topic + "@" + group)
+}
+
+var csListLock sync.Mutex
+
+func computeStatsData(csList *list.List) statsSnapshot {
+	csListLock.Lock()
+	defer csListLock.Unlock()
+	tps, avgpt, sum := 0.0, 0.0, int64(0)
+	if csList.Len() > 0 {
+		first := csList.Front().Value.(callSnapshot)
+		last := csList.Back().Value.(callSnapshot)
+		sum = last.value - first.value
+		tps = float64(sum*1000.0) / float64(last.timestamp-first.timestamp)
+		timesDiff := last.time - first.time
+		if timesDiff > 0 {
+			avgpt = float64(sum*1.0) / float64(timesDiff)
+		}
+	}
+	return statsSnapshot{
+		tps:   tps,
+		avgpt: avgpt,
+		sum:   sum,
+	}
 }
 
 type statsItemSet struct {
@@ -158,7 +182,6 @@ func (sis *statsItemSet) init() {
 				return
 			case <-ticker.C:
 				sis.samplingInSeconds()
-
 			}
 		}
 	})
@@ -447,27 +470,6 @@ func nextHourTime() time.Time {
 func nextMonthTime() time.Time {
 	now := time.Now()
 	return now.AddDate(0, 1, 0)
-}
-
-func computeStatsData(csList *list.List) statsSnapshot {
-	csListLock.Lock()
-	defer csListLock.Unlock()
-	tps, avgpt, sum := 0.0, 0.0, int64(0)
-	if csList.Len() > 0 {
-		first := csList.Front().Value.(callSnapshot)
-		last := csList.Back().Value.(callSnapshot)
-		sum = last.value - first.value
-		tps = float64(sum*1000.0) / float64(last.timestamp-first.timestamp)
-		timesDiff := last.time - first.time
-		if timesDiff > 0 {
-			avgpt = float64(sum*1.0) / float64(timesDiff)
-		}
-	}
-	return statsSnapshot{
-		tps:   tps,
-		avgpt: avgpt,
-		sum:   sum,
-	}
 }
 
 type callSnapshot struct {
