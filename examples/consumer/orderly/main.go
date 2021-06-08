@@ -53,7 +53,9 @@ func main() {
 		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
-	err = c.Shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = c.Shutdown(ctx)
 	if err != nil {
 		fmt.Printf("Shutdown Consumer error: %s", err.Error())
 	}

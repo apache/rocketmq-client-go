@@ -249,6 +249,6 @@ func (c *defaultPullConsumer) CurrentOffset(queue *primitive.MessageQueue) (int6
 }
 
 // Shutdown close defaultConsumer, refuse new request.
-func (c *defaultPullConsumer) Shutdown() error {
-	return c.defaultConsumer.shutdown()
+func (c *defaultPullConsumer) Shutdown(ctx context.Context) error {
+	return c.defaultConsumer.shutdown(ctx)
 }
