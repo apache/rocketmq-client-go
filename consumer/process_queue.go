@@ -91,6 +91,10 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	pq.mutex.Lock()
+	if pq.IsDroppd() {
+		pq.mutex.Unlock()
+		return
+	}
 	if !pq.order {
 		pq.msgCh <- messages
 	}
