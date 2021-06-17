@@ -831,7 +831,7 @@ func (pc *pushConsumer) resume() {
 	rlog.Info(fmt.Sprintf("resume consumer: %s", pc.consumerGroup), nil)
 }
 
-func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQueue]int64) {
+func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
 	//topic := cmd.ExtFields["topic"]
 	//group := cmd.ExtFields["group"]
 	//if topic == "" || group == "" {
@@ -857,11 +857,13 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	//	rlog.Infof("[reset-offset] consumer dose not exist. group=%s", group)
 	//	return
 	//}
+	pc.suspend()
+	defer pc.resume()
 
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
-		if _, ok := table[mq]; !ok {
+		if _, ok := table[mq]; ok && mq.Topic == topic {
 			pq.WithDropped(true)
 			pq.clear()
 		}
@@ -872,16 +874,17 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	if !exist {
 		return
 	}
-	queuesOfTopic := v.([]primitive.MessageQueue)
+	queuesOfTopic := v.([]*primitive.MessageQueue)
 	for _, k := range queuesOfTopic {
-		if _, ok := table[k]; ok {
-			pc.storage.update(&k, table[k], false)
+		if _, ok := table[*k]; ok {
+			pc.storage.update(k, table[*k], false)
 			v, exist := pc.processQueueTable.Load(k)
 			if !exist {
 				continue
 			}
 			pq := v.(*processQueue)
-			pc.removeUnnecessaryMessageQueue(&k, pq)
+			pc.removeUnnecessaryMessageQueue(k, pq)
+			pc.processQueueTable.Delete(k)
 		}
 	}
 }
