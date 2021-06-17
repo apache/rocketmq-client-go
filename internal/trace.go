@@ -122,6 +122,8 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 		buffer.WriteString(bean.OffsetMsgId)
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(strconv.FormatBool(ctx.IsSuccess))
+		buffer.WriteRune(contentSplitter)
+		buffer.WriteString(bean.ClientHost)
 		buffer.WriteRune(fieldSplitter)
 	case SubBefore:
 		for _, bean := range ctx.TraceBeans {
@@ -145,6 +147,8 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteString(strconv.Itoa(bean.RetryTimes))
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(nullWrap(bean.Keys))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(bean.ClientHost)
 			buffer.WriteRune(fieldSplitter)
 		}
 	case SubAfter:
@@ -162,6 +166,10 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteString(nullWrap(bean.Keys))
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(strconv.Itoa(ctx.ContextCode))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(strconv.FormatInt(ctx.TimeStamp, 10))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(ctx.GroupName)
 			buffer.WriteRune(fieldSplitter)
 		}
 	}
