@@ -59,7 +59,7 @@ type remotingClient struct {
 }
 
 func NewRemotingClient() *remotingClient {
-	initGlobalWorkPool(32)
+	initGlobalWorkPool(10)
 	return &remotingClient{
 		processors: make(map[int16]ClientRequestFunc),
 		option: TcpOption{},
@@ -193,13 +193,6 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 		if exist {
 			c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
-			//go primitive.WithRecover(func() {
-			//	responseFuture.ResponseCommand = cmd
-			//	responseFuture.executeInvokeCallback()
-			//	if responseFuture.Done != nil {
-			//		close(responseFuture.Done)
-			//	}
-			//})
 
 			WorkerPoolInstance().Put(0, func() {
 				responseFuture.ResponseCommand = cmd
@@ -215,23 +208,6 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 		f := c.processors[cmd.Code]
 		if f != nil {
 			//// single goroutine will be deadlock
-			//// TODO: optimize with goroutine pool, https://github.com/apache/rocketmq-client-go/v2/issues/307
-			//
-			//go primitive.WithRecover(func() {
-			//	res := f(cmd, r.RemoteAddr())
-			//	if res != nil {
-			//		res.Opaque = cmd.Opaque
-			//		res.Flag |= 1 << 0
-			//		err := c.sendRequest(r, res)
-			//		if err != nil {
-			//			rlog.Warning("send response to broker error", map[string]interface{}{
-			//				rlog.LogKeyUnderlayError: err,
-			//				"responseCode":           res.Code,
-			//			})
-			//		}
-			//	}
-			//})
-
 			WorkerPoolInstance().Put(0, func() {
 				res := f(cmd, r.RemoteAddr())
 				if res != nil {
