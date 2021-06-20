@@ -201,7 +201,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			//	}
 			//})
 
-			WorkerPoolInstance().Put(1, func() {
+			WorkerPoolInstance().Put(0, func() {
 				responseFuture.ResponseCommand = cmd
 				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
@@ -232,7 +232,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			//	}
 			//})
 
-			WorkerPoolInstance().Put(1, func() {
+			WorkerPoolInstance().Put(0, func() {
 				res := f(cmd, r.RemoteAddr())
 				if res != nil {
 					res.Opaque = cmd.Opaque
