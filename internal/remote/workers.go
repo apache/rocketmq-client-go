@@ -71,11 +71,12 @@ func newWorkerPool(vol int) *WorkerPool {
 }
 
 // Put appends a function to some worker's channel.
-func (wp *WorkerPool) Put(code uint32, cb func()) error {
+func (wp *WorkerPool) Put(code uint32, cb func())  {
 	if code == 0 {
 		code = atomic.AddUint32(&wp.index, 1)
 	}
-	return wp.workers[code&uint32(len(wp.workers)-1)].put(workerFunc(cb))
+	wp.workers[code&uint32(len(wp.workers)-1)].put(workerFunc(cb))
+
 }
 
 // Close closes the pool, stopping it from executing functions.
