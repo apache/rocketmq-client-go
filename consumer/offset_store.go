@@ -301,7 +301,7 @@ func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) i
 	case _ReadFromStore:
 		off, err := r.fetchConsumeOffsetFromBroker(r.group, mq)
 		if err != nil {
-			rlog.Error("fecth offset of mq from broker error", map[string]interface{}{
+			rlog.Error("fetch offset of mq from broker error", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: r.group,
 				rlog.LogKeyMessageQueue:  mq.String(),
 				rlog.LogKeyUnderlayError: err,
@@ -309,7 +309,7 @@ func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) i
 			r.mutex.RUnlock()
 			return -1
 		}
-		rlog.Warning("fecth offset of mq from broker success", map[string]interface{}{
+		rlog.Warning("fetch offset of mq from broker success", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: r.group,
 			rlog.LogKeyMessageQueue:  mq.String(),
 			"offset":                 off,
