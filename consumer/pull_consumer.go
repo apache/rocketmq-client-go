@@ -144,7 +144,7 @@ func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQue
 	v, exist := queueCounterTable.Load(topic)
 	if !exist {
 		index = -1
-		queueCounterTable.Store(topic, 0)
+		queueCounterTable.Store(topic, int64(0))
 	} else {
 		index = v.(int64)
 	}
