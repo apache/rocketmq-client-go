@@ -320,22 +320,39 @@ func DecodeMessage(data []byte) []*MessageExt {
 		binary.Read(buf, binary.BigEndian, &msg.BornTimestamp)
 		count += 8
 
+		var (
+			port      int32
+			hostBytes []byte
+		)
 		// 10. born host
-		hostBytes := buf.Next(4)
-		var port int32
-		binary.Read(buf, binary.BigEndian, &port)
-		msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
-		count += 8
+		if msg.SysFlag&FlagBornHostV6 == FlagBornHostV6 {
+			hostBytes = buf.Next(16)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 20
+		} else {
+			hostBytes = buf.Next(4)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 8
+		}
 
 		// 11. store timestamp
 		binary.Read(buf, binary.BigEndian, &msg.StoreTimestamp)
 		count += 8
 
 		// 12. store host
-		hostBytes = buf.Next(4)
-		binary.Read(buf, binary.BigEndian, &port)
-		msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
-		count += 8
+		if msg.SysFlag&FlagStoreHostV6 == FlagStoreHostV6 {
+			hostBytes = buf.Next(16)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 20
+		} else {
+			hostBytes = buf.Next(4)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 8
+		}
 
 		// 13. reconsume times
 		binary.Read(buf, binary.BigEndian, &msg.ReconsumeTimes)

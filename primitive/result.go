@@ -31,8 +31,10 @@ const (
 	SendSlaveNotAvailable
 	SendUnknownError
 
-	FlagCompressed = 0x1
-	MsgIdLength    = 8 + 8
+	FlagCompressed  = 0x1
+	FlagBornHostV6  = 0x1 << 4
+	FlagStoreHostV6 = 0x1 << 5
+	MsgIdLength     = 8 + 8
 
 	propertySeparator  = '\002'
 	nameValueSeparator = '\001'
