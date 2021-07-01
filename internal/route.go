@@ -219,9 +219,11 @@ func (s *namesrvs) FindBrokerAddrByName(brokerName string) string {
 func (s *namesrvs) FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult {
 	var (
 		brokerAddr = ""
-		//slave      = false
-		//found      = false
+		slave      = false
+		found      = false
 	)
+
+	rlog.Debug("broker id "+strconv.FormatInt(brokerId, 10), nil)
 
 	v, exist := s.brokerAddressesMap.Load(brokerName)
 
@@ -234,22 +236,40 @@ func (s *namesrvs) FindBrokerAddressInSubscribe(brokerName string, brokerId int6
 	}
 
 	brokerAddr = data.BrokerAddresses[brokerId]
-	//for k, v := range data.BrokerAddresses {
-	//	if v != "" {
-	//		found = true
-	//		if k != MasterId {
-	//			slave = true
-	//		}
-	//		brokerAddr = v
-	//		break
-	//	}
-	//}
+	slave = brokerId != MasterId
+	if brokerAddr != "" {
+		found = true
+	}
+
+	// not found && read from slave, try again use next brokerId
+	if !found && slave {
+		rlog.Debug("Not found broker addr and slave "+strconv.FormatBool(slave), nil)
+		brokerAddr = data.BrokerAddresses[brokerId+1]
+		found = brokerAddr != ""
+	}
+
+	// still not found && cloud use other broker addr, find anyone in BrokerAddresses
+	if !found && !onlyThisBroker {
+		rlog.Debug("STILL Not found broker addr", nil)
+		for k, v := range data.BrokerAddresses {
+			if v != "" {
+				brokerAddr = v
+				found = true
+				slave = k != MasterId
+				break
+			}
+		}
+	}
+
+	if found {
+		rlog.Debug("Find broker addr "+brokerAddr, nil)
+	}
 
 	var result *FindBrokerResult
-	if brokerAddr != "" {
+	if found {
 		result = &FindBrokerResult{
 			BrokerAddr:    brokerAddr,
-			Slave:         brokerId != 0,
+			Slave:         slave,
 			BrokerVersion: s.findBrokerVersion(brokerName, brokerAddr),
 		}
 	}
