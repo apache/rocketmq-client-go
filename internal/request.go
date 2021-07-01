@@ -66,7 +66,7 @@ type SendMessageRequestHeader struct {
 	MaxReconsumeTimes     int
 	Batch                 bool
 	DefaultTopic          string
-	DefaultTopicQueueNums string
+	DefaultTopicQueueNums int
 }
 
 func (request *SendMessageRequestHeader) Encode() map[string]string {
@@ -107,7 +107,7 @@ func (request *SendMessageRequestV2Header) Encode() map[string]string {
 	maps["a"] = request.ProducerGroup
 	maps["b"] = request.Topic
 	maps["c"] = request.DefaultTopic
-	maps["d"] = request.DefaultTopicQueueNums
+	maps["d"] = strconv.Itoa(request.DefaultTopicQueueNums)
 	maps["e"] = strconv.Itoa(request.QueueId)
 	maps["f"] = fmt.Sprintf("%d", request.SysFlag)
 	maps["g"] = strconv.FormatInt(request.BornTimestamp, 10)
