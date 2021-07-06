@@ -371,12 +371,14 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 
 	for i := 0; i < s.Size(); i++ {
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
-		ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		response, err = s.nameSrvClient.InvokeSync(ctx, s.getNameServerAddress(), rc)
 
 		if err == nil {
+			cancel()
 			break
 		}
+		cancel()
 	}
 	if err != nil {
 		rlog.Error("connect to namesrv failed.", map[string]interface{}{
