@@ -40,14 +40,19 @@ func init() {
 }
 
 func ClientIP4() ([]byte, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, errors.New("unexpected IP address")
-	}
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ip4 := ipnet.IP.To4(); ip4 != nil {
-				return ip4, nil
+	if ifaces, err := net.Interfaces(); err == nil && ifaces != nil {
+		for _, iface := range ifaces {
+			if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+				continue
+			}
+			if addrs, err := iface.Addrs(); err == nil && addrs != nil {
+				for _, addr := range addrs {
+					if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						if ip4 := ipnet.IP.To4(); ip4 != nil {
+							return ip4, nil
+						}
+					}
+				}
 			}
 		}
 	}
