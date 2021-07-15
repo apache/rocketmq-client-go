@@ -501,7 +501,7 @@ func (pc *pushConsumer) validate() {
 
 	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
 		if pc.option.ConsumeMessageBatchMaxSize == 0 {
-			pc.option.ConsumeMessageBatchMaxSize = 512
+			pc.option.ConsumeMessageBatchMaxSize = 1
 		} else {
 			rlog.Error("option.ConsumeMessageBatchMaxSize out of range [1, 1024]", nil)
 		}
