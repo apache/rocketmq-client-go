@@ -88,6 +88,7 @@ type InnerConsumer interface {
 	GetcType() string
 	GetModel() string
 	GetWhere() string
+	ResetOffset(topic string, table map[primitive.MessageQueue]int64)
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -282,6 +283,23 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				}
 			}
 			return res
+		})
+
+		client.remoteClient.RegisterRequestFunc(ReqResetConsumerOffset, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive reset consumer offset request...", map[string]interface{}{
+				rlog.LogKeyBroker:        addr.String(),
+				rlog.LogKeyTopic:         req.ExtFields["topic"],
+				rlog.LogKeyConsumerGroup: req.ExtFields["group"],
+				rlog.LogKeyTimeStamp:     req.ExtFields["timestamp"],
+			})
+			header := new(ResetOffsetHeader)
+			header.Decode(req.ExtFields)
+
+			body := new(ResetOffsetBody)
+			body.Decode(req.Body)
+
+			client.resetOffset(header.topic, header.group, body.OffsetTable)
+			return nil
 		})
 	}
 	return actual.(*rmqClient)
@@ -775,6 +793,15 @@ func (c *rmqClient) isNeedUpdateSubscribeInfo(topic string) bool {
 		return true
 	})
 	return result
+}
+
+func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[primitive.MessageQueue]int64) {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		rlog.Warning("group "+group+" do not exists", nil)
+		return
+	}
+	consumer.(InnerConsumer).ResetOffset(topic, offsetTable)
 }
 
 func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
