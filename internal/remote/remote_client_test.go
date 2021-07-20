@@ -80,7 +80,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1000))
 	defer cancel()
 	future := NewResponseFuture(ctx, 10, nil)
-	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
+	if _, err := future.waitResponse(NewRemotingClient()); err != utils.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
 			utils.ErrRequestTimeout, err)
 	}
@@ -91,7 +91,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 		future.Err = responseError
 		future.Done <- true
 	}()
-	if _, err := future.waitResponse(); err != responseError {
+	if _, err := future.waitResponse(NewRemotingClient()); err != responseError {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v. got=%v",
 			responseError, err)
 	}
@@ -102,7 +102,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 		future.ResponseCommand = responseRemotingCommand
 		future.Done <- true
 	}()
-	if r, err := future.waitResponse(); err != nil {
+	if r, err := future.waitResponse(NewRemotingClient()); err != nil {
 		t.Errorf("wrong ResponseFuture waitResponse error: %v", err)
 	} else {
 		if r != responseRemotingCommand {
