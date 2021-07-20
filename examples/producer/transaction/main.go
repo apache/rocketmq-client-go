@@ -42,7 +42,7 @@ func NewDemoListener() *DemoListener {
 	}
 }
 
-func (dl *DemoListener) ExecuteLocalTransaction(msg *primitive.Message) primitive.LocalTransactionState {
+func (dl *DemoListener) ExecuteLocalTransaction(ctx context.Context, msg *primitive.Message) primitive.LocalTransactionState {
 	nextIndex := atomic.AddInt32(&dl.transactionIndex, 1)
 	fmt.Printf("nextIndex: %v for transactionID: %v\n", nextIndex, msg.TransactionId)
 	status := nextIndex % 3
