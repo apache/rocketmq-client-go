@@ -412,6 +412,8 @@ func (c *rmqClient) Start() {
 			}
 		})
 	})
+	//set c.close to false, or it could send only one message
+	c.close = false
 }
 
 func (c *rmqClient) removeClient() {
