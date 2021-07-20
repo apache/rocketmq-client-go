@@ -802,6 +802,13 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 	}
 	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
 	if err != nil {
+		rlog.Error("send message back err", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+			rlog.LogKeyMessageQueue:  msg.Queue.String(),
+			rlog.LogKeyConsumerGroup: pc.consumerGroup,
+			"brokerAddr":             brokerAddr,
+			"msgID":                  msg.MsgId,
+		})
 		return false
 	}
 	return true
@@ -1159,7 +1166,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				case ConsumeSuccess:
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
-					if pc.checkReconsumeTimes(msgs) {
+					if pc.checkReconsumeTimes(msgs, mq) {
 						pq.putMessage(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 						continueConsume = false
@@ -1178,7 +1185,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 					continueConsume = false
 				case SuspendCurrentQueueAMoment:
-					if pc.checkReconsumeTimes(msgs) {
+					if pc.checkReconsumeTimes(msgs, mq) {
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 						continueConsume = false
 					}
@@ -1199,7 +1206,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 	}
 }
 
-func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
+func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt, mq *primitive.MessageQueue) bool {
 	suspend := false
 	if len(msgs) != 0 {
 		maxReconsumeTimes := pc.getOrderlyMaxReconsumeTimes()
@@ -1207,7 +1214,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
 				rlog.Warning(fmt.Sprintf("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes), nil)
 				msg.WithProperty("RECONSUME_TIME", strconv.Itoa(int(msg.ReconsumeTimes)))
-				if !pc.sendMessageBack("", msg, -1) {
+				if !pc.sendMessageBack(mq.BrokerName, msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
 				}
