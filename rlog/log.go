@@ -57,6 +57,8 @@ func init() {
 		r.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		r.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		r.logger.SetLevel(logrus.FatalLevel)
 	default:
 		r.logger.SetLevel(logrus.InfoLevel)
 	}
