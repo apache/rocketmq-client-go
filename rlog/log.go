@@ -114,6 +114,8 @@ func (l *defaultLogger) Level(level string) {
 		l.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		l.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		l.logger.SetLevel(logrus.FatalLevel)
 	default:
 		l.logger.SetLevel(logrus.InfoLevel)
 	}
