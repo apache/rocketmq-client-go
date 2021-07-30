@@ -343,6 +343,7 @@ func (pq *processQueue) MaxOrderlyCache() int64 {
 
 func (pq *processQueue) clear() {
 	pq.mutex.Lock()
+	defer pq.mutex.Unlock()
 	pq.msgCache.Clear()
 	pq.cachedMsgCount = 0
 	pq.cachedMsgSize = 0
