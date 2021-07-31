@@ -17,7 +17,7 @@ env:
     - OS_TYPE=centos OS_VERSION=7
 
 before_script:
-  - export PROJECT_PAATH=`pwd`
+  - export PROJECT_PATH=`pwd`
   - cd ${TRAVIS_HOME}
   - wget https://archive.apache.org/dist/rocketmq/4.6.0/rocketmq-all-4.6.0-bin-release.zip
   - unzip rocketmq-all-4.6.0-bin-release.zip
@@ -27,7 +27,7 @@ before_script:
   - nohup sh bin/mqbroker -n localhost:9876 &
 
 script:
-  - cd ${PROJECT_PAATH}
+  - cd ${PROJECT_PATH}
   - go fmt ./... && [[ -z `git status -s` ]]
   - go test ./... -coverprofile=coverage.txt -covermode=atomic
 
