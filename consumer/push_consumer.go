@@ -20,7 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
 	"strconv"
 	"strings"
@@ -139,7 +139,7 @@ func (pc *pushConsumer) Start() error {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
-			err = rocketmq.ErrCreated
+			err = errors2.ErrCreated
 			return
 		}
 
@@ -225,7 +225,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
-		return rocketmq.ErrStartTopic
+		return errors2.ErrStartTopic
 	}
 
 	// add retry topic subscription for resubscribe

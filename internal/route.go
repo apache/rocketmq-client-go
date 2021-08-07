@@ -19,7 +19,7 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -401,7 +401,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		}
 		return routeData, nil
 	case ResTopicNotExist:
-		return nil, rocketmq.ErrTopicNotExist
+		return nil, errors.ErrTopicNotExist
 	default:
 		return nil, primitive.NewMQClientErr(response.Code, response.Remark)
 	}

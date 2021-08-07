@@ -20,7 +20,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,23 +52,23 @@ func (st *stableTest) buildFlags(name string) {
 
 func (st *stableTest) checkFlag() error {
 	if st.topic == "" {
-		return rocketmq.ErrEmptyTopic
+		return errors.ErrEmptyTopic
 	}
 
 	if st.nameSrv == "" {
-		return rocketmq.ErrEmptyNameSrv
+		return errors.ErrEmptyNameSrv
 	}
 
 	if st.groupID == "" {
-		return rocketmq.ErrEmptyGroupID
+		return errors.ErrEmptyGroupID
 	}
 
 	if st.testMin <= 0 {
-		return rocketmq.ErrTestMin
+		return errors.ErrTestMin
 	}
 
 	if st.opIntervalSec <= 0 {
-		return rocketmq.ErrOperationInterval
+		return errors.ErrOperationInterval
 	}
 
 	return nil
@@ -114,7 +114,7 @@ func (stp *stableTestProducer) checkFlag() error {
 		return err
 	}
 	if stp.bodySize <= 0 {
-		return rocketmq.ErrMessageBody
+		return errors.ErrMessageBody
 	}
 
 	return nil
@@ -187,7 +187,7 @@ func (stc *stableTestConsumer) checkFlag() error {
 	}
 
 	if stc.expression == "" {
-		return rocketmq.ErrEmptyExpression
+		return errors.ErrEmptyExpression
 	}
 	return nil
 }

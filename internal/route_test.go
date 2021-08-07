@@ -19,7 +19,7 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"testing"
 
@@ -53,7 +53,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 				func(ctx context.Context, addr string, request *remote.RemotingCommand) (*remote.RemotingCommand, error) {
 					count++
 					if count < 3 {
-						return nil, rocketmq.ErrNotExisted
+						return nil, errors.ErrNotExisted
 					}
 					return &remote.RemotingCommand{
 						Code: ResTopicNotExist,
@@ -62,7 +62,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 
 			data, err := namesrv.queryTopicRouteInfoFromServer("notexisted")
 			assert.Nil(t, data)
-			assert.Equal(t, rocketmq.ErrTopicNotExist, err)
+			assert.Equal(t, errors.ErrTopicNotExist, err)
 		})
 	})
 }

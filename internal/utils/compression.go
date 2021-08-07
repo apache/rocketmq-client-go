@@ -20,7 +20,7 @@ package utils
 import (
 	"bytes"
 	"compress/zlib"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"io/ioutil"
 	"sync"
 )
@@ -48,7 +48,7 @@ func init() {
 
 func Compress(raw []byte, compressLevel int) ([]byte, error) {
 	if compressLevel < zlib.BestSpeed || compressLevel > zlib.BestCompression {
-		return nil, rocketmq.ErrCompressLevel
+		return nil, errors.ErrCompressLevel
 	}
 
 	buf := bufPool.Get().(*bytes.Buffer)

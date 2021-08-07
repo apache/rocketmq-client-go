@@ -20,7 +20,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"strconv"
 	"time"
@@ -56,7 +56,7 @@ func ClientIP4() ([]byte, error) {
 			}
 		}
 	}
-	return nil, rocketmq.ErrUnknownIP
+	return nil, errors.ErrUnknownIP
 }
 
 func FakeIP() []byte {

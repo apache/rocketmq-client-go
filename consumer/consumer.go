@@ -20,7 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -818,7 +818,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		rlog.Warning("no broker found for mq", map[string]interface{}{
 			rlog.LogKeyMessageQueue: queue,
 		})
-		return nil, rocketmq.ErrBrokerNotFound
+		return nil, errors.ErrBrokerNotFound
 	}
 
 	if brokerResult.Slave {

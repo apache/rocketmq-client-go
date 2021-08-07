@@ -21,7 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
 	"strconv"
@@ -56,7 +56,7 @@ const (
 )
 
 var (
-	ErrServiceState = rocketmq.ErrService
+	ErrServiceState = errors2.ErrService
 
 	_VIPChannelEnable = false
 )

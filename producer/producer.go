@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -91,15 +91,15 @@ func (p *defaultProducer) Shutdown() error {
 
 func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
-		return rocketmq.ErrNotRunning
+		return errors2.ErrNotRunning
 	}
 
 	if len(msgs) == 0 {
-		return rocketmq.ErrMessageEmpty
+		return errors2.ErrMessageEmpty
 	}
 
 	if len(msgs[0].Topic) == 0 {
-		return rocketmq.ErrTopicEmpty
+		return errors2.ErrTopicEmpty
 	}
 	return nil
 }
