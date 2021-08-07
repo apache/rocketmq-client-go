@@ -68,7 +68,6 @@ const (
 	_SubAll = "*"
 )
 
-
 // Message model defines the way how messages are delivered to each consumer clients.
 // </p>
 //

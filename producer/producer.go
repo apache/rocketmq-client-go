@@ -36,7 +36,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
-
 type defaultProducer struct {
 	group       string
 	client      internal.RMQClient

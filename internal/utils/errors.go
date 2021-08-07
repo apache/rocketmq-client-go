@@ -21,8 +21,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
-
-
 func CheckError(action string, err error) {
 	if err != nil {
 		rlog.Error(action, map[string]interface{}{
