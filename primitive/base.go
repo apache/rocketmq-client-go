@@ -18,6 +18,7 @@ limitations under the License.
 package primitive
 
 import (
+	"github.com/apache/rocketmq-client-go/v2"
 	"regexp"
 	"strings"
 )
@@ -31,7 +32,7 @@ type NamesrvAddr []string
 
 func NewNamesrvAddr(s ...string) (NamesrvAddr, error) {
 	if len(s) == 0 {
-		return nil, ErrNoNameserver
+		return nil, rocketmq.ErrNoNameserver
 	}
 
 	ss := s
@@ -69,17 +70,17 @@ func verifyIP(ip string) error {
 		return nil
 	}
 	if strings.Contains(ip, ";") {
-		return ErrMultiIP
+		return rocketmq.ErrMultiIP
 	}
 	ipV4s := ipv4Regex.FindAllString(ip, -1)
 	ipV6s := ipv6Regex.FindAllString(ip, -1)
 
 	if len(ipV4s) == 0 && len(ipV6s) == 0 {
-		return ErrIllegalIP
+		return rocketmq.ErrIllegalIP
 	}
 
 	if len(ipV4s) > 1 || len(ipV6s) > 1 {
-		return ErrMultiIP
+		return rocketmq.ErrMultiIP
 	}
 	return nil
 }

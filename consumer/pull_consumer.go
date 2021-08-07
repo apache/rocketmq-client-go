@@ -20,13 +20,13 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2"
 	"sync"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -174,15 +174,15 @@ func (dc *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQ
 	}
 
 	if mq == nil {
-		return utils.ErrMQEmpty
+		return rocketmq.ErrMQEmpty
 	}
 
 	if offset < 0 {
-		return utils.ErrOffset
+		return rocketmq.ErrOffset
 	}
 
 	if numbers <= 0 {
-		return utils.ErrNumbers
+		return rocketmq.ErrNumbers
 	}
 	return nil
 }
