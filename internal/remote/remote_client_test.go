@@ -27,8 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,9 +78,9 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1000))
 	defer cancel()
 	future := NewResponseFuture(ctx, 10, nil)
-	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
+	if _, err := future.waitResponse(); err != rocketmq.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
-			utils.ErrRequestTimeout, err)
+			rocketmq.ErrRequestTimeout, err)
 	}
 	future = NewResponseFuture(context.Background(), 10, nil)
 	responseError := rocketmq.ErrResponse
@@ -295,7 +293,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
 			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
-				assert.Equal(t, utils.ErrRequestTimeout, r.Err)
+				assert.Equal(t, rocketmq.ErrRequestTimeout, r.Err)
 				wg.Done()
 			})
 		assert.Nil(t, err, "failed to invokeSync.")
