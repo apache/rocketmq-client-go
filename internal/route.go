@@ -19,7 +19,7 @@ package internal
 
 import (
 	"context"
-	"errors"
+	"github.com/apache/rocketmq-client-go/v2"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -44,10 +44,6 @@ const (
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
 	MasterId         = int64(0)
-)
-
-var (
-	ErrTopicNotExist = errors.New("topic not exist")
 )
 
 func (s *namesrvs) cleanOfflineBroker() {
@@ -405,7 +401,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		}
 		return routeData, nil
 	case ResTopicNotExist:
-		return nil, ErrTopicNotExist
+		return nil, rocketmq.ErrTopicNotExist
 	default:
 		return nil, primitive.NewMQClientErr(response.Code, response.Remark)
 	}

@@ -19,6 +19,7 @@ package producer
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/v2"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -60,17 +61,17 @@ func TestShutdown(t *testing.T) {
 	msg := new(primitive.Message)
 
 	r, err := p.SendSync(ctx, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, rocketmq.ErrNotRunning, err)
 	assert.Nil(t, r)
 
 	err = p.SendOneWay(ctx, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, rocketmq.ErrNotRunning, err)
 
 	f := func(context.Context, *primitive.SendResult, error) {
 		assert.False(t, true, "should not  come in")
 	}
 	err = p.SendAsync(ctx, f, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, rocketmq.ErrNotRunning, err)
 }
 
 func mockB4Send(p *defaultProducer) {

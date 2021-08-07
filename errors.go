@@ -17,13 +17,34 @@ limitations under the License.
 
 package rocketmq
 
-import (
-	"github.com/pkg/errors"
-)
+import "errors"
 
 var (
-	ErrRequestTimeout = errors.New("request timeout")
+	ErrRequestTimeout = errors.New("equest timeout")
 	ErrMQEmpty        = errors.New("MessageQueue is nil")
 	ErrOffset         = errors.New("offset < 0")
 	ErrNumbers        = errors.New("numbers < 0")
+	ErrEmptyTopic = errors.New("empty topic")
+	ErrEmptyNameSrv = errors.New("empty namesrv")
+	ErrEmptyGroupID = errors.New("empty group id")
+	ErrTestMin = errors.New("test minutes must be positive integer")
+	ErrOperationInterval = errors.New("operation interval must be positive integer")
+	ErrMessageBody = errors.New("message body size must be positive integer")
+	ErrEmptyExpression = errors.New("empty expression")
+	ErrCreated        = errors.New("consumer group has been created")
+	ErrBrokerNotFound = errors.New("broker can not found")
+	ErrStartTopic = errors.New("cannot subscribe topic since client either failed to start or has been shutdown.")
+	ErrResponse = errors.New("response error")
+	ErrCompressLevel = errors.New("unsupported compress level")
+	ErrUnknownIP = errors.New("unknown IP address")
+	ErrService = errors.New("service close is not running, please check")
+	ErrTopicNotExist = errors.New("topic not exist")
+	ErrNotExisted = errors.New("not existed")
+	ErrNoNameserver = errors.New("nameServerAddrs can't be empty.")
+	ErrMultiIP      = errors.New("multiple IP addr does not support")
+	ErrIllegalIP    = errors.New("IP addr error")
+	ErrTopicEmpty   = errors.New("topic is nil")
+	ErrMessageEmpty = errors.New("message is nil")
+	ErrNotRunning   = errors.New("producer not started")
+	ErrPullConsumer = errors.New("pull consumer has not supported")
 )

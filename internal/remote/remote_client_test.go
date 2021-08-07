@@ -19,7 +19,7 @@ package remote
 import (
 	"bytes"
 	"context"
-	"errors"
+	"github.com/apache/rocketmq-client-go/v2"
 	"math/rand"
 	"net"
 	"reflect"
@@ -85,7 +85,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 			utils.ErrRequestTimeout, err)
 	}
 	future = NewResponseFuture(context.Background(), 10, nil)
-	responseError := errors.New("response error")
+	responseError := rocketmq.ErrResponse
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		future.Err = responseError

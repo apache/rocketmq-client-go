@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +30,6 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -68,10 +68,6 @@ const (
 	_SubAll = "*"
 )
 
-var (
-	ErrCreated        = errors.New("consumer group has been created")
-	ErrBrokerNotFound = errors.New("broker can not found")
-)
 
 // Message model defines the way how messages are delivered to each consumer clients.
 // </p>
@@ -822,7 +818,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		rlog.Warning("no broker found for mq", map[string]interface{}{
 			rlog.LogKeyMessageQueue: queue,
 		})
-		return nil, ErrBrokerNotFound
+		return nil, rocketmq.ErrBrokerNotFound
 	}
 
 	if brokerResult.Slave {
