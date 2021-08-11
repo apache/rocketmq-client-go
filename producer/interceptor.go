@@ -50,7 +50,7 @@ func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor 
 
 		producerCtx := primitive.GetProducerCtx(ctx)
 		if producerCtx.Message.Topic == dispatcher.GetTraceTopicName() {
-			return next(ctx, req, reply)
+			return err
 		}
 
 		// SendOneway && SendAsync has no reply.
