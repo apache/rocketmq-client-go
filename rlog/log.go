@@ -33,6 +33,7 @@ const (
 	LogKeyValueChangedFrom = "changedFrom"
 	LogKeyValueChangedTo   = "changeTo"
 	LogKeyPullRequest      = "PullRequest"
+	LogKeyTimeStamp        = "timestamp"
 )
 
 type Logger interface {
@@ -57,6 +58,8 @@ func init() {
 		r.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		r.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		r.logger.SetLevel(logrus.FatalLevel)
 	default:
 		r.logger.SetLevel(logrus.InfoLevel)
 	}
@@ -112,6 +115,8 @@ func (l *defaultLogger) Level(level string) {
 		l.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		l.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		l.logger.SetLevel(logrus.FatalLevel)
 	default:
 		l.logger.SetLevel(logrus.InfoLevel)
 	}

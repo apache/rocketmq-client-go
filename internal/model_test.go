@@ -362,3 +362,61 @@ func TestConsumerRunningInfo_MarshalJSON(t *testing.T) {
 		})
 	})
 }
+
+func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
+	Convey("test ConsumeMessageDirectlyResult MarshalJson", t, func() {
+		Convey("test consume success", func() {
+			consumeMessageDirectlyResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeMessageDirectlyResult.ConsumeResult = ConsumeSuccess
+			data, err := consumeMessageDirectlyResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+
+		Convey("test consume timeout", func() {
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeResult.ConsumeResult = ReturnNull
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+
+		Convey("test consume exception", func() {
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 5,
+			}
+			consumeResult.ConsumeResult = ThrowException
+			consumeResult.Remark = "Unknown Exception"
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+		})
+	})
+}
+
+func TestRestOffsetBody_MarshalJSON(t *testing.T) {
+	Convey("test ResetOffset Body Decode", t, func() {
+		body := "{\"offsetTable\":[[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":5},23354233],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":4},23354245],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":7},23354203],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":6},23354312],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":1},23373517],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":0},23373350],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":3},23373424],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":2},23373382]]}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 8)
+		messageQueue := primitive.MessageQueue{
+			Topic:      "zx_tst",
+			BrokerName: "tjwqtst-common-rocketmq-raft0",
+			QueueId:    5,
+		}
+		So(offsetTable[messageQueue], ShouldEqual, 23354233)
+	})
+}

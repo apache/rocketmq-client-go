@@ -19,6 +19,7 @@ package remote
 import (
 	"context"
 	"net"
+	"sync"
 
 	"go.uber.org/atomic"
 )
@@ -26,6 +27,7 @@ import (
 // TODO: Adding TCP Connections Pool, https://github.com/apache/rocketmq-client-go/v2/issues/298
 type tcpConnWrapper struct {
 	net.Conn
+	sync.Mutex
 	closed atomic.Bool
 }
 

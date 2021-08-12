@@ -77,7 +77,8 @@ func TestResponseFutureTimeout(t *testing.T) {
 }
 
 func TestResponseFutureWaitResponse(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), time.Duration(1000))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1000))
+	defer cancel()
 	future := NewResponseFuture(ctx, 10, nil)
 	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
@@ -289,7 +290,8 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()
-		ctx, _ := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
+		defer cancel()
 		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
 			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)

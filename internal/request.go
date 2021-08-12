@@ -48,7 +48,7 @@ const (
 	ReqGetAllTopicListFromNameServer = int16(206)
 	ReqDeleteTopicInBroker           = int16(215)
 	ReqDeleteTopicInNameSrv          = int16(216)
-	ReqResetConsuemrOffset           = int16(220)
+	ReqResetConsumerOffset           = int16(220)
 	ReqGetConsumerRunningInfo        = int16(307)
 	ReqConsumeMessageDirectly        = int16(309)
 )
@@ -66,7 +66,7 @@ type SendMessageRequestHeader struct {
 	MaxReconsumeTimes     int
 	Batch                 bool
 	DefaultTopic          string
-	DefaultTopicQueueNums string
+	DefaultTopicQueueNums int
 }
 
 func (request *SendMessageRequestHeader) Encode() map[string]string {
@@ -107,7 +107,7 @@ func (request *SendMessageRequestV2Header) Encode() map[string]string {
 	maps["a"] = request.ProducerGroup
 	maps["b"] = request.Topic
 	maps["c"] = request.DefaultTopic
-	maps["d"] = request.DefaultTopicQueueNums
+	maps["d"] = strconv.Itoa(request.DefaultTopicQueueNums)
 	maps["e"] = strconv.Itoa(request.QueueId)
 	maps["f"] = fmt.Sprintf("%d", request.SysFlag)
 	maps["g"] = strconv.FormatInt(request.BornTimestamp, 10)
@@ -406,4 +406,75 @@ func (request *DeleteTopicRequestHeader) Encode() map[string]string {
 	maps["topic"] = request.Topic
 
 	return maps
+}
+
+type ResetOffsetHeader struct {
+	topic     string
+	group     string
+	timestamp int64
+	isForce   bool
+}
+
+func (request *ResetOffsetHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.topic
+	maps["group"] = request.group
+	maps["timestamp"] = strconv.FormatInt(request.timestamp, 10)
+	return maps
+}
+
+func (request *ResetOffsetHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
+		return
+	}
+
+	if v, existed := properties["topic"]; existed {
+		request.topic = v
+	}
+
+	if v, existed := properties["group"]; existed {
+		request.group = v
+	}
+
+	if v, existed := properties["timestamp"]; existed {
+		request.timestamp, _ = strconv.ParseInt(v, 10, 0)
+	}
+}
+
+type ConsumeMessageDirectlyHeader struct {
+	consumerGroup string
+	clientID      string
+	msgId         string
+	brokerName    string
+}
+
+func (request *ConsumeMessageDirectlyHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["consumerGroup"] = request.consumerGroup
+	maps["clientId"] = request.clientID
+	maps["msgId"] = request.msgId
+	maps["brokerName"] = request.brokerName
+	return maps
+}
+
+func (request *ConsumeMessageDirectlyHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
+		return
+	}
+
+	if v, existed := properties["consumerGroup"]; existed {
+		request.consumerGroup = v
+	}
+
+	if v, existed := properties["clientId"]; existed {
+		request.clientID = v
+	}
+
+	if v, existed := properties["msgId"]; existed {
+		request.msgId = v
+	}
+
+	if v, existed := properties["brokerName"]; existed {
+		request.brokerName = v
+	}
 }

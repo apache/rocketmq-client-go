@@ -21,7 +21,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/tidwall/gjson"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -260,4 +262,76 @@ func NewConsumerRunningInfo() *ConsumerRunningInfo {
 		MQTable:          make(map[primitive.MessageQueue]ProcessQueueInfo),
 		StatusTable:      make(map[string]ConsumeStatus),
 	}
+}
+
+type ConsumeMessageDirectlyResult struct {
+	Order          bool          `json:"order"`
+	AutoCommit     bool          `json:"autoCommit"`
+	ConsumeResult  ConsumeResult `json:"consumeResult"`
+	Remark         string        `json:"remark"`
+	SpentTimeMills int64         `json:"spentTimeMills"`
+}
+
+type ConsumeResult int
+
+const (
+	ConsumeSuccess ConsumeResult = iota
+	ConsumeRetryLater
+	Rollback
+	Commit
+	ThrowException
+	ReturnNull
+)
+
+func (result ConsumeMessageDirectlyResult) Encode() ([]byte, error) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+type ResetOffsetBody struct {
+	OffsetTable map[primitive.MessageQueue]int64 `json:"offsetTable"`
+}
+
+func (resetOffsetBody *ResetOffsetBody) Decode(body []byte) {
+	result := gjson.ParseBytes(body)
+	rlog.Debug("offset table string "+result.Get("offsetTable").String(), nil)
+
+	offsetTable := make(map[primitive.MessageQueue]int64, 0)
+	offsetTableArray := strings.Split(result.Get("offsetTable").String(), "],[")
+	for index, v := range offsetTableArray {
+		kvArray := strings.Split(v, "},")
+
+		var kstr, vstr string
+		if index == len(offsetTableArray)-1 {
+			vstr = kvArray[1][:len(kvArray[1])-2]
+		} else {
+			vstr = kvArray[1]
+		}
+		offset, err := strconv.ParseInt(vstr, 10, 64)
+		if err != nil {
+			rlog.Error("Unmarshal offset error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return
+		}
+
+		if index == 0 {
+			kstr = kvArray[0][2:len(kvArray[0])] + "}"
+		} else {
+			kstr = kvArray[0] + "}"
+		}
+		kObj := new(primitive.MessageQueue)
+		err = jsoniter.Unmarshal([]byte(kstr), &kObj)
+		if err != nil {
+			rlog.Error("Unmarshal message queue error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return
+		}
+		offsetTable[*kObj] = offset
+	}
+	resetOffsetBody.OffsetTable = offsetTable
 }

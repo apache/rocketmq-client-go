@@ -43,6 +43,18 @@ func TestVerifyIP(t *testing.T) {
 	IPs = "127.0.0.1:9876;12.24.123.243:10911"
 	err = verifyIP(IPs)
 	assert.Equal(t, "multiple IP addr does not support", err.Error())
+
+	IPs = "bdbd:bdbd:ff:1:1:2:3:4:8888"
+	err = verifyIP(IPs)
+	assert.Nil(t, err)
+
+	IPs = "[bdbd:bdbd:ff:1:1:2:3:4]:8888"
+	err = verifyIP(IPs)
+	assert.Nil(t, err)
+
+	IPs = "[bdbd:bdbd:ff:1:1:2:3:4]:8888;[bdbd:bdbd:ff:1:1:2:3:4]:8889"
+	err = verifyIP(IPs)
+	assert.Equal(t, "multiple IP addr does not support", err.Error())
 }
 
 func TestBase(t *testing.T) {
