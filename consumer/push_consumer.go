@@ -119,6 +119,9 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
+	retryTopic := internal.GetRetryTopic(p.consumerGroup)
+	sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
+	p.subscriptionDataTable.Store(retryTopic, sub)
 	return p, nil
 }
 
@@ -227,14 +230,6 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 		return errors.New("cannot subscribe topic since client either failed to start or has been shutdown.")
 	}
 
-	// add retry topic subscription for resubscribe
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	_, exists := pc.subscriptionDataTable.Load(retryTopic)
-	if !exists {
-		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, sub)
-	}
-
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
@@ -254,8 +249,6 @@ func (pc *pushConsumer) Unsubscribe(topic string) error {
 		topic = pc.option.Namespace + "%" + topic
 	}
 	pc.subscriptionDataTable.Delete(topic)
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	pc.subscriptionDataTable.Delete(retryTopic)
 	return nil
 }
 
