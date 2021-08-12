@@ -254,8 +254,6 @@ func (pc *pushConsumer) Unsubscribe(topic string) error {
 		topic = pc.option.Namespace + "%" + topic
 	}
 	pc.subscriptionDataTable.Delete(topic)
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	pc.subscriptionDataTable.Delete(retryTopic)
 	return nil
 }
 
