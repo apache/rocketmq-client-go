@@ -186,6 +186,9 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 		done:         make(chan struct{}),
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
+	client.namesrvs = GetOrSetNamesrv(client.ClientID(), client.namesrvs)
+	client.namesrvs.bundleClient = actual.(*rmqClient)
+	client.option.Namesrv = client.namesrvs
 	if !loaded {
 		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
