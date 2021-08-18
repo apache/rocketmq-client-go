@@ -99,8 +99,12 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		consumeOrderly: defaultOpts.ConsumeOrderly,
 		fromWhere:      defaultOpts.FromWhere,
 		allocate:       defaultOpts.Strategy,
-		option:         defaultOpts,
 		namesrv:        srvs,
+		option:         defaultOpts,
+	}
+	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
+	if err != nil {
+		return nil, err
 	}
 
 	p := &pushConsumer{

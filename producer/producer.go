@@ -72,7 +72,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 		options:    defaultOpts,
 	}
 	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
-
+	producer.options.ClientOptions.Namesrv, err = internal.GetNamesrv(producer.client.ClientID())
+	if err != nil {
+		return nil, err
+	}
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
 	return producer, nil
