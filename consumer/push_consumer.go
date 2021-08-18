@@ -119,9 +119,11 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
-	retryTopic := internal.GetRetryTopic(p.consumerGroup)
-	sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
-	p.subscriptionDataTable.Store(retryTopic, sub)
+	if p.model == Clustering {
+		retryTopic := internal.GetRetryTopic(p.consumerGroup)
+		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
+		p.subscriptionDataTable.Store(retryTopic, sub)
+	}
 	return p, nil
 }
 
