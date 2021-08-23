@@ -187,6 +187,7 @@ func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic st
 
 				return true
 			})
+			rlog.Info("change the route for clients", nil)
 		}
 
 		s.routeDataMap.Store(topic, routeData)

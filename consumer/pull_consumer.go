@@ -93,7 +93,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 
 		namesrv: srvs,
 	}
-
+	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
 	c := &defaultPullConsumer{
 		defaultConsumer: dc,
 	}
