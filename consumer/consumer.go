@@ -993,6 +993,7 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		SubString: selector.Expression,
 		ExpType:   string(selector.Type),
 	}
+	subData.SubVersion = time.Now().UnixNano()
 
 	if selector.Type != "" && selector.Type != TAG {
 		return subData
