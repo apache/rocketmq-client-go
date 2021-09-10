@@ -106,7 +106,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	dc.namesrv = dc.option.ClientOptions.Namesrv
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
