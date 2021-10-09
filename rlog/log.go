@@ -38,15 +38,15 @@ const (
 
 type Logger interface {
 	Debug(msg string, fields map[string]interface{})
-	Debugf(format string, args interface{}, fields map[string]interface{})
+	Debugf(fields map[string]interface{}, format string, args ...interface{})
 	Info(msg string, fields map[string]interface{})
-	Infof(format string, args interface{}, fields map[string]interface{})
+	Infof(fields map[string]interface{}, format string, args ...interface{})
 	Warning(msg string, fields map[string]interface{})
-	Warningf(format string, args interface{}, fields map[string]interface{})
+	Warningf(fields map[string]interface{}, format string, args ...interface{})
 	Error(msg string, fields map[string]interface{})
-	Errorf(format string, args interface{}, fields map[string]interface{})
+	Errorf(fields map[string]interface{}, format string, args ...interface{})
 	Fatal(msg string, fields map[string]interface{})
-	Fatalf(format string, args interface{}, fields map[string]interface{})
+	Fatalf(fields map[string]interface{}, format string, args ...interface{})
 	Level(level string)
 	OutputPath(path string) (err error)
 }
@@ -84,7 +84,7 @@ func (l *defaultLogger) Debug(msg string, fields map[string]interface{}) {
 	l.logger.WithFields(fields).Debug(msg)
 }
 
-func (l *defaultLogger) Debugf(format string, args interface{}, fields map[string]interface{}) {
+func (l *defaultLogger) Debugf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
@@ -98,7 +98,7 @@ func (l *defaultLogger) Info(msg string, fields map[string]interface{}) {
 	l.logger.WithFields(fields).Info(msg)
 }
 
-func (l *defaultLogger) Infof(format string, args interface{}, fields map[string]interface{}) {
+func (l *defaultLogger) Infof(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
@@ -112,7 +112,7 @@ func (l *defaultLogger) Warning(msg string, fields map[string]interface{}) {
 	l.logger.WithFields(fields).Warning(msg)
 }
 
-func (l *defaultLogger) Warningf(format string, args interface{}, fields map[string]interface{}) {
+func (l *defaultLogger) Warningf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
@@ -126,7 +126,7 @@ func (l *defaultLogger) Error(msg string, fields map[string]interface{}) {
 	l.logger.WithFields(fields).WithFields(fields).Error(msg)
 }
 
-func (l *defaultLogger) Errorf(format string, args interface{}, fields map[string]interface{}) {
+func (l *defaultLogger) Errorf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
@@ -140,7 +140,7 @@ func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
 	l.logger.WithFields(fields).Fatal(msg)
 }
 
-func (l *defaultLogger) Fatalf(format string, args interface{}, fields map[string]interface{}) {
+func (l *defaultLogger) Fatalf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
@@ -196,8 +196,8 @@ func Debug(msg string, fields map[string]interface{}) {
 	rLog.Debug(msg, fields)
 }
 
-func Debugf(format string, args interface{}, fields map[string]interface{}) {
-	rLog.Debugf(format, args, fields)
+func Debugf(fields map[string]interface{}, format string, args ...interface{}) {
+	rLog.Debugf(fields, format, args)
 }
 
 func Info(msg string, fields map[string]interface{}) {
@@ -207,11 +207,11 @@ func Info(msg string, fields map[string]interface{}) {
 	rLog.Info(msg, fields)
 }
 
-func Infof(format string, args interface{}, fields map[string]interface{}) {
+func Infof(fields map[string]interface{}, format string,  args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
-	rLog.Infof(format, args, fields)
+	rLog.Infof(fields, format, args)
 }
 
 func Warning(msg string, fields map[string]interface{}) {
@@ -221,31 +221,31 @@ func Warning(msg string, fields map[string]interface{}) {
 	rLog.Warning(msg, fields)
 }
 
-func Warningf(format string, args interface{}, fields map[string]interface{}) {
+func Warningf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
-	rLog.Warningf(format, args, fields)
+	rLog.Warningf(fields, format, args)
 }
 
 func Error(msg string, fields map[string]interface{}) {
 	rLog.Error(msg, fields)
 }
 
-func Errorf(format string, args interface{}, fields map[string]interface{}) {
+func Errorf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
-	rLog.Errorf(format, args, fields)
+	rLog.Errorf(fields, format, args)
 }
 
 func Fatal(msg string, fields map[string]interface{}) {
 	rLog.Fatal(msg, fields)
 }
 
-func Fatalf(format string, args interface{}, fields map[string]interface{}) {
+func Fatalf(fields map[string]interface{}, format string, args ...interface{}) {
 	if format == "" && len(fields) == 0 {
 		return
 	}
-	rLog.Fatalf(format, args, fields)
+	rLog.Fatalf(fields, format, args)
 }
