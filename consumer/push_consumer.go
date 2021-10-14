@@ -763,10 +763,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"prevRequestOffset": prevRequestOffset,
 				})
 			}
-		case primitive.PullNoNewMsg:
-			rlog.Debug(fmt.Sprintf("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d",
-				request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset), nil)
-		case primitive.PullNoMsgMatched:
+		case primitive.PullNoNewMsg, primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
 		case primitive.PullOffsetIllegal:
@@ -789,7 +786,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 }
 
 func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
-	// TODO
+	if pr.pq.cachedMsgCount <= 0 {
+		pc.storage.update(pr.mq, pr.nextOffset, true)
+	}
 }
 
 func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
