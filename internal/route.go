@@ -550,12 +550,13 @@ func (routeData *TopicRouteData) decode(data string) error {
 		strs := strings.Split(addrs[1:len(addrs)-1], ",")
 		if strs != nil {
 			for _, str := range strs {
+				str = strings.Replace(str, "\"", "", -1)
 				i := strings.Index(str, ":")
 				if i < 0 {
 					continue
 				}
 				id, _ := strconv.ParseInt(str[0:i], 10, 64)
-				bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
+				bd.BrokerAddresses[id] = str[i+1:]
 			}
 		}
 		routeData.BrokerDataList[idx] = bd
