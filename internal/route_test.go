@@ -135,3 +135,58 @@ func TestFindBrokerAddressInSubscribe(t *testing.T) {
 		assert.NotNil(t, result)
 	})
 }
+
+func TestRouteDecode(t *testing.T) {
+	Convey("marshal of TraceContext", t, func() {
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		remotingCli := remote.NewMockRemotingClient(ctrl)
+
+		addr, err := primitive.NewNamesrvAddr("1.1.1.1:8880", "1.1.1.2:8880", "1.1.1.3:8880")
+		assert.Nil(t, err)
+
+		namesrv, err := NewNamesrv(primitive.NewPassthroughResolver(addr))
+		assert.Nil(t, err)
+		namesrv.nameSrvClient = remotingCli
+
+		Convey("test route decode", func() {
+			routeData := &TopicRouteData{
+				QueueDataList:  make([]*QueueData, 1),
+				BrokerDataList: make([]*BrokerData, 1),
+			}
+
+			routeData.BrokerDataList[0] = &BrokerData{
+				Cluster:    "cluster",
+				BrokerName: "brokerName",
+				BrokerAddresses: map[int64]string{
+					0: "127.0.0.1:10911",
+					1: "127.0.0.1:10912",
+					2: "127.0.0.1:10913",
+				},
+			}
+
+			routeData.QueueDataList[0] = &QueueData{
+				BrokerName:     "brokerName",
+				ReadQueueNums:  16,
+				WriteQueueNums: 16,
+				Perm:           6,
+				TopicSynFlag:   0,
+			}
+
+			remotingCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, addr string, request *remote.RemotingCommand) (*remote.RemotingCommand, error) {
+
+					return &remote.RemotingCommand{
+						Code: ResSuccess,
+						Body: []byte(routeData.String()),
+					}, nil
+				})
+
+			data, err := namesrv.queryTopicRouteInfoFromServer("test")
+			assert.Nil(t, err)
+			assert.Equal(t, routeData, data)
+		})
+	})
+}
