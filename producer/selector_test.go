@@ -76,3 +76,107 @@ func TestHashQueueSelector(t *testing.T) {
 	q2 := s.Select(m2, queues)
 	assert.Equal(t, *q1, *q2)
 }
+
+func TestBrokerRoundRobinQueueSelector(t *testing.T) {
+	t.Run("singleBrokerSingleQueueNum", func(t *testing.T) {
+		singleBrokerSingleQueueNumQueues := make([]*primitive.MessageQueue, 0, 1)
+		singleBrokerSingleQueueNumQueues = append(singleBrokerSingleQueueNumQueues, &primitive.MessageQueue{
+			BrokerName: "broker-a",
+			QueueId:    0,
+		})
+		s := NewBrokerRoundRobinQueueSelector()
+		m := &primitive.Message{
+			Topic: "test",
+			Body:  []byte("one message"),
+		}
+		q1 := s.Select(m, singleBrokerSingleQueueNumQueues)
+		q2 := s.Select(m, singleBrokerSingleQueueNumQueues)
+		assert.Equal(t, *q1, *q2)
+	})
+
+	t.Run("singleBrokerMultiQueueNum", func(t *testing.T) {
+		singleBrokerMultiQueueNumQueues := make([]*primitive.MessageQueue, 0, 8)
+		for i := 0; i < 8; i++ {
+			singleBrokerMultiQueueNumQueues = append(singleBrokerMultiQueueNumQueues, &primitive.MessageQueue{
+				BrokerName: "broker-a",
+				QueueId:    i,
+			})
+		}
+
+		s := NewBrokerRoundRobinQueueSelector()
+		m := &primitive.Message{
+			Topic: "test",
+			Body:  []byte("one message"),
+		}
+		for i := 0; i < 100; i++ {
+			q := s.Select(m, singleBrokerMultiQueueNumQueues)
+			expected := (i) % len(singleBrokerMultiQueueNumQueues)
+			assert.Equal(t, singleBrokerMultiQueueNumQueues[expected], q, "i: %d", i)
+		}
+	})
+
+	t.Run("multiBrokerSingleQueueNum", func(t *testing.T) {
+		multiBrokerSingleQueueNumQueues := make([]*primitive.MessageQueue, 0, 2)
+		multiBrokerSingleQueueNumQueues = append(multiBrokerSingleQueueNumQueues, &primitive.MessageQueue{
+			BrokerName: "broker-a",
+			QueueId:    0,
+		})
+		multiBrokerSingleQueueNumQueues = append(multiBrokerSingleQueueNumQueues, &primitive.MessageQueue{
+			BrokerName: "broker-b",
+			QueueId:    0,
+		})
+
+		s := NewBrokerRoundRobinQueueSelector()
+		m := &primitive.Message{
+			Topic: "test",
+			Body:  []byte("one message"),
+		}
+		var preq *primitive.MessageQueue
+		for i := 0; i < 100; i++ {
+			q := s.Select(m, multiBrokerSingleQueueNumQueues)
+			if preq != nil {
+				assert.NotEqual(t, q.BrokerName, preq.BrokerName)
+				assert.Equal(t, q.QueueId, preq.QueueId)
+			}
+			preq = q
+		}
+	})
+
+	t.Run("multiBrokerMultiQueueNum", func(t *testing.T) {
+		multiBrokerMultiQueueNumQueues := make([]*primitive.MessageQueue, 0, 8)
+		for i := 0; i < 8; i++ {
+			var brokerName string
+			if i < 4 {
+				brokerName = "broker-a"
+			} else {
+				brokerName = "broker-b"
+			}
+
+			multiBrokerMultiQueueNumQueues = append(multiBrokerMultiQueueNumQueues, &primitive.MessageQueue{
+				BrokerName: brokerName,
+				QueueId:    i % 4,
+			})
+		}
+
+		s := NewBrokerRoundRobinQueueSelector()
+		m := &primitive.Message{
+			Topic: "test",
+			Body:  []byte("one message"),
+		}
+		var expected int
+		var preq *primitive.MessageQueue
+		for i := 0; i < 100; i++ {
+			q := s.Select(m, multiBrokerMultiQueueNumQueues)
+
+			if i%2 == 0 && i > 0 {
+				expected++
+			}
+			assert.Equal(t, q.QueueId, expected%4)
+
+			if preq != nil {
+				assert.NotEqual(t, preq.BrokerName, q.BrokerName)
+			}
+			preq = q
+		}
+	})
+}

@@ -120,3 +120,104 @@ func (h *hashQueueSelector) Select(message *primitive.Message, queues []*primiti
 	}
 	return queues[queueId]
 }
+
+// brokerRoundRobinQueueSelector choose the queue by roundRobin.
+type brokerRoundRobinQueueSelector struct {
+	sync.Locker
+	indexer map[string]*Indexer // 全局indexer
+}
+
+type Indexer struct {
+	topicIndexer  *uint64
+	brokerIndexer map[string]*brokerData
+}
+
+type brokerData struct {
+	index   int
+	count   int
+	indexer *uint64
+}
+
+func NewBrokerRoundRobinQueueSelector() QueueSelector {
+	s := &brokerRoundRobinQueueSelector{
+		Locker:  new(sync.Mutex),
+		indexer: make(map[string]*Indexer),
+	}
+	return s
+}
+
+func (r *brokerRoundRobinQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	t := message.Topic
+
+	r.Lock()
+	brokerIdx, exist := r.indexer[t]
+	if !exist {
+		var v uint64 = 0
+		idx := &v
+		brokerIdx = &Indexer{
+			topicIndexer:  idx,
+			brokerIndexer: make(map[string]*brokerData),
+		}
+		r.indexer[t] = brokerIdx
+	}
+
+	*brokerIdx.topicIndexer++
+	r.updateBrokerIndexer(brokerIdx, queues)
+	qIndex := *brokerIdx.topicIndexer % uint64(len(brokerIdx.brokerIndexer))
+	var bIndex uint64
+	for _, v := range brokerIdx.brokerIndexer {
+		if v.index == int(qIndex) {
+			bIndex = *v.indexer % uint64(v.count)
+			*v.indexer++
+		}
+	}
+	r.Unlock()
+
+	if qIndex == 0 {
+		return queues[bIndex]
+	}
+
+	for qIndex > 0 {
+		for _, v := range brokerIdx.brokerIndexer {
+			if v.index == int(qIndex) {
+				bIndex += uint64(v.count)
+			}
+		}
+		qIndex--
+	}
+
+	return queues[bIndex]
+}
+
+func (r *brokerRoundRobinQueueSelector) updateBrokerIndexer(b *Indexer, queues []*primitive.MessageQueue) {
+	// recalculated the count every time
+	for k := range b.brokerIndexer {
+		b.brokerIndexer[k].count = 0
+	}
+
+	globIndex := 0
+	for i := range queues {
+		v := queues[i]
+		if v == nil {
+			continue
+		}
+		if bv, ok := b.brokerIndexer[v.BrokerName]; !ok {
+			var a uint64 = 0
+			b.brokerIndexer[v.BrokerName] = &brokerData{
+				index:   globIndex,
+				indexer: &a,
+				count:   1,
+			}
+			globIndex++
+		} else {
+			bv.count++
+		}
+	}
+
+	// delete unused brokerIndexer
+	for k := range b.brokerIndexer {
+		if b.brokerIndexer[k].count == 0 {
+			delete(b.brokerIndexer, k)
+		}
+	}
+}
