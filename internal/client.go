@@ -188,7 +188,6 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	client.namesrvs = GetOrSetNamesrv(client.ClientID(), client.namesrvs)
-	client.namesrvs.bundleClient = actual.(*rmqClient)
 	client.option.Namesrv = client.namesrvs
 	if !loaded {
 		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
