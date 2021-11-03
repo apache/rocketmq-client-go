@@ -19,15 +19,13 @@ package remote
 import (
 	"bytes"
 	"context"
-	"errors"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"net"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -80,12 +78,12 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1000))
 	defer cancel()
 	future := NewResponseFuture(ctx, 10, nil)
-	if _, err := future.waitResponse(); err != utils.ErrRequestTimeout {
+	if _, err := future.waitResponse(); err != errors.ErrRequestTimeout {
 		t.Errorf("wrong ResponseFuture waitResponse. want=%v, got=%v",
-			utils.ErrRequestTimeout, err)
+			errors.ErrRequestTimeout, err)
 	}
 	future = NewResponseFuture(context.Background(), 10, nil)
-	responseError := errors.New("response error")
+	responseError := errors.ErrResponse
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		future.Err = responseError
@@ -295,7 +293,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
 			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
-				assert.Equal(t, utils.ErrRequestTimeout, r.Err)
+				assert.Equal(t, errors.ErrRequestTimeout, r.Err)
 				wg.Done()
 			})
 		assert.Nil(t, err, "failed to invokeSync.")

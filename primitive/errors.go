@@ -18,14 +18,7 @@ limitations under the License.
 package primitive
 
 import (
-	"errors"
 	"strconv"
-)
-
-var (
-	ErrNoNameserver = errors.New("nameServerAddrs can't be empty.")
-	ErrMultiIP      = errors.New("multiple IP addr does not support")
-	ErrIllegalIP    = errors.New("IP addr error")
 )
 
 type MQBrokerErr struct {

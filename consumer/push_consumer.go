@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
 	"strconv"
 	"strings"
@@ -147,7 +148,7 @@ func (pc *pushConsumer) Start() error {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
-			err = ErrCreated
+			err = errors2.ErrCreated
 			return
 		}
 
@@ -233,7 +234,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
-		return errors.New("cannot subscribe topic since client either failed to start or has been shutdown.")
+		return errors2.ErrStartTopic
 	}
 
 	if pc.option.Namespace != "" {

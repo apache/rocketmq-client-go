@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -33,12 +34,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-)
-
-var (
-	ErrTopicEmpty   = errors.New("topic is nil")
-	ErrMessageEmpty = errors.New("message is nil")
-	ErrNotRunning   = errors.New("producer not started")
 )
 
 type defaultProducer struct {
@@ -98,15 +93,15 @@ func (p *defaultProducer) Shutdown() error {
 
 func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
-		return ErrNotRunning
+		return errors2.ErrNotRunning
 	}
 
 	if len(msgs) == 0 {
-		return errors.New("message is nil")
+		return errors2.ErrMessageEmpty
 	}
 
 	if len(msgs[0].Topic) == 0 {
-		return errors.New("topic is nil")
+		return errors2.ErrTopicEmpty
 	}
 	return nil
 }

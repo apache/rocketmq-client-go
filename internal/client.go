@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
 	"strconv"
@@ -55,7 +56,7 @@ const (
 )
 
 var (
-	ErrServiceState = errors.New("service close is not running, please check")
+	ErrServiceState = errors2.ErrService
 
 	_VIPChannelEnable = false
 )
