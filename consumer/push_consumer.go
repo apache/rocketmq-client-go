@@ -1162,7 +1162,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
 					if pc.checkReconsumeTimes(msgs) {
-						pq.putMessage(msgs...)
+						pq.makeMessageToCosumeAgain(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 						continueConsume = false
 					} else {
