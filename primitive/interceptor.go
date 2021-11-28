@@ -29,6 +29,10 @@ type Invoker func(ctx context.Context, req, reply interface{}) error
 // use type assert to get real type.
 type Interceptor func(ctx context.Context, req, reply interface{}, next Invoker) error
 
+var NoopInterceptor = func(ctx context.Context, req, reply interface{}) error {
+	return nil
+}
+
 func ChainInterceptors(interceptors ...Interceptor) Interceptor {
 	if len(interceptors) == 0 {
 		return nil
