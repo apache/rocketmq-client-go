@@ -550,7 +550,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	// 估计没有反序列化回来
+	
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
