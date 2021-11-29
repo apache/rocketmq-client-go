@@ -14,8 +14,6 @@ Alternately (especially if your communication is not a bug report), you can send
 Please ensure that your bug report is clear and that it is complete. Otherwise, we may be unable to understand it or to reproduce it, either of which would prevent us from fixing the bug. We strongly recommend the report(bug report or feature request) could include some hints as to the following:
 
 **BUG REPORT**  
-**Please add the branch name [Native]/[Master] at the header of the Isssue title.**
-
 1. Please describe the issue you observed:
 
     - What did you do (The steps to reproduce)?
