@@ -310,3 +310,37 @@ func TestSyncWithNamespace(t *testing.T) {
 	assert.Equal(t, expectedResp, resp)
 	assert.Equal(t, namespaceTopic, msg.Topic)
 }
+
+func TestBatchSendDifferentTopics(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+		WithQueueSelector(NewManualQueueSelector()),
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	p.client = client
+
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().Start().Return()
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msgToA := &primitive.Message{
+		Topic: "topic-A",
+		Body:  []byte("this is a message body"),
+	}
+
+	msgToB := &primitive.Message{
+		Topic: "topic-B",
+		Body:  []byte("this is a message body"),
+	}
+
+	resp, err := p.SendSync(ctx, []*primitive.Message{msgToA, msgToB}...)
+	assert.Nil(t, resp)
+	assert.NotNil(t, err)
+	assert.Equal(t, err, errors.ErrMultipleTopics)
+}

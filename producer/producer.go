@@ -103,6 +103,14 @@ func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if len(msgs[0].Topic) == 0 {
 		return errors2.ErrTopicEmpty
 	}
+
+	topic := msgs[0].Topic
+	for _, msg := range msgs {
+		if msg.Topic != topic {
+			return errors2.ErrMultipleTopics
+		}
+	}
+
 	return nil
 }
 
