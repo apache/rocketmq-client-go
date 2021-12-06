@@ -41,7 +41,7 @@ func GetHeader() []byte {
 }
 
 func BackHeader(d []byte) {
-	headerPool.Put(d)
+	headerPool.Put(&d)
 }
 
 func GetBuffer() *bytes.Buffer {
