@@ -79,15 +79,18 @@ func NewManualPullConsumer(options ...Option) (*defaultManualPullConsumer, error
 		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
 	}
 
+	actualRMQClient := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
+	actualNameSrv := internal.GetOrSetNamesrv(actualRMQClient.ClientID(), defaultOpts.Namesrv)
+
 	dc := &defaultManualPullConsumer{
-		client:  internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
+		client:  actualRMQClient,
 		option:  defaultOpts,
-		namesrv: srvs,
+		namesrv: actualNameSrv,
 		group:   defaultOpts.GroupName,
 	}
 
 	dc.interceptor = primitive.ChainInterceptors(dc.option.Interceptors...)
-	dc.option.ClientOptions.Namesrv = internal.GetOrSetNamesrv(dc.client.ClientID(), defaultOpts.ClientOptions.Namesrv)
+	dc.option.ClientOptions.Namesrv = actualNameSrv
 	return dc, nil
 }
 
