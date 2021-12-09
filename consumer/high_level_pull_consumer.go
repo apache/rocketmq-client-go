@@ -55,6 +55,7 @@ type defaultHighLevelPullConsumer struct {
 	processQueueTable       sync.Map
 	fromWhere               ConsumeFromWhere
 	stat                    *StatsManager
+	consumerMap             sync.Map
 }
 
 func NewHighLevelPullConsumer(options ...Option) (*defaultHighLevelPullConsumer, error) {
@@ -122,7 +123,7 @@ func (hpc *defaultHighLevelPullConsumer) Start() error {
 		atomic.StoreInt32(&hpc.state, int32(internal.StateStartFailed))
 		hpc.validate()
 
-		err = hpc.client.RegisterConsumer(hpc.consumerGroup, hpc)
+		err = hpc.RegisterConsumer(hpc.consumerGroup, hpc)
 		if err != nil {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: hpc.consumerGroup,
@@ -164,11 +165,8 @@ func (hpc *defaultHighLevelPullConsumer) Start() error {
 			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 		}
 	}
-
-	hpc.client.CheckClientInBroker()
 	hpc.client.SendHeartbeatToAllBrokerWithLock()
-	hpc.client.RebalanceImmediately()
-
+	hpc.Rebalance()
 	return err
 }
 
@@ -176,7 +174,7 @@ func (hpc *defaultHighLevelPullConsumer) Shutdown() error {
 	var err error
 	hpc.closeOnce.Do(func() {
 		close(hpc.done)
-		hpc.client.UnregisterConsumer(hpc.consumerGroup)
+		hpc.UnregisterConsumer(hpc.consumerGroup)
 		atomic.StoreInt32(&hpc.state, int32(internal.StateShutdown))
 		mqs := make([]*primitive.MessageQueue, 0)
 		hpc.processQueueTable.Range(func(key, value interface{}) bool {
@@ -213,7 +211,7 @@ func (hpc *defaultHighLevelPullConsumer) Subscribe(topic string, selector Messag
 	hpc.subscriptionDataTable.Store(topic, data)
 	hpc.subscribedTopic[topic] = ""
 	hpc.namesrv.UpdateTopicRouteInfo(topic)
-	hpc.client.RebalanceImmediately()
+	hpc.Rebalance()
 	return nil
 }
 
@@ -464,10 +462,18 @@ func (hpc *defaultHighLevelPullConsumer) GetWhere() string {
 	}
 }
 
-func (hpc *defaultHighLevelPullConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
-	panic("implement me")
+func (hpc *defaultHighLevelPullConsumer) RegisterConsumer(group string, consumer *defaultHighLevelPullConsumer) error {
+	_, exist := hpc.consumerMap.Load(group)
+	if exist {
+		rlog.Warning("the consumer group exist already", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: group,
+		})
+		return fmt.Errorf("the consumer group exist already")
+	}
+	hpc.consumerMap.Store(group, consumer)
+	return nil
 }
 
-func (hpc *defaultHighLevelPullConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *internal.ConsumeMessageDirectlyResult {
-	panic("implement me")
+func (hpc *defaultHighLevelPullConsumer) UnregisterConsumer(group string) {
+	hpc.consumerMap.Delete(group)
 }
