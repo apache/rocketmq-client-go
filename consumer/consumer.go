@@ -745,13 +745,11 @@ func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQu
 }
 
 func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
-	var result = int64(-1)
-	lastOffset := int64(-1)
 	if dc.cType == _PullConsume {
-		lastOffset = dc.storage.read(mq, _ReadMemoryThenStore)
-	} else {
-		lastOffset = dc.storage.read(mq, _ReadFromStore)
+		return 0
 	}
+	var result = int64(-1)
+	lastOffset := dc.storage.read(mq, _ReadFromStore)
 	if lastOffset >= 0 {
 		result = lastOffset
 	} else {

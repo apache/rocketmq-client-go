@@ -29,6 +29,7 @@ import (
 
 func main() {
 	c, err := rocketmq.NewHighLevelPullConsumer(
+
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 	)
@@ -47,7 +48,6 @@ func main() {
 		if err != nil {
 			if err == errors.ErrRequestTimeout {
 				fmt.Printf("timeout \n")
-				//time.Sleep(1 * time.Second)
 				continue
 			}
 			fmt.Printf("unexpectable err: %v \n", err)

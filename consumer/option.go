@@ -135,13 +135,13 @@ func defaultPullConsumerOptions() consumerOptions {
 }
 func defaultHighLevelPullConsumerOptions() consumerOptions {
 	opts := consumerOptions{
-		ClientOptions:              internal.DefaultClientOptions(),
-		Strategy:                   AllocateByAveragely,
-		RebalanceLockInterval:      20 * time.Second,
-		MaxReconsumeTimes:          -1,
-		ConsumerModel:              Clustering,
-		AutoCommit:                 true,
-		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
+		ClientOptions:         internal.DefaultClientOptions(),
+		Strategy:              AllocateByAveragely,
+		RebalanceLockInterval: 20 * time.Second,
+		MaxReconsumeTimes:     -1,
+		ConsumerModel:         Clustering,
+		AutoCommit:            true,
+		Resolver:              primitive.NewHttpResolver("DEFAULT"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts

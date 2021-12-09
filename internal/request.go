@@ -236,6 +236,18 @@ func (request *GetConsumerListRequestHeader) Encode() map[string]string {
 	return maps
 }
 
+type GetMinOffsetRequestHeader struct {
+	Topic   string
+	QueueId int
+}
+
+func (request *GetMinOffsetRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["topic"] = request.Topic
+	maps["queueId"] = strconv.Itoa(request.QueueId)
+	return maps
+}
+
 type GetMaxOffsetRequestHeader struct {
 	Topic   string
 	QueueId int

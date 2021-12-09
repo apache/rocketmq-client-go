@@ -25,26 +25,39 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/pkg/errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-type highLevelPullConsumer struct {
-	*defaultConsumer
-
-	option   consumerOptions
-	Model    MessageModel
-	UnitMode bool
-
-	subscribedTopic       map[string]string
-	closeOnce             sync.Once
-	interceptor           primitive.Interceptor
-	done                  chan struct{}
-	queueFlowControlTimes int
+type defaultHighLevelPullConsumer struct {
+	*defaultManualPullConsumer
+	consumerGroup           string
+	model                   MessageModel
+	namesrv                 internal.Namesrvs
+	option                  consumerOptions
+	client                  internal.RMQClient
+	interceptor             primitive.Interceptor
+	pullFromWhichNodeTable  sync.Map
+	storage                 OffsetStore
+	cType                   ConsumeType
+	state                   int32
+	subscriptionDataTable   sync.Map
+	allocate                func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
+	once                    sync.Once
+	unitMode                bool
+	topicSubscribeInfoTable sync.Map
+	subscribedTopic         map[string]string
+	closeOnce               sync.Once
+	done                    chan struct{}
+	consumerStartTimestamp  int64
+	processQueueTable       sync.Map
+	fromWhere               ConsumeFromWhere
+	stat                    *StatsManager
 }
 
-func NewHighLevelPullConsumer(options ...Option) (*highLevelPullConsumer, error) {
+func NewHighLevelPullConsumer(options ...Option) (*defaultHighLevelPullConsumer, error) {
 	defaultOpts := defaultHighLevelPullConsumerOptions()
 	for _, apply := range options {
 		apply(&defaultOpts)
@@ -61,27 +74,31 @@ func NewHighLevelPullConsumer(options ...Option) (*highLevelPullConsumer, error)
 		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
 	}
 
-	dc := &defaultConsumer{
-		client:        internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
-		consumerGroup: defaultOpts.GroupName,
-		cType:         _PullConsume,
-		state:         int32(internal.StateCreateJust),
-		model:         defaultOpts.ConsumerModel,
-		allocate:      defaultOpts.Strategy,
-		namesrv:       srvs,
-		option:        defaultOpts,
+	dc := &defaultManualPullConsumer{
+		client:  internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
+		option:  defaultOpts,
+		namesrv: srvs,
+		group:   defaultOpts.GroupName,
 	}
-	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
+
+	hpc := &defaultHighLevelPullConsumer{
+		client:                    internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
+		consumerGroup:             defaultOpts.GroupName,
+		defaultManualPullConsumer: dc,
+		cType:                     _PullConsume,
+		state:                     int32(internal.StateCreateJust),
+		model:                     defaultOpts.ConsumerModel,
+		allocate:                  defaultOpts.Strategy,
+		namesrv:                   srvs,
+		option:                    defaultOpts,
+		subscribedTopic:           make(map[string]string, 0),
+		done:                      make(chan struct{}, 1),
+	}
+	hpc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(hpc.client.ClientID())
 	if err != nil {
 		return nil, err
 	}
-	dc.namesrv = dc.option.ClientOptions.Namesrv
-	hpc := &highLevelPullConsumer{
-		defaultConsumer: dc,
-		subscribedTopic: make(map[string]string, 0),
-		done:            make(chan struct{}, 1),
-	}
-	dc.mqChanged = hpc.messageQueueChanged
+	hpc.namesrv = hpc.option.ClientOptions.Namesrv
 	hpc.interceptor = primitive.ChainInterceptors(hpc.option.Interceptors...)
 
 	if hpc.model == Clustering {
@@ -92,7 +109,7 @@ func NewHighLevelPullConsumer(options ...Option) (*highLevelPullConsumer, error)
 	return hpc, nil
 }
 
-func (hpc *highLevelPullConsumer) Start() error {
+func (hpc *defaultHighLevelPullConsumer) Start() error {
 	atomic.StoreInt32(&hpc.state, int32(internal.StateRunning))
 
 	var err error
@@ -114,7 +131,23 @@ func (hpc *highLevelPullConsumer) Start() error {
 			return
 		}
 
-		err = hpc.defaultConsumer.start()
+		if hpc.model == Clustering {
+			// set retry topic
+			retryTopic := internal.GetRetryTopic(hpc.consumerGroup)
+			sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
+			hpc.subscriptionDataTable.Store(retryTopic, sub)
+		}
+
+		if hpc.model == Clustering {
+			hpc.option.ChangeInstanceNameToPID()
+			hpc.storage = NewRemoteOffsetStore(hpc.consumerGroup, hpc.client, hpc.namesrv)
+		} else {
+			hpc.storage = NewLocalFileOffsetStore(hpc.consumerGroup, hpc.client.ClientID())
+		}
+
+		hpc.client.Start()
+		atomic.StoreInt32(&hpc.state, int32(internal.StateRunning))
+		hpc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
 		if err != nil {
 			return
 		}
@@ -139,18 +172,31 @@ func (hpc *highLevelPullConsumer) Start() error {
 	return err
 }
 
-func (hpc *highLevelPullConsumer) Shutdown() error {
+func (hpc *defaultHighLevelPullConsumer) Shutdown() error {
 	var err error
-	fmt.Println("程序结束")
 	hpc.closeOnce.Do(func() {
 		close(hpc.done)
 		hpc.client.UnregisterConsumer(hpc.consumerGroup)
-		err = hpc.defaultConsumer.shutdown()
+		atomic.StoreInt32(&hpc.state, int32(internal.StateShutdown))
+		mqs := make([]*primitive.MessageQueue, 0)
+		hpc.processQueueTable.Range(func(key, value interface{}) bool {
+			k := key.(primitive.MessageQueue)
+			pq := value.(*processQueue)
+			pq.WithDropped(true)
+			// close msg channel using RWMutex to make sure no data was writing
+			pq.mutex.Lock()
+			close(pq.msgCh)
+			pq.mutex.Unlock()
+			mqs = append(mqs, &k)
+			return true
+		})
+		hpc.storage.persist(mqs)
+		hpc.client.Shutdown()
 	})
 	return err
 }
 
-func (hpc *highLevelPullConsumer) Subscribe(topic string, selector MessageSelector) error {
+func (hpc *defaultHighLevelPullConsumer) Subscribe(topic string, selector MessageSelector) error {
 	if atomic.LoadInt32(&hpc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&hpc.state) == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
@@ -171,7 +217,7 @@ func (hpc *highLevelPullConsumer) Subscribe(topic string, selector MessageSelect
 	return nil
 }
 
-func (hpc *highLevelPullConsumer) Unsubscribe(topic string) error {
+func (hpc *defaultHighLevelPullConsumer) Unsubscribe(topic string) error {
 	if hpc.option.Namespace != "" {
 		topic = hpc.option.Namespace + "%" + topic
 	}
@@ -184,7 +230,7 @@ func (hpc *highLevelPullConsumer) Unsubscribe(topic string) error {
 	return nil
 }
 
-func (hpc *highLevelPullConsumer) Pull(ctx context.Context, topic string, numbers int) (*primitive.PullResult, error) {
+func (hpc *defaultHighLevelPullConsumer) Pull(ctx context.Context, topic string, numbers int) (*primitive.PullResult, error) {
 	queue, err := hpc.getNextQueueOf(topic)
 	if err != nil {
 		return nil, err
@@ -193,27 +239,19 @@ func (hpc *highLevelPullConsumer) Pull(ctx context.Context, topic string, number
 	if queue == nil {
 		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", topic)
 	}
-
-	v, _ := hpc.subscriptionDataTable.Load(topic)
-	if v == nil {
-		return nil, fmt.Errorf("this consumer not subscribe the topic: %s", topic)
-	}
-	subData := v.(*internal.SubscriptionData)
-	data := buildSubscriptionData(queue.Topic, MessageSelector{
-		Expression: subData.SubString,
-		Type:       ExpressionType(subData.ExpType),
+	subData := buildSubscriptionData(queue.Topic, MessageSelector{
+		Expression: _SubAll,
 	})
-
-	result, _ := hpc.pull(context.Background(), queue, data, hpc.nextOffsetOf(queue), numbers)
+	result, _ := hpc.PullFromQueue(ctx, queue, hpc.nextOffsetOf(queue), numbers)
 	pq := newProcessQueue(false)
 	hpc.processQueueTable.Store(*queue, pq)
-	hpc.processPullResult(queue, result, data)
+	hpc.processPullResult(queue, result, subData)
 	hpc.UpdateOffset(queue, result.NextBeginOffset)
 	return result, err
 }
 
-func (hpc *highLevelPullConsumer) getNextQueueOf(topic string) (*primitive.MessageQueue, error) {
-	queues, err := hpc.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
+func (hpc *defaultHighLevelPullConsumer) getNextQueueOf(topic string) (*primitive.MessageQueue, error) {
+	queues, err := hpc.namesrv.FetchSubscribeMessageQueues(topic)
 	if err != nil || len(queues) == 0 {
 		return nil, fmt.Errorf("topic not exist: %s", topic)
 	}
@@ -230,27 +268,19 @@ func (hpc *highLevelPullConsumer) getNextQueueOf(topic string) (*primitive.Messa
 	return queues[int(index)%len(queues)], err
 }
 
-func (hpc *highLevelPullConsumer) GetMessageQueues(topic string) ([]*primitive.MessageQueue, error) {
-	queues, err := hpc.namesrv.FetchSubscribeMessageQueues(topic)
-	if err != nil || len(queues) == 0 {
-		return nil, fmt.Errorf("topic not exist: %s", topic)
-	}
-	return queues, err
-}
-
-func (hpc *highLevelPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
+func (hpc *defaultHighLevelPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
 	return hpc.computePullFromWhere(queue)
 }
 
-func (hpc *highLevelPullConsumer) Commit(ctx context.Context, topic string) {
-	queues, err := hpc.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
+func (hpc *defaultHighLevelPullConsumer) Commit(ctx context.Context, topic string) {
+	queues, err := hpc.namesrv.FetchSubscribeMessageQueues(topic)
 	if err != nil {
 		rlog.Error(fmt.Sprintf("fectch messageQueues error"), nil)
 	}
 	hpc.storage.persist(queues)
 }
 
-func (hpc *highLevelPullConsumer) validate() {
+func (hpc *defaultHighLevelPullConsumer) validate() {
 	internal.ValidateGroup(hpc.consumerGroup)
 
 	if hpc.consumerGroup == internal.DefaultConsumerGroup {
@@ -263,120 +293,129 @@ func (hpc *highLevelPullConsumer) validate() {
 
 }
 
-func (hpc *highLevelPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
-	offset int64, numbers int) (*primitive.PullResult, error) {
+func (hpc *defaultHighLevelPullConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
+	var result = int64(-1)
+	var lastOffset = int64(-1)
+	lastOffset = hpc.storage.read(mq, _ReadMemoryThenStore)
 
-	if err := hpc.checkPull(ctx, mq, offset, numbers); err != nil {
-		return nil, err
+	if lastOffset >= 0 {
+		result = lastOffset
+	} else {
+		switch hpc.option.FromWhere {
+		case ConsumeFromLastOffset:
+			if lastOffset == -1 {
+				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
+					result = 0
+				} else {
+					lastOffset, err := hpc.queryMaxOffset(context.Background(), mq)
+					if err == nil {
+						result = lastOffset
+					} else {
+						rlog.Warning("query max offset error", map[string]interface{}{
+							rlog.LogKeyMessageQueue:  mq,
+							rlog.LogKeyUnderlayError: err,
+						})
+					}
+				}
+			} else {
+				result = -1
+			}
+		case ConsumeFromFirstOffset:
+			if lastOffset == -1 {
+				result = 0
+			}
+		case ConsumeFromTimestamp:
+			if lastOffset == -1 {
+				if strings.HasPrefix(mq.Topic, internal.RetryGroupTopicPrefix) {
+					lastOffset, err := hpc.queryMaxOffset(context.Background(), mq)
+					if err == nil {
+						result = lastOffset
+					} else {
+						result = -1
+						rlog.Warning("query max offset error", map[string]interface{}{
+							rlog.LogKeyMessageQueue:  mq,
+							rlog.LogKeyUnderlayError: err,
+						})
+					}
+				} else {
+					t, err := time.Parse("20060102150405", hpc.option.ConsumeTimestamp)
+					if err != nil {
+						result = -1
+					} else {
+						lastOffset, err := hpc.Lookup(context.Background(), mq, t.Unix()*1000)
+						if err != nil {
+							result = -1
+						} else {
+							result = lastOffset
+						}
+					}
+				}
+			}
+		default:
+		}
 	}
-
-	hpc.subscriptionAutomatically(mq.Topic)
-
-	sysFlag := buildSysFlag(false, true, true, false)
-
-	pullResp, err := hpc.pullInner(ctx, mq, data, offset, numbers, sysFlag, 0)
-
-	if err != nil {
-		return nil, err
-	}
-
-	hpc.processPullResult(mq, pullResp, data)
-
-	return pullResp, err
+	return result
 }
-func (hpc *highLevelPullConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
+
+func (hpc *defaultHighLevelPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offset int64) error {
+	hpc.storage.update(queue, offset, false)
+	return nil
+}
+
+func (hpc *defaultHighLevelPullConsumer) UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
+	_, exist := hpc.subscriptionDataTable.Load(topic)
+	if exist {
+		hpc.topicSubscribeInfoTable.Store(topic, mqs)
+	}
+}
+
+func (hpc *defaultHighLevelPullConsumer) IsSubscribeTopicNeedUpdate(topic string) bool {
+	_, exist := hpc.subscriptionDataTable.Load(topic)
+	if !exist {
+		return false
+	}
+	_, exist = hpc.topicSubscribeInfoTable.Load(topic)
+	return !exist
+}
+
+func (hpc *defaultHighLevelPullConsumer) Rebalance() {
+	//TODO not implemented yet
+}
+
+func (hpc *defaultHighLevelPullConsumer) IsUnitMode() bool {
+	return hpc.unitMode
+}
+func (hpc *defaultHighLevelPullConsumer) PersistConsumerOffset() error {
 	err := hpc.makeSureStateOK()
 	if err != nil {
 		return err
 	}
-
-	if mq == nil {
-		return errors2.ErrMQEmpty
+	mqs := make([]*primitive.MessageQueue, 0)
+	hpc.processQueueTable.Range(func(key, value interface{}) bool {
+		k := key.(primitive.MessageQueue)
+		mqs = append(mqs, &k)
+		return true
+	})
+	hpc.storage.persist(mqs)
+	return nil
+}
+func (hpc *defaultHighLevelPullConsumer) subscriptionAutomatically(topic string) {
+	_, exist := hpc.subscriptionDataTable.Load(topic)
+	if !exist {
+		s := MessageSelector{
+			Expression: _SubAll,
+		}
+		hpc.subscriptionDataTable.Store(topic, buildSubscriptionData(topic, s))
 	}
+}
 
-	if offset < 0 {
-		return errors2.ErrOffset
-	}
-
-	if numbers <= 0 {
-		return errors2.ErrNumbers
+func (hpc *defaultHighLevelPullConsumer) makeSureStateOK() error {
+	if atomic.LoadInt32(&hpc.state) != int32(internal.StateRunning) {
+		return fmt.Errorf("state not running, actually: %v", hpc.state)
 	}
 	return nil
 }
-
-func (hpc *highLevelPullConsumer) messageQueueChanged(topic string, all []*primitive.MessageQueue, divided []*primitive.MessageQueue) {
-	v, exit := hpc.subscriptionDataTable.Load(topic)
-	if !exit {
-		return
-	}
-	data := v.(*internal.SubscriptionData)
-	newVersion := time.Now().UnixNano()
-	rlog.Info("the MessageQueue changed, version also updated", map[string]interface{}{
-		rlog.LogKeyValueChangedFrom: data.SubVersion,
-		rlog.LogKeyValueChangedTo:   newVersion,
-	})
-	data.SubVersion = newVersion
-
-	count := 0
-	hpc.processQueueTable.Range(func(key, value interface{}) bool {
-		count++
-		return true
-	})
-
-	if count > 0 {
-		if hpc.option.PullThresholdForTopic != -1 {
-			newVal := hpc.option.PullThresholdForTopic / count
-			if newVal == 0 {
-				newVal = 1
-			}
-			rlog.Info("The PullThresholdForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: hpc.option.PullThresholdForTopic,
-				rlog.LogKeyValueChangedTo:   newVal,
-			})
-			hpc.option.PullThresholdForTopic = newVal
-		}
-
-		if hpc.option.PullThresholdSizeForTopic != -1 {
-			newVal := hpc.option.PullThresholdSizeForTopic / count
-			if newVal == 0 {
-				newVal = 1
-			}
-			rlog.Info("The PullThresholdSizeForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: hpc.option.PullThresholdSizeForTopic,
-				rlog.LogKeyValueChangedTo:   newVal,
-			})
-		}
-	}
-	hpc.client.SendHeartbeatToAllBrokerWithLock()
-}
-func (hpc *highLevelPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offset int64) error {
-	return hpc.updateOffset(queue, offset)
-}
-
-func (hpc *highLevelPullConsumer) UpdateTopicSubscribeInfo(topic string, mqs []*primitive.MessageQueue) {
-	hpc.defaultConsumer.updateTopicSubscribeInfo(topic, mqs)
-}
-
-func (hpc *highLevelPullConsumer) IsSubscribeTopicNeedUpdate(topic string) bool {
-	return hpc.defaultConsumer.isSubscribeTopicNeedUpdate(topic)
-}
-
-func (hpc *highLevelPullConsumer) Rebalance() {
-	hpc.defaultConsumer.doBalance()
-}
-
-func (hpc *highLevelPullConsumer) IsUnitMode() bool {
-	return hpc.unitMode
-}
-func (hpc *highLevelPullConsumer) PersistConsumerOffset() error {
-	return hpc.persistConsumerOffset()
-}
-
-func (hpc *highLevelPullConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *internal.ConsumeMessageDirectlyResult {
-	panic("implement me")
-}
-
-func (hpc *highLevelPullConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
+func (hpc *defaultHighLevelPullConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 	info := internal.NewConsumerRunningInfo()
 
 	hpc.subscriptionDataTable.Range(func(key, value interface{}) bool {
@@ -396,15 +435,23 @@ func (hpc *highLevelPullConsumer) GetConsumerRunningInfo() *internal.ConsumerRun
 	return info
 }
 
-func (hpc *highLevelPullConsumer) GetcType() string {
+func (hpc *defaultHighLevelPullConsumer) GetcType() string {
 	return string(hpc.cType)
 }
 
-func (hpc *highLevelPullConsumer) GetModel() string {
+func (hpc *defaultHighLevelPullConsumer) GetModel() string {
 	return string(hpc.cType)
 }
+func (hpc *defaultHighLevelPullConsumer) SubscriptionDataList() []*internal.SubscriptionData {
+	result := make([]*internal.SubscriptionData, 0)
+	hpc.subscriptionDataTable.Range(func(key, value interface{}) bool {
+		result = append(result, value.(*internal.SubscriptionData))
+		return true
+	})
+	return result
+}
 
-func (hpc *highLevelPullConsumer) GetWhere() string {
+func (hpc *defaultHighLevelPullConsumer) GetWhere() string {
 	switch hpc.fromWhere {
 	case ConsumeFromLastOffset:
 		return "CONSUME_FROM_LAST_OFFSET"
@@ -417,6 +464,10 @@ func (hpc *highLevelPullConsumer) GetWhere() string {
 	}
 }
 
-func (hpc *highLevelPullConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
+func (hpc *defaultHighLevelPullConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
+	panic("implement me")
+}
+
+func (hpc *defaultHighLevelPullConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *internal.ConsumeMessageDirectlyResult {
 	panic("implement me")
 }
