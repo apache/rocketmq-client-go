@@ -1,5 +1,5 @@
 ## RocketMQ Client Go 
-[![TravisCI](https://travis-ci.org/apache/rocketmq-client-go.svg)](https://travis-ci.org/apache/rocketmq-client-go) 
+[![Build Status](https://app.travis-ci.com/apache/rocketmq-client-go.svg?branch=master)](https://app.travis-ci.com/apache/rocketmq-client-go) 
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![Go Report Card](https://goreportcard.com/badge/github.com/apache/rocketmq-client-go)](https://goreportcard.com/report/github.com/apache/rocketmq-client-go)
 [![GoDoc](https://img.shields.io/badge/Godoc-reference-blue.svg)](https://godoc.org/github.com/apache/rocketmq-client-go)
