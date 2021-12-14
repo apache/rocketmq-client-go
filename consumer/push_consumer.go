@@ -20,13 +20,14 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -702,11 +703,11 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SuspendTimeoutMillis: 20 * time.Second,
 		}
 		//
-		//if data.ExpType == string(TAG) {
+		// if data.ExpType == string(TAG) {
 		//	pullRequest.SubVersion = 0
-		//} else {
+		// } else {
 		//	pullRequest.SubVersion = data.SubVersion
-		//}
+		// }
 
 		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
 		if brokerResult == nil {
@@ -831,31 +832,31 @@ func (pc *pushConsumer) resume() {
 }
 
 func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
-	//topic := cmd.ExtFields["topic"]
-	//group := cmd.ExtFields["group"]
-	//if topic == "" || group == "" {
+	// topic := cmd.ExtFields["topic"]
+	// group := cmd.ExtFields["group"]
+	// if topic == "" || group == "" {
 	//	rlog.Warning("received reset offset command from: %s, but missing params.", from)
 	//	return
-	//}
-	//t, err := strconv.ParseInt(cmd.ExtFields["timestamp"], 10, 64)
-	//if err != nil {
+	// }
+	// t, err := strconv.ParseInt(cmd.ExtFields["timestamp"], 10, 64)
+	// if err != nil {
 	//	rlog.Warning("received reset offset command from: %s, but parse time error: %s", err.Error())
 	//	return
-	//}
-	//rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
+	// }
+	// rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
 	//	from, topic, group, t)
 	//
-	//offsetTable := make(map[MessageQueue]int64, 0)
-	//err = json.Unmarshal(cmd.Body, &offsetTable)
-	//if err != nil {
+	// offsetTable := make(map[MessageQueue]int64, 0)
+	// err = json.Unmarshal(cmd.Body, &offsetTable)
+	// if err != nil {
 	//	rlog.Warning("received reset offset command from: %s, but parse offset table: %s", err.Error())
 	//	return
-	//}
-	//v, exist := c.consumerMap.Load(group)
-	//if !exist {
+	// }
+	// v, exist := c.consumerMap.Load(group)
+	// if !exist {
 	//	rlog.Infof("[reset-offset] consumer dose not exist. group=%s", group)
 	//	return
-	//}
+	// }
 	pc.suspend()
 	defer pc.resume()
 
@@ -957,6 +958,13 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 }
 
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
+	if pq.IsDroppd() {
+		rlog.Warning("the message queue not be able to consume, because it's dropped.", map[string]interface{}{
+			rlog.LogKeyMessageQueue: mq.String(),
+		})
+		return
+	}
+
 	msgs := pq.getMessages()
 	if msgs == nil {
 		return
@@ -1140,15 +1148,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			}
 
 			// jsut put consumeResult in consumerMessageCtx
-			//interval = time.Now().Sub(beginTime)
-			//consumeReult := SuccessReturn
-			//if interval > pc.option.ConsumeTimeout {
+			// interval = time.Now().Sub(beginTime)
+			// consumeReult := SuccessReturn
+			// if interval > pc.option.ConsumeTimeout {
 			//	consumeReult = TimeoutReturn
-			//} else if SuspendCurrentQueueAMoment == result {
+			// } else if SuspendCurrentQueueAMoment == result {
 			//	consumeReult = FailedReturn
-			//} else if ConsumeSuccess == result {
+			// } else if ConsumeSuccess == result {
 			//	consumeReult = SuccessReturn
-			//}
+			// }
 
 			// process result
 			commitOffset := int64(-1)
