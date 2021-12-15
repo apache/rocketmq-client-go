@@ -32,34 +32,40 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ManualPullConsumer is a low-level consumer, which operates based on MessageQueue.
+// Users should maintain information such as offset by themselves
 type ManualPullConsumer interface {
-	// get n messages from specified queue with offset
+	// PullFromQueue return messages according to specified queue with offset
 	PullFromQueue(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
 
-	// get queues of the topic
-	GetMessageQueues(ctx context.Context, topic string) []*primitive.MessageQueue
+	// GetMessageQueues return queues of the topic
+	GetMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 
-	// get the offset of mq in groupName, if mq not exist, -1 will be return
-	CommittedOffset(groupName string, mq *primitive.MessageQueue) (int64, error)
+	// CommittedOffset return the offset of mq in groupName, if mq not exist, -1 will be return
+	CommittedOffset(ctx context.Context, groupName string, mq *primitive.MessageQueue) (int64, error)
 
-	// seek consume position to the offset, this api can be used to reset offset and commit offset
-	Seek(groupName string, mq *primitive.MessageQueue, offset int64) error
+	// Seek let consume position to the offset, this api can be used to reset offset and commit offset
+	Seek(ctx context.Context, groupName string, mq *primitive.MessageQueue, offset int64) error
 
-	// query offset according to timestamp(ms), the maximum offset that born time less than timestamp will be return
-	// if timestamp less than any message's born time, the earliest offset will be returned
-	// if timestamp great than any message's born time, the latest offset will be returned
+	// Lookup return offset according to timestamp(ms), the maximum offset that born time less than timestamp will be return.
+	// If timestamp less than any message's born time, the earliest offset will be returned
+	// If timestamp great than any message's born time, the latest offset will be returned
 	Lookup(ctx context.Context, mq *primitive.MessageQueue, timestamp int64) (int64, error)
+
+	// Shutdown the ManualPullConsumer, clean up internal resources
+	Shutdown() error
 }
 
 type defaultManualPullConsumer struct {
-	group                  string
 	namesrv                internal.Namesrvs
 	option                 consumerOptions
 	client                 internal.RMQClient
 	interceptor            primitive.Interceptor
 	pullFromWhichNodeTable sync.Map
+	shutdownOnce           sync.Once
 }
 
+// NewManualPullConsumer creates and initializes a new ManualPullConsumer.
 func NewManualPullConsumer(options ...Option) (*defaultManualPullConsumer, error) {
 	defaultOpts := defaultPullConsumerOptions()
 	for _, apply := range options {
@@ -75,10 +81,6 @@ func NewManualPullConsumer(options ...Option) (*defaultManualPullConsumer, error
 	}
 	defaultOpts.Namesrv = srvs
 
-	if defaultOpts.Namespace != "" {
-		defaultOpts.GroupName = defaultOpts.Namespace + "%" + defaultOpts.GroupName
-	}
-
 	actualRMQClient := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
 	actualNameSrv := internal.GetOrSetNamesrv(actualRMQClient.ClientID(), defaultOpts.Namesrv)
 
@@ -86,7 +88,6 @@ func NewManualPullConsumer(options ...Option) (*defaultManualPullConsumer, error
 		client:  actualRMQClient,
 		option:  defaultOpts,
 		namesrv: actualNameSrv,
-		group:   defaultOpts.GroupName,
 	}
 
 	dc.interceptor = primitive.ChainInterceptors(dc.option.Interceptors...)
@@ -94,7 +95,7 @@ func NewManualPullConsumer(options ...Option) (*defaultManualPullConsumer, error
 	return dc, nil
 }
 
-func (dc *defaultManualPullConsumer) PullFromQueue(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
+func (dc *defaultManualPullConsumer) PullFromQueue(ctx context.Context, groupName string, mq *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
 	if err := dc.checkPull(ctx, mq, offset, numbers); err != nil {
 		return nil, err
 	}
@@ -104,7 +105,26 @@ func (dc *defaultManualPullConsumer) PullFromQueue(ctx context.Context, mq *prim
 
 	sysFlag := buildSysFlag(false, true, true, false)
 
-	pullResp, err := dc.pullInner(ctx, mq, subData, offset, numbers, sysFlag, 0)
+	pullRequest := &internal.PullMessageRequestHeader{
+		ConsumerGroup:        groupName,
+		Topic:                mq.Topic,
+		QueueId:              int32(mq.QueueId),
+		QueueOffset:          offset,
+		MaxMsgNums:           int32(numbers),
+		SysFlag:              sysFlag,
+		CommitOffset:         0,
+		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
+		SubExpression:        subData.SubString,
+		ExpressionType:       string(subData.ExpType),
+	}
+
+	if subData.ExpType == string(TAG) {
+		pullRequest.SubVersion = 0
+	} else {
+		pullRequest.SubVersion = subData.SubVersion
+	}
+
+	pullResp, err := dc.pullInner(ctx, mq, pullRequest)
 	if err != nil {
 		return pullResp, err
 	}
@@ -112,7 +132,7 @@ func (dc *defaultManualPullConsumer) PullFromQueue(ctx context.Context, mq *prim
 	if dc.interceptor != nil {
 		msgCtx := &primitive.ConsumeMessageContext{
 			Properties:    make(map[string]string),
-			ConsumerGroup: dc.group,
+			ConsumerGroup: groupName,
 			MQ:            mq,
 			Msgs:          pullResp.GetMessageExts(),
 		}
@@ -121,44 +141,21 @@ func (dc *defaultManualPullConsumer) PullFromQueue(ctx context.Context, mq *prim
 	return pullResp, err
 }
 
-func (dc *defaultManualPullConsumer) GetMessageQueues(ctx context.Context, topic string) []*primitive.MessageQueue {
-	queues, err := dc.namesrv.FetchSubscribeMessageQueues(topic)
-	if err != nil {
-		rlog.Error("get message queue error", map[string]interface{}{
-			rlog.LogKeyTopic:         topic,
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
-		return nil
-	}
-	return queues
+func (dc *defaultManualPullConsumer) GetMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
+	return dc.namesrv.FetchSubscribeMessageQueues(topic)
 }
 
-func (dc *defaultManualPullConsumer) CommittedOffset(group string, mq *primitive.MessageQueue) (int64, error) {
-	broker, exist := dc.chooseServer(mq)
-	if !exist {
-		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
-	}
-	queryOffsetRequest := &internal.QueryConsumerOffsetRequestHeader{
-		ConsumerGroup: group,
+func (dc *defaultManualPullConsumer) CommittedOffset(ctx context.Context, groupName string, mq *primitive.MessageQueue) (int64, error) {
+	request := &internal.QueryConsumerOffsetRequestHeader{
+		ConsumerGroup: groupName,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
 	}
-	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
-	res, err := dc.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
-	if err != nil {
-		return -1, err
-	}
-	if res.Code != internal.ResSuccess {
-		return -2, fmt.Errorf("broker response code: %d, remarks: %s", res.Code, res.Remark)
-	}
-	off, err := strconv.ParseInt(res.ExtFields["offset"], 10, 64)
-	if err != nil {
-		return -1, err
-	}
-	return off, nil
+	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
+	return dc.queryOffset(ctx, mq, cmd)
 }
 
-func (dc *defaultManualPullConsumer) Seek(groupName string, mq *primitive.MessageQueue, offset int64) error {
+func (dc *defaultManualPullConsumer) Seek(ctx context.Context, groupName string, mq *primitive.MessageQueue, offset int64) error {
 	minOffset, err := dc.queryMinOffset(context.Background(), mq)
 	if err != nil {
 		return err
@@ -173,7 +170,10 @@ func (dc *defaultManualPullConsumer) Seek(groupName string, mq *primitive.Messag
 
 	broker, exist := dc.chooseServer(mq)
 	if !exist {
-		return fmt.Errorf("broker: %s address not found", mq.BrokerName)
+		rlog.Warning("the broker does not exist", map[string]interface{}{
+			rlog.LogKeyBroker: mq.BrokerName,
+		})
+		return errors2.ErrBrokerNotFound
 	}
 
 	updateOffsetRequest := &internal.UpdateConsumerOffsetRequestHeader{
@@ -187,23 +187,20 @@ func (dc *defaultManualPullConsumer) Seek(groupName string, mq *primitive.Messag
 }
 
 func (dc *defaultManualPullConsumer) Lookup(ctx context.Context, mq *primitive.MessageQueue, timestamp int64) (int64, error) {
-	broker, exist := dc.chooseServer(mq)
-	if !exist {
-		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
-	}
-
 	request := &internal.SearchOffsetRequestHeader{
 		Topic:     mq.Topic,
 		QueueId:   mq.QueueId,
 		Timestamp: timestamp,
 	}
-
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
-	response, err := dc.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
-	if err != nil {
-		return -1, err
-	}
-	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+	return dc.queryOffset(ctx, mq, cmd)
+}
+
+func (dc *defaultManualPullConsumer) Shutdown() error {
+	dc.shutdownOnce.Do(func() {
+		dc.client.Shutdown()
+	})
+	return nil
 }
 
 func (dc *defaultManualPullConsumer) chooseServer(mq *primitive.MessageQueue) (string, bool) {
@@ -216,81 +213,59 @@ func (dc *defaultManualPullConsumer) chooseServer(mq *primitive.MessageQueue) (s
 }
 
 func (dc *defaultManualPullConsumer) queryMinOffset(ctx context.Context, mq *primitive.MessageQueue) (int64, error) {
-	broker, exist := dc.chooseServer(mq)
-	if !exist {
-		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
-	}
-
 	request := &internal.GetMinOffsetRequestHeader{
 		Topic:   mq.Topic,
 		QueueId: mq.QueueId,
 	}
-
 	cmd := remote.NewRemotingCommand(internal.ReqGetMinOffset, request, nil)
-	response, err := dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
-	if err != nil {
-		return -1, err
-	}
-	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+	return dc.queryOffset(ctx, mq, cmd)
 }
 
 func (dc *defaultManualPullConsumer) queryMaxOffset(ctx context.Context, mq *primitive.MessageQueue) (int64, error) {
-	broker, exist := dc.chooseServer(mq)
-	if !exist {
-		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
-	}
-
 	request := &internal.GetMaxOffsetRequestHeader{
 		Topic:   mq.Topic,
 		QueueId: mq.QueueId,
 	}
-
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
+	return dc.queryOffset(ctx, mq, cmd)
+}
+
+func (dc *defaultManualPullConsumer) queryOffset(ctx context.Context, mq *primitive.MessageQueue, cmd *remote.RemotingCommand) (int64, error) {
+	broker, exist := dc.chooseServer(mq)
+	if !exist {
+		rlog.Warning("the broker does not exist", map[string]interface{}{
+			rlog.LogKeyBroker: mq.BrokerName,
+		})
+		return -1, errors2.ErrBrokerNotFound
+	}
 	response, err := dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	if err != nil {
 		return -1, err
 	}
-	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+	if response.Code != internal.ResSuccess {
+		return -2, fmt.Errorf("broker response code: %d, remarks: %s", response.Code, response.Remark)
+	}
+	off, err := strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+	if err != nil {
+		return -1, errors.Wrap(err, "parse offset fail.")
+	}
+	return off, nil
 }
 
-func (dc *defaultManualPullConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
-	offset int64, numbers int, sysFlag int32, commitOffsetValue int64) (*primitive.PullResult, error) {
-	brokerResult := dc.tryFindBroker(queue)
+func (dc *defaultManualPullConsumer) pullInner(ctx context.Context, mq *primitive.MessageQueue, pullRequest *internal.PullMessageRequestHeader) (*primitive.PullResult, error) {
+	brokerResult := dc.tryFindBroker(mq)
 	if brokerResult == nil {
 		rlog.Warning("no broker found for mq", map[string]interface{}{
-			rlog.LogKeyMessageQueue: queue,
+			rlog.LogKeyMessageQueue: mq,
 		})
 		return nil, errors2.ErrBrokerNotFound
 	}
-	if brokerResult.Slave {
-		sysFlag = clearCommitOffsetFlag(sysFlag)
-	}
 
-	if (data.ExpType == string(TAG)) && brokerResult.BrokerVersion < internal.V4_1_0 {
+	if (pullRequest.ExpressionType == string(TAG)) && brokerResult.BrokerVersion < internal.V4_1_0 {
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
-			queue.BrokerName, brokerResult.BrokerVersion, data.ExpType)
+			mq.BrokerName, brokerResult.BrokerVersion, pullRequest.ExpressionType)
 	}
-
-	pullRequest := &internal.PullMessageRequestHeader{
-		ConsumerGroup:        dc.group,
-		Topic:                queue.Topic,
-		QueueId:              int32(queue.QueueId),
-		QueueOffset:          offset,
-		MaxMsgNums:           int32(numbers),
-		SysFlag:              sysFlag,
-		CommitOffset:         commitOffsetValue,
-		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
-		SubExpression:        data.SubString,
-		ExpressionType:       string(data.ExpType),
-	}
-	if data.ExpType == string(TAG) {
-		pullRequest.SubVersion = 0
-	} else {
-		pullRequest.SubVersion = data.SubVersion
-	}
-	// TODO: add computPullFromWhichFilterServer
-
-	return dc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
+	return dc.client.PullMessage(ctx, brokerResult.BrokerAddr, pullRequest)
 }
 
 func (dc *defaultManualPullConsumer) tryFindBroker(mq *primitive.MessageQueue) *internal.FindBrokerResult {
@@ -324,7 +299,7 @@ func (dc *defaultManualPullConsumer) checkPull(ctx context.Context, mq *primitiv
 
 func (dc *defaultManualPullConsumer) processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *internal.SubscriptionData) {
 
-	dc.updatePullFromWhichNode(mq, result.SuggestWhichBrokerId)
+	dc.pullFromWhichNodeTable.Store(*mq, result.SuggestWhichBrokerId)
 
 	switch result.Status {
 	case primitive.PullFound:
@@ -352,8 +327,4 @@ func (dc *defaultManualPullConsumer) processPullResult(mq *primitive.MessageQueu
 		}
 		result.SetMessageExts(msgListFilterAgain)
 	}
-}
-
-func (dc *defaultManualPullConsumer) updatePullFromWhichNode(mq *primitive.MessageQueue, brokerId int64) {
-	dc.pullFromWhichNodeTable.Store(*mq, brokerId)
 }

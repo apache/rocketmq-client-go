@@ -39,20 +39,22 @@ func main() {
 
 	topic := "test"
 	// get all message queue
-	mqs := c.GetMessageQueues(context.Background(), topic)
-
+	mqs, err := c.GetMessageQueues(context.Background(), topic)
+	if err != nil {
+		log.Fatalf("Get message queue error: %v", err)
+	}
 	var wg sync.WaitGroup
 
 	fn := func(mq *primitive.MessageQueue) {
 		defer wg.Done()
 		// get latest offset
-		offset, err := c.CommittedOffset(groupName, mq)
+		offset, err := c.CommittedOffset(context.Background(), groupName, mq)
 		for {
 			if err != nil {
 				log.Fatalf("search latest offset error: %v", err)
 			}
 			// pull message
-			ret, err := c.PullFromQueue(context.Background(), mq, offset, 1)
+			ret, err := c.PullFromQueue(context.Background(), groupName, mq, offset, 1)
 			if err != nil {
 				log.Fatalf("pullFromQueue error: %v", err)
 			}
@@ -61,7 +63,7 @@ func main() {
 				for _, msg := range msgs {
 					log.Printf("subscribe Msg: %v \n", msg)
 					// commit offset
-					if err = c.Seek(groupName, mq, msg.QueueOffset+1); err != nil {
+					if err = c.Seek(context.Background(), groupName, mq, msg.QueueOffset+1); err != nil {
 						log.Fatalf("commit offset error: %v", err)
 					}
 					offset++
@@ -77,5 +79,6 @@ func main() {
 		go fn(mq)
 	}
 	wg.Wait()
+	c.Shutdown()
 	os.Exit(0)
 }

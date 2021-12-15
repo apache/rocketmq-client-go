@@ -94,7 +94,7 @@ func TestPullFromQueue(t *testing.T) {
 
 		for name, test := range tests {
 			Convey(name, func() {
-				_, err := c.PullFromQueue(context.Background(), &test.mq, test.offset, test.numbers)
+				_, err := c.PullFromQueue(context.Background(), "default", &test.mq, test.offset, test.numbers)
 				So(err, ShouldBeNil)
 			})
 		}
@@ -120,9 +120,10 @@ func TestGetMessageQueues(t *testing.T) {
 			}, nil,
 		)
 
-		queues := c.GetMessageQueues(context.TODO(), "foo")
+		queues, err := c.GetMessageQueues(context.TODO(), "foo")
 
 		So(queues, ShouldNotBeEmpty)
+		So(err, ShouldBeNil)
 	})
 }
 
@@ -185,7 +186,7 @@ func TestCommittedOffset(t *testing.T) {
 
 		for name, test := range tests {
 			Convey(name, func() {
-				ret, err := c.CommittedOffset("foo", &test.mq)
+				ret, err := c.CommittedOffset(context.Background(), "foo", &test.mq)
 
 				if test.expectedErr {
 					So(err, ShouldNotBeNil)
@@ -264,7 +265,7 @@ func TestSeek(t *testing.T) {
 		client.EXPECT().InvokeOneWay(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		for name, test := range tests {
 			Convey(name, func() {
-				err := c.Seek("foo", &test.mq, test.offset)
+				err := c.Seek(context.Background(), "foo", &test.mq, test.offset)
 				if test.expectedErr {
 					So(err, ShouldNotBeNil)
 				} else {
@@ -319,5 +320,24 @@ func TestLookup(t *testing.T) {
 		ret, err := c.Lookup(context.Background(), &test.mq, test.timestamp)
 		So(err, ShouldBeNil)
 		So(ret, ShouldEqual, test.offset)
+	})
+}
+
+func TestShutdown(t *testing.T) {
+	Convey("ManualPullConsumer Shutdown", t, func() {
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		c, err := NewManualPullConsumer(WithNameServer(primitive.NamesrvAddr{"127.0.0.1"}))
+		if err != nil {
+			assert.Error(t, err)
+		}
+		client := internal.NewMockRMQClient(ctrl)
+		c.client = client
+
+		client.EXPECT().Shutdown().Times(1)
+		c.Shutdown()
+		c.Shutdown()
 	})
 }
