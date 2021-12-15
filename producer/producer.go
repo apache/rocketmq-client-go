@@ -21,11 +21,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -558,7 +559,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	
+
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
