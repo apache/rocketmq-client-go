@@ -23,8 +23,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apache/rocketmq-client-go/v2/internal/remote"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/internal/remote"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/primitive"
 )
 
 const (
@@ -39,7 +39,7 @@ var (
 	ErrIllegalIP    = errors.New("IP addr error")
 )
 
-//go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package github.com/apache/rocketmq-client-go/v2/internal  --package internal Namesrvs
+//go:generate mockgen -source namesrv.go -destination mock_namesrv.go -self_package git.myscrm.cn/golang/rocketmq-client-go/v2/internal  --package internal Namesrvs
 type Namesrvs interface {
 	UpdateNameServerAddress()
 

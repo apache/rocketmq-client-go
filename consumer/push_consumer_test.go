@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/apache/rocketmq-client-go/v2/internal"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/internal"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/primitive"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
 )

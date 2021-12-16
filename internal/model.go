@@ -24,9 +24,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/internal/utils"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/primitive"
+	"git.myscrm.cn/golang/rocketmq-client-go/v2/rlog"
 	jsoniter "github.com/json-iterator/go"
 )
 
