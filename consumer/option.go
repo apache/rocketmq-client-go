@@ -106,6 +106,8 @@ type consumerOptions struct {
 	RebalanceLockInterval time.Duration
 
 	Resolver primitive.NsResolver
+
+	MsgChanSize int32
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -117,6 +119,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		MaxReconsumeTimes:          -1,
 		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
+		MsgChanSize:                4,
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
@@ -227,6 +230,12 @@ func WithStrategy(strategy AllocateStrategy) Option {
 func WithPullBatchSize(batchSize int32) Option {
 	return func(options *consumerOptions) {
 		options.PullBatchSize = batchSize
+	}
+}
+
+func WithMsgChanSize(msgChanSize int32) Option {
+	return func(options *consumerOptions) {
+		options.MsgChanSize = msgChanSize
 	}
 }
 

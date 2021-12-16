@@ -60,7 +60,7 @@ type processQueue struct {
 	order                      bool
 }
 
-func newProcessQueue(order bool) *processQueue {
+func newProcessQueue(order bool, chanSize int32) *processQueue {
 	consumingMsgOrderlyTreeMap := treemap.NewWith(gods_util.Int64Comparator)
 
 	lastConsumeTime := atomic.Value{}
@@ -77,7 +77,7 @@ func newProcessQueue(order bool) *processQueue {
 		lastPullTime:               lastPullTime,
 		lastConsumeTime:            lastConsumeTime,
 		lastLockTime:               lastLockTime,
-		msgCh:                      make(chan []*primitive.MessageExt, 32),
+		msgCh:                      make(chan []*primitive.MessageExt, chanSize),
 		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
 		order:                      order,
 		locked:                     uatomic.NewBool(false),
@@ -269,8 +269,13 @@ func (pq *processQueue) getMaxSpan() int {
 	return int(lastKey.(int64) - firstKey.(int64))
 }
 
-func (pq *processQueue) getMessages() []*primitive.MessageExt {
-	return <-pq.msgCh
+func (pq *processQueue) getMessagesWithTimeout(d time.Duration) []*primitive.MessageExt {
+	select {
+	case <-time.After(d):
+		return nil
+	case result := <-pq.msgCh:
+		return result
+	}
 }
 
 func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {

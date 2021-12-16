@@ -101,6 +101,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		allocate:       defaultOpts.Strategy,
 		option:         defaultOpts,
 		namesrv:        srvs,
+		msgChanSize:    defaultOpts.MsgChanSize,
 	}
 
 	p := &pushConsumer{
@@ -952,7 +953,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 }
 
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
-	msgs := pq.getMessages()
+	msgs := pq.getMessagesWithTimeout(time.Second * 30)
 	if msgs == nil {
 		return
 	}

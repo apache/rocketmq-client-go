@@ -271,6 +271,8 @@ type defaultConsumer struct {
 	namesrv internal.Namesrvs
 
 	pullFromWhichNodeTable sync.Map
+
+	msgChanSize int32
 }
 
 func (dc *defaultConsumer) start() error {
@@ -712,7 +714,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
-					pq := newProcessQueue(dc.consumeOrderly)
+					pq := newProcessQueue(dc.consumeOrderly, dc.msgChanSize)
 					dc.processQueueTable.Store(mq, pq)
 					pr := PullRequest{
 						consumerGroup: dc.consumerGroup,
