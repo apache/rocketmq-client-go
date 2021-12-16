@@ -19,7 +19,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"time"
 
@@ -37,21 +37,29 @@ func main() {
 	)
 	err := c.Subscribe("min", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		fmt.Printf("subscribe callback: %v \n", msgs)
+		rlog.Info("Subscribe Callback", map[string]interface{}{
+			"msgs": msgs,
+		})
 		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {
-		fmt.Println(err.Error())
+		rlog.Error("Subscribe Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 	// Note: start after subscribe
 	err = c.Start()
 	if err != nil {
-		fmt.Println(err.Error())
+		rlog.Error("Start Consumer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
 	err = c.Shutdown()
 	if err != nil {
-		fmt.Printf("Shutdown Consumer error: %s", err.Error())
+		rlog.Error("Shutdown Consumer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 }

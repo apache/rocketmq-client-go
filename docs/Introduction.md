@@ -91,7 +91,9 @@ c, err := rocketmq.NewPushConsumer(
 ```
 err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx *consumer.ConsumeMessageContext,
     msgs []*primitive.MessageExt) (consumer.ConsumeResult, error) {
-    fmt.Printf("subscribe callback: %v \n", msgs)
+    rlog.Info("Subscribe Callback", map[string]interface{}{
+        "msgs": msgs,
+    })
     return consumer.ConsumeSuccess, nil
 })
 ```

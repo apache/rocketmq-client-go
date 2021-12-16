@@ -19,7 +19,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"sync"
 
@@ -37,7 +37,9 @@ func main() {
 
 	err := p.Start()
 	if err != nil {
-		fmt.Printf("start producer error: %s", err.Error())
+		rlog.Error("Start Producer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		os.Exit(1)
 	}
 	var wg sync.WaitGroup
@@ -46,20 +48,28 @@ func main() {
 		err := p.SendAsync(context.Background(),
 			func(ctx context.Context, result *primitive.SendResult, e error) {
 				if e != nil {
-					fmt.Printf("receive message error: %s\n", err)
+					rlog.Error("Send Message Async Error", map[string]interface{}{
+						rlog.LogKeyUnderlayError: err.Error(),
+					})
 				} else {
-					fmt.Printf("send message success: result=%s\n", result.String())
+					rlog.Info("Send Message Async Success", map[string]interface{}{
+						"result": result.String(),
+					})
 				}
 				wg.Done()
 			}, primitive.NewMessage("test", []byte("Hello RocketMQ Go Client!")))
 
 		if err != nil {
-			fmt.Printf("send message error: %s\n", err)
+			rlog.Error("Send Message Async Error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
 		}
 	}
 	wg.Wait()
 	err = p.Shutdown()
 	if err != nil {
-		fmt.Printf("shutdown producer error: %s", err.Error())
+		rlog.Error("Shutdown Producer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 }

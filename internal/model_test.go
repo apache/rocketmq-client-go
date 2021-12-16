@@ -19,7 +19,7 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"strings"
 	"testing"
 
@@ -46,7 +46,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(set)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer set: %s", string(v))
+			rlog.Info("Json Producer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("producer heatbeat", func() {
@@ -64,7 +66,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer: %s\n", string(v))
+			rlog.Info("Json Producer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("consumer heartbeat", func() {
@@ -81,7 +85,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json consumer: %s\n", string(v))
+			rlog.Info("Json Consumer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("producer & consumer heartbeat", func() {
@@ -109,7 +115,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer & consumer: %s\n", string(v))
+			rlog.Info("Json Producer and Consumer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 	})
 
@@ -374,7 +382,9 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeMessageDirectlyResult.ConsumeResult = ConsumeSuccess
 			data, err := consumeMessageDirectlyResult.Encode()
 			So(err, ShouldBeNil)
-			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
 		})
 
 		Convey("test consume timeout", func() {
@@ -386,7 +396,9 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeResult.ConsumeResult = ReturnNull
 			data, err := consumeResult.Encode()
 			So(err, ShouldBeNil)
-			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
 		})
 
 		Convey("test consume exception", func() {
@@ -399,7 +411,9 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeResult.Remark = "Unknown Exception"
 			data, err := consumeResult.Encode()
 			So(err, ShouldBeNil)
-			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
 		})
 	})
 }

@@ -20,7 +20,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 
 	"github.com/apache/rocketmq-client-go/v2"
@@ -39,13 +39,17 @@ func main() {
 	)
 
 	if err != nil {
-		fmt.Println("init producer error: " + err.Error())
+		rlog.Error("Init Producer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		os.Exit(0)
 	}
 
 	err = p.Start()
 	if err != nil {
-		fmt.Printf("start producer error: %s", err.Error())
+		rlog.Error("Start Producer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		os.Exit(1)
 	}
 	for i := 0; i < 100000; i++ {
@@ -53,13 +57,19 @@ func main() {
 			[]byte("Hello RocketMQ Go Client!")))
 
 		if err != nil {
-			fmt.Printf("send message error: %s\n", err)
+			rlog.Error("Send Message Error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
 		} else {
-			fmt.Printf("send message success: result=%s\n", res.String())
+			rlog.Info("Send Message Success", map[string]interface{}{
+				"result": res.String(),
+			})
 		}
 	}
 	err = p.Shutdown()
 	if err != nil {
-		fmt.Printf("shutdown producer error: %s", err.Error())
+		rlog.Error("Shutdown Producer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 }

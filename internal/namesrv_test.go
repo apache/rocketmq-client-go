@@ -19,6 +19,7 @@ package internal
 
 import (
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"net"
 	"net/http"
 	"os"
@@ -91,7 +92,9 @@ func TestUpdateNameServerAddress(t *testing.T) {
 
 		port := listener.Addr().(*net.TCPAddr).Port
 		nameServerDommain := fmt.Sprintf("http://127.0.0.1:%d/nameserver/addrs", port)
-		fmt.Println("temporary name server domain: ", nameServerDommain)
+		rlog.Info("Temporary Nameserver", map[string]interface{}{
+			"domain": nameServerDommain,
+		})
 
 		resolver := primitive.NewHttpResolver("DEFAULT", nameServerDommain)
 		ns := &namesrvs{

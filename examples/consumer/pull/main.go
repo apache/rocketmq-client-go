@@ -19,7 +19,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/apache/rocketmq-client-go/v2/errors"
 	"time"
 
@@ -35,11 +34,15 @@ func main() {
 		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 	)
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
+		rlog.Error("Fail to New Pull Consumer", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 	err = c.Start()
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
+		rlog.Error("Start Consumer Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 	}
 
 	ctx := context.Background()
@@ -54,17 +57,23 @@ func main() {
 		resp, err := c.PullFrom(ctx, queue, offset, 10)
 		if err != nil {
 			if err == errors.ErrRequestTimeout {
-				fmt.Printf("timeout \n")
+				rlog.Error("Pull Consumer Timeout", nil)
 				time.Sleep(1 * time.Second)
 				continue
 			}
-			fmt.Printf("unexpectable err: %v \n", err)
+			rlog.Error("Pull Consumer Error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
 			return
 		}
 		if resp.Status == primitive.PullFound {
-			fmt.Printf("pull message success. nextOffset: %d \n", resp.NextBeginOffset)
+			rlog.Info("Pull Message Success", map[string]interface{}{
+				"nextOffset": resp.NextBeginOffset,
+			})
 			for _, msg := range resp.GetMessageExts() {
-				fmt.Printf("pull msg: %v \n", msg)
+				rlog.Info("Pull Message", map[string]interface{}{
+					"result": msg,
+				})
 			}
 		}
 		offset = resp.NextBeginOffset
