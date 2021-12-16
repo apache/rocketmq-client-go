@@ -146,13 +146,16 @@ func (dc *defaultManualPullConsumer) GetMessageQueues(ctx context.Context, topic
 }
 
 func (dc *defaultManualPullConsumer) CommittedOffset(ctx context.Context, groupName string, mq *primitive.MessageQueue) (int64, error) {
-	request := &internal.QueryConsumerOffsetRequestHeader{
-		ConsumerGroup: groupName,
-		Topic:         mq.Topic,
-		QueueId:       mq.QueueId,
+	fn := func(broker string) (*remote.RemotingCommand, error) {
+		request := &internal.QueryConsumerOffsetRequestHeader{
+			ConsumerGroup: groupName,
+			Topic:         mq.Topic,
+			QueueId:       mq.QueueId,
+		}
+		cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
+		return dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	}
-	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
-	return dc.queryOffset(ctx, mq, cmd)
+	return dc.processQueryOffset(mq, fn)
 }
 
 func (dc *defaultManualPullConsumer) Seek(ctx context.Context, groupName string, mq *primitive.MessageQueue, offset int64) error {
@@ -187,13 +190,16 @@ func (dc *defaultManualPullConsumer) Seek(ctx context.Context, groupName string,
 }
 
 func (dc *defaultManualPullConsumer) Lookup(ctx context.Context, mq *primitive.MessageQueue, timestamp int64) (int64, error) {
-	request := &internal.SearchOffsetRequestHeader{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
+	fn := func(broker string) (*remote.RemotingCommand, error) {
+		request := &internal.SearchOffsetRequestHeader{
+			Topic:     mq.Topic,
+			QueueId:   mq.QueueId,
+			Timestamp: timestamp,
+		}
+		cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
+		return dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	}
-	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
-	return dc.queryOffset(ctx, mq, cmd)
+	return dc.processQueryOffset(mq, fn)
 }
 
 func (dc *defaultManualPullConsumer) Shutdown() error {
@@ -213,24 +219,30 @@ func (dc *defaultManualPullConsumer) chooseServer(mq *primitive.MessageQueue) (s
 }
 
 func (dc *defaultManualPullConsumer) queryMinOffset(ctx context.Context, mq *primitive.MessageQueue) (int64, error) {
-	request := &internal.GetMinOffsetRequestHeader{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
+	fn := func(broker string) (*remote.RemotingCommand, error) {
+		request := &internal.GetMinOffsetRequestHeader{
+			Topic:   mq.Topic,
+			QueueId: mq.QueueId,
+		}
+		cmd := remote.NewRemotingCommand(internal.ReqGetMinOffset, request, nil)
+		return dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	}
-	cmd := remote.NewRemotingCommand(internal.ReqGetMinOffset, request, nil)
-	return dc.queryOffset(ctx, mq, cmd)
+	return dc.processQueryOffset(mq, fn)
 }
 
 func (dc *defaultManualPullConsumer) queryMaxOffset(ctx context.Context, mq *primitive.MessageQueue) (int64, error) {
-	request := &internal.GetMaxOffsetRequestHeader{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
+	fn := func(broker string) (*remote.RemotingCommand, error) {
+		request := &internal.GetMaxOffsetRequestHeader{
+			Topic:   mq.Topic,
+			QueueId: mq.QueueId,
+		}
+		cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
+		return dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	}
-	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
-	return dc.queryOffset(ctx, mq, cmd)
+	return dc.processQueryOffset(mq, fn)
 }
 
-func (dc *defaultManualPullConsumer) queryOffset(ctx context.Context, mq *primitive.MessageQueue, cmd *remote.RemotingCommand) (int64, error) {
+func (dc *defaultManualPullConsumer) processQueryOffset(mq *primitive.MessageQueue, fn func(broker string) (*remote.RemotingCommand, error)) (int64, error) {
 	broker, exist := dc.chooseServer(mq)
 	if !exist {
 		rlog.Warning("the broker does not exist", map[string]interface{}{
@@ -238,7 +250,7 @@ func (dc *defaultManualPullConsumer) queryOffset(ctx context.Context, mq *primit
 		})
 		return -1, errors2.ErrBrokerNotFound
 	}
-	response, err := dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
+	response, err := fn(broker)
 	if err != nil {
 		return -1, err
 	}
