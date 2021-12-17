@@ -705,12 +705,12 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 			if nextOffset >= 0 {
 				_, exist := dc.processQueueTable.Load(mq)
 				if exist {
-					rlog.Debug("do defaultConsumer, mq already exist", map[string]interface{}{
+					rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, mq already exist", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
 				} else {
-					rlog.Debug("do defaultConsumer, add a new mq", map[string]interface{}{
+					rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, add a new mq", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
