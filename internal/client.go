@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
@@ -136,7 +137,7 @@ type RMQClient interface {
 
 	ClientID() string
 
-	RegisterProducer(group string, producer InnerProducer)
+	RegisterProducer(group string, producer InnerProducer) error
 	UnregisterProducer(group string)
 	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
@@ -175,6 +176,8 @@ type rmqClient struct {
 	namesrvs     *namesrvs
 	done         chan struct{}
 	shutdownOnce sync.Once
+
+	instanceCount int32
 }
 
 var clientMap sync.Map
@@ -312,6 +315,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 func (c *rmqClient) Start() {
 	//ctx, cancel := context.WithCancel(context.Background())
 	//c.cancel = cancel
+	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
@@ -444,6 +448,10 @@ func (c *rmqClient) removeClient() {
 }
 
 func (c *rmqClient) Shutdown() {
+	if atomic.AddInt32(&c.instanceCount, -1) > 0 {
+		return
+	}
+
 	c.shutdownOnce.Do(func() {
 		close(c.done)
 		c.close = true
@@ -730,8 +738,16 @@ func (c *rmqClient) UnregisterConsumer(group string) {
 	c.consumerMap.Delete(group)
 }
 
-func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) {
+func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) error {
+	_, exist := c.producerMap.Load(group)
+	if exist {
+		rlog.Warning("the producer group exist already", map[string]interface{}{
+			rlog.LogKeyProducerGroup: group,
+		})
+		return fmt.Errorf("the producer group exist already")
+	}
 	c.producerMap.Store(group, producer)
+	return nil
 }
 
 func (c *rmqClient) UnregisterProducer(group string) {

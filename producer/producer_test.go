@@ -47,7 +47,7 @@ func TestShutdown(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)
@@ -120,7 +120,7 @@ func TestSync(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)
@@ -171,7 +171,7 @@ func TestASync(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)
@@ -233,7 +233,7 @@ func TestOneway(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)
@@ -271,7 +271,7 @@ func TestSyncWithNamespace(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)
@@ -323,7 +323,7 @@ func TestBatchSendDifferentTopics(t *testing.T) {
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
 
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
 	err := p.Start()
 	assert.Nil(t, err)

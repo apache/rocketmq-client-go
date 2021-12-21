@@ -260,8 +260,10 @@ func (mr *MockRMQClientMockRecorder) ClientID() *gomock.Call {
 }
 
 // RegisterProducer mocks base method
-func (m *MockRMQClient) RegisterProducer(group string, producer InnerProducer) {
-	m.ctrl.Call(m, "RegisterProducer", group, producer)
+func (m *MockRMQClient) RegisterProducer(group string, producer InnerProducer) error {
+	ret := m.ctrl.Call(m, "RegisterProducer", group, producer)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RegisterProducer indicates an expected call of RegisterProducer

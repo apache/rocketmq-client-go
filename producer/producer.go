@@ -45,6 +45,9 @@ type defaultProducer struct {
 	callbackCh  chan interface{}
 
 	interceptor primitive.Interceptor
+
+	startOnce    sync.Once
+	ShutdownOnce sync.Once
 }
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
@@ -77,17 +80,28 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 }
 
 func (p *defaultProducer) Start() error {
-	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-
-	p.client.RegisterProducer(p.group, p)
-	p.client.Start()
-	return nil
+	var err error
+	p.startOnce.Do(func() {
+		err = p.client.RegisterProducer(p.group, p)
+		if err != nil {
+			rlog.Error("the producer group has been created, specify another one", map[string]interface{}{
+				rlog.LogKeyProducerGroup: p.group,
+			})
+			err = errors2.ErrProducerCreated
+			return
+		}
+		p.client.Start()
+		atomic.StoreInt32(&p.state, int32(internal.StateRunning))
+	})
+	return err
 }
 
 func (p *defaultProducer) Shutdown() error {
-	atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
-	p.client.UnregisterProducer(p.group)
-	p.client.Shutdown()
+	p.ShutdownOnce.Do(func() {
+		atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
+		p.client.UnregisterProducer(p.group)
+		p.client.Shutdown()
+	})
 	return nil
 }
 
@@ -558,7 +572,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	
+
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,

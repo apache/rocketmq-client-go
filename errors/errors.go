@@ -47,5 +47,6 @@ var (
 	ErrMessageEmpty      = errors.New("message is nil")
 	ErrNotRunning        = errors.New("producer not started")
 	ErrPullConsumer      = errors.New("pull consumer has not supported")
+	ErrProducerCreated   = errors.New("producer group has been created")
 	ErrMultipleTopics    = errors.New("the topic of the messages in one batch should be the same")
 )

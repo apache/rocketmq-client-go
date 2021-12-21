@@ -26,6 +26,7 @@ import (
 
 const (
 	LogKeyConsumerGroup    = "consumerGroup"
+	LogKeyProducerGroup    = "producerGroup"
 	LogKeyTopic            = "topic"
 	LogKeyMessageQueue     = "MessageQueue"
 	LogKeyUnderlayError    = "underlayError"
