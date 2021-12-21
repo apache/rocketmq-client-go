@@ -19,7 +19,7 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 
 	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -33,10 +33,7 @@ func main() {
 
 	testAdmin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)))
 	if err != nil {
-		rlog.Error("New Admin Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
-		return
+		fmt.Println(err.Error())
 	}
 
 	//create topic
@@ -46,13 +43,10 @@ func main() {
 		admin.WithBrokerAddrCreate(brokerAddr),
 	)
 	if err != nil {
-		rlog.Error("Create Topic Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
-		return
+		fmt.Println("Create topic error:", err.Error())
 	}
 
-	//delete topic
+	//deletetopic
 	err = testAdmin.DeleteTopic(
 		context.Background(),
 		admin.WithTopicDelete(topic),
@@ -60,16 +54,11 @@ func main() {
 		//admin.WithNameSrvAddr(nameSrvAddr),
 	)
 	if err != nil {
-		rlog.Error("Delete Topic Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
-		return
+		fmt.Println("Delete topic error:", err.Error())
 	}
 
 	err = testAdmin.Close()
 	if err != nil {
-		rlog.Error("Shutdown Admin Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("Shutdown admin error: %s", err.Error())
 	}
 }

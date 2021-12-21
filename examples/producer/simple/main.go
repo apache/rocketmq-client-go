@@ -19,7 +19,7 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -36,9 +36,7 @@ func main() {
 	)
 	err := p.Start()
 	if err != nil {
-		rlog.Error("Start Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
 	topic := "test"
@@ -51,19 +49,13 @@ func main() {
 		res, err := p.SendSync(context.Background(), msg)
 
 		if err != nil {
-			rlog.Error("Send Message Error", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err.Error(),
-			})
+			fmt.Printf("send message error: %s\n", err)
 		} else {
-			rlog.Info("Send Message Success", map[string]interface{}{
-				"result": res.String(),
-			})
+			fmt.Printf("send message success: result=%s\n", res.String())
 		}
 	}
 	err = p.Shutdown()
 	if err != nil {
-		rlog.Error("Shutdown Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("shutdown producer error: %s", err.Error())
 	}
 }

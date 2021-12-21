@@ -19,7 +19,7 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -44,49 +44,34 @@ func NewDemoListener() *DemoListener {
 
 func (dl *DemoListener) ExecuteLocalTransaction(msg *primitive.Message) primitive.LocalTransactionState {
 	nextIndex := atomic.AddInt32(&dl.transactionIndex, 1)
-	rlog.Info("Message Transaction", map[string]interface{}{
-		"nextIndex": nextIndex,
-		"transactionId": msg.TransactionId,
-	})
+	fmt.Printf("nextIndex: %v for transactionID: %v\n", nextIndex, msg.TransactionId)
 	status := nextIndex % 3
 	dl.localTrans.Store(msg.TransactionId, primitive.LocalTransactionState(status+1))
 
+	fmt.Printf("dl")
 	return primitive.UnknowState
 }
 
 func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primitive.LocalTransactionState {
-	rlog.Info("Message Transaction", map[string]interface{}{
-		"transactionId": msg.TransactionId,
-		"date": time.Now(),
-	})
+	fmt.Printf("%v msg transactionID : %v\n", time.Now(), msg.TransactionId)
 	v, existed := dl.localTrans.Load(msg.TransactionId)
 	if !existed {
-		rlog.Error("Unknown Message And Return Commit", map[string]interface{}{
-			"msg": msg,
-		})
+		fmt.Printf("unknow msg: %v, return Commit", msg)
 		return primitive.CommitMessageState
 	}
 	state := v.(primitive.LocalTransactionState)
 	switch state {
 	case 1:
-		rlog.Info("Check Local Transaction COMMIT_MESSAGE", map[string]interface{}{
-			"msg": msg,
-		})
+		fmt.Printf("checkLocalTransaction COMMIT_MESSAGE: %v\n", msg)
 		return primitive.CommitMessageState
 	case 2:
-		rlog.Info("Check Local Transaction ROLLBACK_MESSAGE", map[string]interface{}{
-			"msg": msg,
-		})
+		fmt.Printf("checkLocalTransaction ROLLBACK_MESSAGE: %v\n", msg)
 		return primitive.RollbackMessageState
 	case 3:
-		rlog.Info("Check Local Transaction Unknown", map[string]interface{}{
-			"msg": msg,
-		})
+		fmt.Printf("checkLocalTransaction unknow: %v\n", msg)
 		return primitive.UnknowState
 	default:
-		rlog.Info("Check Local Transaction Default COMMIT_MESSAGE", map[string]interface{}{
-			"msg": msg,
-		})
+		fmt.Printf("checkLocalTransaction default COMMIT_MESSAGE: %v\n", msg)
 		return primitive.CommitMessageState
 	}
 }
@@ -99,9 +84,7 @@ func main() {
 	)
 	err := p.Start()
 	if err != nil {
-		rlog.Error("Start Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("start producer error: %s\n", err.Error())
 		os.Exit(1)
 	}
 
@@ -110,20 +93,14 @@ func main() {
 			primitive.NewMessage("TopicTest5", []byte("Hello RocketMQ again "+strconv.Itoa(i))))
 
 		if err != nil {
-			rlog.Error("Send Message Error", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err.Error(),
-			})
+			fmt.Printf("send message error: %s\n", err)
 		} else {
-			rlog.Error("Send Message Success", map[string]interface{}{
-				"result": res.String(),
-			})
+			fmt.Printf("send message success: result=%s\n", res.String())
 		}
 	}
 	time.Sleep(5 * time.Minute)
 	err = p.Shutdown()
 	if err != nil {
-		rlog.Error("Shutdown Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("shutdown producer error: %s", err.Error())
 	}
 }

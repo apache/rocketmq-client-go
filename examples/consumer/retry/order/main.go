@@ -24,7 +24,7 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"os"
 	"time"
 
@@ -46,44 +46,31 @@ func main() {
 	err := c.Subscribe("TopicTest", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		orderlyCtx, _ := primitive.GetOrderlyCtx(ctx)
-		rlog.Info("Subscribe Callback Orderly", map[string]interface{}{
-			"context": orderlyCtx,
-			"msgs": msgs,
-			"len": len(msgs),
-		})
+		fmt.Printf("orderly context: %v\n", orderlyCtx)
+		fmt.Printf("subscribe orderly callback len: %d \n", len(msgs))
 
 		for _, msg := range msgs {
 			if msg.ReconsumeTimes > 5 {
-				rlog.Info("Message Reconsume Times > 5", map[string]interface{}{
-					"msg": msg,
-				})
+				fmt.Printf("msg ReconsumeTimes > 5. msg: %v", msg)
 			} else {
-				rlog.Info("Subscribe Callback Orderly", map[string]interface{}{
-					"msg": msg,
-				})
+				fmt.Printf("subscribe orderly callback: %v \n", msg)
 			}
 		}
 		return consumer.SuspendCurrentQueueAMoment, nil
 
 	})
 	if err != nil {
-		rlog.Error("Subscribe Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Println(err.Error())
 	}
 	// Note: start after subscribe
 	err = c.Start()
 	if err != nil {
-		rlog.Error("Start Consumer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Println(err.Error())
 		os.Exit(-1)
 	}
 	time.Sleep(time.Hour)
 	err = c.Shutdown()
 	if err != nil {
-		rlog.Error("Shutdown Consumer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("shundown Consumer error: %s", err.Error())
 	}
 }

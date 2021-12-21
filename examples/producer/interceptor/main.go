@@ -20,7 +20,7 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"os"
 
 	"github.com/apache/rocketmq-client-go/v2"
@@ -36,9 +36,7 @@ func main() {
 	)
 	err := p.Start()
 	if err != nil {
-		rlog.Error("Start Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
 	for i := 0; i < 10; i++ {
@@ -46,47 +44,31 @@ func main() {
 			[]byte("Hello RocketMQ Go Client!")))
 
 		if err != nil {
-			rlog.Error("Send Message Error", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err.Error(),
-			})
+			fmt.Printf("send message error: %s\n", err)
 		} else {
-			rlog.Info("Send Message Success", map[string]interface{}{
-				"result": res.String(),
-			})
+			fmt.Printf("send message success: result=%s\n", res.String())
 		}
 	}
 	err = p.Shutdown()
 	if err != nil {
-		rlog.Error("Shutdown Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("shutdown producer error: %s", err.Error())
 	}
 }
 
 func UserFirstInterceptor() primitive.Interceptor {
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
-		rlog.Info("User First Interceptor Before Invoke", map[string]interface{}{
-			"req": req,
-		})
+		fmt.Printf("user first interceptor before invoke: req:%v\n", req)
 		err := next(ctx, req, reply)
-		rlog.Info("User First Interceptor After Invoke", map[string]interface{}{
-			"req": req,
-			"reply": reply,
-		})
+		fmt.Printf("user first interceptor after invoke: req: %v, reply: %v \n", req, reply)
 		return err
 	}
 }
 
 func UserSecondInterceptor() primitive.Interceptor {
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
-		rlog.Info("User Second Interceptor Before Invoke", map[string]interface{}{
-			"req": req,
-		})
+		fmt.Printf("user second interceptor before invoke: req: %v\n", req)
 		err := next(ctx, req, reply)
-		rlog.Info("User First Interceptor After Invoke", map[string]interface{}{
-			"req": req,
-			"reply": reply,
-		})
+		fmt.Printf("user second interceptor after invoke: req: %v, reply: %v \n", req, reply)
 		return err
 	}
 }
