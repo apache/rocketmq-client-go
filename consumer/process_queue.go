@@ -98,6 +98,7 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	if !pq.order {
 		select {
 		case <-pq.closeChan:
+			pq.mutex.Unlock()
 			return
 		case pq.msgCh <- messages:
 		}
