@@ -58,6 +58,7 @@ type processQueue struct {
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
 	order                      bool
+	closeMsgChanOnce           *sync.Once
 }
 
 func newProcessQueue(order bool, chanSize int32) *processQueue {
@@ -82,6 +83,7 @@ func newProcessQueue(order bool, chanSize int32) *processQueue {
 		order:                      order,
 		locked:                     uatomic.NewBool(false),
 		dropped:                    uatomic.NewBool(false),
+		closeMsgChanOnce:           &sync.Once{},
 	}
 	return pq
 }
@@ -138,6 +140,9 @@ func (pq *processQueue) IsLock() bool {
 
 func (pq *processQueue) WithDropped(dropped bool) {
 	pq.dropped.Store(dropped)
+	pq.closeMsgChanOnce.Do(func() {
+		close(pq.msgCh)
+	})
 }
 
 func (pq *processQueue) IsDroppd() bool {
@@ -269,13 +274,8 @@ func (pq *processQueue) getMaxSpan() int {
 	return int(lastKey.(int64) - firstKey.(int64))
 }
 
-func (pq *processQueue) getMessagesWithTimeout(d time.Duration) []*primitive.MessageExt {
-	select {
-	case <-time.After(d):
-		return nil
-	case result := <-pq.msgCh:
-		return result
-	}
+func (pq *processQueue) getMessages() []*primitive.MessageExt {
+	return <-pq.msgCh
 }
 
 func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {

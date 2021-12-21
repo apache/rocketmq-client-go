@@ -953,7 +953,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 }
 
 func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
-	msgs := pq.getMessagesWithTimeout(time.Second * 30)
+	msgs := pq.getMessages()
 	if msgs == nil {
 		return
 	}
