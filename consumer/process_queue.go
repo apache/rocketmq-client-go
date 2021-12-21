@@ -59,6 +59,7 @@ type processQueue struct {
 	msgCh                      chan []*primitive.MessageExt
 	order                      bool
 	closeMsgChanOnce           *sync.Once
+	closeChan                  chan struct{}
 }
 
 func newProcessQueue(order bool, chanSize int32) *processQueue {
@@ -84,6 +85,7 @@ func newProcessQueue(order bool, chanSize int32) *processQueue {
 		locked:                     uatomic.NewBool(false),
 		dropped:                    uatomic.NewBool(false),
 		closeMsgChanOnce:           &sync.Once{},
+		closeChan:                  make(chan struct{}),
 	}
 	return pq
 }
@@ -94,7 +96,11 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	}
 	pq.mutex.Lock()
 	if !pq.order {
-		pq.msgCh <- messages
+		select {
+		case <-pq.closeChan:
+			return
+		case pq.msgCh <- messages:
+		}
 	}
 	validMessageCount := 0
 	for idx := range messages {
@@ -141,7 +147,15 @@ func (pq *processQueue) IsLock() bool {
 func (pq *processQueue) WithDropped(dropped bool) {
 	pq.dropped.Store(dropped)
 	pq.closeMsgChanOnce.Do(func() {
-		close(pq.msgCh)
+		rlog.Info("gosdk.processQueue.WithDropped 关闭 ", map[string]interface{}{
+			"lastPullTime":   pq.lastPullTime,
+			"cachedMsgCount": pq.cachedMsgCount,
+			"cachedMsgSize":  pq.cachedMsgSize,
+			"msgAccCnt":      pq.msgAccCnt,
+			"queueOffsetMax": pq.queueOffsetMax,
+			"order":          pq.order,
+		})
+		close(pq.closeChan)
 	})
 }
 
@@ -275,7 +289,12 @@ func (pq *processQueue) getMaxSpan() int {
 }
 
 func (pq *processQueue) getMessages() []*primitive.MessageExt {
-	return <-pq.msgCh
+	select {
+	case <-pq.closeChan:
+		return nil
+	case result := <-pq.msgCh:
+		return result
+	}
 }
 
 func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
