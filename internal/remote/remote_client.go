@@ -155,13 +155,13 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 			break
 		}
 
-		_, err = io.ReadFull(r, header)
+		_, err = io.ReadFull(r, *header)
 		if err != nil {
 			continue
 		}
 
 		var length int32
-		err = binary.Read(bytes.NewReader(header), binary.BigEndian, &length)
+		err = binary.Read(bytes.NewReader(*header), binary.BigEndian, &length)
 		if err != nil {
 			continue
 		}
