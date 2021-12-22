@@ -97,7 +97,7 @@ func (l *defaultLogger) Error(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	l.logger.WithFields(fields).WithFields(fields).Error(msg)
+	l.logger.WithFields(fields).Error(msg)
 }
 
 func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {

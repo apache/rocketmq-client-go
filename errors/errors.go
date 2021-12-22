@@ -20,7 +20,7 @@ package errors
 import "errors"
 
 var (
-	ErrRequestTimeout    = errors.New("equest timeout")
+	ErrRequestTimeout    = errors.New("request timeout")
 	ErrMQEmpty           = errors.New("MessageQueue is nil")
 	ErrOffset            = errors.New("offset < 0")
 	ErrNumbers           = errors.New("numbers < 0")

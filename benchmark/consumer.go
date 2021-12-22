@@ -24,6 +24,7 @@ import (
 	"github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"sync"
@@ -89,10 +90,13 @@ func (s *consumeSnapshots) printStati() {
 	avgS2CRT := float64(l.store2ConsumerTotalRT-f.store2ConsumerTotalRT) / respSucCount
 	s.RUnlock()
 
-	fmt.Printf(
-		"Consume TPS: %d Average(B2C) RT: %7.3f Average(S2C) RT: %7.3f MAX(B2C) RT: %d MAX(S2C) RT: %d\n",
-		int64(consumeTps), avgB2CRT, avgS2CRT, l.born2ConsumerMaxRT, l.store2ConsumerMaxRT,
-	)
+	rlog.Info("Benchmark Consumer Snapshot", map[string]interface{}{
+		"consumeTPS": int64(consumeTps),
+		"average(B2C)RT": avgB2CRT,
+		"average(S2C)RT": avgS2CRT,
+		"max(B2C)RT": l.born2ConsumerMaxRT,
+		"max(S2C)RT": l.store2ConsumerMaxRT,
+	})
 }
 
 type consumerBenchmark struct {
@@ -164,7 +168,7 @@ func (bc *consumerBenchmark) consumeMsg(stati *statiBenchmarkConsumerSnapshot, e
 		return consumer.ConsumeSuccess, nil
 	})
 
-	println("Start")
+	rlog.Info("Test Start", nil)
 	c.Start()
 	select {
 	case <-exit:
@@ -176,31 +180,31 @@ func (bc *consumerBenchmark) consumeMsg(stati *statiBenchmarkConsumerSnapshot, e
 func (bc *consumerBenchmark) run(args []string) {
 	bc.flags.Parse(args)
 	if bc.topic == "" {
-		println("empty topic")
+		rlog.Error("Empty Topic", nil)
 		bc.usage()
 		return
 	}
 
 	if bc.groupPrefix == "" {
-		println("empty group prefix")
+		rlog.Error("Empty Group Prefix", nil)
 		bc.usage()
 		return
 	}
 
 	if bc.nameSrv == "" {
-		println("empty name server")
+		rlog.Error("Empty Nameserver", nil)
 		bc.usage()
 		return
 	}
 
 	if bc.testMinutes <= 0 {
-		println("test time must be positive integer")
+		rlog.Error("Test Time Must Be Positive Integer", nil)
 		bc.usage()
 		return
 	}
 
 	if bc.instanceCount <= 0 {
-		println("thread count must be positive integer")
+		rlog.Error("Thread Count Must Be Positive Integer", nil)
 		bc.usage()
 		return
 	}
@@ -261,11 +265,11 @@ func (bc *consumerBenchmark) run(args []string) {
 	case <-signalChan:
 	}
 
-	println("Closed")
 	close(exitChan)
 	wg.Wait()
 	snapshots.takeSnapshot()
 	snapshots.printStati()
+	rlog.Info("Test Done", nil)
 }
 
 func (bc *consumerBenchmark) usage() {
