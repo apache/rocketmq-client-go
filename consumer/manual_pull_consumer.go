@@ -152,7 +152,7 @@ func (dc *defaultManualPullConsumer) CommittedOffset(ctx context.Context, groupN
 			Topic:         mq.Topic,
 			QueueId:       mq.QueueId,
 		}
-		cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
+		cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, request, nil)
 		return dc.client.InvokeSync(ctx, broker, cmd, 3*time.Second)
 	}
 	return dc.processQueryOffset(mq, fn)

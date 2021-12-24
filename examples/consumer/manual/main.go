@@ -19,12 +19,12 @@ package main
 
 import (
 	"context"
-	"log"
-	"os"
+	"fmt"
 	"sync"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 func main() {
@@ -34,14 +34,14 @@ func main() {
 		consumer.WithNameServer(primitive.NamesrvAddr{"127.0.0.1:9876"}),
 	)
 	if err != nil {
-		log.Fatalf("init producer error: %v", err)
+		rlog.Fatal(fmt.Sprintf("init producer error: %v", err), nil)
 	}
 
 	topic := "test"
 	// get all message queue
 	mqs, err := c.GetMessageQueues(context.Background(), topic)
 	if err != nil {
-		log.Fatalf("Get message queue error: %v", err)
+		rlog.Fatal(fmt.Sprintf("get message queue error: %v", err), nil)
 	}
 	var wg sync.WaitGroup
 
@@ -49,22 +49,22 @@ func main() {
 		defer wg.Done()
 		// get latest offset
 		offset, err := c.CommittedOffset(context.Background(), groupName, mq)
+		if err != nil {
+			rlog.Fatal(fmt.Sprintf("search consumer offset error: %v", err), nil)
+		}
 		for {
-			if err != nil {
-				log.Fatalf("search latest offset error: %v", err)
-			}
 			// pull message
 			ret, err := c.PullFromQueue(context.Background(), groupName, mq, offset, 1)
 			if err != nil {
-				log.Fatalf("pullFromQueue error: %v", err)
+				rlog.Fatal(fmt.Sprintf("pullFromQueue error: %v", err), nil)
 			}
 			if ret.Status == primitive.PullFound {
 				msgs := ret.GetMessageExts()
 				for _, msg := range msgs {
-					log.Printf("subscribe Msg: %v \n", msg)
+					fmt.Printf("subscribe Msg: %v \n", msg)
 					// commit offset
 					if err = c.Seek(context.Background(), groupName, mq, msg.QueueOffset+1); err != nil {
-						log.Fatalf("commit offset error: %v", err)
+						rlog.Fatal(fmt.Sprintf("commit offset error: %v", err), nil)
 					}
 					offset++
 				}
@@ -80,5 +80,4 @@ func main() {
 	}
 	wg.Wait()
 	c.Shutdown()
-	os.Exit(0)
 }
