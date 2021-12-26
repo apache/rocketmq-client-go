@@ -226,15 +226,29 @@ type remoteBrokerOffsetStore struct {
 	OffsetTable map[primitive.MessageQueue]int64 `json:"OffsetTable"`
 	client      internal.RMQClient
 	namesrv     internal.Namesrvs
+	options     remoteBrokerOffsetStoreOptions
 	mutex       sync.RWMutex
 }
 
+type remoteBrokerOffsetStoreOptions struct {
+	SendMsgTimeout        time.Duration
+}
+
+func defaultRemoteBrokerOffsetStoreOptions() remoteBrokerOffsetStoreOptions {
+	opts := remoteBrokerOffsetStoreOptions{
+		SendMsgTimeout: 5 * time.Second,
+	}
+	return opts
+}
+
 func NewRemoteOffsetStore(group string, client internal.RMQClient, namesrv internal.Namesrvs) OffsetStore {
+	defaultOpts := defaultRemoteBrokerOffsetStoreOptions()
 	return &remoteBrokerOffsetStore{
 		group:       group,
 		client:      client,
 		namesrv:     namesrv,
 		OffsetTable: make(map[primitive.MessageQueue]int64),
+		options:     defaultOpts,
 	}
 }
 
@@ -355,7 +369,7 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 		QueueId:       mq.QueueId,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
-	res, err := r.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
+	res, err := r.client.InvokeSync(context.Background(), broker, cmd, r.options.SendMsgTimeout)
 	if err != nil {
 		return -1, err
 	}
@@ -389,7 +403,7 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group string, mq p
 		CommitOffset:  off,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
-	return r.client.InvokeOneWay(context.Background(), broker, cmd, 5*time.Second)
+	return r.client.InvokeOneWay(context.Background(), broker, cmd, r.options.SendMsgTimeout)
 }
 
 func readFromMemory(table *sync.Map, mq *primitive.MessageQueue) int64 {

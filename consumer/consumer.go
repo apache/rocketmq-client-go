@@ -587,7 +587,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 func (dc *defaultConsumer) doLock(addr string, body *lockBatchRequestBody) []primitive.MessageQueue {
 	data, _ := jsoniter.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqLockBatchMQ, nil, data)
-	response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), addr, request, dc.option.SendMsgTimeout)
 	if err != nil {
 		rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
 			rlog.LogKeyBroker:        addr,
@@ -615,7 +615,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 	data, _ := jsoniter.Marshal(body)
 	request := remote.NewRemotingCommand(internal.ReqUnlockBatchMQ, nil, data)
 	if oneway {
-		err := dc.client.InvokeOneWay(context.Background(), addr, request, 3*time.Second)
+		err := dc.client.InvokeOneWay(context.Background(), addr, request, dc.option.SendMsgTimeout)
 		if err != nil {
 			rlog.Error("lock MessageQueue to broker invoke oneway error", map[string]interface{}{
 				rlog.LogKeyBroker:        addr,
@@ -623,7 +623,7 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 			})
 		}
 	} else {
-		response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
+		response, err := dc.client.InvokeSync(context.Background(), addr, request, dc.option.SendMsgTimeout)
 		rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
 			rlog.LogKeyBroker:        addr,
 			rlog.LogKeyUnderlayError: err,
@@ -903,7 +903,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 			ConsumerGroup: dc.consumerGroup,
 		}
 		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
-		res, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
+		res, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, dc.option.SendMsgTimeout) // TODO 超时机制有问题
 		if err != nil {
 			rlog.Error("get consumer list of group from broker error", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: dc.consumerGroup,
@@ -944,7 +944,7 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
-	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, dc.option.SendMsgTimeout)
 	if err != nil {
 		return -1, err
 	}
@@ -974,7 +974,7 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
-	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second)
+	response, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, dc.option.SendMsgTimeout)
 	if err != nil {
 		return -1, err
 	}

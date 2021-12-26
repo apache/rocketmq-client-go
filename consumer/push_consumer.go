@@ -799,7 +799,7 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), pc.option.SendMsgTimeout)
 	if err != nil {
 		return false
 	}

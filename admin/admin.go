@@ -40,6 +40,7 @@ type Admin interface {
 // TODO: move outdated context to ctx
 type adminOptions struct {
 	internal.ClientOptions
+	SendMsgTimeout  time.Duration
 }
 
 type AdminOption func(options *adminOptions)
@@ -47,6 +48,7 @@ type AdminOption func(options *adminOptions)
 func defaultAdminOptions() *adminOptions {
 	opts := &adminOptions{
 		ClientOptions: internal.DefaultClientOptions(),
+		SendMsgTimeout: 5 * time.Second,
 	}
 	opts.GroupName = "TOOLS_ADMIN"
 	opts.InstanceName = time.Now().String()
@@ -57,6 +59,12 @@ func defaultAdminOptions() *adminOptions {
 func WithResolver(resolver primitive.NsResolver) AdminOption {
 	return func(options *adminOptions) {
 		options.Resolver = resolver
+	}
+}
+
+func WithSendMsgTimeout(duration time.Duration) AdminOption {
+	return func(opts *adminOptions) {
+		opts.SendMsgTimeout = duration
 	}
 }
 
@@ -109,7 +117,7 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
-	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
+	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, a.opts.SendMsgTimeout)
 	if err != nil {
 		rlog.Error("create topic error", map[string]interface{}{
 			rlog.LogKeyTopic:         cfg.Topic,
@@ -132,7 +140,7 @@ func (a *admin) deleteTopicInBroker(ctx context.Context, topic string, brokerAdd
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqDeleteTopicInBroker, request, nil)
-	return a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+	return a.cli.InvokeSync(ctx, brokerAddr, cmd, a.opts.SendMsgTimeout)
 }
 
 // DeleteTopicInNameServer delete topic in nameserver.
@@ -142,7 +150,7 @@ func (a *admin) deleteTopicInNameServer(ctx context.Context, topic string, nameS
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqDeleteTopicInNameSrv, request, nil)
-	return a.cli.InvokeSync(ctx, nameSrvAddr, cmd, 5*time.Second)
+	return a.cli.InvokeSync(ctx, nameSrvAddr, cmd, a.opts.SendMsgTimeout)
 }
 
 // DeleteTopic delete topic in both broker and nameserver.

@@ -106,6 +106,7 @@ type consumerOptions struct {
 	RebalanceLockInterval time.Duration
 
 	Resolver primitive.NsResolver
+	SendMsgTimeout        time.Duration
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -129,6 +130,7 @@ func defaultPullConsumerOptions() consumerOptions {
 	opts := consumerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 		Resolver:      primitive.NewHttpResolver("DEFAULT"),
+		SendMsgTimeout: 3 * time.Second,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -272,5 +274,11 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 func WithNameServerDomain(nameServerUrl string) Option {
 	return func(opts *consumerOptions) {
 		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+	}
+}
+
+func WithSendMsgTimeout(duration time.Duration) Option {
+	return func(opts *consumerOptions) {
+		opts.SendMsgTimeout = duration
 	}
 }
