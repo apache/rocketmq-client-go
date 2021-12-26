@@ -624,12 +624,11 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 		}
 	} else {
 		response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
-		rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
-			rlog.LogKeyBroker:        addr,
-			rlog.LogKeyUnderlayError: err,
-		})
-		if response.Code != internal.ResSuccess {
-			// TODO error
+		if err != nil || response.Code != internal.ResSuccess {
+			rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
+				rlog.LogKeyBroker:        addr,
+				rlog.LogKeyUnderlayError: err,
+			})
 		}
 	}
 }
