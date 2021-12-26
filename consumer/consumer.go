@@ -461,8 +461,7 @@ func (dc *defaultConsumer) lock(mq *primitive.MessageQueue) bool {
 	}
 	lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
 	var lockOK bool
-	for idx := range lockedMQ {
-		_mq := lockedMQ[idx]
+	for _, _mq := range lockedMQ {
 		v, exist := dc.processQueueTable.Load(_mq)
 		if exist {
 			pq := v.(*processQueue)
@@ -524,8 +523,7 @@ func (dc *defaultConsumer) lockAll() {
 		}
 		lockedMQ := dc.doLock(brokerResult.BrokerAddr, body)
 		set := make(map[primitive.MessageQueue]bool)
-		for idx := range lockedMQ {
-			_mq := lockedMQ[idx]
+		for _, _mq := range lockedMQ {
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
 				pq := v.(*processQueue)
@@ -534,8 +532,7 @@ func (dc *defaultConsumer) lockAll() {
 			}
 			set[_mq] = true
 		}
-		for idx := range mqs {
-			_mq := mqs[idx]
+		for _, _mq := range mqs {
 			if !set[*_mq] {
 				v, exist := dc.processQueueTable.Load(_mq)
 				if exist {
@@ -569,8 +566,7 @@ func (dc *defaultConsumer) unlockAll(oneway bool) {
 			MQs:           mqs,
 		}
 		dc.doUnlock(brokerResult.BrokerAddr, body, oneway)
-		for idx := range mqs {
-			_mq := mqs[idx]
+		for _, _mq := range mqs {
 			v, exist := dc.processQueueTable.Load(_mq)
 			if exist {
 				rlog.Info("lock MessageQueue", map[string]interface{}{
@@ -654,8 +650,8 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
 	mqSet := make(map[primitive.MessageQueue]bool)
-	for idx := range mqs {
-		mqSet[*mqs[idx]] = true
+	for _, _mq := range mqs {
+		mqSet[*_mq] = true
 	}
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
@@ -687,9 +683,8 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 	})
 
 	if dc.cType == _PushConsume {
-		for item := range mqSet {
-			// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
-			mq := item
+		// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
+		for mq := range mqSet {
 			_, exist := dc.processQueueTable.Load(mq)
 			if exist {
 				continue
@@ -869,8 +864,7 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 		if data.Tags.Len() > 0 && data.ClassFilterMode {
 			msgListFilterAgain = make([]*primitive.MessageExt, 0)
 			for _, msg := range msgs {
-				_, exist := data.Tags.Contains(msg.GetTags())
-				if exist {
+				if _, exist := data.Tags.Contains(msg.GetTags()); exist {
 					msgListFilterAgain = append(msgListFilterAgain, msg)
 				}
 			}
