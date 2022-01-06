@@ -135,3 +135,29 @@ type PullConsumer interface {
 func NewPullConsumer(opts ...consumer.Option) (PullConsumer, error) {
 	return nil, errors.ErrPullConsumer
 }
+func NewHighLevelPullConsumer(opts ...consumer.Option) (HighLevelPullConsumer, error) {
+	return consumer.NewHighLevelPullConsumer(opts...)
+}
+
+type HighLevelPullConsumer interface {
+	// StartD
+	Start() error
+
+	// Shutdown refuse all new pull operation, finish all submitted.
+	Shutdown() error
+
+	// Subscribe a topic
+	Subscribe(topic string, selector consumer.MessageSelector) error
+
+	// Unsubscribe a topic
+	Unsubscribe(topic string) error
+
+	// Pull message for the topic specified. It is an error to not have subscribed to any topics before pull for message
+	//
+	// Specified numbers of messages is returned if message greater that numbers, and the offset will auto forward.
+	// It means that if you meeting messages consuming failed, you should process failed messages by yourself.
+	Pull(ctx context.Context, topic string, numbers int) (*primitive.PullResult, error)
+
+	// Commit offset
+	Commit(ctx context.Context, topic string)
+}
