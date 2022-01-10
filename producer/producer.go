@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/latency"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -44,7 +45,8 @@ type defaultProducer struct {
 	publishInfo sync.Map
 	callbackCh  chan interface{}
 
-	interceptor primitive.Interceptor
+	interceptor   primitive.Interceptor
+	faultStrategy *latency.FaultStrategy
 }
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
@@ -62,9 +64,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	defaultOpts.Namesrv = srvs
 
 	producer := &defaultProducer{
-		group:      defaultOpts.GroupName,
-		callbackCh: make(chan interface{}),
-		options:    defaultOpts,
+		group:         defaultOpts.GroupName,
+		callbackCh:    make(chan interface{}),
+		options:       defaultOpts,
+		faultStrategy: latency.NewDefaultFaultStrategy(),
 	}
 	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
 	producer.options.ClientOptions.Namesrv, err = internal.GetNamesrv(producer.client.ClientID())
@@ -188,12 +191,20 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	)
 
 	var producerCtx *primitive.ProducerCtx
+	var mq *primitive.MessageQueue
+	beginTimestampFirst := time.Now().UnixNano() / int64(time.Millisecond)
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg)
-		if mq == nil {
+		// last failed broker
+		var lastBrokerName string
+		if mq != nil {
+			lastBrokerName = mq.BrokerName
+		}
+		mqSelected := p.selectMessageQueueWithLatency(msg, lastBrokerName)
+		if mqSelected == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
 		}
+		mq = mqSelected
 
 		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
@@ -206,9 +217,31 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			producerCtx.MQ = *mq
 		}
 
+		beginTimestamp := time.Now().UnixNano() / int64(time.Millisecond)
+		// check timeout
+		if beginTimestampFirst-beginTimestamp > p.options.SendMsgTimeout.Milliseconds() {
+			rlog.Warning("send message timeout!", map[string]interface{}{
+				"addr":         addr,
+				"mq":           mq.String(),
+				"msg":          msg,
+				"duration(ms)": beginTimestampFirst - beginTimestamp,
+				"err":          "SendMsgTimeout",
+			})
+		}
+
 		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		endTimeStamp := time.Now().UnixNano() / int64(time.Millisecond)
+		p.faultStrategy.UpdateFaultItem(mq.BrokerName, endTimeStamp-beginTimestamp, false)
 		if _err != nil {
+			rlog.Warning("send message failed", map[string]interface{}{
+				"addr":         addr,
+				"mq":           mq.String(),
+				"msg":          msg,
+				"duration(ms)": endTimeStamp - beginTimestamp,
+				"err":          _err.Error(),
+			})
 			err = _err
+			p.faultStrategy.UpdateFaultItem(mq.BrokerName, endTimeStamp-beginTimestamp, true)
 			continue
 		}
 		return p.client.ProcessSendResponse(mq.BrokerName, res, resp, msg)
@@ -371,6 +404,72 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	}
 
 	return remote.NewRemotingCommand(cmd, req, msg.Body)
+}
+
+// select message queue filter isolated broker
+func (p *defaultProducer) selectMessageQueueWithLatency(msg *primitive.Message, lastBrokerName string) *primitive.MessageQueue {
+	topic := msg.Topic
+
+	v, exist := p.publishInfo.Load(topic)
+	if !exist {
+		data, changed, err := p.options.Namesrv.UpdateTopicRouteInfo(topic)
+		if err != nil && primitive.IsRemotingErr(err) {
+			return nil
+		}
+		p.client.UpdatePublishInfo(topic, data, changed)
+		v, exist = p.publishInfo.Load(topic)
+	}
+
+	if !exist {
+		data, changed, _ := p.options.Namesrv.UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
+		p.client.UpdatePublishInfo(topic, data, changed)
+		v, exist = p.publishInfo.Load(topic)
+	}
+
+	if !exist {
+		return nil
+	}
+
+	result := v.(*internal.TopicPublishInfo)
+	if result == nil || !result.HaveTopicRouterInfo {
+		return nil
+	}
+
+	if len(result.MqList) <= 0 {
+		rlog.Error("can not find proper message queue", nil)
+		return nil
+	}
+
+	for i := 0; i < len(result.MqList)-1; i++ {
+		// select from Selector
+		mq := p.options.Selector.Select(msg, result.MqList)
+		// available and not last failed broker
+		if (lastBrokerName == "" || mq.BrokerName != lastBrokerName) && p.faultStrategy.LatencyFaultHandler.IsAvailable(mq.BrokerName) {
+			return mq
+		}
+	}
+	// all broker is not available
+	notBestBroker := p.faultStrategy.LatencyFaultHandler.PickOneAtLeast()
+	if notBestBroker == "" {
+		return nil
+	}
+	var newSelectedMqList []*primitive.MessageQueue
+	for _, mq := range result.MqList {
+		if mq.BrokerName == notBestBroker {
+			newSelectedMqList = append(newSelectedMqList, mq)
+		}
+	}
+
+	// the broker is down,remove from faultItem map to avoid be selected one more time
+	if len(newSelectedMqList) == 0 {
+		p.faultStrategy.LatencyFaultHandler.Remove(notBestBroker)
+	} else {
+		return p.options.Selector.Select(msg, newSelectedMqList)
+	}
+
+	// default select strategy
+	return p.options.Selector.Select(msg, result.MqList)
+
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
@@ -558,7 +657,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	
+
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
