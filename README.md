@@ -1,3 +1,6 @@
+## 注意！
+只是粗暴的把主仓库的代码merge了过来，merge的过程中出现的冲突直接用主仓库代码覆盖，不能保证现在master的代码没有问题。
+
 ## RocketMQ Client Go 
 [![Build Status](https://app.travis-ci.com/apache/rocketmq-client-go.svg?branch=master)](https://app.travis-ci.com/apache/rocketmq-client-go) 
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
