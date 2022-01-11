@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -33,12 +34,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-)
-
-var (
-	ErrTopicEmpty   = errors.New("topic is nil")
-	ErrMessageEmpty = errors.New("message is nil")
-	ErrNotRunning   = errors.New("producer not started")
 )
 
 type defaultProducer struct {
@@ -72,7 +67,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 		options:    defaultOpts,
 	}
 	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
-
+	producer.options.ClientOptions.Namesrv, err = internal.GetNamesrv(producer.client.ClientID())
+	if err != nil {
+		return nil, err
+	}
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
 	return producer, nil
@@ -95,16 +93,24 @@ func (p *defaultProducer) Shutdown() error {
 
 func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
-		return ErrNotRunning
+		return errors2.ErrNotRunning
 	}
 
 	if len(msgs) == 0 {
-		return errors.New("message is nil")
+		return errors2.ErrMessageEmpty
 	}
 
 	if len(msgs[0].Topic) == 0 {
-		return errors.New("topic is nil")
+		return errors2.ErrTopicEmpty
 	}
+
+	topic := msgs[0].Topic
+	for _, msg := range msgs {
+		if msg.Topic != topic {
+			return errors2.ErrMultipleTopics
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +149,8 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 		return nil, err
 	}
 
+	p.messagesWithNamespace(msgs...)
+
 	msg := p.encodeBatch(msgs...)
 
 	resp := primitive.NewSendResult()
@@ -179,10 +187,6 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
-	if p.options.Namespace != "" {
-		msg.Topic = p.options.Namespace + "%" + msg.Topic
-	}
-
 	var producerCtx *primitive.ProducerCtx
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
@@ -217,6 +221,8 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 		return err
 	}
 
+	p.messagesWithNamespace(msgs...)
+
 	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
@@ -230,9 +236,7 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 }
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
-	if p.options.Namespace != "" {
-		msg.Topic = p.options.Namespace + "%" + msg.Topic
-	}
+
 	mq := p.selectMessageQueue(msg)
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
@@ -260,6 +264,8 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Mes
 		return err
 	}
 
+	p.messagesWithNamespace(msgs...)
+
 	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
@@ -274,10 +280,6 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Mes
 
 func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message) error {
 	retryTime := 1 + p.options.RetryTimes
-
-	if p.options.Namespace != "" {
-		msg.Topic = p.options.Namespace + "%" + msg.Topic
-	}
 
 	var err error
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
@@ -302,12 +304,45 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 	return err
 }
 
+func (p *defaultProducer) messagesWithNamespace(msgs ...*primitive.Message) {
+
+	if p.options.Namespace == "" {
+		return
+	}
+
+	for _, msg := range msgs {
+		msg.Topic = p.options.Namespace + "%" + msg.Topic
+	}
+}
+
+func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
+	if msg.Compress {
+		return true
+	}
+	if msg.Batch {
+		return false
+	}
+	if len(msg.Body) < p.options.CompressMsgBodyOverHowmuch {
+		return false
+	}
+	compressedBody, e := utils.Compress(msg.Body, p.options.CompressLevel)
+	if e != nil {
+		return false
+	}
+	msg.Body = compressedBody
+	msg.Compress = true
+	return true
+}
+
 func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	msg *primitive.Message) *remote.RemotingCommand {
 	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
 		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
 	sysFlag := 0
+	if p.tryCompressMsg(msg) {
+		sysFlag = primitive.SetCompressedFlag(sysFlag)
+	}
 	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
 	if v != "" {
 		tranMsg, err := strconv.ParseBool(v)
@@ -440,13 +475,20 @@ func (tp *transactionProducer) checkTransactionState() {
 			if uniqueKey == "" {
 				uniqueKey = callback.Msg.MsgId
 			}
+			transactionId := callback.Msg.GetProperty(primitive.PropertyTransactionID)
+			if transactionId == "" {
+				transactionId = callback.Header.TransactionId
+			}
+			if transactionId == "" {
+				transactionId = callback.Msg.TransactionId
+			}
 			header := &internal.EndTransactionRequestHeader{
 				CommitLogOffset:      callback.Header.CommitLogOffset,
 				ProducerGroup:        tp.producer.group,
 				TranStateTableOffset: callback.Header.TranStateTableOffset,
 				FromTransactionCheck: true,
 				MsgID:                uniqueKey,
-				TransactionId:        callback.Header.TransactionId,
+				TransactionId:        transactionId,
 				CommitOrRollback:     tp.transactionState(localTransactionState),
 			}
 
@@ -516,7 +558,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	// 估计没有反序列化回来
+	
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,

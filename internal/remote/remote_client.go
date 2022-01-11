@@ -161,13 +161,13 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 			break
 		}
 
-		_, err = io.ReadFull(r, header)
+		_, err = io.ReadFull(r, *header)
 		if err != nil {
 			continue
 		}
 
 		var length int32
-		err = binary.Read(bytes.NewReader(header), binary.BigEndian, &length)
+		err = binary.Read(bytes.NewReader(*header), binary.BigEndian, &length)
 		if err != nil {
 			continue
 		}
@@ -278,11 +278,9 @@ func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingComm
 }
 
 func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
-	content, err := encode(request)
-	if err != nil {
-		return err
-	}
-	_, err = conn.Write(content)
+	conn.Lock()
+	defer conn.Unlock()
+	err := request.WriteTo(conn)
 	if err != nil {
 		c.closeConnection(conn)
 		return err

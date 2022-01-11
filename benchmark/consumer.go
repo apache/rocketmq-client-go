@@ -18,8 +18,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"sync"
@@ -85,13 +90,16 @@ func (s *consumeSnapshots) printStati() {
 	avgS2CRT := float64(l.store2ConsumerTotalRT-f.store2ConsumerTotalRT) / respSucCount
 	s.RUnlock()
 
-	fmt.Printf(
-		"Consume TPS: %d Average(B2C) RT: %7.3f Average(S2C) RT: %7.3f MAX(B2C) RT: %d MAX(S2C) RT: %d\n",
-		int64(consumeTps), avgB2CRT, avgS2CRT, l.born2ConsumerMaxRT, l.store2ConsumerMaxRT,
-	)
+	rlog.Info("Benchmark Consumer Snapshot", map[string]interface{}{
+		"consumeTPS": int64(consumeTps),
+		"average(B2C)RT": avgB2CRT,
+		"average(S2C)RT": avgS2CRT,
+		"max(B2C)RT": l.born2ConsumerMaxRT,
+		"max(S2C)RT": l.store2ConsumerMaxRT,
+	})
 }
 
-type consumer struct {
+type consumerBenchmark struct {
 	topic          string
 	groupPrefix    string
 	nameSrv        string
@@ -107,7 +115,7 @@ type consumer struct {
 }
 
 func init() {
-	c := &consumer{}
+	c := &consumerBenchmark{}
 	flags := flag.NewFlagSet("consumer", flag.ExitOnError)
 	c.flags = flags
 
@@ -123,87 +131,87 @@ func init() {
 	registerCommand("consumer", c)
 }
 
-func (c *consumer) consumeMsg(stati *statiBenchmarkConsumerSnapshot, exit chan struct{}) {
-	//consumer, err := rocketmq.NewPushConsumer(&rocketmq.PushConsumerConfig{
-	//	ClientConfig: rocketmq.ClientConfig{
-	//		GroupID:    c.groupID,
-	//		NameServer: c.nameSrv,
-	//	},
-	//	ThreadCount:         c.instanceCount,
-	//	MessageBatchMaxSize: 16,
-	//})
-	//if err != nil {
-	//	panic("new push consumer error:" + err.Error())
-	//}
-	//
-	//consumer.Subscribe(c.topic, c.expression, func(m *rocketmq.MessageExt) rocketmq.ConsumeStatus {
-	//	atomic.AddInt64(&stati.receiveMessageTotal, 1)
-	//	now := time.Now().UnixNano() / int64(time.Millisecond)
-	//	b2cRT := now - m.BornTimestamp
-	//	atomic.AddInt64(&stati.born2ConsumerTotalRT, b2cRT)
-	//	s2cRT := now - m.StoreTimestamp
-	//	atomic.AddInt64(&stati.store2ConsumerTotalRT, s2cRT)
-	//
-	//	for {
-	//		old := atomic.LoadInt64(&stati.born2ConsumerMaxRT)
-	//		if old >= b2cRT || atomic.CompareAndSwapInt64(&stati.born2ConsumerMaxRT, old, b2cRT) {
-	//			break
-	//		}
-	//	}
-	//
-	//	for {
-	//		old := atomic.LoadInt64(&stati.store2ConsumerMaxRT)
-	//		if old >= s2cRT || atomic.CompareAndSwapInt64(&stati.store2ConsumerMaxRT, old, s2cRT) {
-	//			break
-	//		}
-	//	}
-	//
-	//	return rocketmq.ConsumeSuccess
-	//})
-	//println("Start")
-	//consumer.Start()
-	//select {
-	//case <-exit:
-	//	consumer.Shutdown()
-	//	return
-	//}
+func (bc *consumerBenchmark) consumeMsg(stati *statiBenchmarkConsumerSnapshot, exit chan struct{}) {
+	c, err := rocketmq.NewPushConsumer(
+		consumer.WithGroupName(bc.groupID),
+		consumer.WithNameServer([]string{bc.nameSrv}),
+	)
+	if err != nil {
+		panic("new push consumer error:" + err.Error())
+	}
+
+	selector := consumer.MessageSelector{}
+	err = c.Subscribe(bc.topic, selector, func(ctx context.Context,
+		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		for _, msg := range msgs {
+			atomic.AddInt64(&stati.receiveMessageTotal, 1)
+			now := time.Now().UnixNano() / int64(time.Millisecond)
+			b2cRT := now - msg.BornTimestamp
+			atomic.AddInt64(&stati.born2ConsumerTotalRT, b2cRT)
+			s2cRT := now - msg.StoreTimestamp
+			atomic.AddInt64(&stati.store2ConsumerTotalRT, s2cRT)
+
+			for {
+				old := atomic.LoadInt64(&stati.born2ConsumerMaxRT)
+				if old >= b2cRT || atomic.CompareAndSwapInt64(&stati.born2ConsumerMaxRT, old, b2cRT) {
+					break
+				}
+			}
+
+			for {
+				old := atomic.LoadInt64(&stati.store2ConsumerMaxRT)
+				if old >= s2cRT || atomic.CompareAndSwapInt64(&stati.store2ConsumerMaxRT, old, s2cRT) {
+					break
+				}
+			}
+		}
+		return consumer.ConsumeSuccess, nil
+	})
+
+	rlog.Info("Test Start", nil)
+	c.Start()
+	select {
+	case <-exit:
+		c.Shutdown()
+		return
+	}
 }
 
-func (c *consumer) run(args []string) {
-	c.flags.Parse(args)
-	if c.topic == "" {
-		println("empty topic")
-		c.usage()
+func (bc *consumerBenchmark) run(args []string) {
+	bc.flags.Parse(args)
+	if bc.topic == "" {
+		rlog.Error("Empty Topic", nil)
+		bc.usage()
 		return
 	}
 
-	if c.groupPrefix == "" {
-		println("empty group prefix")
-		c.usage()
+	if bc.groupPrefix == "" {
+		rlog.Error("Empty Group Prefix", nil)
+		bc.usage()
 		return
 	}
 
-	if c.nameSrv == "" {
-		println("empty name server")
-		c.usage()
+	if bc.nameSrv == "" {
+		rlog.Error("Empty Nameserver", nil)
+		bc.usage()
 		return
 	}
 
-	if c.testMinutes <= 0 {
-		println("test time must be positive integer")
-		c.usage()
+	if bc.testMinutes <= 0 {
+		rlog.Error("Test Time Must Be Positive Integer", nil)
+		bc.usage()
 		return
 	}
 
-	if c.instanceCount <= 0 {
-		println("thread count must be positive integer")
-		c.usage()
+	if bc.instanceCount <= 0 {
+		rlog.Error("Thread Count Must Be Positive Integer", nil)
+		bc.usage()
 		return
 	}
 
-	c.groupID = c.groupPrefix
-	if c.isPrefixEnable {
-		c.groupID += fmt.Sprintf("_%d", time.Now().UnixNano()/int64(time.Millisecond)%100)
+	bc.groupID = bc.groupPrefix
+	if bc.isPrefixEnable {
+		bc.groupID += fmt.Sprintf("_%d", time.Now().UnixNano()/int64(time.Millisecond)%100)
 	}
 
 	stati := statiBenchmarkConsumerSnapshot{}
@@ -214,7 +222,7 @@ func (c *consumer) run(args []string) {
 
 	wg.Add(1)
 	go func() {
-		c.consumeMsg(&stati, exitChan)
+		bc.consumeMsg(&stati, exitChan)
 		wg.Done()
 	}()
 
@@ -253,17 +261,17 @@ func (c *consumer) run(args []string) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	select {
-	case <-time.Tick(time.Minute * time.Duration(c.testMinutes)):
+	case <-time.Tick(time.Minute * time.Duration(bc.testMinutes)):
 	case <-signalChan:
 	}
 
-	println("Closed")
 	close(exitChan)
 	wg.Wait()
 	snapshots.takeSnapshot()
 	snapshots.printStati()
+	rlog.Info("Test Done", nil)
 }
 
-func (c *consumer) usage() {
-	c.flags.Usage()
+func (bc *consumerBenchmark) usage() {
+	bc.flags.Usage()
 }

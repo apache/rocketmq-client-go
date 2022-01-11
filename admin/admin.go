@@ -158,38 +158,40 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	}
 
 	if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
-		if err != nil {
-			rlog.Error("delete topic in broker error", map[string]interface{}{
-				rlog.LogKeyTopic:         cfg.Topic,
-				rlog.LogKeyBroker:        cfg.BrokerAddr,
-				rlog.LogKeyUnderlayError: err,
-			})
-		}
+		rlog.Error("delete topic in broker error", map[string]interface{}{
+			rlog.LogKeyTopic:         cfg.Topic,
+			rlog.LogKeyBroker:        cfg.BrokerAddr,
+			rlog.LogKeyUnderlayError: err,
+		})
 		return err
 	}
 
 	//delete topic in nameserver
 	if len(cfg.NameSrvAddr) == 0 {
-		a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
+		_, _, err := a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
+		if err != nil {
+			rlog.Error("delete topic in nameserver error", map[string]interface{}{
+				rlog.LogKeyTopic: cfg.Topic,
+				rlog.LogKeyUnderlayError: err,
+			})
+		}
 		cfg.NameSrvAddr = a.namesrv.AddrList()
 	}
 
 	for _, nameSrvAddr := range cfg.NameSrvAddr {
 		if _, err := a.deleteTopicInNameServer(ctx, cfg.Topic, nameSrvAddr); err != nil {
-			if err != nil {
-				rlog.Error("delete topic in name server error", map[string]interface{}{
-					rlog.LogKeyTopic:         cfg.Topic,
-					"nameServer":             nameSrvAddr,
-					rlog.LogKeyUnderlayError: err,
-				})
-			}
+			rlog.Error("delete topic in nameserver error", map[string]interface{}{
+				"nameServer":             nameSrvAddr,
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyUnderlayError: err,
+			})
 			return err
 		}
 	}
 	rlog.Info("delete topic success", map[string]interface{}{
+		"nameServer":      cfg.NameSrvAddr,
 		rlog.LogKeyTopic:  cfg.Topic,
 		rlog.LogKeyBroker: cfg.BrokerAddr,
-		"nameServer":      cfg.NameSrvAddr,
 	})
 	return nil
 }

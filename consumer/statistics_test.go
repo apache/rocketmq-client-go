@@ -51,7 +51,8 @@ func TestNextHourTime(t *testing.T) {
 }
 
 func TestIncreasePullRTGetPullRT(t *testing.T) {
-	ShutDownStatis()
+	mgr := NewStatsManager()
+	mgr.ShutDownStat()
 
 	tests := []struct {
 		RT        int64
@@ -67,9 +68,9 @@ func TestIncreasePullRTGetPullRT(t *testing.T) {
 		{1, 6},
 	}
 	for _, tt := range tests {
-		increasePullRT("rocketmq", "default", tt.RT)
-		topicAndGroupPullRT.samplingInSeconds()
-		snapshot := getPullRT("rocketmq", "default")
+		mgr.increasePullRT("rocketmq", "default", tt.RT)
+		mgr.topicAndGroupPullRT.samplingInSeconds()
+		snapshot := mgr.getPullRT("rocketmq", "default")
 		if snapshot.sum != tt.ExpectSum {
 			t.Errorf("wrong Pull RT sum. want=%d, got=%d", tt.ExpectSum, snapshot.sum)
 		}
@@ -77,7 +78,7 @@ func TestIncreasePullRTGetPullRT(t *testing.T) {
 }
 
 //func TestIncreaseConsumeRTGetConsumeRT(t *testing.T) {
-//	ShutDownStatis()
+//	ShutDownStat()
 //	tests := []struct {
 //		RT        int64
 //		ExpectSum int64
@@ -102,7 +103,8 @@ func TestIncreasePullRTGetPullRT(t *testing.T) {
 //}
 
 func TestIncreasePullTPSGetPullTPS(t *testing.T) {
-	ShutDownStatis()
+	mgr := NewStatsManager()
+	mgr.ShutDownStat()
 	tests := []struct {
 		RT        int
 		ExpectSum int64
@@ -117,9 +119,9 @@ func TestIncreasePullTPSGetPullTPS(t *testing.T) {
 		{1, 6},
 	}
 	for _, tt := range tests {
-		increasePullTPS("rocketmq", "default", tt.RT)
-		topicAndGroupPullTPS.samplingInSeconds()
-		snapshot := getPullTPS("rocketmq", "default")
+		mgr.increasePullTPS("rocketmq", "default", tt.RT)
+		mgr.topicAndGroupPullTPS.samplingInSeconds()
+		snapshot := mgr.getPullTPS("rocketmq", "default")
 		if snapshot.sum != tt.ExpectSum {
 			t.Errorf("wrong Pull TPS sum. want=%d, got=%d", tt.ExpectSum, snapshot.sum)
 		}
@@ -127,7 +129,8 @@ func TestIncreasePullTPSGetPullTPS(t *testing.T) {
 }
 
 func TestIncreaseConsumeOKTPSGetConsumeOKTPS(t *testing.T) {
-	ShutDownStatis()
+	mgr := NewStatsManager()
+	mgr.ShutDownStat()
 	tests := []struct {
 		RT        int
 		ExpectSum int64
@@ -142,9 +145,9 @@ func TestIncreaseConsumeOKTPSGetConsumeOKTPS(t *testing.T) {
 		{1, 6},
 	}
 	for _, tt := range tests {
-		increaseConsumeOKTPS("rocketmq", "default", tt.RT)
-		topicAndGroupConsumeOKTPS.samplingInSeconds()
-		snapshot := getConsumeOKTPS("rocketmq", "default")
+		mgr.increaseConsumeOKTPS("rocketmq", "default", tt.RT)
+		mgr.topicAndGroupConsumeOKTPS.samplingInSeconds()
+		snapshot := mgr.getConsumeOKTPS("rocketmq", "default")
 		if snapshot.sum != tt.ExpectSum {
 			t.Errorf("wrong Consume OK TPS sum. want=%d, got=%d", tt.ExpectSum, snapshot.sum)
 		}
@@ -152,7 +155,8 @@ func TestIncreaseConsumeOKTPSGetConsumeOKTPS(t *testing.T) {
 }
 
 func TestIncreaseConsumeFailedTPSGetConsumeFailedTPS(t *testing.T) {
-	ShutDownStatis()
+	mgr := NewStatsManager()
+	mgr.ShutDownStat()
 	tests := []struct {
 		RT        int
 		ExpectSum int64
@@ -167,9 +171,9 @@ func TestIncreaseConsumeFailedTPSGetConsumeFailedTPS(t *testing.T) {
 		{1, 6},
 	}
 	for _, tt := range tests {
-		increaseConsumeFailedTPS("rocketmq", "default", tt.RT)
-		topicAndGroupConsumeFailedTPS.samplingInSeconds()
-		snapshot := getConsumeFailedTPS("rocketmq", "default")
+		mgr.increaseConsumeFailedTPS("rocketmq", "default", tt.RT)
+		mgr.topicAndGroupConsumeFailedTPS.samplingInSeconds()
+		snapshot := mgr.getConsumeFailedTPS("rocketmq", "default")
 		if snapshot.sum != tt.ExpectSum {
 			t.Errorf("wrong Consume Failed TPS sum. want=%d, got=%d", tt.ExpectSum, snapshot.sum)
 		}
@@ -177,7 +181,8 @@ func TestIncreaseConsumeFailedTPSGetConsumeFailedTPS(t *testing.T) {
 }
 
 func TestGetConsumeStatus(t *testing.T) {
-	ShutDownStatis()
+	mgr := NewStatsManager()
+	mgr.ShutDownStat()
 	group, topic := "rocketmq", "default"
 
 	tests := []struct {
@@ -191,17 +196,17 @@ func TestGetConsumeStatus(t *testing.T) {
 		{1, 4},
 	}
 	for _, tt := range tests {
-		increasePullRT(group, topic, int64(tt.RT))
-		increasePullTPS(group, topic, tt.RT)
-		increaseConsumeRT(group, topic, int64(tt.RT))
-		increaseConsumeOKTPS(group, topic, tt.RT)
-		increaseConsumeFailedTPS(group, topic, tt.RT)
-		topicAndGroupPullRT.samplingInSeconds()
-		topicAndGroupPullTPS.samplingInSeconds()
-		topicAndGroupConsumeRT.samplingInMinutes()
-		topicAndGroupConsumeOKTPS.samplingInSeconds()
-		topicAndGroupConsumeFailedTPS.samplingInMinutes()
-		status := GetConsumeStatus(group, topic)
+		mgr.increasePullRT(group, topic, int64(tt.RT))
+		mgr.increasePullTPS(group, topic, tt.RT)
+		mgr.increaseConsumeRT(group, topic, int64(tt.RT))
+		mgr.increaseConsumeOKTPS(group, topic, tt.RT)
+		mgr.increaseConsumeFailedTPS(group, topic, tt.RT)
+		mgr.topicAndGroupPullRT.samplingInSeconds()
+		mgr.topicAndGroupPullTPS.samplingInSeconds()
+		mgr.topicAndGroupConsumeRT.samplingInMinutes()
+		mgr.topicAndGroupConsumeOKTPS.samplingInSeconds()
+		mgr.topicAndGroupConsumeFailedTPS.samplingInMinutes()
+		status := mgr.GetConsumeStatus(group, topic)
 		if status.ConsumeFailedMsgs != tt.ExpectFailMessage {
 			t.Errorf("wrong ConsumeFailedMsg. want=0, got=%d", status.ConsumeFailedMsgs)
 		}

@@ -18,7 +18,7 @@ package remote
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -350,19 +350,29 @@ func TestCommandJsonIter(t *testing.T) {
 	cmd := NewRemotingCommand(192, h, []byte("Hello RocketMQCodecs"))
 	cmdData, err := json.Marshal(cmd)
 	assert.Nil(t, err)
-	fmt.Printf("cmd data from json: %v\n", *(*string)(unsafe.Pointer(&cmdData)))
+	rlog.Info("Command Data From Json", map[string]interface{}{
+		"data": *(*string)(unsafe.Pointer(&cmdData)),
+	})
 
 	data, err := jsoniter.Marshal(cmd)
 	assert.Nil(t, err)
-	fmt.Printf("cmd data from jsoniter: %v\n", *(*string)(unsafe.Pointer(&data)))
+	rlog.Info("Command Data From Jsoniter", map[string]interface{}{
+		"data": *(*string)(unsafe.Pointer(&data)),
+	})
 
 	var cmdResp RemotingCommand
 	err = json.Unmarshal(cmdData, &cmdResp)
 	assert.Nil(t, err)
-	fmt.Printf("cmd: %#v language: %v\n", cmdResp, cmdResp.Language)
+	rlog.Info("Json Decode Success", map[string]interface{}{
+		"cmd": cmdResp,
+		"language": cmdResp.Language,
+	})
 
 	var cmdResp2 RemotingCommand
 	err = json.Unmarshal(data, &cmdResp2)
 	assert.Nil(t, err)
-	fmt.Printf("cmd: %#v language: %v\n", cmdResp2, cmdResp2.Language)
+	rlog.Info("Json Decode Success", map[string]interface{}{
+		"cmd": cmdResp2,
+		"language": cmdResp2.Language,
+	})
 }

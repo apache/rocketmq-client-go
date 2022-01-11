@@ -17,6 +17,7 @@ env:
     - OS_TYPE=centos OS_VERSION=7
 
 before_script:
+  - export PROJECT_PATH=`pwd`
   - cd ${TRAVIS_HOME}
   - wget https://archive.apache.org/dist/rocketmq/4.6.0/rocketmq-all-4.6.0-bin-release.zip
   - unzip rocketmq-all-4.6.0-bin-release.zip
@@ -26,12 +27,9 @@ before_script:
   - nohup sh bin/mqbroker -n localhost:9876 &
 
 script:
-  - cd ${TRAVIS_HOME}
-  - ls -al
-  - cd ${GOPATH}/src/github.com/apache/rocketmq-client-go/v2
-  - ls -al
-  - go fmt ./... && [[ -z `git status -s` ]]
-  - go mod vendor && go test ./... -coverprofile=coverage.txt -covermode=atomic
+  - cd ${PROJECT_PATH}
+  #- go fmt ./... && [[ -z `git status -s` ]]
+  - go test ./... -coverprofile=coverage.txt -covermode=atomic
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash)
+  - bash < (curl -s https://codecov.io/bash)

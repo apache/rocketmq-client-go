@@ -19,7 +19,7 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"strings"
 	"testing"
 
@@ -46,7 +46,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(set)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer set: %s", string(v))
+			rlog.Info("Json Producer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("producer heatbeat", func() {
@@ -64,7 +66,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer: %s\n", string(v))
+			rlog.Info("Json Producer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("consumer heartbeat", func() {
@@ -81,7 +85,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json consumer: %s\n", string(v))
+			rlog.Info("Json Consumer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 
 		Convey("producer & consumer heartbeat", func() {
@@ -109,7 +115,9 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			fmt.Printf("json producer & consumer: %s\n", string(v))
+			rlog.Info("Json Producer and Consumer", map[string]interface{}{
+				"result": string(v),
+			})
 		})
 	})
 
@@ -360,5 +368,117 @@ func TestConsumerRunningInfo_MarshalJSON(t *testing.T) {
 			So(obj2M["lastPullTimestamp"].Int(), ShouldEqual, 1574791579242)
 			So(obj2M["lastConsumeTimestamp"].Int(), ShouldEqual, 1574791579221)
 		})
+	})
+}
+
+func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
+	Convey("test ConsumeMessageDirectlyResult MarshalJson", t, func() {
+		Convey("test consume success", func() {
+			consumeMessageDirectlyResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeMessageDirectlyResult.ConsumeResult = ConsumeSuccess
+			data, err := consumeMessageDirectlyResult.Encode()
+			So(err, ShouldBeNil)
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
+		})
+
+		Convey("test consume timeout", func() {
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 2,
+			}
+			consumeResult.ConsumeResult = ReturnNull
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
+		})
+
+		Convey("test consume exception", func() {
+			consumeResult := ConsumeMessageDirectlyResult{
+				Order:          false,
+				AutoCommit:     true,
+				SpentTimeMills: 5,
+			}
+			consumeResult.ConsumeResult = ThrowException
+			consumeResult.Remark = "Unknown Exception"
+			data, err := consumeResult.Encode()
+			So(err, ShouldBeNil)
+			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
+				"result": string(data),
+			})
+		})
+	})
+}
+
+func TestRestOffsetBody_MarshalJSON(t *testing.T) {
+	Convey("test ResetOffset Body Decode gson json schema", t, func() {
+		body := "{\"offsetTable\":[[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":5},23354233],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":4},23354245],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":7},23354203],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":6},23354312],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":1},23373517],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":0},23373350],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":3},23373424],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":2},23373382]]}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 8)
+		messageQueue := primitive.MessageQueue{
+			Topic:      "zx_tst",
+			BrokerName: "tjwqtst-common-rocketmq-raft0",
+			QueueId:    5,
+		}
+		So(offsetTable[messageQueue], ShouldEqual, 23354233)
+	})
+
+	Convey("test ResetOffset Body Decode fast json schema", t, func() {
+		body := "{\"offsetTable\":{{\"brokerName\":\"RaftNode00\",\"queueId\":0,\"topic\":\"topicB\"}:11110,{\"brokerName\":\"RaftNode00\",\"queueId\":1,\"topic\":\"topicB\"}:0,{\"brokerName\":\"RaftNode00\",\"queueId\":2,\"topic\":\"topicB\"}:0,{\"brokerName\":\"RaftNode00\",\"queueId\":3,\"topic\":\"topicB\"}:0}}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 4)
+		messageQueue := primitive.MessageQueue{
+			Topic:      "topicB",
+			BrokerName: "RaftNode00",
+			QueueId:    0,
+		}
+		So(offsetTable[messageQueue], ShouldEqual, 11110)
+	})
+
+	Convey("test ResetOffset Body Decode fast json schema with one item", t, func() {
+		body := "{\"offsetTable\":{{\"brokerName\":\"RaftNode00\",\"queueId\":0,\"topic\":\"topicB\"}:11110}}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 1)
+		messageQueue := primitive.MessageQueue{
+			Topic:      "topicB",
+			BrokerName: "RaftNode00",
+			QueueId:    0,
+		}
+		So(offsetTable[messageQueue], ShouldEqual, 11110)
+	})
+
+	Convey("test ResetOffset Body Decode empty fast json ", t, func() {
+		body := "{\"offsetTable\":{}}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 0)
+	})
+
+	Convey("test ResetOffset Body Decode empty gson json ", t, func() {
+		body := "{\"offsetTable\":[]}"
+		resetOffsetBody := new(ResetOffsetBody)
+		resetOffsetBody.Decode([]byte(body))
+		offsetTable := resetOffsetBody.OffsetTable
+		So(offsetTable, ShouldNotBeNil)
+		So(len(offsetTable), ShouldEqual, 0)
 	})
 }

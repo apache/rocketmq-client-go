@@ -19,7 +19,7 @@ package consumer
 
 import (
 	"context"
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -48,9 +48,30 @@ func TestStart(t *testing.T) {
 
 		err := c.Subscribe("TopicTest", MessageSelector{}, func(ctx context.Context,
 			msgs ...*primitive.MessageExt) (ConsumeResult, error) {
-			fmt.Printf("subscribe callback: %v \n", msgs)
+			rlog.Info("Subscribe Callback", map[string]interface{}{
+				"msgs": msgs,
+			})
 			return ConsumeSuccess, nil
 		})
+
+		_, exists := c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeTrue)
+
+		err = c.Unsubscribe("TopicTest")
+		So(err, ShouldBeNil)
+		_, exists = c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeFalse)
+
+		err = c.Subscribe("TopicTest", MessageSelector{}, func(ctx context.Context,
+			msgs ...*primitive.MessageExt) (ConsumeResult, error) {
+			rlog.Info("Subscribe Callback", map[string]interface{}{
+				"msgs": msgs,
+			})
+			return ConsumeSuccess, nil
+		})
+
+		_, exists = c.subscriptionDataTable.Load("TopicTest")
+		So(exists, ShouldBeTrue)
 
 		client.EXPECT().ClientID().Return("127.0.0.1@DEFAULT")
 		client.EXPECT().Start().Return()

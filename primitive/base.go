@@ -18,19 +18,21 @@ limitations under the License.
 package primitive
 
 import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"regexp"
 	"strings"
 )
 
 var (
-	ipRegex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
+	ipv4Regex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
+	ipv6Regex, _ = regexp.Compile(`(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))`)
 )
 
 type NamesrvAddr []string
 
 func NewNamesrvAddr(s ...string) (NamesrvAddr, error) {
 	if len(s) == 0 {
-		return nil, ErrNoNameserver
+		return nil, errors.ErrNoNameserver
 	}
 
 	ss := s
@@ -68,15 +70,17 @@ func verifyIP(ip string) error {
 		return nil
 	}
 	if strings.Contains(ip, ";") {
-		return ErrMultiIP
+		return errors.ErrMultiIP
 	}
-	ips := ipRegex.FindAllString(ip, -1)
-	if len(ips) == 0 {
-		return ErrIllegalIP
+	ipV4s := ipv4Regex.FindAllString(ip, -1)
+	ipV6s := ipv6Regex.FindAllString(ip, -1)
+
+	if len(ipV4s) == 0 && len(ipV6s) == 0 {
+		return errors.ErrIllegalIP
 	}
 
-	if len(ips) > 1 {
-		return ErrMultiIP
+	if len(ipV4s) > 1 || len(ipV6s) > 1 {
+		return errors.ErrMultiIP
 	}
 	return nil
 }

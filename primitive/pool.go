@@ -27,20 +27,21 @@ var bufferPool = sync.Pool{}
 
 func init() {
 	headerPool.New = func() interface{} {
-		return make([]byte, 4)
+		b := make([]byte, 4)
+		return &b
 	}
 	bufferPool.New = func() interface{} {
 		return new(bytes.Buffer)
 	}
 }
 
-func GetHeader() []byte {
-	d := headerPool.Get().([]byte)
+func GetHeader() *[]byte {
+	d := headerPool.Get().(*[]byte)
 	//d = (d)[:0]
 	return d
 }
 
-func BackHeader(d []byte) {
+func BackHeader(d *[]byte) {
 	headerPool.Put(d)
 }
 

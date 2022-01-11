@@ -19,6 +19,7 @@ package producer
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -30,7 +31,8 @@ import (
 )
 
 const (
-	topic = "TopicTest"
+	topic          = "TopicTest"
+	namespaceTopic = "Test%TopicTest"
 )
 
 func TestShutdown(t *testing.T) {
@@ -59,17 +61,17 @@ func TestShutdown(t *testing.T) {
 	msg := new(primitive.Message)
 
 	r, err := p.SendSync(ctx, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, errors.ErrNotRunning, err)
 	assert.Nil(t, r)
 
 	err = p.SendOneWay(ctx, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, errors.ErrNotRunning, err)
 
 	f := func(context.Context, *primitive.SendResult, error) {
 		assert.False(t, true, "should not  come in")
 	}
 	err = p.SendAsync(ctx, f, msg)
-	assert.Equal(t, ErrNotRunning, err)
+	assert.Equal(t, errors.ErrNotRunning, err)
 }
 
 func mockB4Send(p *defaultProducer) {
@@ -78,6 +80,16 @@ func mockB4Send(p *defaultProducer) {
 		MqList: []*primitive.MessageQueue{
 			{
 				Topic:      topic,
+				BrokerName: "aa",
+				QueueId:    0,
+			},
+		},
+	})
+	p.publishInfo.Store(namespaceTopic, &internal.TopicPublishInfo{
+		HaveTopicRouterInfo: true,
+		MqList: []*primitive.MessageQueue{
+			{
+				Topic:      namespaceTopic,
 				BrokerName: "aa",
 				QueueId:    0,
 			},
@@ -244,4 +256,91 @@ func TestOneway(t *testing.T) {
 
 	err = p.SendOneWay(ctx, msg)
 	assert.Nil(t, err)
+}
+
+func TestSyncWithNamespace(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+		WithQueueSelector(NewManualQueueSelector()),
+		WithNamespace("Test"),
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	p.client = client
+
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().Start().Return()
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msg := &primitive.Message{
+		Topic: topic,
+		Body:  []byte("this is a message body"),
+		Queue: &primitive.MessageQueue{
+			Topic:      namespaceTopic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
+	}
+	msg.WithProperty("key", "value")
+
+	expectedResp := &primitive.SendResult{
+		Status:      primitive.SendOK,
+		MsgID:       "111",
+		QueueOffset: 0,
+		OffsetMsgID: "0",
+	}
+
+	mockB4Send(p)
+
+	client.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
+	client.EXPECT().ProcessSendResponse(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) {
+			resp.Status = expectedResp.Status
+			resp.MsgID = expectedResp.MsgID
+			resp.QueueOffset = expectedResp.QueueOffset
+			resp.OffsetMsgID = expectedResp.OffsetMsgID
+		})
+	resp, err := p.SendSync(ctx, msg)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedResp, resp)
+	assert.Equal(t, namespaceTopic, msg.Topic)
+}
+
+func TestBatchSendDifferentTopics(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+		WithQueueSelector(NewManualQueueSelector()),
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	p.client = client
+
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
+	client.EXPECT().Start().Return()
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msgToA := &primitive.Message{
+		Topic: "topic-A",
+		Body:  []byte("this is a message body"),
+	}
+
+	msgToB := &primitive.Message{
+		Topic: "topic-B",
+		Body:  []byte("this is a message body"),
+	}
+
+	resp, err := p.SendSync(ctx, []*primitive.Message{msgToA, msgToB}...)
+	assert.Nil(t, resp)
+	assert.NotNil(t, err)
+	assert.Equal(t, err, errors.ErrMultipleTopics)
 }

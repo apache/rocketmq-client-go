@@ -18,6 +18,7 @@ package primitive
 
 import (
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -65,7 +66,9 @@ func TestHttpResolverWithGet(t *testing.T) {
 
 		port := listener.Addr().(*net.TCPAddr).Port
 		nameServerDommain := fmt.Sprintf("http://127.0.0.1:%d/nameserver/addrs2", port)
-		fmt.Println("temporary name server domain: ", nameServerDommain)
+		rlog.Info("Temporary Nameserver", map[string]interface{}{
+			"domain": nameServerDommain,
+		})
 
 		resolver := NewHttpResolver("DEFAULT", nameServerDommain)
 		resolver.Resolve()

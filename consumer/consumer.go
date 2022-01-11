@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,7 +30,6 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -66,11 +66,6 @@ const (
 	_PushConsume = ConsumeType("CONSUME_PASSIVELY")
 
 	_SubAll = "*"
-)
-
-var (
-	ErrCreated        = errors.New("consumer group has been created")
-	ErrBrokerNotFound = errors.New("broker can not found")
 )
 
 // Message model defines the way how messages are delivered to each consumer clients.
@@ -271,6 +266,8 @@ type defaultConsumer struct {
 	namesrv internal.Namesrvs
 
 	pullFromWhichNodeTable sync.Map
+
+	stat *StatsManager
 }
 
 func (dc *defaultConsumer) start() error {
@@ -291,6 +288,7 @@ func (dc *defaultConsumer) start() error {
 	dc.client.Start()
 	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
+	dc.stat = NewStatsManager()
 	return nil
 }
 
@@ -302,9 +300,14 @@ func (dc *defaultConsumer) shutdown() error {
 		k := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
 		pq.WithDropped(true)
+		// close msg channel using RWMutex to make sure no data was writing
+		pq.mutex.Lock()
+		close(pq.msgCh)
+		pq.mutex.Unlock()
 		mqs = append(mqs, &k)
 		return true
 	})
+	dc.stat.ShutDownStat()
 	dc.storage.persist(mqs)
 	dc.client.Shutdown()
 	return nil
@@ -814,7 +817,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		rlog.Warning("no broker found for mq", map[string]interface{}{
 			rlog.LogKeyMessageQueue: queue,
 		})
-		return nil, ErrBrokerNotFound
+		return nil, errors.ErrBrokerNotFound
 	}
 
 	if brokerResult.Slave {
@@ -985,6 +988,7 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		SubString: selector.Expression,
 		ExpType:   string(selector.Type),
 	}
+	subData.SubVersion = time.Now().UnixNano()
 
 	if selector.Type != "" && selector.Type != TAG {
 		return subData

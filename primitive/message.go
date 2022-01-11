@@ -59,6 +59,7 @@ const (
 	PropertyTranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 	PropertyShardingKey                    = "SHARDING_KEY"
+	PropertyTransactionID                  = "__transactionId__"
 )
 
 type Message struct {
@@ -67,6 +68,7 @@ type Message struct {
 	Flag          int32
 	TransactionId string
 	Batch         bool
+	Compress      bool
 	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue
@@ -318,22 +320,39 @@ func DecodeMessage(data []byte) []*MessageExt {
 		binary.Read(buf, binary.BigEndian, &msg.BornTimestamp)
 		count += 8
 
+		var (
+			port      int32
+			hostBytes []byte
+		)
 		// 10. born host
-		hostBytes := buf.Next(4)
-		var port int32
-		binary.Read(buf, binary.BigEndian, &port)
-		msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
-		count += 8
+		if msg.SysFlag&FlagBornHostV6 == FlagBornHostV6 {
+			hostBytes = buf.Next(16)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 20
+		} else {
+			hostBytes = buf.Next(4)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.BornHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 8
+		}
 
 		// 11. store timestamp
 		binary.Read(buf, binary.BigEndian, &msg.StoreTimestamp)
 		count += 8
 
 		// 12. store host
-		hostBytes = buf.Next(4)
-		binary.Read(buf, binary.BigEndian, &port)
-		msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
-		count += 8
+		if msg.SysFlag&FlagStoreHostV6 == FlagStoreHostV6 {
+			hostBytes = buf.Next(16)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 20
+		} else {
+			hostBytes = buf.Next(4)
+			binary.Read(buf, binary.BigEndian, &port)
+			msg.StoreHost = fmt.Sprintf("%s:%d", utils.GetAddressByBytes(hostBytes), port)
+			count += 8
+		}
 
 		// 13. reconsume times
 		binary.Read(buf, binary.BigEndian, &msg.ReconsumeTimes)
@@ -496,6 +515,10 @@ func ResetTransactionValue(flag int, typeFlag int) int {
 
 func ClearCompressedFlag(flag int) int {
 	return flag & (^CompressedFlag)
+}
+
+func SetCompressedFlag(flag int) int {
+	return flag | CompressedFlag
 }
 
 var (
