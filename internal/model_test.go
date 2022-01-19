@@ -19,13 +19,18 @@ package internal
 
 import (
 	"encoding/json"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"strings"
 	"testing"
+)
 
+import (
 	. "github.com/smartystreets/goconvey/convey"
-	"github.com/tidwall/gjson"
 
+	"github.com/tidwall/gjson"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
@@ -46,9 +51,7 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(set)
 			So(err, ShouldBeNil)
-			rlog.Info("Json Producer", map[string]interface{}{
-				"result": string(v),
-			})
+			fmt.Printf("json producer set: %s", string(v))
 		})
 
 		Convey("producer heatbeat", func() {
@@ -66,9 +69,7 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			rlog.Info("Json Producer", map[string]interface{}{
-				"result": string(v),
-			})
+			fmt.Printf("json producer: %s\n", string(v))
 		})
 
 		Convey("consumer heartbeat", func() {
@@ -85,9 +86,7 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			rlog.Info("Json Consumer", map[string]interface{}{
-				"result": string(v),
-			})
+			fmt.Printf("json consumer: %s\n", string(v))
 		})
 
 		Convey("producer & consumer heartbeat", func() {
@@ -115,9 +114,7 @@ func TestHeartbeatData(t *testing.T) {
 
 			v, err := json.Marshal(hbt)
 			So(err, ShouldBeNil)
-			rlog.Info("Json Producer and Consumer", map[string]interface{}{
-				"result": string(v),
-			})
+			fmt.Printf("json producer & consumer: %s\n", string(v))
 		})
 	})
 
@@ -382,9 +379,7 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeMessageDirectlyResult.ConsumeResult = ConsumeSuccess
 			data, err := consumeMessageDirectlyResult.Encode()
 			So(err, ShouldBeNil)
-			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
-				"result": string(data),
-			})
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
 		})
 
 		Convey("test consume timeout", func() {
@@ -396,9 +391,7 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeResult.ConsumeResult = ReturnNull
 			data, err := consumeResult.Encode()
 			So(err, ShouldBeNil)
-			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
-				"result": string(data),
-			})
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
 		})
 
 		Convey("test consume exception", func() {
@@ -411,15 +404,13 @@ func TestConsumeMessageDirectlyResult_MarshalJSON(t *testing.T) {
 			consumeResult.Remark = "Unknown Exception"
 			data, err := consumeResult.Encode()
 			So(err, ShouldBeNil)
-			rlog.Info("Json consumeMessageDirectlyResult", map[string]interface{}{
-				"result": string(data),
-			})
+			fmt.Printf("json consumeMessageDirectlyResult: %s\n", string(data))
 		})
 	})
 }
 
 func TestRestOffsetBody_MarshalJSON(t *testing.T) {
-	Convey("test ResetOffset Body Decode gson json schema", t, func() {
+	Convey("test ResetOffset Body Decode", t, func() {
 		body := "{\"offsetTable\":[[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":5},23354233],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":4},23354245],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":7},23354203],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":6},23354312],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":1},23373517],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":0},23373350],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":3},23373424],[{\"topic\":\"zx_tst\",\"brokerName\":\"tjwqtst-common-rocketmq-raft0\",\"queueId\":2},23373382]]}"
 		resetOffsetBody := new(ResetOffsetBody)
 		resetOffsetBody.Decode([]byte(body))
@@ -432,53 +423,5 @@ func TestRestOffsetBody_MarshalJSON(t *testing.T) {
 			QueueId:    5,
 		}
 		So(offsetTable[messageQueue], ShouldEqual, 23354233)
-	})
-
-	Convey("test ResetOffset Body Decode fast json schema", t, func() {
-		body := "{\"offsetTable\":{{\"brokerName\":\"RaftNode00\",\"queueId\":0,\"topic\":\"topicB\"}:11110,{\"brokerName\":\"RaftNode00\",\"queueId\":1,\"topic\":\"topicB\"}:0,{\"brokerName\":\"RaftNode00\",\"queueId\":2,\"topic\":\"topicB\"}:0,{\"brokerName\":\"RaftNode00\",\"queueId\":3,\"topic\":\"topicB\"}:0}}"
-		resetOffsetBody := new(ResetOffsetBody)
-		resetOffsetBody.Decode([]byte(body))
-		offsetTable := resetOffsetBody.OffsetTable
-		So(offsetTable, ShouldNotBeNil)
-		So(len(offsetTable), ShouldEqual, 4)
-		messageQueue := primitive.MessageQueue{
-			Topic:      "topicB",
-			BrokerName: "RaftNode00",
-			QueueId:    0,
-		}
-		So(offsetTable[messageQueue], ShouldEqual, 11110)
-	})
-
-	Convey("test ResetOffset Body Decode fast json schema with one item", t, func() {
-		body := "{\"offsetTable\":{{\"brokerName\":\"RaftNode00\",\"queueId\":0,\"topic\":\"topicB\"}:11110}}"
-		resetOffsetBody := new(ResetOffsetBody)
-		resetOffsetBody.Decode([]byte(body))
-		offsetTable := resetOffsetBody.OffsetTable
-		So(offsetTable, ShouldNotBeNil)
-		So(len(offsetTable), ShouldEqual, 1)
-		messageQueue := primitive.MessageQueue{
-			Topic:      "topicB",
-			BrokerName: "RaftNode00",
-			QueueId:    0,
-		}
-		So(offsetTable[messageQueue], ShouldEqual, 11110)
-	})
-
-	Convey("test ResetOffset Body Decode empty fast json ", t, func() {
-		body := "{\"offsetTable\":{}}"
-		resetOffsetBody := new(ResetOffsetBody)
-		resetOffsetBody.Decode([]byte(body))
-		offsetTable := resetOffsetBody.OffsetTable
-		So(offsetTable, ShouldNotBeNil)
-		So(len(offsetTable), ShouldEqual, 0)
-	})
-
-	Convey("test ResetOffset Body Decode empty gson json ", t, func() {
-		body := "{\"offsetTable\":[]}"
-		resetOffsetBody := new(ResetOffsetBody)
-		resetOffsetBody.Decode([]byte(body))
-		offsetTable := resetOffsetBody.OffsetTable
-		So(offsetTable, ShouldNotBeNil)
-		So(len(offsetTable), ShouldEqual, 0)
 	})
 }

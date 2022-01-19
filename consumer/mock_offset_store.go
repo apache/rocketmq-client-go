@@ -23,9 +23,14 @@ package consumer
 
 import (
 	reflect "reflect"
+)
 
-	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
+import (
 	gomock "github.com/golang/mock/gomock"
+)
+
+import (
+	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 // MockOffsetStore is a mock of OffsetStore interface

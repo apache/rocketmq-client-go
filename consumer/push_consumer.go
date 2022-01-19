@@ -27,9 +27,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	"github.com/pkg/errors"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -45,7 +49,6 @@ import (
 // See quick start/Consumer in the example module for a typical usage.
 //
 // <strong>Thread Safety:</strong> After initialization, the instance can be regarded as thread-safe.
-
 const (
 	Mb = 1024 * 1024
 )

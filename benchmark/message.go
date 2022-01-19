@@ -17,7 +17,9 @@
 
 package main
 
-import "strings"
+import (
+	"strings"
+)
 
 var (
 	longText    = ""

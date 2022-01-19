@@ -20,7 +20,9 @@ import (
 	"context"
 	"net"
 	"sync"
+)
 
+import (
 	"go.uber.org/atomic"
 )
 

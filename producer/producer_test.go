@@ -19,12 +19,16 @@ package producer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"testing"
+)
 
+import (
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 
+	"github.com/stretchr/testify/assert"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -61,17 +65,17 @@ func TestShutdown(t *testing.T) {
 	msg := new(primitive.Message)
 
 	r, err := p.SendSync(ctx, msg)
-	assert.Equal(t, errors.ErrNotRunning, err)
+	assert.Equal(t, ErrNotRunning, err)
 	assert.Nil(t, r)
 
 	err = p.SendOneWay(ctx, msg)
-	assert.Equal(t, errors.ErrNotRunning, err)
+	assert.Equal(t, ErrNotRunning, err)
 
 	f := func(context.Context, *primitive.SendResult, error) {
 		assert.False(t, true, "should not  come in")
 	}
 	err = p.SendAsync(ctx, f, msg)
-	assert.Equal(t, errors.ErrNotRunning, err)
+	assert.Equal(t, ErrNotRunning, err)
 }
 
 func mockB4Send(p *defaultProducer) {
@@ -309,38 +313,4 @@ func TestSyncWithNamespace(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, expectedResp, resp)
 	assert.Equal(t, namespaceTopic, msg.Topic)
-}
-
-func TestBatchSendDifferentTopics(t *testing.T) {
-	p, _ := NewDefaultProducer(
-		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
-		WithRetry(2),
-		WithQueueSelector(NewManualQueueSelector()),
-	)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	client := internal.NewMockRMQClient(ctrl)
-	p.client = client
-
-	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return()
-	client.EXPECT().Start().Return()
-	err := p.Start()
-	assert.Nil(t, err)
-
-	ctx := context.Background()
-	msgToA := &primitive.Message{
-		Topic: "topic-A",
-		Body:  []byte("this is a message body"),
-	}
-
-	msgToB := &primitive.Message{
-		Topic: "topic-B",
-		Body:  []byte("this is a message body"),
-	}
-
-	resp, err := p.SendSync(ctx, []*primitive.Message{msgToA, msgToB}...)
-	assert.Nil(t, resp)
-	assert.NotNil(t, err)
-	assert.Equal(t, err, errors.ErrMultipleTopics)
 }

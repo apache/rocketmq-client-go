@@ -20,9 +20,14 @@ package consumer
 import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
+)
 
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+import (
 	. "github.com/smartystreets/goconvey/convey"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 func TestAllocateByAveragely(t *testing.T) {
@@ -477,8 +482,8 @@ func TestAllocateByConsistentHash(t *testing.T) {
 			for _, value := range cases {
 				result := strategy("testGroup", value.currentCid, value.mqAll, value.cidAll)
 				rlog.Info("Result Of AllocateByMachineRoom", map[string]interface{}{
-					"currentCid": value.currentCid,
-					"cidAll": value.cidAll,
+					"currentCid":     value.currentCid,
+					"cidAll":         value.cidAll,
 					"allocateResult": result,
 				})
 			}

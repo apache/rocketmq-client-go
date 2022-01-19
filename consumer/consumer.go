@@ -20,18 +20,23 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/tidwall/gjson"
+	"github.com/pkg/errors"
 
+	"github.com/tidwall/gjson"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -66,6 +71,11 @@ const (
 	_PushConsume = ConsumeType("CONSUME_PASSIVELY")
 
 	_SubAll = "*"
+)
+
+var (
+	ErrCreated        = errors.New("consumer group has been created")
+	ErrBrokerNotFound = errors.New("broker can not found")
 )
 
 // Message model defines the way how messages are delivered to each consumer clients.
@@ -817,7 +827,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		rlog.Warning("no broker found for mq", map[string]interface{}{
 			rlog.LogKeyMessageQueue: queue,
 		})
-		return nil, errors.ErrBrokerNotFound
+		return nil, ErrBrokerNotFound
 	}
 
 	if brokerResult.Slave {
@@ -988,7 +998,6 @@ func buildSubscriptionData(topic string, selector MessageSelector) *internal.Sub
 		SubString: selector.Expression,
 		ExpType:   string(selector.Type),
 	}
-	subData.SubVersion = time.Now().UnixNano()
 
 	if selector.Type != "" && selector.Type != TAG {
 		return subData

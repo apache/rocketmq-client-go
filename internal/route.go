@@ -27,10 +27,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	jsoniter "github.com/json-iterator/go"
-	"github.com/tidwall/gjson"
 
+	"github.com/tidwall/gjson"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"

@@ -25,7 +25,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+)
 
+import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 

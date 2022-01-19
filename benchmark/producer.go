@@ -20,16 +20,19 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/apache/rocketmq-client-go/v2"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/producer"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/producer"
 )
 
 type statiBenchmarkProducerSnapshot struct {
@@ -91,14 +94,10 @@ func (s *produceSnapshots) printStati() {
 	maxRT := atomic.LoadInt64(&s.cur.sendMessageMaxRT)
 	s.RUnlock()
 
-	rlog.Info("Benchmark Producer Snapshot", map[string]interface{}{
-		"sendTps": int64(sendTps),
-		"maxRt": maxRT,
-		"averageRt": avgRT,
-		"sendFailed": l.sendRequestFailedCount,
-		"responseFailed": l.receiveResponseFailedCount,
-		"total": l.receiveResponseSuccessCount,
-	})
+	fmt.Printf(
+		"Send TPS: %d Max RT: %d Average RT: %7.3f Send Failed: %d Response Failed: %d Total:%d\n",
+		int64(sendTps), maxRT, avgRT, l.sendRequestFailedCount, l.receiveResponseFailedCount, l.receiveResponseSuccessCount,
+	)
 }
 
 type producerBenchmark struct {
@@ -134,9 +133,7 @@ func (bp *producerBenchmark) produceMsg(stati *statiBenchmarkProducerSnapshot, e
 	)
 
 	if err != nil {
-		rlog.Error("New Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("new producer error: %s\n", err)
 		return
 	}
 
@@ -158,9 +155,7 @@ AGAIN:
 	r, err := p.SendSync(context.Background(), primitive.NewMessage(topic, []byte(msgStr)))
 
 	if err != nil {
-		rlog.Error("Send Message Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
-		})
+		fmt.Printf("send message sync error:%s", err)
 		goto AGAIN
 	}
 
@@ -178,11 +173,8 @@ AGAIN:
 		}
 		goto AGAIN
 	}
-	rlog.Error("Send Message Error", map[string]interface{}{
-		"topic": topic,
-		"tag": tag,
-		rlog.LogKeyUnderlayError: err.Error(),
-	})
+
+	fmt.Printf("%v send message %s:%s error:%s\n", time.Now(), topic, tag, err.Error())
 	goto AGAIN
 }
 
@@ -190,34 +182,34 @@ func (bp *producerBenchmark) run(args []string) {
 	bp.flags.Parse(args)
 
 	if bp.topic == "" {
-		rlog.Error("Empty Topic", nil)
+		println("empty topic")
 		bp.flags.Usage()
 		return
 	}
 
 	if bp.groupID == "" {
-		rlog.Error("Empty Group Id", nil)
+		println("empty group id")
 		bp.flags.Usage()
 		return
 	}
 
 	if bp.nameSrv == "" {
-		rlog.Error("Empty Nameserver", nil)
+		println("empty namesrv")
 		bp.flags.Usage()
 		return
 	}
 	if bp.instanceCount <= 0 {
-		rlog.Error("Instance Count Must Be Positive Integer", nil)
+		println("instance count must be positive integer")
 		bp.flags.Usage()
 		return
 	}
 	if bp.testMinutes <= 0 {
-		rlog.Error("Test Time Must Be Positive Integer", nil)
+		println("test time must be positive integer")
 		bp.flags.Usage()
 		return
 	}
 	if bp.bodySize <= 0 {
-		rlog.Error("Body Size Must Be Positive Integer", nil)
+		println("body size must be positive integer")
 		bp.flags.Usage()
 		return
 	}
@@ -232,9 +224,7 @@ func (bp *producerBenchmark) run(args []string) {
 		go func() {
 			wg.Add(1)
 			bp.produceMsg(&stati, exitChan)
-			rlog.Info("Producer Done and Exit", map[string]interface{}{
-				"id": i,
-			})
+			fmt.Printf("exit of produce %d\n", i)
 			wg.Done()
 		}()
 	}
@@ -282,7 +272,7 @@ func (bp *producerBenchmark) run(args []string) {
 	wg.Wait()
 	snapshots.takeSnapshot()
 	snapshots.printStati()
-	rlog.Info("Test Done", nil)
+	fmt.Println("TEST DONE")
 }
 
 func (bp *producerBenchmark) usage() {

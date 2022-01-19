@@ -25,7 +25,9 @@ import (
 	"path"
 	"strings"
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 

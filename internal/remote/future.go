@@ -19,8 +19,11 @@ package remote
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 )
 
 // ResponseFuture
@@ -61,7 +64,7 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 	case <-r.Done:
 		cmd, err = r.ResponseCommand, r.Err
 	case <-r.ctx.Done():
-		err = errors.ErrRequestTimeout
+		err = utils.ErrRequestTimeout
 		r.Err = err
 	}
 	return cmd, err

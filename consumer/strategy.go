@@ -19,9 +19,13 @@ package consumer
 
 import (
 	"strings"
+)
 
+import (
 	"github.com/stathat/consistent"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
@@ -40,7 +44,6 @@ import (
 // Use Message QueueID specified
 // Computer room Hashing queue algorithm, such as Alipay logic room
 // Consistent Hashing queue algorithm
-
 type AllocateStrategy func(string, string, []*primitive.MessageQueue, []string) []*primitive.MessageQueue
 
 func AllocateByAveragely(consumerGroup, currentCID string, mqAll []*primitive.MessageQueue,

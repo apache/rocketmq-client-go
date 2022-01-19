@@ -20,7 +20,9 @@ package rlog
 import (
 	"os"
 	"strings"
+)
 
+import (
 	"github.com/sirupsen/logrus"
 )
 

@@ -26,8 +26,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+)
 
 	"github.com/stretchr/testify/assert"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 )
 
 func TestNewResponseFuture(t *testing.T) {

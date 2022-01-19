@@ -21,15 +21,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
 	"sort"
 	"strconv"
 	"strings"
+)
 
+import (
+	jsoniter "github.com/json-iterator/go"
+
+	"github.com/tidwall/gjson"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 type FindBrokerResult struct {

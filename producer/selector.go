@@ -22,7 +22,9 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 

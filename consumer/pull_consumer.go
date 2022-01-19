@@ -20,13 +20,17 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"sync/atomic"
+)
 
+import (
 	"github.com/pkg/errors"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -93,7 +97,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 
 		namesrv: srvs,
 	}
-	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
+
 	c := &defaultPullConsumer{
 		defaultConsumer: dc,
 	}
@@ -174,15 +178,15 @@ func (dc *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQ
 	}
 
 	if mq == nil {
-		return errors2.ErrMQEmpty
+		return utils.ErrMQEmpty
 	}
 
 	if offset < 0 {
-		return errors2.ErrOffset
+		return utils.ErrOffset
 	}
 
 	if numbers <= 0 {
-		return errors2.ErrNumbers
+		return utils.ErrNumbers
 	}
 	return nil
 }

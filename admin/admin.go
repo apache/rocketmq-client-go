@@ -21,7 +21,9 @@ import (
 	"context"
 	"sync"
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -171,7 +173,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		_, _, err := a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
 		if err != nil {
 			rlog.Error("delete topic in nameserver error", map[string]interface{}{
-				rlog.LogKeyTopic: cfg.Topic,
+				rlog.LogKeyTopic:         cfg.Topic,
 				rlog.LogKeyUnderlayError: err,
 			})
 		}

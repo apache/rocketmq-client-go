@@ -17,7 +17,9 @@ limitations under the License.
 
 package utils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestLocalIP2(t *testing.T) {
 	t.Log(LocalIP)

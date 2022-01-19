@@ -23,7 +23,9 @@ package producer
 import (
 	"context"
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"

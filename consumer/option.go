@@ -19,7 +19,9 @@ package consumer
 
 import (
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )

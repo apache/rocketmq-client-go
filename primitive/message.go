@@ -27,7 +27,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 )
 

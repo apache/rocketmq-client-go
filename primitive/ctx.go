@@ -22,8 +22,11 @@ package primitive
 
 import (
 	"context"
+	"fmt"
 	"math"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
@@ -46,9 +49,7 @@ func (c ConsumeReturnType) Ordinal() int {
 	case FailedReturn:
 		return 4
 	default:
-		rlog.Error("Illegal Consumer Return Type", map[string]interface{}{
-			"type": c,
-		})
+		rlog.Error(fmt.Sprintf("illegal ConsumeReturnType: %v", c), nil)
 		return 0
 	}
 }
