@@ -271,7 +271,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Mes
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendOneway)
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
-			return p.SendOneWay(ctx, msg)
+			return p.sendOneWay(ctx, msg)
 		})
 	}
 
