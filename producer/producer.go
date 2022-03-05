@@ -123,15 +123,8 @@ func (p *defaultProducer) encodeBatch(msgs ...*primitive.Message) *primitive.Mes
 	batch := new(primitive.Message)
 	batch.Topic = msgs[0].Topic
 	batch.Queue = msgs[0].Queue
-	if len(msgs) > 1 {
-		batch.Body = MarshalMessageBatch(msgs...)
-		batch.Batch = true
-	} else {
-		batch.Body = msgs[0].Body
-		batch.Flag = msgs[0].Flag
-		batch.WithProperties(msgs[0].GetProperties())
-		batch.TransactionId = msgs[0].TransactionId
-	}
+	batch.Body = MarshalMessageBatch(msgs...)
+	batch.Batch = true
 	return batch
 }
 
