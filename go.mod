@@ -11,7 +11,7 @@ require (
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stathat/consistent v1.0.0
 	github.com/stretchr/testify v1.3.0
-	github.com/tidwall/gjson v1.8.1
+	github.com/tidwall/gjson v1.13.0
 	go.uber.org/atomic v1.5.1
 	stathat.com/c/consistent v1.0.0 // indirect
 )
