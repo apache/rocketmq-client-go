@@ -119,7 +119,7 @@ type ClientOptions struct {
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
 	if opt.InstanceName == "DEFAULT" {
-		opt.InstanceName = strconv.Itoa(os.Getpid())
+		opt.InstanceName = fmt.Sprintf("%d#%d", os.Getpid(), time.Now().UnixNano())
 	}
 }
 
