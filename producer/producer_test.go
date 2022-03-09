@@ -19,12 +19,17 @@ package producer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"testing"
+)
 
+import (
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 
+	"github.com/stretchr/testify/assert"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"

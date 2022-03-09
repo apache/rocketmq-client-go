@@ -21,11 +21,17 @@ import (
 	"sync"
 	"testing"
 	"time"
+)
 
+import (
 	"github.com/golang/mock/gomock"
-	. "github.com/smartystreets/goconvey/convey"
-	"github.com/stretchr/testify/assert"
 
+	. "github.com/smartystreets/goconvey/convey"
+
+	"github.com/stretchr/testify/assert"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"

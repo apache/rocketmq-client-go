@@ -17,7 +17,9 @@ limitations under the License.
 
 package errors
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	ErrRequestTimeout    = errors.New("request timeout")

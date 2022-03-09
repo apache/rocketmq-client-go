@@ -20,18 +20,22 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/tidwall/gjson"
+)
 
+import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"

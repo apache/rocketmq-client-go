@@ -25,7 +25,9 @@ import (
 	"hash"
 	"sort"
 	"strings"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 

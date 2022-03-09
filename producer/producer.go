@@ -21,14 +21,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	"github.com/pkg/errors"
+)
 
+import (
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"

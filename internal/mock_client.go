@@ -25,9 +25,13 @@ import (
 	"context"
 	"reflect"
 	"time"
+)
 
+import (
 	"github.com/golang/mock/gomock"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )

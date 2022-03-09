@@ -19,7 +19,9 @@ package consumer
 
 import (
 	"sync"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 

@@ -23,9 +23,14 @@ package remote
 import (
 	context "context"
 	reflect "reflect"
+)
 
-	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
+import (
 	gomock "github.com/golang/mock/gomock"
+)
+
+import (
+	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 // MockRemotingClient is a mock of RemotingClient interface

@@ -19,12 +19,15 @@ package main
 
 import (
 	"flag"
-	"github.com/apache/rocketmq-client-go/v2/errors"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type stableTest struct {

@@ -3,6 +3,7 @@ module github.com/apache/rocketmq-client-go/v2
 go 1.13
 
 require (
+    github.com/dubbogo/tools v1.0.9 // indirect
 	github.com/emirpasic/gods v1.12.0
 	github.com/golang/mock v1.3.1
 	github.com/json-iterator/go v1.1.9

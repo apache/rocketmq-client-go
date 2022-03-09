@@ -19,7 +19,9 @@ package internal
 
 import (
 	"regexp"
+)
 
+import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 

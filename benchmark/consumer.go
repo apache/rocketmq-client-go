@@ -21,16 +21,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
-	"github.com/apache/rocketmq-client-go/v2/consumer"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type statiBenchmarkConsumerSnapshot struct {

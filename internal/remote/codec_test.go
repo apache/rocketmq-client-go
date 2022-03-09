@@ -18,15 +18,20 @@ package remote
 
 import (
 	"encoding/json"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"math/rand"
 	"reflect"
 	"testing"
 	"unsafe"
+)
 
+import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/stretchr/testify/assert"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type testHeader struct {

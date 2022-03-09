@@ -18,15 +18,20 @@ package primitive
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+)
 
+import (
 	. "github.com/smartystreets/goconvey/convey"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 func TestEnvResolver(t *testing.T) {

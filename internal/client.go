@@ -21,14 +21,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+)
 
+import (
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -119,7 +121,7 @@ type ClientOptions struct {
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
 	if opt.InstanceName == "DEFAULT" {
-		opt.InstanceName = strconv.Itoa(os.Getpid())
+		opt.InstanceName = fmt.Sprintf("%d#%d", os.Getpid(), time.Now().UnixNano())
 	}
 }
 

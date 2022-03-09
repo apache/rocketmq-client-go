@@ -22,12 +22,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+)
 
+import (
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/utils"
 	gods_util "github.com/emirpasic/gods/utils"
-	uatomic "go.uber.org/atomic"
 
+	uatomic "go.uber.org/atomic"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"

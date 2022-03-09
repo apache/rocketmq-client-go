@@ -19,14 +19,20 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"testing"
+)
 
+import (
 	"github.com/golang/mock/gomock"
-	. "github.com/smartystreets/goconvey/convey"
-	"github.com/stretchr/testify/assert"
 
+	. "github.com/smartystreets/goconvey/convey"
+
+	"github.com/stretchr/testify/assert"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )

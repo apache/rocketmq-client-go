@@ -19,8 +19,11 @@ package primitive
 
 import (
 	"testing"
+)
 
+import (
 	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
 )
 

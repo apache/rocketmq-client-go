@@ -19,8 +19,11 @@ package remote
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 )
 
 // ResponseFuture

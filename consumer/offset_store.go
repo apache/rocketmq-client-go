@@ -25,13 +25,18 @@ import (
 	"strconv"
 	"sync"
 	"time"
+)
 
+import (
+	jsoniter "github.com/json-iterator/go"
+)
+
+import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 type readType int

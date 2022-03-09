@@ -19,10 +19,16 @@ package internal
 
 import (
 	"testing"
+)
 
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+import (
 	. "github.com/smartystreets/goconvey/convey"
+
 	"github.com/stretchr/testify/assert"
+)
+
+import (
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
 func TestMarshal2Bean(t *testing.T) {
