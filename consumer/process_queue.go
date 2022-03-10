@@ -141,6 +141,9 @@ func (pq *processQueue) IsLock() bool {
 }
 
 func (pq *processQueue) WithDropped(dropped bool) {
+	if dropped {
+		close(pq.msgCh)
+	}
 	pq.dropped.Store(dropped)
 }
 

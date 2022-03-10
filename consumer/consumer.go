@@ -20,13 +20,14 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -302,7 +303,6 @@ func (dc *defaultConsumer) shutdown() error {
 		pq.WithDropped(true)
 		// close msg channel using RWMutex to make sure no data was writing
 		pq.mutex.Lock()
-		close(pq.msgCh)
 		pq.mutex.Unlock()
 		mqs = append(mqs, &k)
 		return true
