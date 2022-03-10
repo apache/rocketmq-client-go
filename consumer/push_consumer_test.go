@@ -19,7 +19,6 @@ package consumer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
 )
 
@@ -32,6 +31,7 @@ import (
 import (
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 func mockB4Start(c *pushConsumer) {

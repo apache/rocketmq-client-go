@@ -19,7 +19,6 @@ package remote
 import (
 	"bytes"
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"net"
 	"reflect"
@@ -28,10 +27,12 @@ import (
 	"time"
 )
 
+import (
 	"github.com/stretchr/testify/assert"
 )
 
 import (
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 )
 

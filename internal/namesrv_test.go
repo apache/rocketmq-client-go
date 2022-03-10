@@ -19,7 +19,6 @@ package internal
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"net"
 	"net/http"
 	"os"
@@ -36,6 +35,7 @@ import (
 
 import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 // TestSelector test roundrobin selector in namesrv
