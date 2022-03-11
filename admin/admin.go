@@ -19,6 +19,7 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -61,8 +62,7 @@ func WithResolver(resolver primitive.NsResolver) AdminOption {
 }
 
 type admin struct {
-	cli     internal.RMQClient
-	namesrv internal.Namesrvs
+	cli internal.RMQClient
 
 	opts *adminOptions
 
@@ -75,17 +75,21 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 	for _, opt := range opts {
 		opt(defaultOpts)
 	}
-
-	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
 	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver)
+	defaultOpts.Namesrv = namesrv
 	if err != nil {
 		return nil, err
 	}
+
+	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
+	if cli == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+	}
+	defaultOpts.Namesrv = cli.GetNameSrv()
 	//log.Printf("Client: %#v", namesrv.srvs)
 	return &admin{
-		cli:     cli,
-		namesrv: namesrv,
-		opts:    defaultOpts,
+		cli:  cli,
+		opts: defaultOpts,
 	}, nil
 }
 
@@ -153,8 +157,8 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	}
 	//delete topic in broker
 	if cfg.BrokerAddr == "" {
-		a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
-		cfg.BrokerAddr = a.namesrv.FindBrokerAddrByTopic(cfg.Topic)
+		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
+		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.Topic)
 	}
 
 	if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
@@ -168,14 +172,16 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 
 	//delete topic in nameserver
 	if len(cfg.NameSrvAddr) == 0 {
-		_, _, err := a.namesrv.UpdateTopicRouteInfo(cfg.Topic)
+		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
+		cfg.NameSrvAddr = a.cli.GetNameSrv().AddrList()
+		_, _, err := a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
 		if err != nil {
 			rlog.Error("delete topic in nameserver error", map[string]interface{}{
-				rlog.LogKeyTopic: cfg.Topic,
+				rlog.LogKeyTopic:         cfg.Topic,
 				rlog.LogKeyUnderlayError: err,
 			})
 		}
-		cfg.NameSrvAddr = a.namesrv.AddrList()
+		cfg.NameSrvAddr = a.cli.GetNameSrv().AddrList()
 	}
 
 	for _, nameSrvAddr := range cfg.NameSrvAddr {
