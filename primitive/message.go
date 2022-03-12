@@ -60,6 +60,10 @@ const (
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 	PropertyShardingKey                    = "SHARDING_KEY"
 	PropertyTransactionID                  = "__transactionId__"
+	PropertyCorrelationID                  = "CORRELATION_ID"
+	PropertyMessageReplyToClient           = "REPLY_TO_CLIENT"
+	PropertyMessageTTL                     = "TTL"
+	PropertyReplyMessageArriveTime         = "ARRIVE_TIME"
 )
 
 type Message struct {

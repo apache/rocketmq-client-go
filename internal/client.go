@@ -305,6 +305,46 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			client.resetOffset(header.topic, header.group, body.OffsetTable)
 			return nil
 		})
+
+		client.remoteClient.RegisterRequestFunc(ReqPushReplyMessageToClient, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			receiveTime := time.Now().UnixNano() / int64(time.Millisecond)
+			rlog.Info("receive push reply to client request...", map[string]interface{}{
+				rlog.LogKeyBroker:        addr.String(),
+				rlog.LogKeyTopic:         req.ExtFields["topic"],
+				rlog.LogKeyConsumerGroup: req.ExtFields["group"],
+				rlog.LogKeyTimeStamp:     req.ExtFields["timestamp"],
+			})
+
+			header := new(ReplyMessageRequestHeader)
+			header.Decode(req.ExtFields)
+
+			var msgExt primitive.MessageExt
+			msgExt.Topic = header.topic
+			msgExt.Queue = &primitive.MessageQueue{
+				QueueId: header.queueId,
+				Topic:   header.topic,
+			}
+			msgExt.StoreTimestamp = header.storeTimestamp
+			msgExt.BornHost = header.bornHost
+			msgExt.StoreHost = header.storeHost
+
+			body := req.Body
+			if (header.sysFlag & primitive.FlagCompressed) == primitive.FlagCompressed {
+				body = utils.UnCompress(req.Body)
+			}
+			msgExt.Body = body
+			msgExt.Flag = int32(header.flag)
+			msgExt.UnmarshalProperties([]byte(header.properties))
+			msgExt.WithProperty(primitive.PropertyReplyMessageArriveTime, strconv.FormatInt(receiveTime, 10))
+			msgExt.BornTimestamp = header.bornTimestamp
+			msgExt.ReconsumeTimes = int32(header.reconsumeTimes)
+
+			client.getReplyMessageRequest(&msgExt, header.bornHost)
+
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			res.Code = ResSuccess
+			return res
+		})
 	}
 	return actual.(*rmqClient)
 }
@@ -818,6 +858,18 @@ func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
 		info.Properties[PropClientVersion] = clientVersion
 	}
 	return info
+}
+
+func (c *rmqClient) getReplyMessageRequest(msg *primitive.MessageExt, bornHost string) {
+	correlationId := msg.GetProperty(primitive.PropertyCorrelationID)
+	if err := RequestResponseFutureMap.SetResponseToRequestResponseFuture(correlationId, &msg.Message); err != nil {
+		rlog.Warning("receive reply message, but not matched any request", map[string]interface{}{
+			"CorrelationId": correlationId,
+			"ReplyHost":     bornHost,
+		})
+		return
+	}
+	RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 }
 
 func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group string, brokerName string) *ConsumeMessageDirectlyResult {

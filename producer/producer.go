@@ -21,14 +21,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -142,6 +143,73 @@ func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
 		buffer.Write(data)
 	}
 	return buffer.Bytes()
+}
+
+func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Duration) (string, error) {
+	correlationId := uuid.NewV4().String()
+	requestClientId := p.client.ClientID()
+	msg.WithProperty(primitive.PropertyCorrelationID, correlationId)
+	msg.WithProperty(primitive.PropertyMessageReplyToClient, requestClientId)
+	msg.WithProperty(primitive.PropertyMessageTTL, strconv.Itoa(int(ttl.Seconds())))
+
+	rlog.Debug("message info:", map[string]interface{}{
+		"clientId":      requestClientId,
+		"correlationId": correlationId,
+		"ttl":           ttl.Seconds(),
+	})
+
+	nameSrv, err := internal.GetNamesrv(requestClientId)
+	if err != nil {
+		return "", errors.Wrap(err, "GetNameServ err")
+	}
+
+	if !nameSrv.CheckTopicRouteHasTopic(msg.Topic) {
+		// todo
+	}
+
+	return correlationId, nil
+}
+
+// Request Send messages to consumer
+func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, msgs ...*primitive.Message) (*primitive.Message, error) {
+	if err := p.checkMsg(msgs...); err != nil {
+		return nil, err
+	}
+
+	p.messagesWithNamespace(msgs...)
+	msg := p.encodeBatch(msgs...)
+
+	correlationId, err := p.prepareSendRequest(msg, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	requestResponseFuture := internal.NewRequestResponseFuture(correlationId, timeout, nil)
+	internal.RequestResponseFutureMap.SetRequestResponseFuture(requestResponseFuture)
+	defer internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
+
+	f := func(ctx context.Context, result *primitive.SendResult, err error) {
+		if err != nil {
+			requestResponseFuture.SendRequestOk = false
+			requestResponseFuture.ResponseMsg = nil
+			requestResponseFuture.CauseErr = err
+			return
+		}
+		requestResponseFuture.SendRequestOk = true
+	}
+
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendAsync)
+
+		return nil, p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, f)
+		})
+	}
+	if err := p.sendAsync(ctx, msg, f); err != nil {
+		return nil, errors.Wrap(err, "sendAsync error")
+	}
+
+	return requestResponseFuture.WaitResponseMessage(msg)
 }
 
 func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
@@ -558,7 +626,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-	
+
 	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
