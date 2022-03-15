@@ -33,6 +33,10 @@ type MockNamesrvs struct {
 	recorder *MockNamesrvsMockRecorder
 }
 
+func (m *MockNamesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error) {
+	return m.UpdateTopicRouteInfo(topic)
+}
+
 // MockNamesrvsMockRecorder is the mock recorder for MockNamesrvs
 type MockNamesrvsMockRecorder struct {
 	mock *MockNamesrvs

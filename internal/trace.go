@@ -276,6 +276,10 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
+	if cli == nil {
+		return nil
+	}
+	cliOp.Namesrv = cli.GetNameSrv()
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,

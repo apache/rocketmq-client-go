@@ -50,6 +50,8 @@ type Namesrvs interface {
 
 	UpdateTopicRouteInfo(topic string) (routeData *TopicRouteData, changed bool, err error)
 
+	UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error)
+
 	FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
 	FindBrokerAddrByTopic(topic string) string

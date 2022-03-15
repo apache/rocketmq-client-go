@@ -67,7 +67,6 @@ func TestDoRebalance(t *testing.T) {
 		defer ctrl.Finish()
 		namesrvCli := internal.NewMockNamesrvs(ctrl)
 		namesrvCli.EXPECT().FindBrokerAddrByTopic(gomock.Any()).Return(broker)
-		dc.namesrv = namesrvCli
 
 		rmqCli := internal.NewMockRMQClient(ctrl)
 		rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -75,6 +74,8 @@ func TestDoRebalance(t *testing.T) {
 				Body: []byte("{\"consumerIdList\": [\"a1\", \"a2\", \"a3\"] }"),
 			}, nil)
 		rmqCli.EXPECT().ClientID().Return(clientID)
+		rmqCli.SetNameSrv(namesrvCli)
+
 		dc.client = rmqCli
 
 		var wg sync.WaitGroup
@@ -109,10 +110,10 @@ func TestComputePullFromWhere(t *testing.T) {
 		}
 
 		namesrvCli := internal.NewMockNamesrvs(ctrl)
-		dc.namesrv = namesrvCli
 
 		rmqCli := internal.NewMockRMQClient(ctrl)
 		dc.client = rmqCli
+		rmqCli.SetNameSrv(namesrvCli)
 
 		Convey("get effective offset", func() {
 			offsetStore.EXPECT().read(gomock.Any(), gomock.Any()).Return(int64(10))

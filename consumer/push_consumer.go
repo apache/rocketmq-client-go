@@ -100,14 +100,13 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		consumeOrderly: defaultOpts.ConsumeOrderly,
 		fromWhere:      defaultOpts.FromWhere,
 		allocate:       defaultOpts.Strategy,
-		namesrv:        srvs,
 		option:         defaultOpts,
 	}
-	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
-	if err != nil {
-		return nil, err
+	if dc.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
 	}
-	dc.namesrv = dc.option.ClientOptions.Namesrv
+	defaultOpts.Namesrv = dc.client.GetNameSrv()
+
 	p := &pushConsumer{
 		defaultConsumer: dc,
 		subscribedTopic: make(map[string]string, 0),
@@ -124,11 +123,6 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
-	if p.model == Clustering {
-		retryTopic := internal.GetRetryTopic(p.consumerGroup)
-		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
-		p.subscriptionDataTable.Store(retryTopic, sub)
-	}
 	return p, nil
 }
 
@@ -386,7 +380,7 @@ func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 	})
 
 	nsAddr := ""
-	for _, value := range pc.namesrv.AddrList() {
+	for _, value := range pc.client.GetNameSrv().AddrList() {
 		nsAddr += fmt.Sprintf("%s;", value)
 	}
 	info.Properties[internal.PropNameServerAddr] = nsAddr
@@ -795,7 +789,7 @@ func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
 func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
 	var brokerAddr string
 	if len(brokerName) != 0 {
-		brokerAddr = pc.defaultConsumer.namesrv.FindBrokerAddrByName(brokerName)
+		brokerAddr = pc.defaultConsumer.client.GetNameSrv().FindBrokerAddrByName(brokerName)
 	} else {
 		brokerAddr = msg.StoreHost
 	}
