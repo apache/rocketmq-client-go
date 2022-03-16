@@ -209,9 +209,9 @@ func (hpc *defaultHighLevelPullConsumer) Subscribe(topic string, selector Messag
 	data := buildSubscriptionData(topic, selector)
 	hpc.subscriptionDataTable.Store(topic, data)
 	hpc.subscribedTopic[topic] = ""
-	routeData , _ , err := hpc.namesrv.UpdateTopicRouteInfo(topic)
-	if err == nil{
-		hpc.topicSubscribeInfoTable.Store(topic , routeData)
+	routeData, _, err := hpc.namesrv.UpdateTopicRouteInfo(topic)
+	if err == nil {
+		hpc.topicSubscribeInfoTable.Store(topic, routeData)
 	}
 	hpc.Rebalance()
 	return nil
