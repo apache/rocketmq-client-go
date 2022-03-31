@@ -58,6 +58,8 @@ type processQueue struct {
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
 	order                      bool
+	closeMsgChanOnce           *sync.Once
+	closeChan                  chan struct{}
 }
 
 func newProcessQueue(order bool) *processQueue {
@@ -82,6 +84,8 @@ func newProcessQueue(order bool) *processQueue {
 		order:                      order,
 		locked:                     uatomic.NewBool(false),
 		dropped:                    uatomic.NewBool(false),
+		closeMsgChanOnce:           &sync.Once{},
+		closeChan:                  make(chan struct{}),
 	}
 	return pq
 }
@@ -96,7 +100,11 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	if !pq.order {
-		pq.msgCh <- messages
+		select {
+		case <-pq.closeChan:
+			return
+		case pq.msgCh <- messages:
+		}
 	}
 	validMessageCount := 0
 	for idx := range messages {
@@ -142,6 +150,9 @@ func (pq *processQueue) IsLock() bool {
 
 func (pq *processQueue) WithDropped(dropped bool) {
 	pq.dropped.Store(dropped)
+	pq.closeMsgChanOnce.Do(func() {
+		close(pq.closeChan)
+	})
 }
 
 func (pq *processQueue) IsDroppd() bool {
@@ -274,7 +285,12 @@ func (pq *processQueue) getMaxSpan() int {
 }
 
 func (pq *processQueue) getMessages() []*primitive.MessageExt {
-	return <-pq.msgCh
+	select {
+	case <-pq.closeChan:
+		return nil
+	case result := <-pq.msgCh:
+		return result
+	}
 }
 
 func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
