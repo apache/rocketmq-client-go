@@ -62,7 +62,7 @@ func main() {
 	}
 	var timeSleepSeconds = 1 * time.Second
 	for _, queue1 := range messageQueues {
-		offset := getOffset(client, consumerGroupName, queue1.QueueId)
+		offset := getOffset(client, consumerGroupName, topic, queue1.QueueId)
 		if offset < 0 { // default consume from offset 0
 			offset = 0
 		}
@@ -86,7 +86,7 @@ func main() {
 							fmt.Println(string(msg.Body))
 
 							// save offset to redis
-							ackOffset(client, consumerGroupName, queue.QueueId, resp.NextBeginOffset)
+							ackOffset(client, consumerGroupName, topic, queue.QueueId, resp.NextBeginOffset)
 
 							// set offset for next pull
 							offset = resp.NextBeginOffset
@@ -126,16 +126,16 @@ func main() {
 	time.Sleep(10000 * time.Second)
 }
 
-func ackOffset(redis *redis.Client, consumerGroupName string, queueId int, consumedOffset int64) {
-	var key = fmt.Sprintf("rmq-%s-%d", consumerGroupName, queueId)
+func ackOffset(redis *redis.Client, consumerGroupName string, topic string, queueId int, consumedOffset int64) {
+	var key = fmt.Sprintf("rmq-%s-%s-%d", consumerGroupName, topic, queueId)
 	err := redis.Set(ctx, key, consumedOffset, 0).Err()
 	if err != nil {
 		fmt.Printf("set redis 失败 %+v\n", err)
 	}
 }
 
-func getOffset(redis *redis.Client, consumerGroupName string, queueId int) int64 {
-	var key = fmt.Sprintf("rmq-%s-%d", consumerGroupName, queueId)
+func getOffset(redis *redis.Client, consumerGroupName string, topic string, queueId int) int64 {
+	var key = fmt.Sprintf("rmq-%s-%s-%d", consumerGroupName, topic, queueId)
 	offset, err := redis.Get(ctx, key).Int64()
 	if err != nil {
 		fmt.Printf("set redis 失败 %+v\n", err)
