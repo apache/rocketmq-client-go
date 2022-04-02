@@ -35,6 +35,7 @@ type Admin interface {
 	//TODO
 	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
 }
 
@@ -70,7 +71,7 @@ type admin struct {
 }
 
 // NewAdmin initialize admin
-func NewAdmin(opts ...AdminOption) (Admin, error) {
+func NewAdmin(opts ...AdminOption) (*admin, error) {
 	defaultOpts := defaultAdminOptions()
 	for _, opt := range opts {
 		opt(defaultOpts)
@@ -200,6 +201,10 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		rlog.LogKeyBroker: cfg.BrokerAddr,
 	})
 	return nil
+}
+
+func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
+	return a.cli.GetNameSrv().FetchPublishMessageQueues(topic)
 }
 
 func (a *admin) Close() error {
