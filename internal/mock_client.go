@@ -211,7 +211,7 @@ type MockRMQClient struct {
 	Namesrv  *MockNamesrvs
 }
 
-func (m *MockRMQClient) GetNameSrv() Namesrvs {
+func (m *MockRMQClient) GetNameSrv() *MockNamesrvs {
 	return m.Namesrv
 }
 

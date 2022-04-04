@@ -158,6 +158,8 @@ type RMQClient interface {
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 
 	GetNameSrv() Namesrvs
+
+	GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error)
 }
 
 var _ RMQClient = new(rmqClient)
@@ -859,6 +861,24 @@ func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group stri
 	return res
 }
 
+func (c *rmqClient) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) {
+	request := remote.NewRemotingCommand(ReqGetBrokerClusterInfo, nil, nil)
+	c.SendHeartbeatToAllBrokerWithLock()
+
+	responseCommand, _ := c.remoteClient.InvokeSync(ctx, c.GetNameSrv().AddrList()[0], request)
+
+	switch responseCommand.Code {
+	case ResSuccess:
+		if responseCommand.Body != nil {
+			var cluster, err = ParseClusterInfo(string(responseCommand.Body))
+			return cluster, err
+		}
+	default:
+		rlog.Warning("no any topic list", nil)
+	}
+	return nil, errors.New("no any response from broker")
+
+}
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
 	list := make([]*primitive.MessageQueue, 0)
 	for idx := range data.QueueDataList {

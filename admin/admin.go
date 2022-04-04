@@ -30,11 +30,21 @@ import (
 )
 
 type Admin interface {
+	// create one topic
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
+
+	// delete one topic
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
-	//TODO
-	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
-	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+
+	// fetch all topics
+	FetchAllTopicList(ctx context.Context) (*internal.TopicList, error)
+
+	// get cluster info
+	GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+
+	// fetch topic queues
+	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
+
 	Close() error
 }
 
@@ -70,7 +80,7 @@ type admin struct {
 }
 
 // NewAdmin initialize admin
-func NewAdmin(opts ...AdminOption) (Admin, error) {
+func NewAdmin(opts ...AdminOption) (*admin, error) {
 	defaultOpts := defaultAdminOptions()
 	for _, opt := range opts {
 		opt(defaultOpts)
@@ -202,6 +212,20 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	return nil
 }
 
+// fetch topic queues
+func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
+	return a.cli.GetNameSrv().FetchPublishMessageQueues(topic)
+}
+
+// fetch all topic names
+func (a *admin) FetchAllTopicList(ctx context.Context) (*internal.TopicList, error) {
+	return a.cli.GetNameSrv().FetchAllTopicList(ctx)
+}
+
+// get cluster info from namesrv
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*internal.ClusterInfo, error) {
+	return a.cli.GetBrokerClusterInfo(ctx)
+}
 func (a *admin) Close() error {
 	a.closeOnce.Do(func() {
 		a.cli.Shutdown()

@@ -18,8 +18,11 @@ limitations under the License.
 package internal
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"regexp"
 	"strings"
 	"sync"
@@ -61,6 +64,8 @@ type Namesrvs interface {
 	FindBrokerAddressInSubscribe(brokerName string, brokerId int64, onlyThisBroker bool) *FindBrokerResult
 
 	FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error)
+
+	FetchAllTopicList(ctx context.Context) (*TopicList, error)
 
 	AddrList() []string
 }
@@ -157,6 +162,7 @@ func (s *namesrvs) Size() int {
 func (s *namesrvs) String() string {
 	return strings.Join(s.srvs, ";")
 }
+
 func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
 	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
 }
@@ -182,4 +188,29 @@ func (s *namesrvs) UpdateNameServerAddress() {
 	}
 
 	s.srvs = srvs
+}
+
+func (s *namesrvs) FetchAllTopicList(ctx context.Context) (lists *TopicList, err error) {
+	request := remote.NewRemotingCommand(ReqGetAllTopicListFromNameServer, nil, nil)
+	var responseCommand *remote.RemotingCommand
+
+	responseCommand, err = s.nameSrvClient.InvokeSync(ctx, s.getNameServerAddress(), request) // brokerId =0 is master
+	if err != nil {
+		rlog.Error(fmt.Sprintf("FetchAllTopicList error from %s, %+v", s.getNameServerAddress(), err), nil)
+	}
+	var topicNames = &TopicList{}
+	switch responseCommand.Code {
+	case ResSuccess:
+		if responseCommand.Body == nil {
+			return nil, errors.New("FetchAllTopicList return body is nil")
+		}
+		err := json.Unmarshal(responseCommand.Body, topicNames)
+		if err != nil {
+			return nil, err
+		}
+		return topicNames, nil
+	default:
+		rlog.Warning("no any topic list", nil)
+	}
+	return nil, errors.New("empty topic list")
 }
