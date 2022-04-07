@@ -34,16 +34,16 @@ import (
 
 type PullConsumer interface {
 	// Start
-	Start()
+	Start() error
 
 	// Shutdown refuse all new pull operation, finish all submitted.
-	Shutdown()
+	Shutdown() error
 
 	// Pull pull message of topic,  selector indicate which queue to pull.
 	Pull(ctx context.Context, topic string, selector MessageSelector, numbers int) (*primitive.PullResult, error)
 
 	// PullFrom pull messages of queue from the offset to offset + numbers
-	PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
+	PullFrom(ctx context.Context, selector MessageSelector, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
 
 	// updateOffset update offset of queue in mem
 	UpdateOffset(queue *primitive.MessageQueue, offset int64) error
@@ -71,7 +71,7 @@ type defaultPullConsumer struct {
 	interceptor primitive.Interceptor
 }
 
-func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
+func NewPullConsumer(options ...Option) (PullConsumer, error) {
 	defaultOpts := defaultPullConsumerOptions()
 	for _, apply := range options {
 		apply(&defaultOpts)
