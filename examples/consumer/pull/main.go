@@ -20,13 +20,23 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-redis/redis/v8"
-	"time"
+)
+
+const (
+	namesrvAddr       = "http://127.0.0.1:9876"
+	accessKey         = "rocketmq"
+	secretKey         = "12345678"
+	topic             = "test-topic"
+	consumerGroupName = "testGroup"
+	tag               = "testPull"
 )
 
 var ctx = context.Background()
@@ -37,12 +47,17 @@ var client = redis.NewClient(&redis.Options{
 })
 
 func main() {
-	var namesrvAddr = "127.0.0.1:9876"
-	var namesrv, _ = primitive.NewNamesrvAddr(namesrvAddr)
-	var consumerGroupName = "testGroup"
+	var namesrv, err = primitive.NewNamesrvAddr(namesrvAddr)
+	if err != nil {
+		rlog.Fatal(fmt.Sprintf("NewNamesrvAddr err: %s", err), nil)
+	}
 	c, err := consumer.NewPullConsumer(
 		consumer.WithGroupName(consumerGroupName),
 		consumer.WithNameServer(namesrv),
+		consumer.WithCredentials(primitive.Credentials{
+			AccessKey: accessKey,
+			SecretKey: secretKey,
+		}),
 	)
 	if err != nil {
 		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
@@ -52,8 +67,6 @@ func main() {
 		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
 	}
 
-	var topic = "1-test-topic"
-
 	nameSrvAddr := []string{namesrvAddr}
 	admin, _ := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)))
 	messageQueues, err := admin.FetchPublishMessageQueues(context.Background(), topic)
@@ -61,21 +74,23 @@ func main() {
 		rlog.Fatal(fmt.Sprintf("fetch messahe queue error: %s", err), nil)
 	}
 	var timeSleepSeconds = 1 * time.Second
-	for _, queue1 := range messageQueues {
-		offset := getOffset(client, consumerGroupName, topic, queue1.QueueId)
+	selector := consumer.MessageSelector{
+		Type:       consumer.TAG,
+		Expression: tag,
+	}
+	for _, queue := range messageQueues {
+		offset := getOffset(client, consumerGroupName, topic, queue.QueueId)
 		if offset < 0 { // default consume from offset 0
 			offset = 0
 		}
-		queue := queue1
-		go func() {
+		go func(queue *primitive.MessageQueue) {
 			for {
-				resp, err := c.PullFrom(ctx, queue, offset, 1) // pull one message per time for make sure easily ACK
+				resp, err := c.PullFrom(ctx, selector, queue, offset, 1) // pull one message per time for make sure easily ACK
 				if err != nil {
-					fmt.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d", topic, queue1.QueueId, queue.BrokerName, offset)
+					fmt.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d", topic, queue.QueueId, queue.BrokerName, offset)
 					time.Sleep(timeSleepSeconds)
 					continue
 				}
-
 				switch resp.Status {
 				case primitive.PullFound:
 					{
@@ -120,7 +135,7 @@ func main() {
 				}
 			}
 
-		}()
+		}(queue)
 	}
 	// make current thread hold to see pull result. TODO should update here
 	time.Sleep(10000 * time.Second)
@@ -130,15 +145,19 @@ func ackOffset(redis *redis.Client, consumerGroupName string, topic string, queu
 	var key = fmt.Sprintf("rmq-%s-%s-%d", consumerGroupName, topic, queueId)
 	err := redis.Set(ctx, key, consumedOffset, 0).Err()
 	if err != nil {
-		fmt.Printf("set redis 失败 %+v\n", err)
+		fmt.Printf("set redis 失败, key:%s, %+v\n", key, err)
 	}
 }
 
-func getOffset(redis *redis.Client, consumerGroupName string, topic string, queueId int) int64 {
+func getOffset(redisCli *redis.Client, consumerGroupName string, topic string, queueId int) int64 {
 	var key = fmt.Sprintf("rmq-%s-%s-%d", consumerGroupName, topic, queueId)
-	offset, err := redis.Get(ctx, key).Int64()
-	if err != nil {
-		fmt.Printf("set redis 失败 %+v\n", err)
+	offset, err := redisCli.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0
+	} else if err != nil {
+		fmt.Printf("get redis 失败, key:%s, %+v\n", key, err)
+		return 0
+	} else {
+		return offset
 	}
-	return offset
 }

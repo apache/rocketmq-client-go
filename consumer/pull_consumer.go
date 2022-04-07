@@ -20,9 +20,10 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"sync/atomic"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -223,12 +224,11 @@ func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 
 }
 
 // PullFrom pull messages of queue from the offset to offset + numbers
-func (c *defaultPullConsumer) PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
+func (c *defaultPullConsumer) PullFrom(ctx context.Context, selector MessageSelector, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
 	if err := c.checkPull(ctx, queue, offset, numbers); err != nil {
 		return nil, err
 	}
 
-	selector := MessageSelector{}
 	data := buildSubscriptionData(queue.Topic, selector)
 
 	return c.pull(ctx, queue, data, offset, numbers)
