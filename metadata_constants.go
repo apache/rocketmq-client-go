@@ -1,0 +1,16 @@
+package rocketmq
+
+const TENANT_ID_KEY = "x-mq-tenant-id"
+const NAMESPACE_KEY = "x-mq-namespace"
+const AUTHORIZATION = "authorization"
+const STS_SESSION_TOKEN = "x-mq-session-token"
+const DATE_TIME_KEY = "x-mq-date-time"
+const ALGORITHM_KEY = "MQv2-HMAC-SHA1"
+const CREDENTIAL_KEY = "Credential"
+const SIGNED_HEADERS_KEY = "SignedHeaders"
+const SIGNATURE_KEY = "Signature"
+const DATE_TIME_FORMAT = "yyyyMMddTHHmmssZ"
+const LANGUAGE_KEY = "x-mq-language"
+const CLIENT_VERSION_KEY = "x-mq-client-version"
+const PROTOCOL_VERSION_KEY = "x-mq-protocol-version"
+const REQUEST_ID_KEY = "x-mq-request-id"
