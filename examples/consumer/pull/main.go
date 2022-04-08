@@ -27,7 +27,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/go-redis/redis/v8"
-	_ "github.com/go-redis/redis/v8"
 )
 
 const (
@@ -68,7 +67,17 @@ func main() {
 	}
 
 	nameSrvAddr := []string{namesrvAddr}
-	admin, _ := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)))
+	admin, err := admin.NewAdmin(
+		admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)),
+		admin.WithCredentials(primitive.Credentials{
+			AccessKey: accessKey,
+			SecretKey: secretKey,
+		}),
+	)
+	if err != nil {
+		rlog.Fatal(fmt.Sprintf("fail to new admin: %s", err), nil)
+	}
+
 	messageQueues, err := admin.FetchPublishMessageQueues(context.Background(), topic)
 	if err != nil {
 		rlog.Fatal(fmt.Sprintf("fetch messahe queue error: %s", err), nil)

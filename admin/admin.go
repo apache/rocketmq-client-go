@@ -62,6 +62,12 @@ func WithResolver(resolver primitive.NsResolver) AdminOption {
 	}
 }
 
+func WithCredentials(c primitive.Credentials) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}
+
 type admin struct {
 	cli internal.RMQClient
 
