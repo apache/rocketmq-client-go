@@ -10,9 +10,8 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.1
 	github.com/smartystreets/goconvey v1.6.4
-	github.com/stathat/consistent v1.0.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.13.0
 	go.uber.org/atomic v1.5.1
-	stathat.com/c/consistent v1.0.0 // indirect
+	stathat.com/c/consistent v1.0.0
 )
