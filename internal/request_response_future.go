@@ -23,6 +23,8 @@ func NewRequestResponseFutureMap() *requestResponseFutureCache {
 	tmpRrfCache := requestResponseFutureCache{
 		cache: cache.New(5*time.Minute, 10*time.Minute),
 	}
+
+	// OnEvicted delete the timeout RequestResponseFuture, trigger set the failure cause.
 	tmpRrfCache.cache.OnEvicted(func(s string, i interface{}) {
 		err := fmt.Errorf("correlationId:%s request timeout, no reply message", s)
 		rrf, ok := i.(*RequestResponseFuture)

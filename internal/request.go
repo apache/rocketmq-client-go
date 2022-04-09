@@ -51,6 +51,8 @@ const (
 	ReqResetConsumerOffset           = int16(220)
 	ReqGetConsumerRunningInfo        = int16(307)
 	ReqConsumeMessageDirectly        = int16(309)
+	ReqSendReplyMessage              = int16(324)
+	ReqSendReplyMessageV2            = int16(325)
 	ReqPushReplyMessageToClient      = int16(326)
 )
 

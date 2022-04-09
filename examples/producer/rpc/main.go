@@ -24,7 +24,7 @@ func main() {
 	}
 
 	topic := "RequestTopic"
-	ttl := 300 * time.Second
+	ttl := 5 * time.Second
 	msg := &primitive.Message{
 		Topic: topic,
 		Body:  []byte("Hello RPC RocketMQ Go Client!"),

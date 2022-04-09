@@ -431,14 +431,18 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		UnitMode:       p.options.UnitMode,
 		Batch:          msg.Batch,
 	}
-	cmd := internal.ReqSendMessage
-	if msg.Batch {
-		cmd = internal.ReqSendBatchMessage
-		reqv2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
-		return remote.NewRemotingCommand(cmd, reqv2, msg.Body)
+
+	msgType := msg.GetProperty(primitive.PropertyMsgType)
+	if msgType == internal.ReplyMessageFlag {
+		return remote.NewRemotingCommand(internal.ReqSendReplyMessage, req, msg.Body)
 	}
 
-	return remote.NewRemotingCommand(cmd, req, msg.Body)
+	if msg.Batch {
+		reqV2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
+		return remote.NewRemotingCommand(internal.ReqSendBatchMessage, reqV2, msg.Body)
+	}
+
+	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
