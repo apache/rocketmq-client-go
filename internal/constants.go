@@ -23,7 +23,12 @@ const (
 	ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
 	SystemTopicPrefix        = "rmq_sys_"
 	ReplyMessageFlag         = "reply"
+	ReplyTopicPostfix        = "REPLY_TOPIC"
 )
+
+func GetReplyTopic(clusterName string) string {
+	return clusterName + "_" + ReplyTopicPostfix
+}
 
 func GetRetryTopic(group string) string {
 	return RetryGroupTopicPrefix + group

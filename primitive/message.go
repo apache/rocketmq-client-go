@@ -65,6 +65,7 @@ const (
 	PropertyMessageTTL                     = "TTL"
 	PropertyReplyMessageArriveTime         = "ARRIVE_TIME"
 	PropertyMsgType                        = "MSG_TYPE"
+	PropertyCluster                        = "CLUSTER"
 )
 
 type Message struct {

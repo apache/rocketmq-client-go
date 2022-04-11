@@ -212,6 +212,46 @@ func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, ms
 	return requestResponseFuture.WaitResponseMessage(msg)
 }
 
+// RequestAsync  Async Send messages to consumer
+func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msgs ...*primitive.Message) error {
+	if err := p.checkMsg(msgs...); err != nil {
+		return err
+	}
+
+	p.messagesWithNamespace(msgs...)
+	msg := p.encodeBatch(msgs...)
+
+	correlationId, err := p.prepareSendRequest(msg, timeout)
+	if err != nil {
+		return err
+	}
+
+	requestResponseFuture := internal.NewRequestResponseFuture(correlationId, timeout, callback)
+	internal.RequestResponseFutureMap.SetRequestResponseFuture(requestResponseFuture)
+
+	f := func(ctx context.Context, result *primitive.SendResult, err error) {
+		if err != nil {
+			requestResponseFuture.SendRequestOk = false
+			requestResponseFuture.ResponseMsg = nil
+			requestResponseFuture.CauseErr = err
+			return
+		}
+		requestResponseFuture.SendRequestOk = true
+	}
+
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendAsync)
+
+		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, f)
+		})
+	}
+	if err := p.sendAsync(ctx, msg, f); err != nil {
+		return errors.Wrap(err, "sendAsync error")
+	}
+	return nil
+}
+
 func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
 	if err := p.checkMsg(msgs...); err != nil {
 		return nil, err

@@ -26,7 +26,6 @@ func NewRequestResponseFutureMap() *requestResponseFutureCache {
 
 	// OnEvicted delete the timeout RequestResponseFuture, trigger set the failure cause.
 	tmpRrfCache.cache.OnEvicted(func(s string, i interface{}) {
-		err := fmt.Errorf("correlationId:%s request timeout, no reply message", s)
 		rrf, ok := i.(*RequestResponseFuture)
 		if !ok {
 			rlog.Error("convert i to RequestResponseFuture err", map[string]interface{}{
@@ -34,6 +33,11 @@ func NewRequestResponseFutureMap() *requestResponseFutureCache {
 			})
 			return
 		}
+		if !rrf.IsTimeout() {
+			return
+		}
+
+		err := fmt.Errorf("correlationId:%s request timeout, no reply message", s)
 		rrf.CauseErr = err
 		rrf.ExecuteRequestCallback()
 	})
@@ -52,6 +56,9 @@ func (fm *requestResponseFutureCache) SetResponseToRequestResponseFuture(correla
 		return errors.Wrapf(nil, "correlationId:%s not exist in map", correlationId)
 	}
 	rrf.PutResponseMessage(reply)
+	if rrf.RequestCallback != nil {
+		rrf.ExecuteRequestCallback()
+	}
 	return nil
 }
 
@@ -81,6 +88,7 @@ type RequestResponseFuture struct {
 	SendRequestOk   bool
 	Done            chan struct{}
 	CauseErr        error
+	BeginTime       time.Time
 }
 
 func NewRequestResponseFuture(correlationId string, timeout time.Duration, callback RequestCallback) *RequestResponseFuture {
@@ -89,6 +97,7 @@ func NewRequestResponseFuture(correlationId string, timeout time.Duration, callb
 		Timeout:         timeout,
 		RequestCallback: callback,
 		Done:            make(chan struct{}),
+		BeginTime:       time.Now(),
 	}
 }
 
@@ -118,4 +127,9 @@ func (rf *RequestResponseFuture) PutResponseMessage(message *primitive.Message) 
 	defer rf.mtx.Unlock()
 	rf.ResponseMsg = message
 	close(rf.Done)
+}
+
+func (rf *RequestResponseFuture) IsTimeout() bool {
+	diff := time.Since(rf.BeginTime)
+	return diff > rf.Timeout
 }

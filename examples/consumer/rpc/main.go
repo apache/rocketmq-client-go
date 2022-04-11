@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 )
@@ -38,36 +40,27 @@ func main() {
 		consumer.WithPullInterval(0),
 		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
 	)
+
 	err = c.Subscribe(topic, consumer.MessageSelector{
-		Type:       consumer.TAG,
-		Expression: "*",
-	}, func(ctx context.Context,
-		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+		Type: consumer.TAG, Expression: "*"}, func(ctx context.Context, msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+
 		fmt.Printf("subscribe callback: %v \n", msgs)
 		for _, msg := range msgs {
 			fmt.Printf("handle message: %s", msg.String())
-			replyTo := msg.GetProperty("REPLY_TO_CLIENT")
+			// why sleep here ? because if not sleep, consumer reply message, but producer not register to broker, it will
+			// make the broker can't find the reply channel.
+			// only the go client has this problem.
+			time.Sleep(time.Millisecond * 1000)
+			fmt.Println("consumer sleep over, start reply")
+
 			replyContent := []byte("reply message contents.")
-			// create reply message with given util, do not create reply message by yourself
-			cluster := msg.GetProperty("CLUSTER")
-			correlationId := msg.GetProperty("CORRELATION_ID")
-			ttl := msg.GetProperty("TTL")
-			var replyMessage *primitive.Message
-			if cluster != "" {
-				replyMessage = primitive.NewMessage(
-					cluster+"_REPLY_TOPIC",
-					replyContent,
-				)
-			} else {
-				replyMessage = primitive.NewMessage(
-					"",
-					replyContent,
-				)
+			replyMessage, err := internal.CreateReplyMessage(msg, replyContent)
+			if err != nil {
+				fmt.Printf("create reply message err:%v\n", err)
+				continue
 			}
-			replyMessage.WithProperty("MSG_TYPE", "reply")
-			replyMessage.WithProperty("CORRELATION_ID", correlationId)
-			replyMessage.WithProperty("REPLY_TO_CLIENT", replyTo)
-			replyMessage.WithProperty("TTL", ttl)
+
+			replyTo := internal.GetReplyToClient(msg)
 			replyResult, err := replyProducer.SendSync(context.Background(), replyMessage)
 			if err != nil {
 				fmt.Printf("send message error: %s\n", err)
@@ -87,4 +80,10 @@ func main() {
 		return
 	}
 	fmt.Printf("Consumer Started.\n")
+
+	time.Sleep(time.Hour)
+	err = c.Shutdown()
+	if err != nil {
+		fmt.Printf("shutdown Consumer error: %s", err.Error())
+	}
 }
