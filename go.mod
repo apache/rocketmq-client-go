@@ -13,7 +13,7 @@ require (
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stathat/consistent v1.0.0
 	github.com/stretchr/testify v1.3.0
-	github.com/tidwall/gjson v1.8.1
+	github.com/tidwall/gjson v1.13.0
 	go.uber.org/atomic v1.5.1
 	golang.org/dl v0.0.0-20220315170520-faa7218da89a // indirect
 	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
