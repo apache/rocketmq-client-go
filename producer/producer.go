@@ -68,19 +68,25 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 		options:    defaultOpts,
 	}
 	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
-	producer.options.ClientOptions.Namesrv, err = internal.GetNamesrv(producer.client.ClientID())
-	if err != nil {
-		return nil, err
+	if producer.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
 	}
+	defaultOpts.Namesrv = producer.client.GetNameSrv()
+
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
 	return producer, nil
 }
 
 func (p *defaultProducer) Start() error {
+	if p == nil || p.client == nil {
+		return fmt.Errorf("client instance is nil, can not start producer")
+	}
 	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-
-	p.client.RegisterProducer(p.group, p)
+	err := p.client.RegisterProducer(p.group, p)
+	if err != nil {
+		return err
+	}
 	p.client.Start()
 	return nil
 }
@@ -303,7 +309,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			continue
 		}
 
-		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -350,7 +356,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
 
-	addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+	addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
@@ -397,7 +403,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			continue
 		}
 
-		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -490,7 +496,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
-		data, changed, err := p.options.Namesrv.UpdateTopicRouteInfo(topic)
+		data, changed, err := p.client.GetNameSrv().UpdateTopicRouteInfo(topic)
 		if err != nil && primitive.IsRemotingErr(err) {
 			return nil
 		}
@@ -499,7 +505,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 	}
 
 	if !exist {
-		data, changed, _ := p.options.Namesrv.UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
+		data, changed, _ := p.client.GetNameSrv().UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
 		p.client.UpdatePublishInfo(topic, data, changed)
 		v, exist = p.publishInfo.Load(topic)
 	}
@@ -670,8 +676,8 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	} else {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
-
-	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
+	// 估计没有反序列化回来
+	brokerAddr := tp.producer.client.GetNameSrv().FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
 		CommitLogOffset:      msgID.Offset,

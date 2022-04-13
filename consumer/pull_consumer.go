@@ -90,10 +90,12 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
-
-		namesrv: srvs,
 	}
-	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
+	if dc.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+	}
+	defaultOpts.Namesrv = dc.client.GetNameSrv()
+
 	c := &defaultPullConsumer{
 		defaultConsumer: dc,
 	}
@@ -132,7 +134,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 }
 
 func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
-	queues, err := c.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
+	queues, err := c.defaultConsumer.client.GetNameSrv().FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
 		rlog.Error("get next mq error", map[string]interface{}{
 			rlog.LogKeyTopic:         topic,

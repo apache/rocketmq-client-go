@@ -173,7 +173,7 @@ func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic st
 					updated = p.IsPublishTopicNeedUpdate(topic)
 				}
 				if updated {
-					publishInfo := s.bundleClient.namesrvs.routeData2PublishInfo(topic, routeData)
+					publishInfo := s.bundleClient.GetNameSrv().(*namesrvs).routeData2PublishInfo(topic, routeData)
 					publishInfo.HaveTopicRouterInfo = true
 					p.UpdateTopicPublishInfo(topic, publishInfo)
 				}

@@ -208,6 +208,15 @@ func (mr *MockInnerConsumerMockRecorder) GetConsumerRunningInfo() *gomock.Call {
 type MockRMQClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockRMQClientMockRecorder
+	Namesrv  *MockNamesrvs
+}
+
+func (m *MockRMQClient) GetNameSrv() Namesrvs {
+	return m.Namesrv
+}
+
+func (m *MockRMQClient) SetNameSrv(mockNamesrvs *MockNamesrvs) {
+	m.Namesrv = mockNamesrvs
 }
 
 // MockRMQClientMockRecorder is the mock recorder for MockRMQClient
@@ -260,8 +269,10 @@ func (mr *MockRMQClientMockRecorder) ClientID() *gomock.Call {
 }
 
 // RegisterProducer mocks base method
-func (m *MockRMQClient) RegisterProducer(group string, producer InnerProducer) {
-	m.ctrl.Call(m, "RegisterProducer", group, producer)
+func (m *MockRMQClient) RegisterProducer(group string, producer InnerProducer) error {
+	ret := m.ctrl.Call(m, "RegisterProducer", group, producer)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RegisterProducer indicates an expected call of RegisterProducer

@@ -22,6 +22,7 @@ package producer
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -42,9 +43,14 @@ func WithTrace(traceCfg *primitive.TraceConfig) Option {
 
 func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor {
 	dispatcher := internal.NewTraceDispatcher(traceCfg)
-	dispatcher.Start()
+	if dispatcher != nil {
+		dispatcher.Start()
+	}
 
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
+		if dispatcher == nil {
+			return fmt.Errorf("GetOrNewRocketMQClient faild")
+		}
 		beginT := time.Now()
 		err := next(ctx, req, reply)
 

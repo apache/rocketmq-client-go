@@ -24,6 +24,7 @@ import (
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -104,7 +105,7 @@ func DefaultClientOptions() ClientOptions {
 type ClientOptions struct {
 	GroupName         string
 	NameServerAddrs   primitive.NamesrvAddr
-	Namesrv           *namesrvs
+	Namesrv           Namesrvs
 	ClientIP          string
 	InstanceName      string
 	UnitMode          bool
@@ -136,7 +137,7 @@ type RMQClient interface {
 
 	ClientID() string
 
-	RegisterProducer(group string, producer InnerProducer)
+	RegisterProducer(group string, producer InnerProducer) error
 	UnregisterProducer(group string)
 	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
@@ -155,6 +156,8 @@ type RMQClient interface {
 	PullMessage(ctx context.Context, brokerAddrs string, request *PullMessageRequestHeader) (*primitive.PullResult, error)
 	RebalanceImmediately()
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
+
+	GetNameSrv() Namesrvs
 }
 
 var _ RMQClient = new(rmqClient)
@@ -172,9 +175,12 @@ type rmqClient struct {
 	hbMutex      sync.Mutex
 	close        bool
 	rbMutex      sync.Mutex
-	namesrvs     *namesrvs
 	done         chan struct{}
 	shutdownOnce sync.Once
+}
+
+func (c *rmqClient) GetNameSrv() Namesrvs {
+	return c.option.Namesrv
 }
 
 var clientMap sync.Map
@@ -183,14 +189,34 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(),
-		namesrvs:     option.Namesrv,
 		done:         make(chan struct{}),
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
-	client.namesrvs = GetOrSetNamesrv(client.ClientID(), client.namesrvs)
-	client.namesrvs.bundleClient = actual.(*rmqClient)
-	client.option.Namesrv = client.namesrvs
-	if !loaded {
+
+	if loaded {
+		// compare namesrv address
+		client = actual.(*rmqClient)
+		now := option.Namesrv.(*namesrvs).resolver.Resolve()
+		old := client.GetNameSrv().(*namesrvs).resolver.Resolve()
+		if len(now) != len(old) {
+			rlog.Error("different namesrv option in the same instance", map[string]interface{}{
+				"NewNameSrv":    now,
+				"BeforeNameSrv": old,
+			})
+			return nil
+		}
+		sort.Strings(now)
+		sort.Strings(old)
+		for i := 0; i < len(now); i++ {
+			if now[i] != old[i] {
+				rlog.Error("different namesrv option in the same instance", map[string]interface{}{
+					"NewNameSrv":    now,
+					"BeforeNameSrv": old,
+				})
+				return nil
+			}
+		}
+	} else {
 		client.remoteClient.RegisterRequestFunc(ReqNotifyConsumerIdsChanged, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
 			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: req.ExtFields["consumerGroup"],
@@ -346,7 +372,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			return res
 		})
 	}
-	return actual.(*rmqClient)
+	return client
 }
 
 func (c *rmqClient) Start() {
@@ -358,7 +384,7 @@ func (c *rmqClient) Start() {
 		}
 		go primitive.WithRecover(func() {
 			op := func() {
-				c.namesrvs.UpdateNameServerAddress()
+				c.GetNameSrv().UpdateNameServerAddress()
 			}
 			time.Sleep(10 * time.Second)
 			op()
@@ -404,7 +430,7 @@ func (c *rmqClient) Start() {
 
 		go primitive.WithRecover(func() {
 			op := func() {
-				c.namesrvs.cleanOfflineBroker()
+				c.GetNameSrv().cleanOfflineBroker()
 				c.SendHeartbeatToAllBrokerWithLock()
 			}
 
@@ -569,7 +595,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		rlog.Info("sending heartbeat, but no producer and no consumer", nil)
 		return
 	}
-	c.namesrvs.brokerAddressesMap.Range(func(key, value interface{}) bool {
+	c.GetNameSrv().(*namesrvs).brokerAddressesMap.Range(func(key, value interface{}) bool {
 		brokerName := key.(string)
 		data := value.(*BrokerData)
 		for id, addr := range data.BrokerAddresses {
@@ -599,7 +625,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 			}
 			cancel()
 			if response.Code == ResSuccess {
-				c.namesrvs.AddBrokerVersion(brokerName, addr, int32(response.Version))
+				c.GetNameSrv().(*namesrvs).AddBrokerVersion(brokerName, addr, int32(response.Version))
 				rlog.Debug("send heart beat to broker success", map[string]interface{}{
 					"brokerName": brokerName,
 					"brokerId":   id,
@@ -629,7 +655,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		return true
 	})
 	for topic := range publishTopicSet {
-		data, changed, _ := c.namesrvs.UpdateTopicRouteInfo(topic)
+		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
 		c.UpdatePublishInfo(topic, data, changed)
 	}
 
@@ -644,7 +670,7 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 	})
 
 	for topic := range subscribedTopicSet {
-		data, changed, _ := c.namesrvs.UpdateTopicRouteInfo(topic)
+		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
 		c.updateSubscribeInfo(topic, data, changed)
 	}
 }
@@ -770,8 +796,12 @@ func (c *rmqClient) UnregisterConsumer(group string) {
 	c.consumerMap.Delete(group)
 }
 
-func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) {
-	c.producerMap.Store(group, producer)
+func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) error {
+	_, loaded := c.producerMap.LoadOrStore(group, producer)
+	if loaded {
+		return fmt.Errorf("the producer group \"%s\" has been created, specify another one", c.option.GroupName)
+	}
+	return nil
 }
 
 func (c *rmqClient) UnregisterProducer(group string) {
@@ -800,7 +830,7 @@ func (c *rmqClient) UpdatePublishInfo(topic string, data *TopicRouteData, change
 			updated = p.IsPublishTopicNeedUpdate(topic)
 		}
 		if updated {
-			publishInfo := c.namesrvs.routeData2PublishInfo(topic, data)
+			publishInfo := c.GetNameSrv().(*namesrvs).routeData2PublishInfo(topic, data)
 			publishInfo.HaveTopicRouterInfo = true
 			p.UpdateTopicPublishInfo(topic, publishInfo)
 		}
