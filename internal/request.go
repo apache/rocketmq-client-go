@@ -551,7 +551,7 @@ func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
 	}
 
 	if v, existed := properties["flag"]; existed {
-		tmpFlag, _ := strconv.Atoi(v)
+		tmpFlag, _ := strconv.ParseInt(v, 10, 32)
 		request.flag = int32(tmpFlag)
 	}
 
@@ -560,7 +560,7 @@ func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
 	}
 
 	if v, existed := properties["reconsumeTimes"]; existed {
-		tmpReconsumeTimes, _ := strconv.Atoi(v)
+		tmpReconsumeTimes, _ := strconv.ParseInt(v, 10, 32)
 		request.reconsumeTimes = int32(tmpReconsumeTimes)
 	}
 
