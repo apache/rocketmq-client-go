@@ -97,21 +97,17 @@ type namesrvs struct {
 }
 
 var _ Namesrvs = (*namesrvs)(nil)
-var namesrvMap sync.Map
 
-// NewNamesrv init Namesrv from namesrv addr string.
-// addr primitive.NamesrvAddr
-func GetOrSetNamesrv(clientId string, namesrv *namesrvs) *namesrvs {
-	actual, _ := namesrvMap.LoadOrStore(clientId, namesrv)
-	return actual.(*namesrvs)
-}
 func GetNamesrv(clientId string) (*namesrvs, error) {
-	actual, ok := namesrvMap.Load(clientId)
+	actual, ok := clientMap.Load(clientId)
 	if !ok {
 		return nil, fmt.Errorf("the namesrv in instanceName [%s] not found", clientId)
 	}
-	return actual.(*namesrvs), nil
+	return actual.(*rmqClient).GetNameSrv().(*namesrvs), nil
 }
+
+// NewNamesrv init Namesrv from namesrv addr string.
+// addr primitive.NamesrvAddr
 func NewNamesrv(resolver primitive.NsResolver) (*namesrvs, error) {
 	addr := resolver.Resolve()
 	if len(addr) == 0 {
