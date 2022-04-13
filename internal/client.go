@@ -359,11 +359,11 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				body = utils.UnCompress(req.Body)
 			}
 			msgExt.Body = body
-			msgExt.Flag = int32(header.flag)
+			msgExt.Flag = header.flag
 			msgExt.UnmarshalProperties([]byte(header.properties))
 			msgExt.WithProperty(primitive.PropertyReplyMessageArriveTime, strconv.FormatInt(receiveTime, 10))
 			msgExt.BornTimestamp = header.bornTimestamp
-			msgExt.ReconsumeTimes = int32(header.reconsumeTimes)
+			msgExt.ReconsumeTimes = header.reconsumeTimes
 
 			client.getReplyMessageRequest(&msgExt, header.bornHost)
 

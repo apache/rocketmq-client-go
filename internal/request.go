@@ -490,9 +490,9 @@ type ReplyMessageRequestHeader struct {
 	queueId               int
 	sysFlag               int
 	bornTimestamp         int64
-	flag                  int
+	flag                  int32
 	properties            string
-	reconsumeTimes        int64
+	reconsumeTimes        int32
 	unitMode              bool
 	bornHost              string
 	storeHost             string
@@ -508,9 +508,9 @@ func (request *ReplyMessageRequestHeader) Encode() map[string]string {
 		"queueId":               strconv.Itoa(request.queueId),
 		"sysFlag":               strconv.Itoa(request.sysFlag),
 		"bornTimestamp":         strconv.FormatInt(request.bornTimestamp, 10),
-		"flag":                  strconv.Itoa(request.flag),
+		"flag":                  fmt.Sprintf("%d", request.flag),
 		"properties":            request.properties,
-		"reconsumeTimes":        strconv.FormatInt(request.reconsumeTimes, 10),
+		"reconsumeTimes":        fmt.Sprintf("%d", request.reconsumeTimes),
 		"bornHost":              request.bornHost,
 		"storeHost":             request.storeHost,
 		"storeTimestamp":        strconv.FormatInt(request.storeTimestamp, 10),
@@ -551,7 +551,8 @@ func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
 	}
 
 	if v, existed := properties["flag"]; existed {
-		request.flag, _ = strconv.Atoi(v)
+		tmpFlag, _ := strconv.ParseInt(v, 10, 0)
+		request.flag = int32(tmpFlag)
 	}
 
 	if v, existed := properties["properties"]; existed {
@@ -559,7 +560,8 @@ func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
 	}
 
 	if v, existed := properties["reconsumeTimes"]; existed {
-		request.reconsumeTimes, _ = strconv.ParseInt(v, 10, 0)
+		tmpReconsumeTimes, _ := strconv.ParseInt(v, 10, 0)
+		request.reconsumeTimes = int32(tmpReconsumeTimes)
 	}
 
 	if v, existed := properties["bornHost"]; existed {
