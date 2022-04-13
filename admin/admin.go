@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -65,6 +66,13 @@ func WithResolver(resolver primitive.NsResolver) AdminOption {
 func WithCredentials(c primitive.Credentials) AdminOption {
 	return func(options *adminOptions) {
 		options.ClientOptions.Credentials = c
+	}
+}
+
+// WithNamespace set the namespace of admin
+func WithNamespace(namespace string) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Namespace = namespace
 	}
 }
 
@@ -210,7 +218,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 }
 
 func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
-	return a.cli.GetNameSrv().FetchPublishMessageQueues(topic)
+	return a.cli.GetNameSrv().FetchPublishMessageQueues(utils.WrapNamespace(a.opts.Namespace, topic))
 }
 
 func (a *admin) Close() error {

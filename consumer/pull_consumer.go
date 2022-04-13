@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 
 	"github.com/pkg/errors"
 
@@ -194,6 +195,9 @@ func (dc *defaultConsumer) checkPull(ctx context.Context, mq *primitive.MessageQ
 // TODO: add hook
 func (c *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
 	offset int64, numbers int) (*primitive.PullResult, error) {
+
+	mq.Topic = utils.WrapNamespace(c.defaultConsumer.option.Namespace, mq.Topic)
+	c.consumerGroup = utils.WrapNamespace(c.defaultConsumer.option.Namespace, c.consumerGroup)
 
 	if err := c.checkPull(ctx, mq, offset, numbers); err != nil {
 		return nil, err

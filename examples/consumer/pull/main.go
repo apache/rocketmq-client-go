@@ -36,6 +36,7 @@ const (
 	topic             = "test-topic"
 	consumerGroupName = "testGroup"
 	tag               = "testPull"
+	namespace         = "ns"
 )
 
 var ctx = context.Background()
@@ -57,6 +58,7 @@ func main() {
 			AccessKey: accessKey,
 			SecretKey: secretKey,
 		}),
+		consumer.WithNamespace(namespace),
 	)
 	if err != nil {
 		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
@@ -73,6 +75,7 @@ func main() {
 			AccessKey: accessKey,
 			SecretKey: secretKey,
 		}),
+		admin.WithNamespace(namespace),
 	)
 	if err != nil {
 		rlog.Fatal(fmt.Sprintf("fail to new admin: %s", err), nil)
