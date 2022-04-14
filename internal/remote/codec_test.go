@@ -364,7 +364,7 @@ func TestCommandJsonIter(t *testing.T) {
 	err = json.Unmarshal(cmdData, &cmdResp)
 	assert.Nil(t, err)
 	rlog.Info("Json Decode Success", map[string]interface{}{
-		"cmd": cmdResp,
+		"cmd":      cmdResp,
 		"language": cmdResp.Language,
 	})
 
@@ -372,7 +372,7 @@ func TestCommandJsonIter(t *testing.T) {
 	err = json.Unmarshal(data, &cmdResp2)
 	assert.Nil(t, err)
 	rlog.Info("Json Decode Success", map[string]interface{}{
-		"cmd": cmdResp2,
+		"cmd":      cmdResp2,
 		"language": cmdResp2.Language,
 	})
 }

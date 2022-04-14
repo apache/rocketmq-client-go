@@ -477,8 +477,8 @@ func TestAllocateByConsistentHash(t *testing.T) {
 			for _, value := range cases {
 				result := strategy("testGroup", value.currentCid, value.mqAll, value.cidAll)
 				rlog.Info("Result Of AllocateByMachineRoom", map[string]interface{}{
-					"currentCid": value.currentCid,
-					"cidAll": value.cidAll,
+					"currentCid":     value.currentCid,
+					"cidAll":         value.cidAll,
 					"allocateResult": result,
 				})
 			}
