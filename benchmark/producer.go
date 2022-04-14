@@ -92,12 +92,12 @@ func (s *produceSnapshots) printStati() {
 	s.RUnlock()
 
 	rlog.Info("Benchmark Producer Snapshot", map[string]interface{}{
-		"sendTps": int64(sendTps),
-		"maxRt": maxRT,
-		"averageRt": avgRT,
-		"sendFailed": l.sendRequestFailedCount,
+		"sendTps":        int64(sendTps),
+		"maxRt":          maxRT,
+		"averageRt":      avgRT,
+		"sendFailed":     l.sendRequestFailedCount,
 		"responseFailed": l.receiveResponseFailedCount,
-		"total": l.receiveResponseSuccessCount,
+		"total":          l.receiveResponseSuccessCount,
 	})
 }
 
@@ -179,8 +179,8 @@ AGAIN:
 		goto AGAIN
 	}
 	rlog.Error("Send Message Error", map[string]interface{}{
-		"topic": topic,
-		"tag": tag,
+		"topic":                  topic,
+		"tag":                    tag,
 		rlog.LogKeyUnderlayError: err.Error(),
 	})
 	goto AGAIN

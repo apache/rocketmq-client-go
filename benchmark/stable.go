@@ -128,7 +128,7 @@ func (stp *stableTestProducer) run(args []string) {
 	err := stp.flags.Parse(args)
 	if err != nil {
 		rlog.Info("Parse Args Error", map[string]interface{}{
-			"args": args,
+			"args":                   args,
 			rlog.LogKeyUnderlayError: err.Error(),
 		})
 		stp.usage()
@@ -205,7 +205,7 @@ func (stc *stableTestConsumer) run(args []string) {
 	err := stc.flags.Parse(args)
 	if err != nil {
 		rlog.Error("Parse Args Error", map[string]interface{}{
-			"args": args,
+			"args":                   args,
 			rlog.LogKeyUnderlayError: err.Error(),
 		})
 		stc.usage()
