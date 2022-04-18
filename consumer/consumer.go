@@ -658,27 +658,28 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
-		if mq.Topic == topic {
-			if !mqSet[mq] {
-				pq.WithDropped(true)
-				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
-					dc.processQueueTable.Delete(key)
-					changed = true
-					rlog.Debug("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
-						rlog.LogKeyConsumerGroup: dc.consumerGroup,
-						rlog.LogKeyMessageQueue:  mq.String(),
-					})
-				}
-			} else if pq.isPullExpired() && dc.cType == _PushConsume {
-				pq.WithDropped(true)
-				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
-					dc.processQueueTable.Delete(key)
-					changed = true
-					rlog.Debug("remove unnecessary mq because pull was paused, prepare to fix it", map[string]interface{}{
-						rlog.LogKeyConsumerGroup: dc.consumerGroup,
-						rlog.LogKeyMessageQueue:  mq.String(),
-					})
-				}
+		if mq.Topic != topic {
+			return false
+		}
+		if !mqSet[mq] {
+			pq.WithDropped(true)
+			if dc.removeUnnecessaryMessageQueue(&mq, pq) {
+				dc.processQueueTable.Delete(key)
+				changed = true
+				rlog.Debug("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
+					rlog.LogKeyConsumerGroup: dc.consumerGroup,
+					rlog.LogKeyMessageQueue:  mq.String(),
+				})
+			}
+		} else if pq.isPullExpired() && dc.cType == _PushConsume {
+			pq.WithDropped(true)
+			if dc.removeUnnecessaryMessageQueue(&mq, pq) {
+				dc.processQueueTable.Delete(key)
+				changed = true
+				rlog.Debug("remove unnecessary mq because pull was paused, prepare to fix it", map[string]interface{}{
+					rlog.LogKeyConsumerGroup: dc.consumerGroup,
+					rlog.LogKeyMessageQueue:  mq.String(),
+				})
 			}
 		}
 		return true
