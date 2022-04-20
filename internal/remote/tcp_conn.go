@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 )
@@ -33,6 +34,8 @@ type tcpConnWrapper struct {
 
 func initConn(ctx context.Context, addr string) (*tcpConnWrapper, error) {
 	var d net.Dialer
+	d.KeepAlive = time.Second * 120
+
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err

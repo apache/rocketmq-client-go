@@ -21,9 +21,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 
@@ -155,6 +157,11 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 			break
 		}
 
+		err = r.Conn.SetReadDeadline(time.Now().Add(time.Second * 60))
+		if err != nil {
+			continue
+		}
+
 		_, err = io.ReadFull(r, *header)
 		if err != nil {
 			continue
@@ -274,11 +281,18 @@ func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingComm
 func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
 	conn.Lock()
 	defer conn.Unlock()
-	err := request.WriteTo(conn)
+
+	err := conn.Conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	if err != nil {
+		return fmt.Errorf("set write deadline err %w", err)
+	}
+
+	err = request.WriteTo(conn)
 	if err != nil {
 		c.closeConnection(conn)
 		return err
 	}
+
 	return nil
 }
 
