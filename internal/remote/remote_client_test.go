@@ -116,7 +116,7 @@ func TestCreateScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to encode RemotingCommand. %s", err)
 	}
-	client := NewRemotingClient()
+	client := NewRemotingClient(nil)
 	reader := bytes.NewReader(content)
 	scanner := client.createScanner(reader)
 	for scanner.Scan() {
@@ -151,7 +151,7 @@ func TestInvokeSync(t *testing.T) {
 	serverSendRemotingCommand.Flag = ResponseType
 	var wg sync.WaitGroup
 	wg.Add(1)
-	client := NewRemotingClient()
+	client := NewRemotingClient(nil)
 
 	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
 	clientSend.Add(1)
@@ -216,7 +216,7 @@ func TestInvokeAsync(t *testing.T) {
 	var wg sync.WaitGroup
 	cnt := 50
 	wg.Add(cnt)
-	client := NewRemotingClient()
+	client := NewRemotingClient(nil)
 	for i := 0; i < cnt; i++ {
 		go func(index int) {
 			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
@@ -282,7 +282,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	client := NewRemotingClient()
+	client := NewRemotingClient(nil)
 
 	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
 	clientSend.Add(1)
@@ -329,7 +329,7 @@ func TestInvokeOneWay(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	client := NewRemotingClient()
+	client := NewRemotingClient(nil)
 
 	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
 	clientSend.Add(1)
