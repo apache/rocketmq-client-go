@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -75,13 +74,17 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	if err != nil {
 		return nil, err
 	}
+
 	resp := NewResponseFuture(ctx, request.Opaque, nil)
+
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
+
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
+
 	return resp.waitResponse()
 }
 
@@ -91,15 +94,21 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	if err != nil {
 		return err
 	}
+
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
 	c.responseTable.Store(resp.Opaque, resp)
+
 	err = c.sendRequest(conn, request)
 	if err != nil {
+		c.responseTable.Delete(request.Opaque)
 		return err
 	}
+
 	go primitive.WithRecover(func() {
 		c.receiveAsync(resp)
+		c.responseTable.Delete(request.Opaque)
 	})
+
 	return nil
 }
 
@@ -157,7 +166,7 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 			break
 		}
 
-		err = r.Conn.SetReadDeadline(time.Now().Add(time.Second * 60))
+		err = r.Conn.SetReadDeadline(time.Now().Add(time.Second * 120))
 		if err != nil {
 			continue
 		}
@@ -282,14 +291,17 @@ func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingComman
 	conn.Lock()
 	defer conn.Unlock()
 
-	err := conn.Conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	err := conn.Conn.SetWriteDeadline(time.Now().Add(120 * time.Second))
 	if err != nil {
-		return fmt.Errorf("set write deadline err %w", err)
+		c.closeConnection(conn)
+		conn.destroy()
+		return err
 	}
 
 	err = request.WriteTo(conn)
 	if err != nil {
 		c.closeConnection(conn)
+		conn.destroy()
 		return err
 	}
 
