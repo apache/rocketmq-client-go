@@ -293,6 +293,10 @@ func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingComman
 
 	err := conn.Conn.SetWriteDeadline(time.Now().Add(120 * time.Second))
 	if err != nil {
+		rlog.Error("conn error, close connection", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+
 		c.closeConnection(conn)
 		conn.destroy()
 		return err
@@ -300,6 +304,10 @@ func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingComman
 
 	err = request.WriteTo(conn)
 	if err != nil {
+		rlog.Error("conn error, close connection", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+
 		c.closeConnection(conn)
 		conn.destroy()
 		return err
