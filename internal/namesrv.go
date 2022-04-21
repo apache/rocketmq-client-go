@@ -19,6 +19,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -49,6 +50,8 @@ type Namesrvs interface {
 
 	UpdateTopicRouteInfo(topic string) (routeData *TopicRouteData, changed bool, err error)
 
+	UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error)
+
 	FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
 	FindBrokerAddrByTopic(topic string) string
@@ -76,6 +79,8 @@ type namesrvs struct {
 	// brokerName -> *BrokerData
 	brokerAddressesMap sync.Map
 
+	bundleClient *rmqClient
+
 	// brokerName -> map[string]int32: brokerAddr -> version
 	brokerVersionMap map[string]map[string]int32
 	// lock for broker version read/write
@@ -92,6 +97,14 @@ type namesrvs struct {
 }
 
 var _ Namesrvs = (*namesrvs)(nil)
+
+func GetNamesrv(clientId string) (*namesrvs, error) {
+	actual, ok := clientMap.Load(clientId)
+	if !ok {
+		return nil, fmt.Errorf("the namesrv in instanceName [%s] not found", clientId)
+	}
+	return actual.(*rmqClient).GetNameSrv().(*namesrvs), nil
+}
 
 // NewNamesrv init Namesrv from namesrv addr string.
 // addr primitive.NamesrvAddr

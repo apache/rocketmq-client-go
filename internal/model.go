@@ -21,7 +21,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/tidwall/gjson"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -287,4 +289,118 @@ func (result ConsumeMessageDirectlyResult) Encode() ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+type ResetOffsetBody struct {
+	OffsetTable map[primitive.MessageQueue]int64 `json:"offsetTable"`
+}
+
+// Decode note: the origin implementation for parse json is in gson format.
+// this func should support both gson and fastjson schema.
+func (resetOffsetBody *ResetOffsetBody) Decode(body []byte) {
+	validJSON := gjson.ValidBytes(body)
+
+	var offsetTable map[primitive.MessageQueue]int64
+
+	if validJSON {
+		offsetTable = parseGsonFormat(body)
+	} else {
+		offsetTable = parseFastJsonFormat(body)
+	}
+
+	resetOffsetBody.OffsetTable = offsetTable
+}
+
+func parseGsonFormat(body []byte) map[primitive.MessageQueue]int64 {
+	result := gjson.ParseBytes(body)
+
+	rlog.Debug("offset table string "+result.Get("offsetTable").String(), nil)
+
+	offsetTable := make(map[primitive.MessageQueue]int64, 0)
+
+	offsetStr := result.Get("offsetTable").String()
+	if len(offsetStr) <= 2 {
+		rlog.Warning("parse reset offset table json get nothing in body", map[string]interface{}{
+			"origin json": offsetStr,
+		})
+		return offsetTable
+	}
+
+	offsetTableArray := strings.Split(offsetStr, "],[")
+
+	for index, v := range offsetTableArray {
+		kvArray := strings.Split(v, "},")
+
+		var kstr, vstr string
+		if index == len(offsetTableArray)-1 {
+			vstr = kvArray[1][:len(kvArray[1])-2]
+		} else {
+			vstr = kvArray[1]
+		}
+		offset, err := strconv.ParseInt(vstr, 10, 64)
+		if err != nil {
+			rlog.Error("Unmarshal offset error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return nil
+		}
+
+		if index == 0 {
+			kstr = kvArray[0][2:len(kvArray[0])] + "}"
+		} else {
+			kstr = kvArray[0] + "}"
+		}
+		kObj := new(primitive.MessageQueue)
+		err = jsoniter.Unmarshal([]byte(kstr), &kObj)
+		if err != nil {
+			rlog.Error("Unmarshal message queue error", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return nil
+		}
+		offsetTable[*kObj] = offset
+	}
+
+	return offsetTable
+}
+
+func parseFastJsonFormat(body []byte) map[primitive.MessageQueue]int64 {
+	offsetTable := make(map[primitive.MessageQueue]int64)
+
+	jsonStr := string(body)
+	offsetStr := gjson.Get(jsonStr, "offsetTable").String()
+
+	if len(offsetStr) <= 2 {
+		rlog.Warning("parse reset offset table json get nothing in body", map[string]interface{}{
+			"origin json": jsonStr,
+		})
+		return offsetTable
+	}
+
+	trimStr := offsetStr[2 : len(offsetStr)-1]
+
+	split := strings.Split(trimStr, ",{")
+
+	for _, v := range split {
+		tuple := strings.Split(v, "}:")
+
+		queueStr := "{" + tuple[0] + "}"
+
+		var err error
+		// ignore err for now
+		offset, err := strconv.Atoi(tuple[1])
+
+		var queue primitive.MessageQueue
+		err = json.Unmarshal([]byte(queueStr), &queue)
+
+		if err != nil {
+			rlog.Error("parse reset offset table json get nothing in body", map[string]interface{}{
+				"origin json": jsonStr,
+			})
+		}
+
+		offsetTable[queue] = int64(offset)
+	}
+
+	return offsetTable
 }

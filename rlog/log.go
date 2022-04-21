@@ -25,6 +25,7 @@ import (
 )
 
 const (
+	LogKeyProducerGroup    = "producerGroup"
 	LogKeyConsumerGroup    = "consumerGroup"
 	LogKeyTopic            = "topic"
 	LogKeyMessageQueue     = "MessageQueue"
@@ -33,6 +34,7 @@ const (
 	LogKeyValueChangedFrom = "changedFrom"
 	LogKeyValueChangedTo   = "changeTo"
 	LogKeyPullRequest      = "PullRequest"
+	LogKeyTimeStamp        = "timestamp"
 )
 
 type Logger interface {
@@ -57,6 +59,8 @@ func init() {
 		r.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		r.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		r.logger.SetLevel(logrus.FatalLevel)
 	default:
 		r.logger.SetLevel(logrus.InfoLevel)
 	}
@@ -94,7 +98,7 @@ func (l *defaultLogger) Error(msg string, fields map[string]interface{}) {
 	if msg == "" && len(fields) == 0 {
 		return
 	}
-	l.logger.WithFields(fields).WithFields(fields).Error(msg)
+	l.logger.WithFields(fields).Error(msg)
 }
 
 func (l *defaultLogger) Fatal(msg string, fields map[string]interface{}) {
@@ -112,6 +116,8 @@ func (l *defaultLogger) Level(level string) {
 		l.logger.SetLevel(logrus.WarnLevel)
 	case "error":
 		l.logger.SetLevel(logrus.ErrorLevel)
+	case "fatal":
+		l.logger.SetLevel(logrus.FatalLevel)
 	default:
 		l.logger.SetLevel(logrus.InfoLevel)
 	}

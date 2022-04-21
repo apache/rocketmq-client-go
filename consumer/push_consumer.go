@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
 	"strconv"
 	"strings"
@@ -100,8 +101,11 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		fromWhere:      defaultOpts.FromWhere,
 		allocate:       defaultOpts.Strategy,
 		option:         defaultOpts,
-		namesrv:        srvs,
 	}
+	if dc.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+	}
+	defaultOpts.Namesrv = dc.client.GetNameSrv()
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
@@ -138,7 +142,7 @@ func (pc *pushConsumer) Start() error {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
-			err = ErrCreated
+			err = errors2.ErrCreated
 			return
 		}
 
@@ -224,15 +228,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
 	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
-		return errors.New("cannot subscribe topic since client either failed to start or has been shutdown.")
-	}
-
-	// add retry topic subscription for resubscribe
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	_, exists := pc.subscriptionDataTable.Load(retryTopic)
-	if !exists {
-		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
-		pc.subscriptionDataTable.Store(retryTopic, sub)
+		return errors2.ErrStartTopic
 	}
 
 	if pc.option.Namespace != "" {
@@ -250,9 +246,10 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 }
 
 func (pc *pushConsumer) Unsubscribe(topic string) error {
+	if pc.option.Namespace != "" {
+		topic = pc.option.Namespace + "%" + topic
+	}
 	pc.subscriptionDataTable.Delete(topic)
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	pc.subscriptionDataTable.Delete(retryTopic)
 	return nil
 }
 
@@ -383,7 +380,7 @@ func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 	})
 
 	nsAddr := ""
-	for _, value := range pc.namesrv.AddrList() {
+	for _, value := range pc.client.GetNameSrv().AddrList() {
 		nsAddr += fmt.Sprintf("%s;", value)
 	}
 	info.Properties[internal.PropNameServerAddr] = nsAddr
@@ -498,7 +495,7 @@ func (pc *pushConsumer) validate() {
 
 	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
 		if pc.option.ConsumeMessageBatchMaxSize == 0 {
-			pc.option.ConsumeMessageBatchMaxSize = 512
+			pc.option.ConsumeMessageBatchMaxSize = 1
 		} else {
 			rlog.Error("option.ConsumeMessageBatchMaxSize out of range [1, 1024]", nil)
 		}
@@ -761,10 +758,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 					"prevRequestOffset": prevRequestOffset,
 				})
 			}
-		case primitive.PullNoNewMsg:
-			rlog.Debug(fmt.Sprintf("Topic: %s, QueueId: %d no more msg, current offset: %d, next offset: %d",
-				request.mq.Topic, request.mq.QueueId, pullRequest.QueueOffset, result.NextBeginOffset), nil)
-		case primitive.PullNoMsgMatched:
+		case primitive.PullNoNewMsg, primitive.PullNoMsgMatched:
 			request.nextOffset = result.NextBeginOffset
 			pc.correctTagsOffset(request)
 		case primitive.PullOffsetIllegal:
@@ -787,13 +781,15 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 }
 
 func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
-	// TODO
+	if pr.pq.cachedMsgCount <= 0 {
+		pc.storage.update(pr.mq, pr.nextOffset, true)
+	}
 }
 
 func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.MessageExt, delayLevel int) bool {
 	var brokerAddr string
 	if len(brokerName) != 0 {
-		brokerAddr = pc.defaultConsumer.namesrv.FindBrokerAddrByName(brokerName)
+		brokerAddr = pc.defaultConsumer.client.GetNameSrv().FindBrokerAddrByName(brokerName)
 	} else {
 		brokerAddr = msg.StoreHost
 	}
@@ -828,7 +824,7 @@ func (pc *pushConsumer) resume() {
 	rlog.Info(fmt.Sprintf("resume consumer: %s", pc.consumerGroup), nil)
 }
 
-func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQueue]int64) {
+func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
 	//topic := cmd.ExtFields["topic"]
 	//group := cmd.ExtFields["group"]
 	//if topic == "" || group == "" {
@@ -854,11 +850,13 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	//	rlog.Infof("[reset-offset] consumer dose not exist. group=%s", group)
 	//	return
 	//}
+	pc.suspend()
+	defer pc.resume()
 
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
-		if _, ok := table[mq]; !ok {
+		if _, ok := table[mq]; ok && mq.Topic == topic {
 			pq.WithDropped(true)
 			pq.clear()
 		}
@@ -869,16 +867,17 @@ func (pc *pushConsumer) resetOffset(topic string, table map[primitive.MessageQue
 	if !exist {
 		return
 	}
-	queuesOfTopic := v.([]primitive.MessageQueue)
+	queuesOfTopic := v.([]*primitive.MessageQueue)
 	for _, k := range queuesOfTopic {
-		if _, ok := table[k]; ok {
-			pc.storage.update(&k, table[k], false)
+		if _, ok := table[*k]; ok {
+			pc.storage.update(k, table[*k], false)
 			v, exist := pc.processQueueTable.Load(k)
 			if !exist {
 				continue
 			}
 			pq := v.(*processQueue)
-			pc.removeUnnecessaryMessageQueue(&k, pq)
+			pc.removeUnnecessaryMessageQueue(k, pq)
+			pc.processQueueTable.Delete(k)
 		}
 	}
 }
@@ -1157,7 +1156,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					commitOffset = pq.commit()
 				case SuspendCurrentQueueAMoment:
 					if pc.checkReconsumeTimes(msgs) {
-						pq.putMessage(msgs...)
+						pq.makeMessageToCosumeAgain(msgs...)
 						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
 						continueConsume = false
 					} else {

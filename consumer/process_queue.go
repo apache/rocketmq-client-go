@@ -91,6 +91,10 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	pq.mutex.Lock()
+	if pq.IsDroppd() {
+		pq.mutex.Unlock()
+		return
+	}
 	if !pq.order {
 		pq.msgCh <- messages
 	}
@@ -339,6 +343,7 @@ func (pq *processQueue) MaxOrderlyCache() int64 {
 
 func (pq *processQueue) clear() {
 	pq.mutex.Lock()
+	defer pq.mutex.Unlock()
 	pq.msgCache.Clear()
 	pq.cachedMsgCount = 0
 	pq.cachedMsgSize = 0

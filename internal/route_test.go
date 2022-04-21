@@ -19,11 +19,11 @@ package internal
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/pkg/errors"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 
@@ -53,7 +53,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 				func(ctx context.Context, addr string, request *remote.RemotingCommand) (*remote.RemotingCommand, error) {
 					count++
 					if count < 3 {
-						return nil, errors.New("not existed")
+						return nil, errors.ErrNotExisted
 					}
 					return &remote.RemotingCommand{
 						Code: ResTopicNotExist,
@@ -62,7 +62,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 
 			data, err := namesrv.queryTopicRouteInfoFromServer("notexisted")
 			assert.Nil(t, data)
-			assert.Equal(t, ErrTopicNotExist, err)
+			assert.Equal(t, errors.ErrTopicNotExist, err)
 		})
 	})
 }
@@ -81,4 +81,57 @@ func TestAddBrokerVersion(t *testing.T) {
 
 	v = s.findBrokerVersion("b1", "addr2")
 	assert.Equal(t, v, int32(0))
+}
+
+func TestFindBrokerAddressInSubscribe(t *testing.T) {
+	s := &namesrvs{}
+	s.brokerVersionMap = make(map[string]map[string]int32, 0)
+	s.brokerLock = new(sync.RWMutex)
+
+	brokerDataRaft1 := &BrokerData{
+		Cluster:    "cluster",
+		BrokerName: "raft01",
+		BrokerAddresses: map[int64]string{
+			0: "127.0.0.1:10911",
+			1: "127.0.0.1:10912",
+			2: "127.0.0.1:10913",
+		},
+	}
+	s.brokerAddressesMap.Store(brokerDataRaft1.BrokerName, brokerDataRaft1)
+	brokerDataRaft2 := &BrokerData{
+		Cluster:    "cluster",
+		BrokerName: "raft02",
+		BrokerAddresses: map[int64]string{
+			0: "127.0.0.1:10911",
+			2: "127.0.0.1:10912",
+			3: "127.0.0.1:10913",
+		},
+	}
+	s.brokerAddressesMap.Store(brokerDataRaft2.BrokerName, brokerDataRaft2)
+
+	Convey("Request master broker", t, func() {
+		result := s.FindBrokerAddressInSubscribe(brokerDataRaft1.BrokerName, 0, false)
+		assert.NotNil(t, result)
+		assert.Equal(t, result.BrokerAddr, brokerDataRaft1.BrokerAddresses[0])
+		assert.Equal(t, result.Slave, false)
+	})
+
+	Convey("Request slave broker from normal broker group", t, func() {
+		result := s.FindBrokerAddressInSubscribe(brokerDataRaft1.BrokerName, 1, false)
+		assert.NotNil(t, result)
+		assert.Equal(t, result.BrokerAddr, brokerDataRaft1.BrokerAddresses[1])
+		assert.Equal(t, result.Slave, true)
+	})
+
+	Convey("Request slave broker from non normal broker group", t, func() {
+		result := s.FindBrokerAddressInSubscribe(brokerDataRaft2.BrokerName, 1, false)
+		assert.NotNil(t, result)
+		assert.Equal(t, result.BrokerAddr, brokerDataRaft2.BrokerAddresses[2])
+		assert.Equal(t, result.Slave, true)
+	})
+
+	Convey("Request not exist broker", t, func() {
+		result := s.FindBrokerAddressInSubscribe(brokerDataRaft1.BrokerName, 4, false)
+		assert.NotNil(t, result)
+	})
 }

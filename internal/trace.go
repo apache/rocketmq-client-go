@@ -122,6 +122,8 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 		buffer.WriteString(bean.OffsetMsgId)
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(strconv.FormatBool(ctx.IsSuccess))
+		buffer.WriteRune(contentSplitter)
+		buffer.WriteString(bean.ClientHost)
 		buffer.WriteRune(fieldSplitter)
 	case SubBefore:
 		for _, bean := range ctx.TraceBeans {
@@ -145,6 +147,8 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteString(strconv.Itoa(bean.RetryTimes))
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(nullWrap(bean.Keys))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(bean.ClientHost)
 			buffer.WriteRune(fieldSplitter)
 		}
 	case SubAfter:
@@ -162,6 +166,10 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteString(nullWrap(bean.Keys))
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(strconv.Itoa(ctx.ContextCode))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(strconv.FormatInt(ctx.TimeStamp, 10))
+			buffer.WriteRune(contentSplitter)
+			buffer.WriteString(ctx.GroupName)
 			buffer.WriteRune(fieldSplitter)
 		}
 	}
@@ -268,6 +276,10 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
+	if cli == nil {
+		return nil
+	}
+	cliOp.Namesrv = cli.GetNameSrv()
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,
@@ -450,7 +462,8 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 	}
 
 	var req = td.buildSendRequest(mq, msg)
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
 		resp := primitive.NewSendResult()
 		if e != nil {

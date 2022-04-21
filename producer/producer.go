@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -33,12 +34,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-)
-
-var (
-	ErrTopicEmpty   = errors.New("topic is nil")
-	ErrMessageEmpty = errors.New("message is nil")
-	ErrNotRunning   = errors.New("producer not started")
 )
 
 type defaultProducer struct {
@@ -72,6 +67,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 		options:    defaultOpts,
 	}
 	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
+	if producer.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+	}
+	defaultOpts.Namesrv = producer.client.GetNameSrv()
 
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
@@ -79,9 +78,14 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 }
 
 func (p *defaultProducer) Start() error {
+	if p == nil || p.client == nil {
+		return fmt.Errorf("client instance is nil, can not start producer")
+	}
 	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-
-	p.client.RegisterProducer(p.group, p)
+	err := p.client.RegisterProducer(p.group, p)
+	if err != nil {
+		return err
+	}
 	p.client.Start()
 	return nil
 }
@@ -95,16 +99,24 @@ func (p *defaultProducer) Shutdown() error {
 
 func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 	if atomic.LoadInt32(&p.state) != int32(internal.StateRunning) {
-		return ErrNotRunning
+		return errors2.ErrNotRunning
 	}
 
 	if len(msgs) == 0 {
-		return errors.New("message is nil")
+		return errors2.ErrMessageEmpty
 	}
 
 	if len(msgs[0].Topic) == 0 {
-		return errors.New("topic is nil")
+		return errors2.ErrTopicEmpty
 	}
+
+	topic := msgs[0].Topic
+	for _, msg := range msgs {
+		if msg.Topic != topic {
+			return errors2.ErrMultipleTopics
+		}
+	}
+
 	return nil
 }
 
@@ -189,7 +201,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			continue
 		}
 
-		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -236,7 +248,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
 
-	addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+	addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 	if addr == "" {
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
@@ -283,7 +295,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			continue
 		}
 
-		addr := p.options.Namesrv.FindBrokerAddrByName(mq.BrokerName)
+		addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
 		if addr == "" {
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
@@ -378,7 +390,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
-		data, changed, err := p.options.Namesrv.UpdateTopicRouteInfo(topic)
+		data, changed, err := p.client.GetNameSrv().UpdateTopicRouteInfo(topic)
 		if err != nil && primitive.IsRemotingErr(err) {
 			return nil
 		}
@@ -387,7 +399,7 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 	}
 
 	if !exist {
-		data, changed, _ := p.options.Namesrv.UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
+		data, changed, _ := p.client.GetNameSrv().UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
 		p.client.UpdatePublishInfo(topic, data, changed)
 		v, exist = p.publishInfo.Load(topic)
 	}
@@ -559,7 +571,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.MsgID))
 	}
 	// 估计没有反序列化回来
-	brokerAddr := tp.producer.options.Namesrv.FindBrokerAddrByName(result.MessageQueue.BrokerName)
+	brokerAddr := tp.producer.client.GetNameSrv().FindBrokerAddrByName(result.MessageQueue.BrokerName)
 	requestHeader := &internal.EndTransactionRequestHeader{
 		TransactionId:        result.TransactionID,
 		CommitLogOffset:      msgID.Offset,
