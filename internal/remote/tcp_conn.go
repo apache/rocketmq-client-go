@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 )
@@ -31,8 +32,12 @@ type tcpConnWrapper struct {
 	closed atomic.Bool
 }
 
-func initConn(ctx context.Context, addr string) (*tcpConnWrapper, error) {
+func initConn(ctx context.Context, addr string, config *RemotingClientConfig) (*tcpConnWrapper, error) {
 	var d net.Dialer
+
+	d.KeepAlive = config.KeepAliveDuration
+	d.Deadline = time.Now().Add(config.ConnectionTimeout)
+
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err

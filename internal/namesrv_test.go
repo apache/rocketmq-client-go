@@ -36,7 +36,7 @@ import (
 // TestSelector test roundrobin selector in namesrv
 func TestSelector(t *testing.T) {
 	srvs := []string{"127.0.0.1:9876", "127.0.0.1:9879", "12.24.123.243:10911", "12.24.123.243:10915"}
-	namesrv, err := NewNamesrv(primitive.NewPassthroughResolver(srvs))
+	namesrv, err := NewNamesrv(primitive.NewPassthroughResolver(srvs), nil)
 	assert.Nil(t, err)
 
 	assert.Equal(t, srvs[0], namesrv.getNameServerAddress())
