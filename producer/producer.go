@@ -335,7 +335,7 @@ func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
 	if e != nil {
 		return false
 	}
-	msg.Body = compressedBody
+	msg.CompressedBody = compressedBody
 	msg.Compress = true
 	return true
 }
@@ -345,8 +345,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
 		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
-	sysFlag := 0
+
+	var (
+		sysFlag  = 0
+		transferBody = msg.Body
+	)
+
 	if p.tryCompressMsg(msg) {
+		transferBody = msg.CompressedBody
 		sysFlag = primitive.SetCompressedFlag(sysFlag)
 	}
 	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
@@ -373,10 +379,10 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	if msg.Batch {
 		cmd = internal.ReqSendBatchMessage
 		reqv2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
-		return remote.NewRemotingCommand(cmd, reqv2, msg.Body)
+		return remote.NewRemotingCommand(cmd, reqv2, transferBody)
 	}
 
-	return remote.NewRemotingCommand(cmd, req, msg.Body)
+	return remote.NewRemotingCommand(cmd, req, transferBody)
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
