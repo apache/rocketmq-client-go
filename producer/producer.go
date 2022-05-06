@@ -53,7 +53,7 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.RemotingClientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -439,7 +439,7 @@ func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
 	if e != nil {
 		return false
 	}
-	msg.Body = compressedBody
+	msg.CompressedBody = compressedBody
 	msg.Compress = true
 	return true
 }
@@ -449,8 +449,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
 		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
-	sysFlag := 0
+
+	var (
+		sysFlag      = 0
+		transferBody = msg.Body
+	)
+
 	if p.tryCompressMsg(msg) {
+		transferBody = msg.CompressedBody
 		sysFlag = primitive.SetCompressedFlag(sysFlag)
 	}
 	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
@@ -479,12 +485,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		return remote.NewRemotingCommand(internal.ReqSendReplyMessage, req, msg.Body)
 	}
 
+	cmd := internal.ReqSendMessage
 	if msg.Batch {
-		reqV2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
-		return remote.NewRemotingCommand(internal.ReqSendBatchMessage, reqV2, msg.Body)
+		cmd = internal.ReqSendBatchMessage
+		reqv2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
+		return remote.NewRemotingCommand(cmd, reqv2, transferBody)
 	}
 
-	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
+	return remote.NewRemotingCommand(cmd, req, transferBody)
 }
 
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {

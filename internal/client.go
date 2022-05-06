@@ -95,27 +95,29 @@ type InnerConsumer interface {
 
 func DefaultClientOptions() ClientOptions {
 	opts := ClientOptions{
-		InstanceName: "DEFAULT",
-		RetryTimes:   3,
-		ClientIP:     utils.LocalIP,
+		InstanceName:         "DEFAULT",
+		RetryTimes:           3,
+		ClientIP:             utils.LocalIP,
+		RemotingClientConfig: &remote.DefaultRemotingClientConfig,
 	}
 	return opts
 }
 
 type ClientOptions struct {
-	GroupName         string
-	NameServerAddrs   primitive.NamesrvAddr
-	Namesrv           Namesrvs
-	ClientIP          string
-	InstanceName      string
-	UnitMode          bool
-	UnitName          string
-	VIPChannelEnabled bool
-	RetryTimes        int
-	Interceptors      []primitive.Interceptor
-	Credentials       primitive.Credentials
-	Namespace         string
-	Resolver          primitive.NsResolver
+	GroupName            string
+	NameServerAddrs      primitive.NamesrvAddr
+	Namesrv              Namesrvs
+	ClientIP             string
+	InstanceName         string
+	UnitMode             bool
+	UnitName             string
+	VIPChannelEnabled    bool
+	RetryTimes           int
+	Interceptors         []primitive.Interceptor
+	Credentials          primitive.Credentials
+	Namespace            string
+	Resolver             primitive.NsResolver
+	RemotingClientConfig *remote.RemotingClientConfig
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -188,7 +190,7 @@ var clientMap sync.Map
 func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) RMQClient {
 	client := &rmqClient{
 		option:       option,
-		remoteClient: remote.NewRemotingClient(),
+		remoteClient: remote.NewRemotingClient(option.RemotingClientConfig),
 		done:         make(chan struct{}),
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)

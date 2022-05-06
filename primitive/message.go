@@ -69,12 +69,13 @@ const (
 )
 
 type Message struct {
-	Topic         string
-	Body          []byte
-	Flag          int32
-	TransactionId string
-	Batch         bool
-	Compress      bool
+	Topic          string
+	Body           []byte
+	CompressedBody []byte
+	Flag           int32
+	TransactionId  string
+	Batch          bool
+	Compress       bool
 	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue
