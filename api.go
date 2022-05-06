@@ -35,8 +35,8 @@ type Producer interface {
 	SendAsync(ctx context.Context, mq func(ctx context.Context, result *primitive.SendResult, err error),
 		msg ...*primitive.Message) error
 	SendOneWay(ctx context.Context, mq ...*primitive.Message) error
-	Request(ctx context.Context, ttl time.Duration, msg ...*primitive.Message) (*primitive.Message, error)
-	RequestAsync(ctx context.Context, ttl time.Duration, callback internal.RequestCallback, msg ...*primitive.Message) error
+	Request(ctx context.Context, ttl time.Duration, msg *primitive.Message) (*primitive.Message, error)
+	RequestAsync(ctx context.Context, ttl time.Duration, callback internal.RequestCallback, msg *primitive.Message) error
 }
 
 func NewProducer(opts ...producer.Option) (Producer, error) {

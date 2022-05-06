@@ -177,14 +177,12 @@ func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Du
 }
 
 // Request Send messages to consumer
-func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, msgs ...*primitive.Message) (*primitive.Message, error) {
-	if err := p.checkMsg(msgs...); err != nil {
+func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, msg *primitive.Message) (*primitive.Message, error) {
+	if err := p.checkMsg(msg); err != nil {
 		return nil, err
 	}
 
-	p.messagesWithNamespace(msgs...)
-	msg := p.encodeBatch(msgs...)
-
+	p.messagesWithNamespace(msg)
 	correlationId, err := p.prepareSendRequest(msg, timeout)
 	if err != nil {
 		return nil, err
@@ -219,14 +217,12 @@ func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, ms
 }
 
 // RequestAsync  Async Send messages to consumer
-func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msgs ...*primitive.Message) error {
-	if err := p.checkMsg(msgs...); err != nil {
+func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msg *primitive.Message) error {
+	if err := p.checkMsg(msg); err != nil {
 		return err
 	}
 
-	p.messagesWithNamespace(msgs...)
-	msg := p.encodeBatch(msgs...)
-
+	p.messagesWithNamespace(msg)
 	correlationId, err := p.prepareSendRequest(msg, timeout)
 	if err != nil {
 		return err
