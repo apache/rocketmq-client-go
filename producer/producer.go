@@ -170,9 +170,9 @@ func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Du
 	}
 
 	if !nameSrv.CheckTopicRouteHasTopic(msg.Topic) {
-		// todo
+		p.tryToFindTopicPublishInfo(msg.Topic)
+		p.client.SendHeartbeatToAllBrokerWithLock()
 	}
-
 	return correlationId, nil
 }
 
@@ -233,6 +233,7 @@ func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duratio
 
 	f := func(ctx context.Context, result *primitive.SendResult, err error) {
 		if err != nil {
+			internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 			requestResponseFuture.SendRequestOk = false
 			requestResponseFuture.ResponseMsg = nil
 			requestResponseFuture.CauseErr = err
@@ -248,10 +249,7 @@ func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duratio
 			return p.sendAsync(ctx, msg, f)
 		})
 	}
-	if err := p.sendAsync(ctx, msg, f); err != nil {
-		return errors.Wrap(err, "sendAsync error")
-	}
-	return nil
+	return p.sendAsync(ctx, msg, f)
 }
 
 func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
@@ -495,9 +493,7 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	return remote.NewRemotingCommand(cmd, req, transferBody)
 }
 
-func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
-	topic := msg.Topic
-
+func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.TopicPublishInfo {
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
 		data, changed, err := p.client.GetNameSrv().UpdateTopicRouteInfo(topic)
@@ -527,7 +523,12 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 		rlog.Error("can not find proper message queue", nil)
 		return nil
 	}
+	return result
+}
 
+func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
+	topic := msg.Topic
+	result := p.tryToFindTopicPublishInfo(topic)
 	return p.options.Selector.Select(msg, result.MqList)
 }
 

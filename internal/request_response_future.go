@@ -33,12 +33,10 @@ func NewRequestResponseFutureMap() *requestResponseFutureCache {
 			})
 			return
 		}
-		if !rrf.IsTimeout() {
-			return
-		}
 
-		err := fmt.Errorf("correlationId:%s request timeout, no reply message", s)
-		rrf.CauseErr = err
+		if rrf.IsTimeout() {
+			rrf.CauseErr = fmt.Errorf("correlationId:%s request timeout, no reply message", s)
+		}
 		rrf.ExecuteRequestCallback()
 	})
 	return &tmpRrfCache
