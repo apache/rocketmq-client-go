@@ -110,7 +110,7 @@ func (rf *RequestResponseFuture) ExecuteRequestCallback() {
 func (rf *RequestResponseFuture) WaitResponseMessage(reqMsg *primitive.Message) (*primitive.Message, error) {
 	select {
 	case <-time.After(rf.Timeout):
-		err := fmt.Errorf("send request message to %s OK, but wait reply message timeout %d ms", reqMsg.Topic, rf.Timeout.Milliseconds())
+		err := fmt.Errorf("send request message to %s OK, but wait reply message timeout %d ms", reqMsg.Topic, rf.Timeout/time.Millisecond)
 		rlog.Error(err.Error(), nil)
 		return nil, err
 	case <-rf.Done:
