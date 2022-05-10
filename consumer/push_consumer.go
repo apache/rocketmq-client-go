@@ -623,6 +623,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 						rlog.LogKeyPullRequest:       request.String(),
 					})
 				}
+				pc.queueMaxSpanFlowControlTimes++
 				sleepTime = _PullDelayTimeWhenFlowControl
 				goto NEXT
 			}
