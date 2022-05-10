@@ -36,7 +36,7 @@ func main() {
 			fmt.Printf("request to <%s> fail, err:%v \n", topic, respErr)
 			return
 		}
-		fmt.Printf("Requst to %s cost:%d ms responseMsg:%s\n", topic, time.Since(now).Milliseconds(), responseMsg.String())
+		fmt.Printf("Requst to %s cost:%d ms responseMsg:%s\n", topic, time.Since(now)/time.Millisecond, responseMsg.String())
 	}
 	err = p.RequestAsync(context.Background(), ttl, f, msg)
 	if err != nil {

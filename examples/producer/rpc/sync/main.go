@@ -36,7 +36,7 @@ func main() {
 		fmt.Printf("Request message error: %s\n", err)
 		return
 	}
-	fmt.Printf("Requst to %s cost:%d ms responseMsg:%s\n", topic, time.Since(now).Milliseconds(), responseMsg.String())
+	fmt.Printf("Requst to %s cost:%d ms responseMsg:%s\n", topic, time.Since(now)/time.Millisecond, responseMsg.String())
 
 	err = p.Shutdown()
 	if err != nil {
