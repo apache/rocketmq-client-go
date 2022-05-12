@@ -233,23 +233,27 @@ func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duratio
 
 	f := func(ctx context.Context, result *primitive.SendResult, err error) {
 		if err != nil {
-			internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 			requestResponseFuture.SendRequestOk = false
 			requestResponseFuture.ResponseMsg = nil
 			requestResponseFuture.CauseErr = err
+			internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 			return
 		}
 		requestResponseFuture.SendRequestOk = true
 	}
 
+	var resErr error
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendAsync)
-
-		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+		resErr = p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendAsync(ctx, msg, f)
 		})
 	}
-	return p.sendAsync(ctx, msg, f)
+	resErr = p.sendAsync(ctx, msg, f)
+	if resErr != nil {
+		internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
+	}
+	return resErr
 }
 
 func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
