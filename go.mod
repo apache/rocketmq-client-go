@@ -13,5 +13,6 @@ require (
 	github.com/stretchr/testify v1.3.0
 	github.com/tidwall/gjson v1.13.0
 	go.uber.org/atomic v1.5.1
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	stathat.com/c/consistent v1.0.0 // indirect
 )
