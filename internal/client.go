@@ -85,7 +85,7 @@ type InnerConsumer interface {
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
 	IsUnitMode() bool
-	GetConsumerRunningInfo() *ConsumerRunningInfo
+	GetConsumerRunningInfo(stack bool) *ConsumerRunningInfo
 	ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *ConsumeMessageDirectlyResult
 	GetcType() string
 	GetModel() string
@@ -270,7 +270,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				cli, ok := val.(*rmqClient)
 				var runningInfo *ConsumerRunningInfo
 				if ok {
-					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup)
+					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup, header.jstackEnable)
 				}
 				if runningInfo != nil {
 					res.Code = ResSuccess
@@ -840,12 +840,12 @@ func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[prim
 	consumer.(InnerConsumer).ResetOffset(topic, offsetTable)
 }
 
-func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
+func (c *rmqClient) getConsumerRunningInfo(group string, stack bool) *ConsumerRunningInfo {
 	consumer, exist := c.consumerMap.Load(group)
 	if !exist {
 		return nil
 	}
-	info := consumer.(InnerConsumer).GetConsumerRunningInfo()
+	info := consumer.(InnerConsumer).GetConsumerRunningInfo(stack)
 	if info != nil {
 		info.Properties[PropClientVersion] = clientVersion
 	}
