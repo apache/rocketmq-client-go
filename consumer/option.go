@@ -118,6 +118,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
+		ConsumeTimestamp: 			time.Now().Add(time.Minute * (-30)).Format("20060102150405"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -155,6 +156,24 @@ func WithConsumerOrder(order bool) Option {
 func WithConsumeMessageBatchMaxSize(consumeMessageBatchMaxSize int) Option {
 	return func(options *consumerOptions) {
 		options.ConsumeMessageBatchMaxSize = consumeMessageBatchMaxSize
+	}
+}
+
+func WithConsumeTimestamp(consumeTimestamp string) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeTimestamp = consumeTimestamp
+	}
+}
+
+func WithConsumerPullTimeout(consumerPullTimeout time.Duration) Option {
+	return func(options *consumerOptions) {
+		options.ConsumerPullTimeout = consumerPullTimeout
+	}
+}
+
+func WithConsumeConcurrentlyMaxSpan(consumeConcurrentlyMaxSpan int) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeConcurrentlyMaxSpan = consumeConcurrentlyMaxSpan
 	}
 }
 

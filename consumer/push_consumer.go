@@ -22,6 +22,7 @@ import (
 	"fmt"
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -352,7 +353,7 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 	return res
 }
 
-func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
+func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRunningInfo {
 	info := internal.NewConsumerRunningInfo()
 
 	pc.subscriptionDataTable.Range(func(key, value interface{}) bool {
@@ -378,6 +379,19 @@ func (pc *pushConsumer) GetConsumerRunningInfo() *internal.ConsumerRunningInfo {
 		info.MQTable[mq] = pInfo
 		return true
 	})
+
+	if stack {
+		var buffer strings.Builder
+
+		err := pprof.Lookup("goroutine").WriteTo(&buffer, 2)
+		if err != nil {
+			rlog.Error("error when get stack ", map[string]interface{}{
+				"error": err,
+			})
+		} else {
+			info.JStack = buffer.String()
+		}
+	}
 
 	nsAddr := ""
 	for _, value := range pc.client.GetNameSrv().AddrList() {
@@ -623,6 +637,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 						rlog.LogKeyPullRequest:       request.String(),
 					})
 				}
+				pc.queueMaxSpanFlowControlTimes++
 				sleepTime = _PullDelayTimeWhenFlowControl
 				goto NEXT
 			}

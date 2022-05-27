@@ -308,12 +308,14 @@ func (request *GetRouteInfoRequestHeader) Encode() map[string]string {
 type GetConsumerRunningInfoHeader struct {
 	consumerGroup string
 	clientID      string
+	jstackEnable  bool
 }
 
 func (request *GetConsumerRunningInfoHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["consumerGroup"] = request.consumerGroup
 	maps["clientId"] = request.clientID
+	maps["jstackEnable"] = strconv.FormatBool(request.jstackEnable)
 	return maps
 }
 
@@ -327,6 +329,11 @@ func (request *GetConsumerRunningInfoHeader) Decode(properties map[string]string
 
 	if v, existed := properties["clientId"]; existed {
 		request.clientID = v
+	}
+
+	if v, existed := properties["jstackEnable"]; existed {
+		parseBool, _ := strconv.ParseBool(v)
+		request.jstackEnable = parseBool
 	}
 }
 
