@@ -51,6 +51,9 @@ const (
 	ReqResetConsumerOffset           = int16(220)
 	ReqGetConsumerRunningInfo        = int16(307)
 	ReqConsumeMessageDirectly        = int16(309)
+	ReqSendReplyMessage              = int16(324)
+	ReqSendReplyMessageV2            = int16(325)
+	ReqPushReplyMessageToClient      = int16(326)
 )
 
 type SendMessageRequestHeader struct {
@@ -483,5 +486,100 @@ func (request *ConsumeMessageDirectlyHeader) Decode(properties map[string]string
 
 	if v, existed := properties["brokerName"]; existed {
 		request.brokerName = v
+	}
+}
+
+type ReplyMessageRequestHeader struct {
+	producerGroup         string
+	topic                 string
+	defaultTopic          string
+	defaultTopicQueueNums int
+	queueId               int
+	sysFlag               int
+	bornTimestamp         int64
+	flag                  int32
+	properties            string
+	reconsumeTimes        int32
+	unitMode              bool
+	bornHost              string
+	storeHost             string
+	storeTimestamp        int64
+}
+
+func (request *ReplyMessageRequestHeader) Encode() map[string]string {
+	return map[string]string{
+		"producerGroup":         request.producerGroup,
+		"topic":                 request.topic,
+		"defaultTopic":          request.defaultTopic,
+		"defaultTopicQueueNums": strconv.Itoa(request.defaultTopicQueueNums),
+		"queueId":               strconv.Itoa(request.queueId),
+		"sysFlag":               strconv.Itoa(request.sysFlag),
+		"bornTimestamp":         strconv.FormatInt(request.bornTimestamp, 10),
+		"flag":                  fmt.Sprintf("%d", request.flag),
+		"properties":            request.properties,
+		"reconsumeTimes":        fmt.Sprintf("%d", request.reconsumeTimes),
+		"bornHost":              request.bornHost,
+		"storeHost":             request.storeHost,
+		"storeTimestamp":        strconv.FormatInt(request.storeTimestamp, 10),
+	}
+}
+
+func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
+		return
+	}
+
+	if v, existed := properties["producerGroup"]; existed {
+		request.producerGroup = v
+	}
+
+	if v, existed := properties["topic"]; existed {
+		request.topic = v
+	}
+
+	if v, existed := properties["defaultTopic"]; existed {
+		request.defaultTopic = v
+	}
+
+	if v, existed := properties["defaultTopicQueueNums"]; existed {
+		request.defaultTopicQueueNums, _ = strconv.Atoi(v)
+	}
+
+	if v, existed := properties["queueId"]; existed {
+		request.queueId, _ = strconv.Atoi(v)
+	}
+
+	if v, existed := properties["sysFlag"]; existed {
+		request.sysFlag, _ = strconv.Atoi(v)
+	}
+
+	if v, existed := properties["bornTimestamp"]; existed {
+		request.bornTimestamp, _ = strconv.ParseInt(v, 10, 0)
+	}
+
+	if v, existed := properties["flag"]; existed {
+		tmpFlag, _ := strconv.ParseInt(v, 10, 32)
+		request.flag = int32(tmpFlag)
+	}
+
+	if v, existed := properties["properties"]; existed {
+		request.properties = v
+	}
+
+	if v, existed := properties["reconsumeTimes"]; existed {
+		tmpReconsumeTimes, _ := strconv.ParseInt(v, 10, 32)
+		request.reconsumeTimes = int32(tmpReconsumeTimes)
+	}
+
+	if v, existed := properties["bornHost"]; existed {
+		request.bornHost = v
+	}
+
+	if v, existed := properties["storeHost"]; existed {
+		request.storeHost = v
+	}
+
+	if v, existed := properties["storeTimestamp"]; existed {
+		request.storeTimestamp, _ = strconv.ParseInt(v, 10, 0)
 	}
 }
