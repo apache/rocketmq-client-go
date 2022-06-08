@@ -110,14 +110,15 @@ func GetNamesrv(clientId string) (*namesrvs, error) {
 	}
 	return actual.(*namesrvs), nil
 }
-func NewNamesrv(resolver primitive.NsResolver) (*namesrvs, error) {
+func NewNamesrv(resolver primitive.NsResolver, ignoreCheckAddr bool) (*namesrvs, error) {
 	addr := resolver.Resolve()
 	if len(addr) == 0 {
 		return nil, errors.New("no name server addr found with resolver: " + resolver.Description())
 	}
-
-	if err := primitive.NamesrvAddr(addr).Check(); err != nil {
-		return nil, err
+	if ignoreCheckAddr {
+		if err := primitive.NamesrvAddr(addr).Check(); err != nil {
+			return nil, err
+		}
 	}
 	nameSrvClient := remote.NewRemotingClient()
 	return &namesrvs{

@@ -76,7 +76,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		apply(&defaultOpts)
 	}
 
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.ignoreCheckAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}

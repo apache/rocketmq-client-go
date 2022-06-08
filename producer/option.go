@@ -49,6 +49,7 @@ type producerOptions struct {
 	Resolver                   primitive.NsResolver
 	CompressMsgBodyOverHowmuch int
 	CompressLevel              int
+	ignoreCheckAddr            bool
 }
 
 type Option func(*producerOptions)
@@ -85,6 +86,12 @@ func WithSendMsgTimeout(duration time.Duration) Option {
 func WithVIPChannel(enable bool) Option {
 	return func(opts *producerOptions) {
 		opts.VIPChannelEnabled = enable
+	}
+}
+
+func WithIgnoreCheckAddr(check bool) Option {
+	return func(opts *producerOptions) {
+		opts.ignoreCheckAddr = check
 	}
 }
 

@@ -57,7 +57,7 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.ignoreCheckAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}

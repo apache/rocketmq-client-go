@@ -106,6 +106,8 @@ type consumerOptions struct {
 	RebalanceLockInterval time.Duration
 
 	Resolver primitive.NsResolver
+
+	ignoreCheckAddr bool
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -155,6 +157,12 @@ func WithConsumerOrder(order bool) Option {
 func WithConsumeMessageBatchMaxSize(consumeMessageBatchMaxSize int) Option {
 	return func(options *consumerOptions) {
 		options.ConsumeMessageBatchMaxSize = consumeMessageBatchMaxSize
+	}
+}
+
+func WithIgnoreCheckAddr(check bool) Option {
+	return func(opts *consumerOptions) {
+		opts.ignoreCheckAddr = check
 	}
 }
 

@@ -40,6 +40,7 @@ type Admin interface {
 // TODO: move outdated context to ctx
 type adminOptions struct {
 	internal.ClientOptions
+	ignoreCheckAddr bool
 }
 
 type AdminOption func(options *adminOptions)
@@ -77,7 +78,7 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 	}
 
 	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
-	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver)
+	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.ignoreCheckAddr)
 	if err != nil {
 		return nil, err
 	}

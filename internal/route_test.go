@@ -42,7 +42,7 @@ func TestQueryTopicRouteInfoFromServer(t *testing.T) {
 		addr, err := primitive.NewNamesrvAddr("1.1.1.1:8880", "1.1.1.2:8880", "1.1.1.3:8880")
 		assert.Nil(t, err)
 
-		namesrv, err := NewNamesrv(primitive.NewPassthroughResolver(addr))
+		namesrv, err := NewNamesrv(primitive.NewPassthroughResolver(addr), false)
 		assert.Nil(t, err)
 		namesrv.nameSrvClient = remotingCli
 
