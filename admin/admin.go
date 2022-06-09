@@ -77,12 +77,12 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 		opt(defaultOpts)
 	}
 	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.ignoreCheckAddr)
-	defaultOpts.Namesrv = namesrv
-	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
-
 	if err != nil {
 		return nil, err
 	}
+	defaultOpts.Namesrv = namesrv
+	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
+
 	//log.Printf("Client: %#v", namesrv.srvs)
 	return &admin{
 		cli:     cli,
