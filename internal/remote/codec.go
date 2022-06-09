@@ -19,11 +19,10 @@ package remote
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync/atomic"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 var opaque int32
@@ -276,7 +275,7 @@ type serializer interface {
 type jsonCodec struct{}
 
 func (c *jsonCodec) encodeHeader(command *RemotingCommand) ([]byte, error) {
-	buf, err := jsoniter.Marshal(command)
+	buf, err := json.Marshal(command)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +286,7 @@ func (c *jsonCodec) decodeHeader(header []byte) (*RemotingCommand, error) {
 	command := &RemotingCommand{}
 	command.ExtFields = make(map[string]string)
 	command.Body = make([]byte, 0)
-	err := jsoniter.Unmarshal(header, command)
+	err := json.Unmarshal(header, command)
 	if err != nil {
 		return nil, err
 	}

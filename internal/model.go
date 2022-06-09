@@ -29,7 +29,6 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 type FindBrokerResult struct {
@@ -98,7 +97,7 @@ func NewHeartbeatData(clientID string) *heartbeatData {
 }
 
 func (data *heartbeatData) encode() []byte {
-	d, err := jsoniter.Marshal(data)
+	d, err := json.Marshal(data)
 	if err != nil {
 		rlog.Error("marshal heartbeatData error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
@@ -324,7 +323,7 @@ func (resetOffsetBody *ResetOffsetBody) Decode(body []byte) {
 			kstr = kvArray[0] + "}"
 		}
 		kObj := new(primitive.MessageQueue)
-		err = jsoniter.Unmarshal([]byte(kstr), &kObj)
+		err = json.Unmarshal([]byte(kstr), &kObj)
 		if err != nil {
 			rlog.Error("Unmarshal message queue error", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,

@@ -24,8 +24,6 @@ import (
 	"testing"
 	"unsafe"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -352,7 +350,7 @@ func TestCommandJsonIter(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Printf("cmd data from json: %v\n", *(*string)(unsafe.Pointer(&cmdData)))
 
-	data, err := jsoniter.Marshal(cmd)
+	data, err := json.Marshal(cmd)
 	assert.Nil(t, err)
 	fmt.Printf("cmd data from jsoniter: %v\n", *(*string)(unsafe.Pointer(&data)))
 
