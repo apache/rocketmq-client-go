@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"math"
 	"runtime/pprof"
 	"strconv"
@@ -28,6 +27,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -375,7 +376,7 @@ func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRun
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
 		pInfo := pq.currentInfo()
-		pInfo.CommitOffset = pc.storage.read(&mq, _ReadMemoryThenStore)
+		pInfo.CommitOffset, _ = pc.storage.readWithException(&mq, _ReadMemoryThenStore)
 		info.MQTable[mq] = pInfo
 		return true
 	})
@@ -644,7 +645,15 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		} else {
 			if pq.IsLock() {
 				if !request.lockedFirst {
-					offset := pc.computePullFromWhere(request.mq)
+					offset, err := pc.computePullFromWhereWithException(request.mq)
+					if err != nil {
+						rlog.Warning("computePullFromWhere from broker error", map[string]interface{}{
+							rlog.LogKeyUnderlayError: err.Error(),
+						})
+						sleepTime = _PullDelayTimeWhenError
+						goto NEXT
+					}
+
 					brokerBusy := offset < request.nextOffset
 					rlog.Info("the first time to pull message, so fix offset from broker, offset maybe changed", map[string]interface{}{
 						rlog.LogKeyPullRequest:      request.String(),
@@ -684,7 +693,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		)
 
 		if pc.model == Clustering {
-			commitOffsetValue = pc.storage.read(request.mq, _ReadFromMemory)
+			commitOffsetValue, _ = pc.storage.readWithException(request.mq, _ReadFromMemory)
 			if commitOffsetValue > 0 {
 				commitOffsetEnable = true
 			}

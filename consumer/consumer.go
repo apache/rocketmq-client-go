@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/errors"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
@@ -699,8 +700,9 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				continue
 			}
 			dc.storage.remove(&mq)
-			nextOffset := dc.computePullFromWhere(&mq)
-			if nextOffset >= 0 {
+			nextOffset, err := dc.computePullFromWhereWithException(&mq)
+
+			if nextOffset >= 0 && err == nil {
 				_, exist := dc.processQueueTable.Load(mq)
 				if exist {
 					rlog.Debug("do defaultConsumer, mq already exist", map[string]interface{}{
@@ -741,12 +743,23 @@ func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQu
 	return true
 }
 
+// Deprecated: Use computePullFromWhereWithException instead.
 func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
+	result, _ := dc.computePullFromWhereWithException(mq)
+	return result
+}
+
+func (dc *defaultConsumer) computePullFromWhereWithException(mq *primitive.MessageQueue) (int64, error) {
 	if dc.cType == _PullConsume {
-		return 0
+		return 0, nil
 	}
-	var result = int64(-1)
-	lastOffset := dc.storage.read(mq, _ReadFromStore)
+	result := int64(-1)
+	lastOffset, err := dc.storage.readWithException(mq, _ReadFromStore)
+	if err != nil {
+		// 这里 lastOffset = -1
+		return lastOffset, err
+	}
+
 	if lastOffset >= 0 {
 		result = lastOffset
 	} else {
@@ -803,7 +816,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 		default:
 		}
 	}
-	return result
+	return result, nil
 }
 
 func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
@@ -950,7 +963,8 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 }
 
 func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) int64 {
-	return dc.storage.read(mq, _ReadMemoryThenStore)
+	result, _ := dc.storage.readWithException(mq, _ReadMemoryThenStore)
+	return result
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic
