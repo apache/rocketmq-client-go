@@ -558,7 +558,8 @@ func (routeData *TopicRouteData) decode(data string) error {
 				if i < 0 {
 					continue
 				}
-				id, _ := strconv.ParseInt(str[0:i], 10, 64)
+				brokerId := strings.ReplaceAll(str[0:i], "\"", "")
+				id, _ := strconv.ParseInt(brokerId, 10, 64)
 				bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
 			}
 		}
