@@ -65,6 +65,12 @@ type PushConsumer interface {
 
 	// Unsubscribe a topic
 	Unsubscribe(topic string) error
+
+	// Suspend the consumption
+	Suspend()
+
+	// Resume the consumption
+	Resume()
 }
 
 func NewPushConsumer(opts ...consumer.Option) (PushConsumer, error) {
