@@ -259,6 +259,10 @@ func (pc *pushConsumer) Rebalance() {
 	pc.defaultConsumer.doBalance()
 }
 
+func (pc *pushConsumer) RebalanceIfNotPaused() {
+	pc.defaultConsumer.doBalanceIfNotPaused()
+}
+
 func (pc *pushConsumer) PersistConsumerOffset() error {
 	return pc.defaultConsumer.persistConsumerOffset()
 }
@@ -877,6 +881,8 @@ func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQue
 	pc.suspend()
 	defer pc.resume()
 
+	mqs := make([]*primitive.MessageQueue, 0)
+	copyPc := sync.Map{}
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
@@ -884,24 +890,21 @@ func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQue
 			pq.WithDropped(true)
 			pq.clear()
 		}
+		mqs = append(mqs, &mq)
+		copyPc.Store(&mq, pq)
 		return true
 	})
 	time.Sleep(10 * time.Second)
-	v, exist := pc.topicSubscribeInfoTable.Load(topic)
-	if !exist {
-		return
-	}
-	queuesOfTopic := v.([]*primitive.MessageQueue)
-	for _, k := range queuesOfTopic {
-		if _, ok := table[*k]; ok {
-			pc.storage.update(k, table[*k], false)
-			v, exist := pc.processQueueTable.Load(k)
+	for _, mq := range mqs {
+		if _, ok := table[*mq]; ok {
+			pc.storage.update(mq, table[*mq], false)
+			v, exist := copyPc.Load(mq)
 			if !exist {
 				continue
 			}
 			pq := v.(*processQueue)
-			pc.removeUnnecessaryMessageQueue(k, pq)
-			pc.processQueueTable.Delete(k)
+			pc.removeUnnecessaryMessageQueue(mq, pq)
+			pc.processQueueTable.Delete(mq)
 		}
 	}
 }

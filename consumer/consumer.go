@@ -221,8 +221,8 @@ type PullRequest struct {
 }
 
 func (pr *PullRequest) String() string {
-	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: %d]",
-		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
+	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: brokerName=%s, queueId=%d, nextOffset=%d]",
+		pr.consumerGroup, pr.mq.Topic, pr.mq.BrokerName, pr.mq.QueueId, pr.nextOffset)
 }
 
 type defaultConsumer struct {
@@ -355,6 +355,16 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 	}
 	_, exist = dc.topicSubscribeInfoTable.Load(topic)
 	return !exist
+}
+
+func (dc *defaultConsumer) doBalanceIfNotPaused() {
+	if dc.pause {
+		rlog.Info("[BALANCE-SKIP] since consumer paused", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: dc.consumerGroup,
+		})
+		return
+	}
+	dc.doBalance()
 }
 
 func (dc *defaultConsumer) doBalance() {
@@ -674,7 +684,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq because pull was paused, prepare to fix it", map[string]interface{}{
+					rlog.Debug("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})

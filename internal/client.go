@@ -84,6 +84,7 @@ type InnerConsumer interface {
 	IsSubscribeTopicNeedUpdate(topic string) bool
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
+	RebalanceIfNotPaused()
 	IsUnitMode() bool
 	GetConsumerRunningInfo(stack bool) *ConsumerRunningInfo
 	ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *ConsumeMessageDirectlyResult
@@ -223,7 +224,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: req.ExtFields["consumerGroup"],
 			})
-			client.RebalanceImmediately()
+			client.RebalanceIfNotPaused()
 			return nil
 		})
 		client.remoteClient.RegisterRequestFunc(ReqCheckTransactionState, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
@@ -492,7 +493,7 @@ func (c *rmqClient) Start() {
 			for {
 				select {
 				case <-ticker.C:
-					c.RebalanceImmediately()
+					c.RebalanceIfNotPaused()
 				case <-c.done:
 					rlog.Info("The RMQClient stopping do rebalance", map[string]interface{}{
 						"clientID": c.ClientID(),
@@ -816,6 +817,16 @@ func (c *rmqClient) RebalanceImmediately() {
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
 		consumer.Rebalance()
+		return true
+	})
+}
+
+func (c *rmqClient) RebalanceIfNotPaused() {
+	c.rbMutex.Lock()
+	defer c.rbMutex.Unlock()
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		consumer.RebalanceIfNotPaused()
 		return true
 	})
 }
