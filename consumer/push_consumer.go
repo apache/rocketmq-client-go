@@ -770,7 +770,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 			msgFounded := result.GetMessageExts()
 			firstMsgOffset := int64(math.MaxInt64)
-			if msgFounded != nil && len(msgFounded) != 0 {
+			if len(msgFounded) != 0 {
 				firstMsgOffset = msgFounded[0].QueueOffset
 				pc.stat.increasePullTPS(pc.consumerGroup, request.mq.Topic, len(msgFounded))
 				pq.putMessage(msgFounded...)

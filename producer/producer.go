@@ -558,7 +558,7 @@ func (p *defaultProducer) IsPublishTopicNeedUpdate(topic string) bool {
 		return true
 	}
 	info := v.(*internal.TopicPublishInfo)
-	return info.MqList == nil || len(info.MqList) == 0
+	return len(info.MqList) == 0
 }
 
 func (p *defaultProducer) IsUnitMode() bool {

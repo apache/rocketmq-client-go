@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
 	"sort"
@@ -30,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
