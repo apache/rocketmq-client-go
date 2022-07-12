@@ -20,15 +20,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"time"
-
 	"github.com/apache/rocketmq-client-go/v2"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"os"
 )
 
 func main() {
+	sig := make(chan os.Signal)
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
 		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
@@ -50,7 +49,7 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(-1)
 	}
-	time.Sleep(time.Hour)
+	<-sig
 	err = c.Shutdown()
 	if err != nil {
 		fmt.Printf("shutdown Consumer error: %s", err.Error())
