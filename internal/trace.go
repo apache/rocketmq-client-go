@@ -463,8 +463,8 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 
 	var req = td.buildSendRequest(mq, msg)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
+		cancel()
 		resp := primitive.NewSendResult()
 		if e != nil {
 			rlog.Info("send trace data error.", map[string]interface{}{
@@ -479,6 +479,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 		}
 	})
 	if err != nil {
+		cancel()
 		rlog.Info("send trace data error when invoke", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})
