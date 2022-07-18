@@ -533,6 +533,9 @@ func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.Topi
 func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
 	topic := msg.Topic
 	result := p.tryToFindTopicPublishInfo(topic)
+	if result == nil {
+		return nil
+	}
 	return p.options.Selector.Select(msg, result.MqList)
 }
 
