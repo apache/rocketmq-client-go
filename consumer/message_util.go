@@ -1,9 +1,10 @@
-package internal
+package consumer
 
 import (
 	"errors"
 	"fmt"
 
+	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
 
@@ -25,8 +26,8 @@ func CreateReplyMessage(requestMessage *primitive.MessageExt, body []byte) (*pri
 	var replayMessage primitive.Message
 
 	replayMessage.UnmarshalProperties(body)
-	replayMessage.Topic = GetReplyTopic(cluster)
-	replayMessage.WithProperty(primitive.PropertyMsgType, ReplyMessageFlag)
+	replayMessage.Topic = internal.GetReplyTopic(cluster)
+	replayMessage.WithProperty(primitive.PropertyMsgType, internal.ReplyMessageFlag)
 	replayMessage.WithProperty(primitive.PropertyCorrelationID, correlationId)
 	replayMessage.WithProperty(primitive.PropertyMessageReplyToClient, replyTo)
 	replayMessage.WithProperty(primitive.PropertyMessageTTL, ttl)
