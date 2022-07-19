@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
-	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 )
@@ -54,13 +53,13 @@ func main() {
 			fmt.Println("consumer sleep over, start reply")
 
 			replyContent := []byte("reply message contents.")
-			replyMessage, err := internal.CreateReplyMessage(msg, replyContent)
+			replyMessage, err := consumer.CreateReplyMessage(msg, replyContent)
 			if err != nil {
 				fmt.Printf("create reply message err:%v\n", err)
 				continue
 			}
 
-			replyTo := internal.GetReplyToClient(msg)
+			replyTo := consumer.GetReplyToClient(msg)
 			replyResult, err := replyProducer.SendSync(context.Background(), replyMessage)
 			if err != nil {
 				fmt.Printf("send message error: %s\n", err)
