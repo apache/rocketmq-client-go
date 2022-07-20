@@ -1160,7 +1160,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				})
 			}
 
-			// jsut put consumeResult in consumerMessageCtx
+			// just put consumeResult in consumerMessageCtx
 			//interval = time.Now().Sub(beginTime)
 			//consumeReult := SuccessReturn
 			//if interval > pc.option.ConsumeTimeout {

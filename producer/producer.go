@@ -359,8 +359,9 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	ctx, _ = context.WithTimeout(ctx, 3*time.Second)
-	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
+		cancel()
 		resp := primitive.NewSendResult()
 		if err != nil {
 			h(ctx, nil, err)
@@ -369,6 +370,12 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 			h(ctx, resp, nil)
 		}
 	})
+
+	if err != nil {
+		cancel()
+	}
+
+	return err
 }
 
 func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Message) error {
