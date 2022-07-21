@@ -451,6 +451,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForTopic,
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
+			pc.option.PullThresholdSizeForTopic = newVal
 		}
 	}
 	pc.client.SendHeartbeatToAllBrokerWithLock()
