@@ -149,6 +149,7 @@ type ConsumerRunningInfo struct {
 	SubscriptionData map[*SubscriptionData]bool
 	MQTable          map[primitive.MessageQueue]ProcessQueueInfo
 	StatusTable      map[string]ConsumeStatus
+	JStack           string // just follow java request param name, but pass golang stack here.
 }
 
 func (info ConsumerRunningInfo) Encode() ([]byte, error) {
@@ -251,7 +252,11 @@ func (info ConsumerRunningInfo) Encode() ([]byte, error) {
 		tableJson = fmt.Sprintf("%s,%s:%s", tableJson, string(dataK), string(dataV))
 	}
 	tableJson = strings.TrimLeft(tableJson, ",")
-	jsonData = fmt.Sprintf("%s,\"%s\":%s}", jsonData, "mqTable", fmt.Sprintf("{%s}", tableJson))
+
+	jsonData = fmt.Sprintf("%s,\"%s\":%s, \"%s\":\"%s\" }",
+		jsonData, "mqTable", fmt.Sprintf("{%s}", tableJson),
+		"jstack", info.JStack)
+
 	return []byte(jsonData), nil
 }
 

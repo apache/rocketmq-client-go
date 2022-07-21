@@ -21,14 +21,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -52,7 +53,7 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.RemotingClientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -148,6 +149,111 @@ func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
 		buffer.Write(data)
 	}
 	return buffer.Bytes()
+}
+
+func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Duration) (string, error) {
+	correlationId := uuid.NewV4().String()
+	requestClientId := p.client.ClientID()
+	msg.WithProperty(primitive.PropertyCorrelationID, correlationId)
+	msg.WithProperty(primitive.PropertyMessageReplyToClient, requestClientId)
+	msg.WithProperty(primitive.PropertyMessageTTL, strconv.Itoa(int(ttl.Seconds())))
+
+	rlog.Debug("message info:", map[string]interface{}{
+		"clientId":      requestClientId,
+		"correlationId": correlationId,
+		"ttl":           ttl.Seconds(),
+	})
+
+	nameSrv, err := internal.GetNamesrv(requestClientId)
+	if err != nil {
+		return "", errors.Wrap(err, "GetNameServ err")
+	}
+
+	if !nameSrv.CheckTopicRouteHasTopic(msg.Topic) {
+		p.tryToFindTopicPublishInfo(msg.Topic)
+		p.client.SendHeartbeatToAllBrokerWithLock()
+	}
+	return correlationId, nil
+}
+
+// Request Send messages to consumer
+func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, msg *primitive.Message) (*primitive.Message, error) {
+	if err := p.checkMsg(msg); err != nil {
+		return nil, err
+	}
+
+	p.messagesWithNamespace(msg)
+	correlationId, err := p.prepareSendRequest(msg, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	requestResponseFuture := internal.NewRequestResponseFuture(correlationId, timeout, nil)
+	internal.RequestResponseFutureMap.SetRequestResponseFuture(requestResponseFuture)
+	defer internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
+
+	f := func(ctx context.Context, result *primitive.SendResult, err error) {
+		if err != nil {
+			requestResponseFuture.SendRequestOk = false
+			requestResponseFuture.ResponseMsg = nil
+			requestResponseFuture.CauseErr = err
+			return
+		}
+		requestResponseFuture.SendRequestOk = true
+	}
+
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendAsync)
+
+		return nil, p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, f)
+		})
+	}
+	if err := p.sendAsync(ctx, msg, f); err != nil {
+		return nil, errors.Wrap(err, "sendAsync error")
+	}
+
+	return requestResponseFuture.WaitResponseMessage(msg)
+}
+
+// RequestAsync  Async Send messages to consumer
+func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msg *primitive.Message) error {
+	if err := p.checkMsg(msg); err != nil {
+		return err
+	}
+
+	p.messagesWithNamespace(msg)
+	correlationId, err := p.prepareSendRequest(msg, timeout)
+	if err != nil {
+		return err
+	}
+
+	requestResponseFuture := internal.NewRequestResponseFuture(correlationId, timeout, callback)
+	internal.RequestResponseFutureMap.SetRequestResponseFuture(requestResponseFuture)
+
+	f := func(ctx context.Context, result *primitive.SendResult, err error) {
+		if err != nil {
+			requestResponseFuture.SendRequestOk = false
+			requestResponseFuture.ResponseMsg = nil
+			requestResponseFuture.CauseErr = err
+			internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
+			return
+		}
+		requestResponseFuture.SendRequestOk = true
+	}
+
+	var resErr error
+	if p.interceptor != nil {
+		primitive.WithMethod(ctx, primitive.SendAsync)
+		resErr = p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
+			return p.sendAsync(ctx, msg, f)
+		})
+	}
+	resErr = p.sendAsync(ctx, msg, f)
+	if resErr != nil {
+		internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
+	}
+	return resErr
 }
 
 func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Message) (*primitive.SendResult, error) {
@@ -253,8 +359,9 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	ctx, _ = context.WithTimeout(ctx, 3*time.Second)
-	return p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
+		cancel()
 		resp := primitive.NewSendResult()
 		if err != nil {
 			h(ctx, nil, err)
@@ -263,6 +370,12 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 			h(ctx, resp, nil)
 		}
 	})
+
+	if err != nil {
+		cancel()
+	}
+
+	return err
 }
 
 func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Message) error {
@@ -277,7 +390,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Mes
 	if p.interceptor != nil {
 		primitive.WithMethod(ctx, primitive.SendOneway)
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
-			return p.SendOneWay(ctx, msg)
+			return p.sendOneWay(ctx, msg)
 		})
 	}
 
@@ -335,7 +448,7 @@ func (p *defaultProducer) tryCompressMsg(msg *primitive.Message) bool {
 	if e != nil {
 		return false
 	}
-	msg.Body = compressedBody
+	msg.CompressedBody = compressedBody
 	msg.Compress = true
 	return true
 }
@@ -345,8 +458,14 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	if !msg.Batch && msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex) == "" {
 		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 	}
-	sysFlag := 0
+
+	var (
+		sysFlag      = 0
+		transferBody = msg.Body
+	)
+
 	if p.tryCompressMsg(msg) {
+		transferBody = msg.CompressedBody
 		sysFlag = primitive.SetCompressedFlag(sysFlag)
 	}
 	v := msg.GetProperty(primitive.PropertyTransactionPrepared)
@@ -369,19 +488,23 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		UnitMode:       p.options.UnitMode,
 		Batch:          msg.Batch,
 	}
+
+	msgType := msg.GetProperty(primitive.PropertyMsgType)
+	if msgType == internal.ReplyMessageFlag {
+		return remote.NewRemotingCommand(internal.ReqSendReplyMessage, req, msg.Body)
+	}
+
 	cmd := internal.ReqSendMessage
 	if msg.Batch {
 		cmd = internal.ReqSendBatchMessage
 		reqv2 := &internal.SendMessageRequestV2Header{SendMessageRequestHeader: req}
-		return remote.NewRemotingCommand(cmd, reqv2, msg.Body)
+		return remote.NewRemotingCommand(cmd, reqv2, transferBody)
 	}
 
-	return remote.NewRemotingCommand(cmd, req, msg.Body)
+	return remote.NewRemotingCommand(cmd, req, transferBody)
 }
 
-func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
-	topic := msg.Topic
-
+func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.TopicPublishInfo {
 	v, exist := p.publishInfo.Load(topic)
 	if !exist {
 		data, changed, err := p.client.GetNameSrv().UpdateTopicRouteInfo(topic)
@@ -411,7 +534,15 @@ func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.
 		rlog.Error("can not find proper message queue", nil)
 		return nil
 	}
+	return result
+}
 
+func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
+	topic := msg.Topic
+	result := p.tryToFindTopicPublishInfo(topic)
+	if result == nil {
+		return nil
+	}
 	return p.options.Selector.Select(msg, result.MqList)
 }
 

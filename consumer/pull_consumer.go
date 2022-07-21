@@ -20,9 +20,10 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"sync/atomic"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -76,7 +77,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		apply(&defaultOpts)
 	}
 
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.RemotingClientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -219,7 +220,8 @@ func (c *defaultPullConsumer) makeSureStateOK() error {
 }
 
 func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
-	return c.computePullFromWhere(queue)
+	result, _ := c.computePullFromWhereWithException(queue)
+	return result
 }
 
 // PullFrom pull messages of queue from the offset to offset + numbers
