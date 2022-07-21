@@ -705,7 +705,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 
 		sd := v.(*internal.SubscriptionData)
 		classFilter := sd.ClassFilterMode
-		if pc.option.PostSubscriptionWhenPull && classFilter {
+		if pc.option.PostSubscriptionWhenPull && !classFilter {
 			subExpression = sd.SubString
 		}
 
@@ -719,7 +719,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			MaxMsgNums:           pc.option.PullBatchSize,
 			SysFlag:              sysFlag,
 			CommitOffset:         commitOffsetValue,
-			SubExpression:        _SubAll,
+			SubExpression:        subExpression,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
 		}
