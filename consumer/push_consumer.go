@@ -255,6 +255,14 @@ func (pc *pushConsumer) Unsubscribe(topic string) error {
 	return nil
 }
 
+func (pc *pushConsumer) Suspend() {
+	pc.suspend()
+}
+
+func (pc *pushConsumer) Resume() {
+	pc.resume()
+}
+
 func (pc *pushConsumer) Rebalance() {
 	pc.defaultConsumer.doBalance()
 }
