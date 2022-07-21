@@ -32,8 +32,7 @@ import (
 func main() {
 	p, _ := rocketmq.NewProducer(
 		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
-		producer.WithRetry(2),
-		producer.WithQueueSelector(producer.NewManualQueueSelector()))
+		producer.WithRetry(2))
 
 	err := p.Start()
 	if err != nil {
