@@ -196,7 +196,7 @@ func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, ms
 	}
 
 	if p.interceptor != nil {
-		primitive.WithMethod(ctx, primitive.SendAsync)
+		ctx = primitive.WithMethod(ctx, primitive.SendAsync)
 
 		return nil, p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendAsync(ctx, msg, f)
@@ -237,7 +237,7 @@ func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duratio
 
 	var resErr error
 	if p.interceptor != nil {
-		primitive.WithMethod(ctx, primitive.SendAsync)
+		ctx = primitive.WithMethod(ctx, primitive.SendAsync)
 		resErr = p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendAsync(ctx, msg, f)
 		})
@@ -260,7 +260,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 
 	resp := primitive.NewSendResult()
 	if p.interceptor != nil {
-		primitive.WithMethod(ctx, primitive.SendSync)
+		ctx = primitive.WithMethod(ctx, primitive.SendSync)
 		producerCtx := &primitive.ProducerCtx{
 			ProducerGroup:     p.group,
 			CommunicationMode: primitive.SendSync,
@@ -331,7 +331,7 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
-		primitive.WithMethod(ctx, primitive.SendAsync)
+		ctx = primitive.WithMethod(ctx, primitive.SendAsync)
 
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendAsync(ctx, msg, f)
@@ -381,7 +381,7 @@ func (p *defaultProducer) SendOneWay(ctx context.Context, msgs ...*primitive.Mes
 	msg := p.encodeBatch(msgs...)
 
 	if p.interceptor != nil {
-		primitive.WithMethod(ctx, primitive.SendOneway)
+		ctx = primitive.WithMethod(ctx, primitive.SendOneway)
 		return p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendOneWay(ctx, msg)
 		})
