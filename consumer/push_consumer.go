@@ -365,11 +365,11 @@ func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRun
 		topic := key.(string)
 		info.SubscriptionData[value.(*internal.SubscriptionData)] = true
 		status := internal.ConsumeStatus{
-			PullRT:            pc.stat.getPullRT(topic, pc.consumerGroup).avgpt,
-			PullTPS:           pc.stat.getPullTPS(topic, pc.consumerGroup).tps,
-			ConsumeRT:         pc.stat.getConsumeRT(topic, pc.consumerGroup).avgpt,
-			ConsumeOKTPS:      pc.stat.getConsumeOKTPS(topic, pc.consumerGroup).tps,
-			ConsumeFailedTPS:  pc.stat.getConsumeFailedTPS(topic, pc.consumerGroup).tps,
+			PullRT:            pc.stat.getPullRT(pc.consumerGroup, topic).avgpt,
+			PullTPS:           pc.stat.getPullTPS(pc.consumerGroup, topic).tps,
+			ConsumeRT:         pc.stat.getConsumeRT(pc.consumerGroup, topic).avgpt,
+			ConsumeOKTPS:      pc.stat.getConsumeOKTPS(pc.consumerGroup, topic).tps,
+			ConsumeFailedTPS:  pc.stat.getConsumeFailedTPS(pc.consumerGroup, topic).tps,
 			ConsumeFailedMsgs: pc.stat.topicAndGroupConsumeFailedTPS.getStatsDataInHour(topic + "@" + pc.consumerGroup).sum,
 		}
 		info.StatusTable[topic] = status
