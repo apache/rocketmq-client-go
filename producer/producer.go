@@ -306,7 +306,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		}
 
 		if p.interceptor != nil {
-			producerCtx = primitive.GetProducerCtx(ctx)
+			producerCtx, _ = primitive.GetProducerCtx(ctx)
 			producerCtx.BrokerAddr = addr
 			producerCtx.MQ = *mq
 		}

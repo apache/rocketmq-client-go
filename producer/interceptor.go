@@ -54,7 +54,7 @@ func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor 
 		beginT := time.Now()
 		err := next(ctx, req, reply)
 
-		producerCtx := primitive.GetProducerCtx(ctx)
+		producerCtx, _ := primitive.GetProducerCtx(ctx)
 		if producerCtx.Message.Topic == dispatcher.GetTraceTopicName() {
 			return err
 		}
