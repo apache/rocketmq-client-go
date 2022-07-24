@@ -202,10 +202,10 @@ func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 			pq.msgCache.Remove(msg.QueueOffset)
 			removedCount++
 
-			pq.cachedMsgSize.Sub(int64(-len(msg.Body)))
+			pq.cachedMsgSize.Sub(int64(len(msg.Body)))
 		}
 
-		pq.cachedMsgCount.Sub(int64(-removedCount))
+		pq.cachedMsgCount.Sub(int64(removedCount))
 	}
 	if !pq.msgCache.Empty() {
 		first, _ := pq.msgCache.Min()
@@ -370,11 +370,11 @@ func (pq *processQueue) commit() int64 {
 	if iter != nil {
 		offset = iter.(int64)
 	}
-	pq.cachedMsgCount.Sub(-1 * int64(pq.consumingMsgOrderlyTreeMap.Size()))
+	pq.cachedMsgCount.Sub(int64(pq.consumingMsgOrderlyTreeMap.Size()))
 
 	pq.consumingMsgOrderlyTreeMap.Each(func(key interface{}, value interface{}) {
 		msg := value.(*primitive.MessageExt)
-		pq.cachedMsgSize.Sub(-1 * int64(len(msg.Body)))
+		pq.cachedMsgSize.Sub(int64(len(msg.Body)))
 	})
 
 	pq.consumingMsgOrderlyTreeMap.Clear()
