@@ -847,7 +847,7 @@ func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLev
 		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
 	}
 
-	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, msg.Body)
+	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, nil)
 }
 
 func (pc *pushConsumer) suspend() {
