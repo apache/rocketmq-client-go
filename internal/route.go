@@ -112,6 +112,14 @@ func (s *namesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool, er
 	return s.UpdateTopicRouteInfoWithDefault(topic, "", 0)
 }
 
+func (s *namesrvs) CheckTopicRouteHasTopic(topic string) bool {
+	_, err := s.queryTopicRouteInfoFromServer(topic)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error) {
 	s.lockNamesrv.Lock()
 	defer s.lockNamesrv.Unlock()
@@ -165,7 +173,7 @@ func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic st
 					updated = p.IsPublishTopicNeedUpdate(topic)
 				}
 				if updated {
-					publishInfo := s.bundleClient.namesrvs.routeData2PublishInfo(topic, routeData)
+					publishInfo := s.bundleClient.GetNameSrv().(*namesrvs).routeData2PublishInfo(topic, routeData)
 					publishInfo.HaveTopicRouterInfo = true
 					p.UpdateTopicPublishInfo(topic, publishInfo)
 				}

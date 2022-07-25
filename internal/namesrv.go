@@ -50,6 +50,8 @@ type Namesrvs interface {
 
 	UpdateTopicRouteInfo(topic string) (routeData *TopicRouteData, changed bool, err error)
 
+	UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error)
+
 	FetchPublishMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
 	FindBrokerAddrByTopic(topic string) string
@@ -95,22 +97,18 @@ type namesrvs struct {
 }
 
 var _ Namesrvs = (*namesrvs)(nil)
-var namesrvMap sync.Map
 
-// NewNamesrv init Namesrv from namesrv addr string.
-// addr primitive.NamesrvAddr
-func GetOrSetNamesrv(clientId string, namesrv *namesrvs) *namesrvs {
-	actual, _ := namesrvMap.LoadOrStore(clientId, namesrv)
-	return actual.(*namesrvs)
-}
 func GetNamesrv(clientId string) (*namesrvs, error) {
-	actual, ok := namesrvMap.Load(clientId)
+	actual, ok := clientMap.Load(clientId)
 	if !ok {
 		return nil, fmt.Errorf("the namesrv in instanceName [%s] not found", clientId)
 	}
-	return actual.(*namesrvs), nil
+	return actual.(*rmqClient).GetNameSrv().(*namesrvs), nil
 }
-func NewNamesrv(resolver primitive.NsResolver) (*namesrvs, error) {
+
+// NewNamesrv init Namesrv from namesrv addr string.
+// addr primitive.NamesrvAddr
+func NewNamesrv(resolver primitive.NsResolver, config *remote.RemotingClientConfig) (*namesrvs, error) {
 	addr := resolver.Resolve()
 	if len(addr) == 0 {
 		return nil, errors.New("no name server addr found with resolver: " + resolver.Description())
@@ -119,7 +117,7 @@ func NewNamesrv(resolver primitive.NsResolver) (*namesrvs, error) {
 	if err := primitive.NamesrvAddr(addr).Check(); err != nil {
 		return nil, err
 	}
-	nameSrvClient := remote.NewRemotingClient()
+	nameSrvClient := remote.NewRemotingClient(config)
 	return &namesrvs{
 		srvs:             addr,
 		lock:             new(sync.Mutex),

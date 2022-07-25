@@ -20,9 +20,10 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"sync/atomic"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/pkg/errors"
 
@@ -76,7 +77,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		apply(&defaultOpts)
 	}
 
-	srvs, err := internal.NewNamesrv(defaultOpts.Resolver)
+	srvs, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.RemotingClientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
@@ -90,10 +91,12 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
-
-		namesrv: srvs,
 	}
-	dc.option.ClientOptions.Namesrv, err = internal.GetNamesrv(dc.client.ClientID())
+	if dc.client == nil {
+		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+	}
+	defaultOpts.Namesrv = dc.client.GetNameSrv()
+
 	c := &defaultPullConsumer{
 		defaultConsumer: dc,
 	}
@@ -132,7 +135,7 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 }
 
 func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
-	queues, err := c.defaultConsumer.namesrv.FetchSubscribeMessageQueues(topic)
+	queues, err := c.defaultConsumer.client.GetNameSrv().FetchSubscribeMessageQueues(topic)
 	if err != nil && len(queues) > 0 {
 		rlog.Error("get next mq error", map[string]interface{}{
 			rlog.LogKeyTopic:         topic,
@@ -217,7 +220,8 @@ func (c *defaultPullConsumer) makeSureStateOK() error {
 }
 
 func (c *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
-	return c.computePullFromWhere(queue)
+	result, _ := c.computePullFromWhereWithException(queue)
+	return result
 }
 
 // PullFrom pull messages of queue from the offset to offset + numbers

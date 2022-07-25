@@ -256,9 +256,9 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	var srvs *namesrvs
 	var err error
 	if len(traceCfg.NamesrvAddrs) > 0 {
-		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
+		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs), nil)
 	} else {
-		srvs, err = NewNamesrv(traceCfg.Resolver)
+		srvs, err = NewNamesrv(traceCfg.Resolver, nil)
 	}
 
 	if err != nil {
@@ -276,6 +276,10 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
+	if cli == nil {
+		return nil
+	}
+	cliOp.Namesrv = cli.GetNameSrv()
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,
@@ -459,8 +463,8 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 
 	var req = td.buildSendRequest(mq, msg)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
+		cancel()
 		resp := primitive.NewSendResult()
 		if e != nil {
 			rlog.Info("send trace data error.", map[string]interface{}{
@@ -475,6 +479,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 		}
 	})
 	if err != nil {
+		cancel()
 		rlog.Info("send trace data error when invoke", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})

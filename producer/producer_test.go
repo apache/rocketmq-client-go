@@ -117,8 +117,11 @@ func TestSync(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	namesrvCli := internal.NewMockNamesrvs(ctrl)
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
+	client.SetNameSrv(namesrvCli)
+	namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("a")
 
 	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
@@ -168,8 +171,11 @@ func TestASync(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	namesrvCli := internal.NewMockNamesrvs(ctrl)
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
+	client.SetNameSrv(namesrvCli)
+	namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("a")
 
 	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
@@ -230,8 +236,11 @@ func TestOneway(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	namesrvCli := internal.NewMockNamesrvs(ctrl)
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
+	client.SetNameSrv(namesrvCli)
+	namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("a")
 
 	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()
@@ -268,8 +277,11 @@ func TestSyncWithNamespace(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	namesrvCli := internal.NewMockNamesrvs(ctrl)
 	client := internal.NewMockRMQClient(ctrl)
 	p.client = client
+	client.SetNameSrv(namesrvCli)
+	namesrvCli.EXPECT().FindBrokerAddrByName(gomock.Any()).Return("a")
 
 	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(nil)
 	client.EXPECT().Start().Return()

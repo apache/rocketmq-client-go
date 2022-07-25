@@ -19,9 +19,11 @@ package rocketmq
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 )
@@ -33,6 +35,8 @@ type Producer interface {
 	SendAsync(ctx context.Context, mq func(ctx context.Context, result *primitive.SendResult, err error),
 		msg ...*primitive.Message) error
 	SendOneWay(ctx context.Context, mq ...*primitive.Message) error
+	Request(ctx context.Context, ttl time.Duration, msg *primitive.Message) (*primitive.Message, error)
+	RequestAsync(ctx context.Context, ttl time.Duration, callback internal.RequestCallback, msg *primitive.Message) error
 }
 
 func NewProducer(opts ...producer.Option) (Producer, error) {
@@ -61,6 +65,12 @@ type PushConsumer interface {
 
 	// Unsubscribe a topic
 	Unsubscribe(topic string) error
+
+	// Suspend the consumption
+	Suspend()
+
+	// Resume the consumption
+	Resume()
 }
 
 func NewPushConsumer(opts ...consumer.Option) (PushConsumer, error) {

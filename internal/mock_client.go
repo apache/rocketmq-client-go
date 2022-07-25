@@ -208,6 +208,15 @@ func (mr *MockInnerConsumerMockRecorder) GetConsumerRunningInfo() *gomock.Call {
 type MockRMQClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockRMQClientMockRecorder
+	Namesrv  *MockNamesrvs
+}
+
+func (m *MockRMQClient) GetNameSrv() Namesrvs {
+	return m.Namesrv
+}
+
+func (m *MockRMQClient) SetNameSrv(mockNamesrvs *MockNamesrvs) {
+	m.Namesrv = mockNamesrvs
 }
 
 // MockRMQClientMockRecorder is the mock recorder for MockRMQClient

@@ -35,7 +35,7 @@ func defaultProducerOptions() producerOptions {
 		CompressMsgBodyOverHowmuch: 4096,
 		CompressLevel:              5,
 	}
-	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
+	opts.ClientOptions.GroupName = "DEFAULT_PRODUCER"
 	return opts
 }
 

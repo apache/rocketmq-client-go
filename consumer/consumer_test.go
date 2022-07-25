@@ -26,6 +26,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -67,7 +68,6 @@ func TestDoRebalance(t *testing.T) {
 		defer ctrl.Finish()
 		namesrvCli := internal.NewMockNamesrvs(ctrl)
 		namesrvCli.EXPECT().FindBrokerAddrByTopic(gomock.Any()).Return(broker)
-		dc.namesrv = namesrvCli
 
 		rmqCli := internal.NewMockRMQClient(ctrl)
 		rmqCli.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -75,6 +75,8 @@ func TestDoRebalance(t *testing.T) {
 				Body: []byte("{\"consumerIdList\": [\"a1\", \"a2\", \"a3\"] }"),
 			}, nil)
 		rmqCli.EXPECT().ClientID().Return(clientID)
+		rmqCli.SetNameSrv(namesrvCli)
+
 		dc.client = rmqCli
 
 		var wg sync.WaitGroup
@@ -109,19 +111,26 @@ func TestComputePullFromWhere(t *testing.T) {
 		}
 
 		namesrvCli := internal.NewMockNamesrvs(ctrl)
-		dc.namesrv = namesrvCli
 
 		rmqCli := internal.NewMockRMQClient(ctrl)
 		dc.client = rmqCli
+		rmqCli.SetNameSrv(namesrvCli)
 
 		Convey("get effective offset", func() {
-			offsetStore.EXPECT().read(gomock.Any(), gomock.Any()).Return(int64(10))
-			res := dc.computePullFromWhere(mq)
+			offsetStore.EXPECT().readWithException(gomock.Any(), gomock.Any()).Return(int64(10), nil)
+			res, _ := dc.computePullFromWhereWithException(mq)
 			assert.Equal(t, int64(10), res)
 		})
 
+		Convey("get offset error", func() {
+			offsetStore.EXPECT().readWithException(gomock.Any(), gomock.Any()).Return(int64(-1), errors.ErrRequestTimeout)
+
+			_, err := dc.computePullFromWhereWithException(mq)
+			assert.Equal(t, err, errors.ErrRequestTimeout)
+		})
+
 		Convey("ConsumeFromLastOffset for normal topic", func() {
-			offsetStore.EXPECT().read(gomock.Any(), gomock.Any()).Return(int64(-1))
+			offsetStore.EXPECT().readWithException(gomock.Any(), gomock.Any()).Return(int64(-1), nil)
 			dc.option.FromWhere = ConsumeFromLastOffset
 
 			broker := "a"
@@ -134,20 +143,20 @@ func TestComputePullFromWhere(t *testing.T) {
 					},
 				}, nil)
 
-			res := dc.computePullFromWhere(mq)
+			res, _ := dc.computePullFromWhereWithException(mq)
 			assert.Equal(t, int64(20), res)
 		})
 
 		Convey("ConsumeFromFirstOffset for normal topic", func() {
-			offsetStore.EXPECT().read(gomock.Any(), gomock.Any()).Return(int64(-1))
+			offsetStore.EXPECT().readWithException(gomock.Any(), gomock.Any()).Return(int64(-1), nil)
 			dc.option.FromWhere = ConsumeFromFirstOffset
 
-			res := dc.computePullFromWhere(mq)
+			res, _ := dc.computePullFromWhereWithException(mq)
 			assert.Equal(t, int64(0), res)
 		})
 
 		Convey("ConsumeFromTimestamp for normal topic", func() {
-			offsetStore.EXPECT().read(gomock.Any(), gomock.Any()).Return(int64(-1))
+			offsetStore.EXPECT().readWithException(gomock.Any(), gomock.Any()).Return(int64(-1), nil)
 			dc.option.FromWhere = ConsumeFromTimestamp
 
 			dc.option.ConsumeTimestamp = "20060102150405"
@@ -162,7 +171,7 @@ func TestComputePullFromWhere(t *testing.T) {
 					},
 				}, nil)
 
-			res := dc.computePullFromWhere(mq)
+			res, _ := dc.computePullFromWhereWithException(mq)
 			assert.Equal(t, int64(30), res)
 		})
 

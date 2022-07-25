@@ -19,8 +19,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -84,11 +84,11 @@ func (st *stableTest) run() {
 		select {
 		case <-signalChan:
 			opTicker.Stop()
-			fmt.Println("test over")
+			rlog.Info("Test Done", nil)
 			return
 		case <-closeChan:
 			opTicker.Stop()
-			fmt.Println("test over")
+			rlog.Info("Test Done", nil)
 			return
 		case <-opTicker.C:
 			st.op()
@@ -127,14 +127,19 @@ func (stp *stableTestProducer) usage() {
 func (stp *stableTestProducer) run(args []string) {
 	err := stp.flags.Parse(args)
 	if err != nil {
-		fmt.Printf("parse args:%v, error:%s\n", args, err)
+		rlog.Info("Parse Args Error", map[string]interface{}{
+			"args":                   args,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		stp.usage()
 		return
 	}
 
 	err = stp.checkFlag()
 	if err != nil {
-		fmt.Println(err)
+		rlog.Error("Check Flag Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		stp.usage()
 		return
 	}
@@ -199,15 +204,20 @@ func (stc *stableTestConsumer) usage() {
 func (stc *stableTestConsumer) run(args []string) {
 	err := stc.flags.Parse(args)
 	if err != nil {
-		fmt.Printf("parse args:%v, error:%s\n", args, err)
+		rlog.Error("Parse Args Error", map[string]interface{}{
+			"args":                   args,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		stc.usage()
 		return
 	}
 
 	err = stc.checkFlag()
 	if err != nil {
+		rlog.Error("Check Flag Error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
 		stc.usage()
-		fmt.Printf("%s\n", err)
 		return
 	}
 	//

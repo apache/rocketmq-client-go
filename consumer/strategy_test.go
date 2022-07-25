@@ -18,7 +18,7 @@ limitations under the License.
 package consumer
 
 import (
-	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
 
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -476,7 +476,11 @@ func TestAllocateByConsistentHash(t *testing.T) {
 		Convey("observe the result of AllocateByMachineRoom", func() {
 			for _, value := range cases {
 				result := strategy("testGroup", value.currentCid, value.mqAll, value.cidAll)
-				fmt.Printf("\n\n currentCid:%s, cidAll:%s, \n allocateResult:%+v \n", value.currentCid, value.cidAll, result)
+				rlog.Info("Result Of AllocateByMachineRoom", map[string]interface{}{
+					"currentCid":     value.currentCid,
+					"cidAll":         value.cidAll,
+					"allocateResult": result,
+				})
 			}
 		})
 	})

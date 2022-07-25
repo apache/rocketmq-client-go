@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 
@@ -33,7 +34,10 @@ import (
 type ClientRequestFunc func(*RemotingCommand, net.Addr) *RemotingCommand
 
 type TcpOption struct {
-	// TODO
+	KeepAliveDuration time.Duration
+	ConnectionTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
 }
 
 //go:generate mockgen -source remote_client.go -destination mock_remote_client.go -self_package github.com/apache/rocketmq-client-go/v2/internal/remote  --package remote RemotingClient
@@ -51,15 +55,33 @@ var _ RemotingClient = &remotingClient{}
 type remotingClient struct {
 	responseTable    sync.Map
 	connectionTable  sync.Map
-	option           TcpOption
+	config           *RemotingClientConfig
 	processors       map[int16]ClientRequestFunc
 	connectionLocker sync.Mutex
 	interceptor      primitive.Interceptor
 }
 
-func NewRemotingClient() *remotingClient {
+type RemotingClientConfig struct {
+	TcpOption
+}
+
+var DefaultRemotingClientConfig = RemotingClientConfig{defaultTcpOption}
+
+var defaultTcpOption = TcpOption{
+	KeepAliveDuration: 0, // default 15s in golang
+	ConnectionTimeout: time.Second * 15,
+	ReadTimeout:       time.Second * 120,
+	WriteTimeout:      time.Second * 120,
+}
+
+func NewRemotingClient(config *RemotingClientConfig) *remotingClient {
+	if config == nil {
+		config = &DefaultRemotingClientConfig
+	}
+
 	return &remotingClient{
 		processors: make(map[int16]ClientRequestFunc),
+		config:     config,
 	}
 }
 
@@ -73,13 +95,17 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	if err != nil {
 		return nil, err
 	}
+
 	resp := NewResponseFuture(ctx, request.Opaque, nil)
+
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
+
 	err = c.sendRequest(conn, request)
 	if err != nil {
 		return nil, err
 	}
+
 	return resp.waitResponse()
 }
 
@@ -89,15 +115,21 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	if err != nil {
 		return err
 	}
+
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
 	c.responseTable.Store(resp.Opaque, resp)
+
 	err = c.sendRequest(conn, request)
 	if err != nil {
+		c.responseTable.Delete(request.Opaque)
 		return err
 	}
+
 	go primitive.WithRecover(func() {
 		c.receiveAsync(resp)
+		c.responseTable.Delete(request.Opaque)
 	})
+
 	return nil
 }
 
@@ -124,7 +156,7 @@ func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrap
 	if ok {
 		return conn.(*tcpConnWrapper), nil
 	}
-	tcpConn, err := initConn(ctx, addr)
+	tcpConn, err := initConn(ctx, addr, c.config)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +185,11 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 			c.closeConnection(r)
 			r.destroy()
 			break
+		}
+
+		err = r.Conn.SetReadDeadline(time.Now().Add(c.config.ReadTimeout))
+		if err != nil {
+			continue
 		}
 
 		_, err = io.ReadFull(r, *header)
@@ -274,11 +311,29 @@ func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingComm
 func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
 	conn.Lock()
 	defer conn.Unlock()
-	err := request.WriteTo(conn)
+
+	err := conn.Conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout))
 	if err != nil {
+		rlog.Error("conn error, close connection", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+
 		c.closeConnection(conn)
+		conn.destroy()
 		return err
 	}
+
+	err = request.WriteTo(conn)
+	if err != nil {
+		rlog.Error("conn error, close connection", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+
+		c.closeConnection(conn)
+		conn.destroy()
+		return err
+	}
+
 	return nil
 }
 

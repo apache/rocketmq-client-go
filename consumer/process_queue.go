@@ -58,6 +58,8 @@ type processQueue struct {
 	lockConsume                sync.Mutex
 	msgCh                      chan []*primitive.MessageExt
 	order                      bool
+	closeChanOnce              *sync.Once
+	closeChan                  chan struct{}
 }
 
 func newProcessQueue(order bool) *processQueue {
@@ -80,6 +82,8 @@ func newProcessQueue(order bool) *processQueue {
 		msgCh:                      make(chan []*primitive.MessageExt, 32),
 		consumingMsgOrderlyTreeMap: consumingMsgOrderlyTreeMap,
 		order:                      order,
+		closeChanOnce:              &sync.Once{},
+		closeChan:                  make(chan struct{}),
 		locked:                     uatomic.NewBool(false),
 		dropped:                    uatomic.NewBool(false),
 	}
@@ -96,7 +100,11 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		return
 	}
 	if !pq.order {
-		pq.msgCh <- messages
+		select {
+		case <-pq.closeChan:
+			return
+		case pq.msgCh <- messages:
+		}
 	}
 	validMessageCount := 0
 	for idx := range messages {
@@ -142,6 +150,9 @@ func (pq *processQueue) IsLock() bool {
 
 func (pq *processQueue) WithDropped(dropped bool) {
 	pq.dropped.Store(dropped)
+	pq.closeChanOnce.Do(func() {
+		close(pq.closeChan)
+	})
 }
 
 func (pq *processQueue) IsDroppd() bool {
@@ -274,12 +285,22 @@ func (pq *processQueue) getMaxSpan() int {
 }
 
 func (pq *processQueue) getMessages() []*primitive.MessageExt {
-	return <-pq.msgCh
+	select {
+	case <-pq.closeChan:
+		return nil
+	case mq := <-pq.msgCh:
+		return mq
+	}
 }
 
 func (pq *processQueue) takeMessages(number int) []*primitive.MessageExt {
+	sleepCount := 0
 	for pq.msgCache.Empty() {
 		time.Sleep(10 * time.Millisecond)
+		if sleepCount > 500 {
+			return nil
+		}
+		sleepCount++
 	}
 	result := make([]*primitive.MessageExt, number)
 	i := 0
