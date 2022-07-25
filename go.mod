@@ -10,10 +10,10 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/satori/go.uuid v1.2.0
-	github.com/sirupsen/logrus v1.4.1
+	github.com/sirupsen/logrus v1.9.0
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stathat/consistent v1.0.0
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.13.0
 	go.uber.org/atomic v1.5.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
