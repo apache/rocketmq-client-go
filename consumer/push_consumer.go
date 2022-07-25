@@ -604,8 +604,8 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		cachedMessageSizeInMiB := int(pq.cachedMsgSize / Mb)
-		if pq.cachedMsgCount > pc.option.PullThresholdForQueue {
+		cachedMessageSizeInMiB := int(pq.cachedMsgSize.Load() / Mb)
+		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message count exceeds the threshold, so do flow control", map[string]interface{}{
 					"PullThresholdForQueue": pc.option.PullThresholdForQueue,
@@ -818,7 +818,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 }
 
 func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
-	if pr.pq.cachedMsgCount <= 0 {
+	if pr.pq.cachedMsgCount.Load() <= 0 {
 		pc.storage.update(pr.mq, pr.nextOffset, true)
 	}
 }
