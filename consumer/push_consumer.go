@@ -1073,14 +1073,16 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 				offset := pq.removeMessage(msgBackSucceed...)
 
-				if offset >= 0 && !pq.IsDroppd() {
-					pc.storage.update(mq, int64(offset), true)
-				}
 				if len(msgBackFailed) > 0 {
 					subMsgs = msgBackFailed
 					time.Sleep(5 * time.Second)
 					goto RETRY
 				}
+
+				if offset >= 0 && !pq.IsDroppd() {
+					pc.storage.update(mq, int64(offset), true)
+				}
+
 			} else {
 				rlog.Warning("processQueue is dropped without process consume result.", map[string]interface{}{
 					rlog.LogKeyMessageQueue: mq,
