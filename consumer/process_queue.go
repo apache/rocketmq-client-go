@@ -198,6 +198,9 @@ func (pq *processQueue) makeMessageToCosumeAgain(messages ...*primitive.MessageE
 
 func (pq *processQueue) removeMessage(messages ...*primitive.MessageExt) int64 {
 	result := int64(-1)
+	if len(messages) <= 0 {
+		return result
+	}
 	pq.mutex.Lock()
 	pq.UpdateLastConsumeTime()
 	if !pq.msgCache.Empty() {
