@@ -52,9 +52,12 @@ func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor 
 			return fmt.Errorf("GetOrNewRocketMQClient faild")
 		}
 		beginT := time.Now()
+		producerCtx, ok := primitive.GetProducerCtx(ctx)
+		if !ok {
+			return fmt.Errorf("ProducerCtx Not Exist")
+		}
 		err := next(ctx, req, reply)
 
-		producerCtx, _ := primitive.GetProducerCtx(ctx)
 		if producerCtx.Message.Topic == dispatcher.GetTraceTopicName() {
 			return err
 		}
