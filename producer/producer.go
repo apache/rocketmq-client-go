@@ -46,6 +46,9 @@ type defaultProducer struct {
 	callbackCh  chan interface{}
 
 	interceptor primitive.Interceptor
+
+	startOnce    sync.Once
+	ShutdownOnce sync.Once
 }
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
@@ -79,22 +82,28 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 }
 
 func (p *defaultProducer) Start() error {
-	if p == nil || p.client == nil {
-		return fmt.Errorf("client instance is nil, can not start producer")
-	}
-	atomic.StoreInt32(&p.state, int32(internal.StateRunning))
-	err := p.client.RegisterProducer(p.group, p)
-	if err != nil {
-		return err
-	}
-	p.client.Start()
-	return nil
+	var err error
+	p.startOnce.Do(func() {
+		err = p.client.RegisterProducer(p.group, p)
+		if err != nil {
+			rlog.Error("the producer group has been created, specify another one", map[string]interface{}{
+				rlog.LogKeyProducerGroup: p.group,
+			})
+			err = errors2.ErrProducerCreated
+			return
+		}
+		p.client.Start()
+		atomic.StoreInt32(&p.state, int32(internal.StateRunning))
+	})
+	return err
 }
 
 func (p *defaultProducer) Shutdown() error {
-	atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
-	p.client.UnregisterProducer(p.group)
-	p.client.Shutdown()
+	p.ShutdownOnce.Do(func() {
+		atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
+		p.client.UnregisterProducer(p.group)
+		p.client.Shutdown()
+	})
 	return nil
 }
 

@@ -604,8 +604,8 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		cachedMessageSizeInMiB := int(pq.cachedMsgSize / Mb)
-		if pq.cachedMsgCount > pc.option.PullThresholdForQueue {
+		cachedMessageSizeInMiB := int(pq.cachedMsgSize.Load() / Mb)
+		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message count exceeds the threshold, so do flow control", map[string]interface{}{
 					"PullThresholdForQueue": pc.option.PullThresholdForQueue,
@@ -818,7 +818,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 }
 
 func (pc *pushConsumer) correctTagsOffset(pr *PullRequest) {
-	if pr.pq.cachedMsgCount <= 0 {
+	if pr.pq.cachedMsgCount.Load() <= 0 {
 		pc.storage.update(pr.mq, pr.nextOffset, true)
 	}
 }
@@ -847,7 +847,7 @@ func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLev
 		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
 	}
 
-	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, msg.Body)
+	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, nil)
 }
 
 func (pc *pushConsumer) suspend() {
@@ -1046,8 +1046,10 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			if !pq.IsDroppd() {
 				msgBackFailed := make([]*primitive.MessageExt, 0)
+				msgBackSucceed := make([]*primitive.MessageExt, 0)
 				if result == ConsumeSuccess {
 					pc.stat.increaseConsumeOKTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
+					msgBackSucceed = subMsgs
 				} else {
 					pc.stat.increaseConsumeFailedTPS(pc.consumerGroup, mq.Topic, len(subMsgs))
 					if pc.model == BroadCasting {
@@ -1059,7 +1061,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					} else {
 						for i := 0; i < len(subMsgs); i++ {
 							msg := subMsgs[i]
-							if !pc.sendMessageBack(mq.BrokerName, msg, concurrentCtx.DelayLevelWhenNextConsume) {
+							if pc.sendMessageBack(mq.BrokerName, msg, concurrentCtx.DelayLevelWhenNextConsume) {
+								msgBackSucceed = append(msgBackSucceed, msg)
+							} else {
 								msg.ReconsumeTimes += 1
 								msgBackFailed = append(msgBackFailed, msg)
 							}
@@ -1067,7 +1071,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					}
 				}
 
-				offset := pq.removeMessage(subMsgs...)
+				offset := pq.removeMessage(msgBackSucceed...)
 
 				if offset >= 0 && !pq.IsDroppd() {
 					pc.storage.update(mq, int64(offset), true)
