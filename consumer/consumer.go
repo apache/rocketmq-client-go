@@ -770,16 +770,12 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 }
 
 func (dc *defaultConsumer) computePullFromWhereWithException(mq *primitive.MessageQueue) (int64, error) {
-	if dc.cType == _PullConsume {
-		return 0, nil
-	}
 	result := int64(-1)
 	lastOffset, err := dc.storage.readWithException(mq, _ReadFromStore)
 	if err != nil {
 		// 这里 lastOffset = -1
 		return lastOffset, err
 	}
-
 
 	if lastOffset >= 0 {
 		result = lastOffset
