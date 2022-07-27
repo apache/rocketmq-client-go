@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
@@ -50,24 +49,21 @@ type PullConsumer interface {
 	UpdateOffset(queue *primitive.MessageQueue, offset int64) error
 
 	// PersistOffset persist all offset in mem.
-	PersistOffset(ctx context.Context) error
+	PersistOffset(ctx context.Context, topic string) error
 
 	// CurrentOffset return the current offset of queue in mem.
 	CurrentOffset(queue *primitive.MessageQueue) (int64, error)
 }
 
-var (
-	queueCounterTable sync.Map
-)
-
 type defaultPullConsumer struct {
 	*defaultConsumer
 
-	option    consumerOptions
-	client    internal.RMQClient
-	GroupName string
-	Model     MessageModel
-	UnitMode  bool
+	option            consumerOptions
+	client            internal.RMQClient
+	GroupName         string
+	Model             MessageModel
+	UnitMode          bool
+	nextQueueSequence int64
 
 	interceptor primitive.Interceptor
 }
@@ -136,24 +132,26 @@ func (c *defaultPullConsumer) Pull(ctx context.Context, topic string, selector M
 }
 
 func (c *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQueue {
+	topic = utils.WrapNamespace(c.defaultConsumer.option.Namespace, topic)
 	queues, err := c.defaultConsumer.client.GetNameSrv().FetchSubscribeMessageQueues(topic)
-	if err != nil && len(queues) > 0 {
+	if err != nil {
 		rlog.Error("get next mq error", map[string]interface{}{
 			rlog.LogKeyTopic:         topic,
 			rlog.LogKeyUnderlayError: err.Error(),
 		})
 		return nil
 	}
-	var index int64
-	v, exist := queueCounterTable.Load(topic)
-	if !exist {
-		index = -1
-		queueCounterTable.Store(topic, int64(0))
-	} else {
-		index = v.(int64)
+
+	if len(queues) == 0 {
+		rlog.Warning("defaultPullConsumer.getNextQueueOf len is 0", map[string]interface{}{
+			rlog.LogKeyTopic: topic,
+		})
+		return nil
 	}
 
-	return queues[int(atomic.AddInt64(&index, 1))%len(queues)]
+	index := int(atomic.LoadInt64(&c.nextQueueSequence)) % len(queues)
+	atomic.AddInt64(&c.nextQueueSequence, 1)
+	return queues[index]
 }
 
 // SubscribeWithChan ack manually
@@ -244,8 +242,24 @@ func (c *defaultPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offset
 }
 
 // PersistOffset persist all offset in mem.
-func (c *defaultPullConsumer) PersistOffset(ctx context.Context) error {
-	return c.persistConsumerOffset()
+func (c *defaultPullConsumer) PersistOffset(ctx context.Context, topic string) error {
+	topic = utils.WrapNamespace(c.defaultConsumer.option.Namespace, topic)
+	queues, err := c.defaultConsumer.client.GetNameSrv().FetchSubscribeMessageQueues(topic)
+	if err != nil {
+		rlog.Error("defaultPullConsumer.PersistOffset get next mq error", map[string]interface{}{
+			rlog.LogKeyTopic:         topic,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return nil
+	}
+
+	if len(queues) == 0 {
+		rlog.Warning("defaultPullConsumer.PersistOffset len is 0", map[string]interface{}{
+			rlog.LogKeyTopic: topic,
+		})
+		return nil
+	}
+	return c.persistPullConsumerOffset(queues)
 }
 
 // CurrentOffset return the current offset of queue in mem.

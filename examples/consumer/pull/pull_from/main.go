@@ -20,22 +20,22 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/go-redis/redis/v8"
 )
 
 const (
-	namesrvAddr       = "http://127.0.0.1:9876"
+	nameSrvAddr       = "http://127.0.0.1:9876"
 	accessKey         = "rocketmq"
 	secretKey         = "12345678"
 	topic             = "test-topic"
-	consumerGroupName = "testGroup"
-	tag               = "testPull"
+	consumerGroupName = "testPullFromGroup"
+	tag               = "testPullFrom"
 	namespace         = "ns"
 )
 
@@ -47,9 +47,9 @@ var client = redis.NewClient(&redis.Options{
 })
 
 func main() {
-	var namesrv, err = primitive.NewNamesrvAddr(namesrvAddr)
+	var namesrv, err = primitive.NewNamesrvAddr(nameSrvAddr)
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("NewNamesrvAddr err: %s", err), nil)
+		log.Fatalf("NewNamesrvAddr err: %v", err)
 	}
 	c, err := consumer.NewPullConsumer(
 		consumer.WithGroupName(consumerGroupName),
@@ -61,15 +61,15 @@ func main() {
 		consumer.WithNamespace(namespace),
 	)
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
+		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
 	err = c.Start()
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fail to new pullConsumer: %s", err), nil)
+		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
 
-	nameSrvAddr := []string{namesrvAddr}
-	admin, err := admin.NewAdmin(
+	nameSrvAddr := []string{nameSrvAddr}
+	mqAdmin, err := admin.NewAdmin(
 		admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)),
 		admin.WithCredentials(primitive.Credentials{
 			AccessKey: accessKey,
@@ -78,14 +78,14 @@ func main() {
 		admin.WithNamespace(namespace),
 	)
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fail to new admin: %s", err), nil)
+		log.Fatalf("fail to new admin: %v", err)
 	}
 
-	messageQueues, err := admin.FetchPublishMessageQueues(context.Background(), topic)
+	messageQueues, err := mqAdmin.FetchPublishMessageQueues(ctx, topic)
 	if err != nil {
-		rlog.Fatal(fmt.Sprintf("fetch messahe queue error: %s", err), nil)
+		log.Fatalf("fetch messahe queue error: %s\n", err)
 	}
-	var timeSleepSeconds = 1 * time.Second
+	var sleepTime = 1 * time.Second
 	selector := consumer.MessageSelector{
 		Type:       consumer.TAG,
 		Expression: tag,
@@ -99,66 +99,59 @@ func main() {
 			for {
 				resp, err := c.PullFrom(ctx, selector, queue, offset, 1) // pull one message per time for make sure easily ACK
 				if err != nil {
-					fmt.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d", topic, queue.QueueId, queue.BrokerName, offset)
-					time.Sleep(timeSleepSeconds)
+					log.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d\n", topic, queue.QueueId, queue.BrokerName, offset)
+					time.Sleep(sleepTime)
 					continue
 				}
 				switch resp.Status {
 				case primitive.PullFound:
-					{
-						fmt.Printf("pull message success. queue id = %d, nextOffset: %d \n", queue.QueueId, resp.NextBeginOffset)
-						for _, msg := range resp.GetMessageExts() {
-							// todo LOGIC CODE HERE
+					log.Printf("[pull message successfully] queue id = %d, nextOffset: %d \n", queue.QueueId, resp.NextBeginOffset)
+					for _, msg := range resp.GetMessageExts() {
+						// todo LOGIC CODE HERE
 
-							fmt.Println(string(msg.Body))
+						log.Println(msg.GetKeys(), msg.MsgId, string(msg.Body))
 
-							// save offset to redis
-							ackOffset(client, consumerGroupName, topic, queue.QueueId, resp.NextBeginOffset)
-
-							// set offset for next pull
-							offset = resp.NextBeginOffset
+						// save offset to redis
+						err = ackOffset(client, consumerGroupName, topic, queue.QueueId, resp.NextBeginOffset)
+						if err != nil {
+							//todo ack error logic
 						}
+
+						// set offset for next pull
+						offset = resp.NextBeginOffset
 					}
 				case primitive.PullNoNewMsg, primitive.PullNoMsgMatched:
-					{
-						fmt.Printf("[no pull message] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
-						time.Sleep(timeSleepSeconds)
-						offset = resp.NextBeginOffset
-						continue
-					}
-
+					log.Printf("[no pull message] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d\n", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
+					time.Sleep(sleepTime)
+					offset = resp.NextBeginOffset
+					continue
 				case primitive.PullBrokerTimeout:
-					{
-						fmt.Printf("[pull broker timeout] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
+					log.Printf("[pull broker timeout] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d\n", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
 
-						time.Sleep(timeSleepSeconds)
-						continue
-					}
-
+					time.Sleep(sleepTime)
+					continue
 				case primitive.PullOffsetIllegal:
-					{
-						fmt.Printf("[pull offset illegal] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
-						offset = resp.NextBeginOffset
-						continue
-					}
-
+					log.Printf("[pull offset illegal] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d\n", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
+					offset = resp.NextBeginOffset
+					continue
 				default:
-					fmt.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
+					log.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d,  next = %d\n", queue.Topic, queue.QueueId, queue.BrokerName, offset, resp.NextBeginOffset)
 				}
 			}
-
 		}(queue)
 	}
 	// make current thread hold to see pull result. TODO should update here
 	time.Sleep(10000 * time.Second)
 }
 
-func ackOffset(redis *redis.Client, consumerGroupName string, topic string, queueId int, consumedOffset int64) {
+func ackOffset(redis *redis.Client, consumerGroupName string, topic string, queueId int, consumedOffset int64) error {
 	var key = fmt.Sprintf("rmq-%s-%s-%d", consumerGroupName, topic, queueId)
 	err := redis.Set(ctx, key, consumedOffset, 0).Err()
 	if err != nil {
-		fmt.Printf("set redis 失败, key:%s, %+v\n", key, err)
+		log.Printf("set redis error, key:%s, %v\n", key, err)
+		return err
 	}
+	return nil
 }
 
 func getOffset(redisCli *redis.Client, consumerGroupName string, topic string, queueId int) int64 {
@@ -167,7 +160,8 @@ func getOffset(redisCli *redis.Client, consumerGroupName string, topic string, q
 	if err == redis.Nil {
 		return 0
 	} else if err != nil {
-		fmt.Printf("get redis 失败, key:%s, %+v\n", key, err)
+		log.Printf("get redis error, key:%s, %v\n", key, err)
+		//todo Your own logic. like get from db.
 		return 0
 	} else {
 		return offset

@@ -123,6 +123,8 @@ func (result *PullResult) String() string {
 
 func toMessages(messageExts []*MessageExt) []*Message {
 	msgs := make([]*Message, 0)
-
+	for _, messageExt := range messageExts {
+		msgs = append(msgs, &messageExt.Message)
+	}
 	return msgs
 }

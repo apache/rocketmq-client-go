@@ -269,6 +269,7 @@ type defaultConsumer struct {
 }
 
 func (dc *defaultConsumer) start() error {
+	dc.consumerGroup = utils.WrapNamespace(dc.option.Namespace, dc.consumerGroup)
 	if dc.model == Clustering {
 		// set retry topic
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
@@ -322,6 +323,15 @@ func (dc *defaultConsumer) persistConsumerOffset() error {
 		mqs = append(mqs, &k)
 		return true
 	})
+	dc.storage.persist(mqs)
+	return nil
+}
+
+func (dc *defaultConsumer) persistPullConsumerOffset(mqs []*primitive.MessageQueue) error {
+	err := dc.makeSureStateOK()
+	if err != nil {
+		return err
+	}
 	dc.storage.persist(mqs)
 	return nil
 }
@@ -743,9 +753,6 @@ func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQu
 }
 
 func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
-	if dc.cType == _PullConsume {
-		return 0
-	}
 	var result = int64(-1)
 	lastOffset := dc.storage.read(mq, _ReadFromStore)
 	if lastOffset >= 0 {
@@ -876,6 +883,7 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// TODO: add filter message hook
 		for _, msg := range msgListFilterAgain {
+			msg.Queue = mq
 			traFlag, _ := strconv.ParseBool(msg.GetProperty(primitive.PropertyTransactionPrepared))
 			if traFlag {
 				msg.TransactionId = msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
