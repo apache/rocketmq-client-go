@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,8 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -221,8 +221,8 @@ type PullRequest struct {
 }
 
 func (pr *PullRequest) String() string {
-	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: %d]",
-		pr.consumerGroup, pr.mq.Topic, pr.mq.QueueId)
+	return fmt.Sprintf("[ConsumerGroup: %s, Topic: %s, MessageQueue: brokerName=%s, queueId=%d, nextOffset=%d]",
+		pr.consumerGroup, pr.mq.Topic, pr.mq.BrokerName, pr.mq.QueueId, pr.nextOffset)
 }
 
 type defaultConsumer struct {
@@ -365,6 +365,16 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 	}
 	_, exist = dc.topicSubscribeInfoTable.Load(topic)
 	return !exist
+}
+
+func (dc *defaultConsumer) doBalanceIfNotPaused() {
+	if dc.pause {
+		rlog.Info("[BALANCE-SKIP] since consumer paused", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: dc.consumerGroup,
+		})
+		return
+	}
+	dc.doBalance()
 }
 
 func (dc *defaultConsumer) doBalance() {
@@ -684,7 +694,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq because pull was paused, prepare to fix it", map[string]interface{}{
+					rlog.Debug("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
@@ -710,8 +720,9 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				continue
 			}
 			dc.storage.remove(&mq)
-			nextOffset := dc.computePullFromWhere(&mq)
-			if nextOffset >= 0 {
+			nextOffset, err := dc.computePullFromWhereWithException(&mq)
+
+			if nextOffset >= 0 && err == nil {
 				_, exist := dc.processQueueTable.Load(mq)
 				if exist {
 					rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, mq already exist", map[string]interface{}{
@@ -752,9 +763,24 @@ func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQu
 	return true
 }
 
+// Deprecated: Use computePullFromWhereWithException instead.
 func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int64 {
-	var result = int64(-1)
-	lastOffset := dc.storage.read(mq, _ReadFromStore)
+	result, _ := dc.computePullFromWhereWithException(mq)
+	return result
+}
+
+func (dc *defaultConsumer) computePullFromWhereWithException(mq *primitive.MessageQueue) (int64, error) {
+	if dc.cType == _PullConsume {
+		return 0, nil
+	}
+	result := int64(-1)
+	lastOffset, err := dc.storage.readWithException(mq, _ReadFromStore)
+	if err != nil {
+		// 这里 lastOffset = -1
+		return lastOffset, err
+	}
+
+
 	if lastOffset >= 0 {
 		result = lastOffset
 	} else {
@@ -811,7 +837,7 @@ func (dc *defaultConsumer) computePullFromWhere(mq *primitive.MessageQueue) int6
 		default:
 		}
 	}
-	return result
+	return result, nil
 }
 
 func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.MessageQueue, data *internal.SubscriptionData,
@@ -959,7 +985,8 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 }
 
 func (dc *defaultConsumer) queryOffset(mq *primitive.MessageQueue) int64 {
-	return dc.storage.read(mq, _ReadMemoryThenStore)
+	result, _ := dc.storage.readWithException(mq, _ReadMemoryThenStore)
+	return result
 }
 
 // SearchOffsetByTimestamp with specific queueId and topic

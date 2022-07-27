@@ -60,15 +60,22 @@ const (
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 	PropertyShardingKey                    = "SHARDING_KEY"
 	PropertyTransactionID                  = "__transactionId__"
+	PropertyCorrelationID                  = "CORRELATION_ID"
+	PropertyMessageReplyToClient           = "REPLY_TO_CLIENT"
+	PropertyMessageTTL                     = "TTL"
+	PropertyReplyMessageArriveTime         = "ARRIVE_TIME"
+	PropertyMsgType                        = "MSG_TYPE"
+	PropertyCluster                        = "CLUSTER"
 )
 
 type Message struct {
-	Topic         string
-	Body          []byte
-	Flag          int32
-	TransactionId string
-	Batch         bool
-	Compress      bool
+	Topic          string
+	Body           []byte
+	CompressedBody []byte
+	Flag           int32
+	TransactionId  string
+	Batch          bool
+	Compress       bool
 	// Queue is the queue that messages will be sent to. the value must be set if want to custom the queue of message,
 	// just ignore if not.
 	Queue *MessageQueue

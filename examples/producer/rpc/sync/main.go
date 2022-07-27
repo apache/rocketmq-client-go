@@ -20,38 +20,43 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2"
-	"github.com/apache/rocketmq-client-go/v2/consumer"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"os"
+	"time"
+
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/producer"
 )
 
 func main() {
-	sig := make(chan os.Signal)
-	c, _ := rocketmq.NewPushConsumer(
-		consumer.WithGroupName("testGroup"),
-		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"9.134.241.105:29876"})),
+	p, _ := rocketmq.NewProducer(
+		producer.WithGroupName("please_rename_unique_group_name"),
+		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		producer.WithRetry(2),
 	)
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
-		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
-		for i := range msgs {
-			fmt.Printf("subscribe callback: %v \n", msgs[i])
-		}
+	err := p.Start()
+	if err != nil {
+		fmt.Printf("start producer error: %s", err.Error())
+		os.Exit(1)
+	}
 
-		return consumer.ConsumeSuccess, nil
-	})
-	if err != nil {
-		fmt.Println(err.Error())
+	topic := "RequestTopic"
+	ttl := 5 * time.Second
+	msg := &primitive.Message{
+		Topic: topic,
+		Body:  []byte("Hello RPC RocketMQ Go Client!"),
 	}
-	// Note: start after subscribe
-	err = c.Start()
+
+	now := time.Now()
+	responseMsg, err := p.Request(context.Background(), ttl, msg)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(-1)
+		fmt.Printf("Request message error: %s\n", err)
+		return
 	}
-	<-sig
-	err = c.Shutdown()
+	fmt.Printf("Requst to %s cost:%d ms responseMsg:%s\n", topic, time.Since(now)/time.Millisecond, responseMsg.String())
+
+	err = p.Shutdown()
 	if err != nil {
-		fmt.Printf("shutdown Consumer error: %s", err.Error())
+		fmt.Printf("shutdown producer error: %s", err.Error())
 	}
 }
