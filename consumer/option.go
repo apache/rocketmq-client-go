@@ -118,7 +118,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
-		ConsumeTimestamp: 			time.Now().Add(time.Minute * (-30)).Format("20060102150405"),
+		ConsumeTimestamp:           time.Now().Add(time.Minute * (-30)).Format("20060102150405"),
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -131,6 +131,7 @@ func defaultPullConsumerOptions() consumerOptions {
 		ClientOptions: internal.DefaultClientOptions(),
 		Resolver:      primitive.NewHttpResolver("DEFAULT"),
 		ConsumerModel: Clustering,
+		Strategy:      AllocateByAveragely,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts

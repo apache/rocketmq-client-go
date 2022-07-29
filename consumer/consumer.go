@@ -704,38 +704,38 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 		return true
 	})
 
-	if dc.cType == _PushConsume {
-		for item := range mqSet {
-			// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
-			mq := item
+	for item := range mqSet {
+		// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
+		mq := item
+		_, exist := dc.processQueueTable.Load(mq)
+		if exist {
+			continue
+		}
+		if dc.consumeOrderly && !dc.lock(&mq) {
+			rlog.Warning("do defaultConsumer, add a new mq failed, because lock failed", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: dc.consumerGroup,
+				rlog.LogKeyMessageQueue:  mq.String(),
+			})
+			continue
+		}
+		dc.storage.remove(&mq)
+		nextOffset, err := dc.computePullFromWhereWithException(&mq)
+
+		if nextOffset >= 0 && err == nil {
 			_, exist := dc.processQueueTable.Load(mq)
 			if exist {
-				continue
-			}
-			if dc.consumeOrderly && !dc.lock(&mq) {
-				rlog.Warning("do defaultConsumer, add a new mq failed, because lock failed", map[string]interface{}{
+				rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, mq already exist", map[string]interface{}{
 					rlog.LogKeyConsumerGroup: dc.consumerGroup,
 					rlog.LogKeyMessageQueue:  mq.String(),
 				})
-				continue
-			}
-			dc.storage.remove(&mq)
-			nextOffset, err := dc.computePullFromWhereWithException(&mq)
-
-			if nextOffset >= 0 && err == nil {
-				_, exist := dc.processQueueTable.Load(mq)
-				if exist {
-					rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, mq already exist", map[string]interface{}{
-						rlog.LogKeyConsumerGroup: dc.consumerGroup,
-						rlog.LogKeyMessageQueue:  mq.String(),
-					})
-				} else {
-					rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, add a new mq", map[string]interface{}{
-						rlog.LogKeyConsumerGroup: dc.consumerGroup,
-						rlog.LogKeyMessageQueue:  mq.String(),
-					})
-					pq := newProcessQueue(dc.consumeOrderly)
-					dc.processQueueTable.Store(mq, pq)
+			} else {
+				rlog.Info("gosdk.updateProcessQueueTable do defaultConsumer, add a new mq", map[string]interface{}{
+					rlog.LogKeyConsumerGroup: dc.consumerGroup,
+					rlog.LogKeyMessageQueue:  mq.String(),
+				})
+				pq := newProcessQueue(dc.consumeOrderly)
+				dc.processQueueTable.Store(mq, pq)
+				if dc.cType == _PushConsume {
 					pr := PullRequest{
 						consumerGroup: dc.consumerGroup,
 						mq:            &mq,
@@ -743,14 +743,14 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 						nextOffset:    nextOffset,
 					}
 					dc.prCh <- pr
-					changed = true
 				}
-			} else {
-				rlog.Warning("do defaultConsumer, add a new mq failed", map[string]interface{}{
-					rlog.LogKeyConsumerGroup: dc.consumerGroup,
-					rlog.LogKeyMessageQueue:  mq.String(),
-				})
+				changed = true
 			}
+		} else {
+			rlog.Warning("do defaultConsumer, add a new mq failed", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: dc.consumerGroup,
+				rlog.LogKeyMessageQueue:  mq.String(),
+			})
 		}
 	}
 

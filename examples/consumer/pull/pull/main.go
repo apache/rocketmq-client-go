@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"log"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ var sleepTime = 1 * time.Second
 const refreshPersistOffsetDuration = time.Second * 5
 
 func main() {
+	rlog.SetLogLevel("info")
 	var nameSrv, err = primitive.NewNamesrvAddr(nameSrvAddr)
 	if err != nil {
 		log.Fatalf("NewNamesrvAddr err: %v", err)
@@ -60,9 +62,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
+	selector := consumer.MessageSelector{
+		Type:       consumer.TAG,
+		Expression: tag,
+	}
+	err = pullConsumer.Subscribe(topic, selector)
+	if err != nil {
+		log.Fatalf("fail to Subscribe: %v", err)
+	}
 	err = pullConsumer.Start()
 	if err != nil {
-		log.Fatalf("fail to new pullConsumer: %v", err)
+		log.Fatalf("fail to Start: %v", err)
 	}
 
 	timer := time.NewTimer(refreshPersistOffsetDuration)
@@ -90,11 +100,7 @@ func main() {
 }
 
 func pull() {
-	selector := consumer.MessageSelector{
-		Type:       consumer.TAG,
-		Expression: tag,
-	}
-	resp, err := pullConsumer.Pull(context.TODO(), topic, selector, 1)
+	resp, err := pullConsumer.Pull(context.TODO(), 1)
 	if err != nil {
 		log.Printf("[pull error] err=%v", err)
 		time.Sleep(sleepTime)
