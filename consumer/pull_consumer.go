@@ -286,14 +286,7 @@ func (pc *defaultPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offse
 
 // PersistOffset persist all offset in mem.
 func (pc *defaultPullConsumer) PersistOffset(ctx context.Context, topic string) error {
-
-	if len(pc.allocateQueues) == 0 {
-		rlog.Warning("defaultPullConsumer.PersistOffset len is 0", map[string]interface{}{
-			rlog.LogKeyTopic: topic,
-		})
-		return nil
-	}
-	return pc.persistPullConsumerOffset(pc.allocateQueues)
+	return pc.persistConsumerOffset()
 }
 
 // CurrentOffset return the current offset of queue in mem.

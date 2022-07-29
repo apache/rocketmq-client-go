@@ -327,15 +327,6 @@ func (dc *defaultConsumer) persistConsumerOffset() error {
 	return nil
 }
 
-func (dc *defaultConsumer) persistPullConsumerOffset(mqs []*primitive.MessageQueue) error {
-	err := dc.makeSureStateOK()
-	if err != nil {
-		return err
-	}
-	dc.storage.persist(mqs)
-	return nil
-}
-
 func (dc *defaultConsumer) updateOffset(queue *primitive.MessageQueue, offset int64) error {
 	dc.storage.update(queue, offset, false)
 	return nil
