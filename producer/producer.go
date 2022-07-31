@@ -301,7 +301,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		err error
 	)
 
-	var producerCtx *primitive.ProducerCtx
+	var (
+		producerCtx *primitive.ProducerCtx
+		ok          bool
+	)
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
 		mq := p.selectMessageQueue(msg)
 		if mq == nil {
@@ -315,7 +318,10 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		}
 
 		if p.interceptor != nil {
-			producerCtx = primitive.GetProducerCtx(ctx)
+			producerCtx, ok = primitive.GetProducerCtx(ctx)
+			if !ok {
+				return fmt.Errorf("ProducerCtx Not Exist")
+			}
 			producerCtx.BrokerAddr = addr
 			producerCtx.MQ = *mq
 		}
