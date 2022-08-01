@@ -234,8 +234,8 @@ func (pq *processQueue) isPullExpired() bool {
 	return time.Now().Sub(pq.LastPullTime()) > _PullMaxIdleTime
 }
 
-func (pq *processQueue) cleanExpiredMsg(consumer *defaultConsumer) {
-	if consumer.option.ConsumeOrderly {
+func (pq *processQueue) cleanExpiredMsg(pc *pushConsumer) {
+	if pc.option.ConsumeOrderly {
 		return
 	}
 	var loop = 16
@@ -246,7 +246,7 @@ func (pq *processQueue) cleanExpiredMsg(consumer *defaultConsumer) {
 	for i := 0; i < loop; i++ {
 		pq.mutex.RLock()
 		if pq.msgCache.Empty() {
-			pq.mutex.RLock()
+			pq.mutex.RUnlock()
 			return
 		}
 		_, firstValue := pq.msgCache.Min()
@@ -261,17 +261,16 @@ func (pq *processQueue) cleanExpiredMsg(consumer *defaultConsumer) {
 				})
 				continue
 			}
-			if time.Now().Unix()-st <= int64(consumer.option.ConsumeTimeout) {
-				pq.mutex.RLock()
+			if time.Now().UnixNano()/1e6-st <= int64(pc.option.ConsumeTimeout/time.Millisecond) {
+				pq.mutex.RUnlock()
 				return
 			}
 		}
-		pq.mutex.RLock()
+		pq.mutex.RUnlock()
 
-		err := consumer.sendBack(msg, 3)
-		if err != nil {
+		if !pc.sendMessageBack("", msg, int(3+msg.ReconsumeTimes)) {
 			rlog.Error("send message back to broker error when clean expired messages", map[string]interface{}{
-				rlog.LogKeyUnderlayError: err,
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
 			continue
 		}
