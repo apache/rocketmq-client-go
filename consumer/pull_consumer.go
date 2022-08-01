@@ -20,14 +20,15 @@ package consumer
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
-	"github.com/apache/rocketmq-client-go/v2/internal/remote"
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 
 	"github.com/pkg/errors"
 
@@ -171,8 +172,12 @@ func (pc *defaultPullConsumer) Pull(ctx context.Context, numbers int) (*primitiv
 	}
 
 	data := buildSubscriptionData(mq.Topic, pc.selector)
-	result, err := pc.pull(context.Background(), mq, data, pc.nextOffsetOf(mq), numbers)
+	nextOffset, err := pc.nextOffsetOf(mq)
+	if err != nil {
+		return nil, err
+	}
 
+	result, err := pc.pull(context.Background(), mq, data, nextOffset, numbers)
 	if err != nil {
 		return nil, err
 	}
@@ -263,9 +268,8 @@ func (pc *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQu
 	return pullResp, err
 }
 
-func (pc *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) int64 {
-	result, _ := pc.computePullFromWhereWithException(queue)
-	return result
+func (pc *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) (int64, error) {
+	return pc.computePullFromWhereWithException(queue)
 }
 
 // PullFrom pull messages of queue from the offset to offset + numbers
