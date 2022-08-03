@@ -17,6 +17,8 @@ limitations under the License.
 
 package utils
 
+import "strings"
+
 // HashString hashes a string to a unique hashcode.
 func HashString(s string) int {
 	val := []byte(s)
@@ -27,4 +29,8 @@ func HashString(s string) int {
 	}
 
 	return int(h)
+}
+
+func IsEmpty(s string) bool {
+	return strings.TrimSpace(s) == ""
 }

@@ -131,6 +131,8 @@ func defaultPullConsumerOptions() consumerOptions {
 	opts := consumerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 		Resolver:      primitive.NewHttpResolver("DEFAULT"),
+		ConsumerModel: Clustering,
+		Strategy:      AllocateByAveragely,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
