@@ -46,46 +46,13 @@ func IsNoNewMsgError(err error) bool {
 	return err == ErrNoNewMsg
 }
 
-type PullConsumer interface {
-	Start() error
-
-	Subscribe(topic string, selector MessageSelector) error
-
-	// Unsubscribe a topic
-	Unsubscribe(topic string) error
-
-	// Shutdown refuse all new pull operation, finish all submitted.
-	Shutdown() error
-
-	// Poll messages with timeout.
-	Poll(ctx context.Context, timeout time.Duration) (*consumeRequest, error)
-
-	//ACK ACK
-	ACK(ctx context.Context, cr *consumeRequest, consumeResult ConsumeResult)
-
-	// Pull message of topic,  selector indicate which queue to pull.
-	Pull(ctx context.Context, numbers int) (*primitive.PullResult, error)
-
-	// PullFrom pull messages of queue from the offset to offset + numbers
-	PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
-
-	// UpdateOffset updateOffset update offset of queue in mem
-	UpdateOffset(queue *primitive.MessageQueue, offset int64) error
-
-	// PersistOffset persist all offset in mem.
-	PersistOffset(ctx context.Context, topic string) error
-
-	// CurrentOffset return the current offset of queue in mem.
-	CurrentOffset(queue *primitive.MessageQueue) (int64, error)
-}
-
-type consumeRequest struct {
+type ConsumeRequest struct {
 	messageQueue *primitive.MessageQueue
 	processQueue *processQueue
 	msgList      []*primitive.MessageExt
 }
 
-func (cr *consumeRequest) GetMsgList() []*primitive.MessageExt {
+func (cr *ConsumeRequest) GetMsgList() []*primitive.MessageExt {
 	return cr.msgList
 }
 
@@ -102,11 +69,11 @@ type defaultPullConsumer struct {
 
 	done                chan struct{}
 	closeOnce           sync.Once
-	consumeRequestCache chan *consumeRequest
+	consumeRequestCache chan *ConsumeRequest
 	submitToConsume     func(*processQueue, *primitive.MessageQueue)
 }
 
-func NewPullConsumer(options ...Option) (PullConsumer, error) {
+func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	defaultOpts := defaultPullConsumerOptions()
 	for _, apply := range options {
 		apply(&defaultOpts)
@@ -136,7 +103,7 @@ func NewPullConsumer(options ...Option) (PullConsumer, error) {
 	c := &defaultPullConsumer{
 		defaultConsumer:     dc,
 		done:                make(chan struct{}, 1),
-		consumeRequestCache: make(chan *consumeRequest, 4),
+		consumeRequestCache: make(chan *ConsumeRequest, 4),
 	}
 	dc.mqChanged = c.messageQueueChanged
 	c.submitToConsume = c.consumeMessageCurrently
@@ -219,7 +186,7 @@ func (pc *defaultPullConsumer) Start() error {
 	return err
 }
 
-func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) (*consumeRequest, error) {
+func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) (*ConsumeRequest, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	select {
@@ -233,7 +200,7 @@ func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) 
 	}
 }
 
-func (pc *defaultPullConsumer) ACK(ctx context.Context, cr *consumeRequest, result ConsumeResult) {
+func (pc *defaultPullConsumer) ACK(ctx context.Context, cr *ConsumeRequest, result ConsumeResult) {
 	if cr == nil {
 		return
 	}
@@ -813,7 +780,7 @@ func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *pri
 	if msgList == nil {
 		return
 	}
-	cr := &consumeRequest{
+	cr := &ConsumeRequest{
 		messageQueue: mq,
 		processQueue: pq,
 		msgList:      msgList,

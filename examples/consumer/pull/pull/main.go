@@ -22,6 +22,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2"
+
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
@@ -38,7 +40,7 @@ const (
 	namespace         = "ns"
 )
 
-var pullConsumer consumer.PullConsumer
+var pullConsumer rocketmq.PullConsumer
 var sleepTime = 1 * time.Second
 
 const refreshPersistOffsetDuration = time.Second * 5
@@ -49,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewNamesrvAddr err: %v", err)
 	}
-	pullConsumer, err = consumer.NewPullConsumer(
+	pullConsumer, err = rocketmq.NewPullConsumer(
 		consumer.WithGroupName(consumerGroupName),
 		consumer.WithNameServer(nameSrv),
 		consumer.WithCredentials(primitive.Credentials{

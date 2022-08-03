@@ -23,6 +23,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2"
+
 	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -51,7 +53,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("NewNamesrvAddr err: %v", err)
 	}
-	pullConsumer, err := consumer.NewPullConsumer(
+	pullConsumer, err := rocketmq.NewPullConsumer(
 		consumer.WithGroupName(consumerGroupName),
 		consumer.WithNameServer(nameSrv),
 		consumer.WithCredentials(primitive.Credentials{
