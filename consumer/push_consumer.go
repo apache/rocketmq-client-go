@@ -171,6 +171,28 @@ func (pc *pushConsumer) Start() error {
 		}()
 
 		go primitive.WithRecover(func() {
+			if pc.consumeOrderly {
+				return
+			}
+			time.Sleep(pc.option.ConsumeTimeout)
+			pc.cleanExpiredMsg()
+
+			ticker := time.NewTicker(pc.option.ConsumeTimeout)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					pc.cleanExpiredMsg()
+				case <-pc.done:
+					rlog.Info("push consumer close cleanExpiredMsg listener.", map[string]interface{}{
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+					return
+				}
+			}
+		})
+
+		go primitive.WithRecover(func() {
 			// initial lock.
 			if !pc.consumeOrderly {
 				return
@@ -1291,4 +1313,12 @@ func (pc *pushConsumer) submitConsumeRequestLater(suspendTimeMillis int64) {
 		suspendTimeMillis = 30000
 	}
 	time.Sleep(time.Duration(suspendTimeMillis) * time.Millisecond)
+}
+
+func (pc *pushConsumer) cleanExpiredMsg() {
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		pq := value.(*processQueue)
+		pq.cleanExpiredMsg(pc)
+		return true
+	})
 }
