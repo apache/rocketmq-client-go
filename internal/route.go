@@ -40,7 +40,7 @@ import (
 const (
 	EnvNameServerAddr = "NAMESRV_ADDR"
 
-	requestTimeout   = 3 * time.Second
+	requestTimeout   = 6 * time.Second
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
 	MasterId         = int64(0)
