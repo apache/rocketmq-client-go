@@ -311,16 +311,16 @@ RETRY:
 }
 
 // resetRetryAndNamespace modify retry message.
-func (pc *defaultPullConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) {
+func (pc *defaultPullConsumer) resetRetryAndNamespace(msgList []*primitive.MessageExt) {
 	groupTopic := internal.RetryGroupTopicPrefix + pc.consumerGroup
 	beginTime := time.Now()
-	for idx := range subMsgs {
-		msg := subMsgs[idx]
+	for idx := range msgList {
+		msg := msgList[idx]
 		retryTopic := msg.GetProperty(primitive.PropertyRetryTopic)
 		if retryTopic == "" && groupTopic == msg.Topic {
 			msg.Topic = retryTopic
 		}
-		subMsgs[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
+		msgList[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
 			beginTime.UnixNano()/int64(time.Millisecond), 10))
 	}
 }
@@ -383,7 +383,7 @@ func (pc *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQu
 	return nextQueue
 }
 
-func (pc *defaultPullConsumer) checkPull(ctx context.Context, mq *primitive.MessageQueue, offset int64, numbers int) error {
+func (pc *defaultPullConsumer) checkPull(mq *primitive.MessageQueue, offset int64, numbers int) error {
 	err := pc.makeSureStateOK()
 	if err != nil {
 		return err
@@ -411,7 +411,7 @@ func (pc *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQu
 	mq.Topic = utils.WrapNamespace(pc.option.Namespace, mq.Topic)
 	pc.consumerGroup = utils.WrapNamespace(pc.option.Namespace, pc.consumerGroup)
 
-	if err := pc.checkPull(ctx, mq, offset, numbers); err != nil {
+	if err := pc.checkPull(mq, offset, numbers); err != nil {
 		return nil, err
 	}
 
@@ -434,7 +434,7 @@ func (pc *defaultPullConsumer) nextOffsetOf(queue *primitive.MessageQueue) (int6
 
 // PullFrom pull messages of queue from the offset to offset + numbers
 func (pc *defaultPullConsumer) PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error) {
-	if err := pc.checkPull(ctx, queue, offset, numbers); err != nil {
+	if err := pc.checkPull(queue, offset, numbers); err != nil {
 		return nil, err
 	}
 
@@ -443,7 +443,7 @@ func (pc *defaultPullConsumer) PullFrom(ctx context.Context, queue *primitive.Me
 	return pc.pull(ctx, queue, data, offset, numbers)
 }
 
-// updateOffset update offset of queue in mem
+// UpdateOffset updateOffset update offset of queue in mem
 func (pc *defaultPullConsumer) UpdateOffset(queue *primitive.MessageQueue, offset int64) error {
 	return pc.updateOffset(queue, offset)
 }
