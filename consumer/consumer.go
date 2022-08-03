@@ -726,15 +726,13 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				})
 				pq := newProcessQueue(dc.consumeOrderly)
 				dc.processQueueTable.Store(mq, pq)
-				if dc.cType == _PushConsume {
-					pr := PullRequest{
-						consumerGroup: dc.consumerGroup,
-						mq:            &mq,
-						pq:            pq,
-						nextOffset:    nextOffset,
-					}
-					dc.prCh <- pr
+				pr := PullRequest{
+					consumerGroup: dc.consumerGroup,
+					mq:            &mq,
+					pq:            pq,
+					nextOffset:    nextOffset,
 				}
+				dc.prCh <- pr
 				changed = true
 			}
 		} else {

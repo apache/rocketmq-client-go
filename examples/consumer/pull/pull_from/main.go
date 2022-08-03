@@ -90,6 +90,10 @@ func main() {
 		Type:       consumer.TAG,
 		Expression: tag,
 	}
+	err = c.Subscribe(topic, selector)
+	if err != nil {
+		log.Fatalf("Subscribe error: %s\n", err)
+	}
 	for _, queue := range messageQueues {
 		offset := getOffset(client, consumerGroupName, topic, queue.QueueId)
 		if offset < 0 { // default consume from offset 0
@@ -97,7 +101,7 @@ func main() {
 		}
 		go func(queue *primitive.MessageQueue) {
 			for {
-				resp, err := c.PullFrom(ctx, selector, queue, offset, 1) // pull one message per time for make sure easily ACK
+				resp, err := c.PullFrom(ctx, queue, offset, 1) // pull one message per time for make sure easily ACK
 				if err != nil {
 					log.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d\n", topic, queue.QueueId, queue.BrokerName, offset)
 					time.Sleep(sleepTime)
