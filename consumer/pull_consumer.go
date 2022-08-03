@@ -40,7 +40,6 @@ import (
 )
 
 type PullConsumer interface {
-	// Start
 	Start() error
 
 	Subscribe(topic string, selector MessageSelector) error
@@ -51,19 +50,19 @@ type PullConsumer interface {
 	// Shutdown refuse all new pull operation, finish all submitted.
 	Shutdown() error
 
-	// Poll poll message with timeout.
+	// Poll messages with timeout.
 	Poll(ctx context.Context, timeout time.Duration) (*consumeRequest, error)
 
 	//ACK ACK
 	ACK(ctx context.Context, cr *consumeRequest, consumeResult ConsumeResult)
 
-	// Pull pull message of topic,  selector indicate which queue to pull.
+	// Pull message of topic,  selector indicate which queue to pull.
 	Pull(ctx context.Context, numbers int) (*primitive.PullResult, error)
 
 	// PullFrom pull messages of queue from the offset to offset + numbers
 	PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
 
-	// updateOffset update offset of queue in mem
+	// UpdateOffset updateOffset update offset of queue in mem
 	UpdateOffset(queue *primitive.MessageQueue, offset int64) error
 
 	// PersistOffset persist all offset in mem.
