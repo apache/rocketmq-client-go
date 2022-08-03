@@ -45,6 +45,9 @@ type PullConsumer interface {
 
 	Subscribe(topic string, selector MessageSelector) error
 
+	// Unsubscribe a topic
+	Unsubscribe(topic string) error
+
 	// Shutdown refuse all new pull operation, finish all submitted.
 	Shutdown() error
 
@@ -143,7 +146,7 @@ func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector)
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
-	topic = utils.WrapNamespace(pc.defaultConsumer.option.Namespace, topic)
+	topic = utils.WrapNamespace(pc.option.Namespace, topic)
 
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
@@ -153,12 +156,18 @@ func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector)
 	return nil
 }
 
+func (pc *defaultPullConsumer) Unsubscribe(topic string) error {
+	topic = utils.WrapNamespace(pc.option.Namespace, topic)
+	pc.subscriptionDataTable.Delete(topic)
+	return nil
+}
+
 func (pc *defaultPullConsumer) Start() error {
 	atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
 
 	var err error
 	pc.once.Do(func() {
-		consumerGroupWithNs := utils.WrapNamespace(pc.defaultConsumer.option.Namespace, pc.consumerGroup)
+		consumerGroupWithNs := utils.WrapNamespace(pc.option.Namespace, pc.consumerGroup)
 		err = pc.defaultConsumer.client.RegisterConsumer(consumerGroupWithNs, pc)
 		if err != nil {
 			rlog.Error("defaultPullConsumer the consumer group has been created, specify another one", map[string]interface{}{
@@ -342,7 +351,7 @@ func (pc *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQu
 	var queues []*primitive.MessageQueue
 	var err error
 	if len(pc.allocateQueues) == 0 {
-		topic = utils.WrapNamespace(pc.defaultConsumer.option.Namespace, topic)
+		topic = utils.WrapNamespace(pc.option.Namespace, topic)
 		queues, err = pc.defaultConsumer.client.GetNameSrv().FetchSubscribeMessageQueues(topic)
 		if err != nil {
 			rlog.Error("get next mq error", map[string]interface{}{
@@ -400,8 +409,8 @@ func (pc *defaultPullConsumer) checkPull(ctx context.Context, mq *primitive.Mess
 func (pc *defaultPullConsumer) pull(ctx context.Context, mq *primitive.MessageQueue, data *internal.SubscriptionData,
 	offset int64, numbers int) (*primitive.PullResult, error) {
 
-	mq.Topic = utils.WrapNamespace(pc.defaultConsumer.option.Namespace, mq.Topic)
-	pc.consumerGroup = utils.WrapNamespace(pc.defaultConsumer.option.Namespace, pc.consumerGroup)
+	mq.Topic = utils.WrapNamespace(pc.option.Namespace, mq.Topic)
+	pc.consumerGroup = utils.WrapNamespace(pc.option.Namespace, pc.consumerGroup)
 
 	if err := pc.checkPull(ctx, mq, offset, numbers); err != nil {
 		return nil, err
@@ -621,7 +630,7 @@ func (pc *defaultPullConsumer) getMaxReconsumeTimes() int32 {
 }
 
 func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
-	rlog.Debug("defaultPullConsumer.pullMessage start a new Pull Message task for PullRequest", map[string]interface{}{
+	rlog.Debug("defaultPullConsumer start a new Pull Message task for PullRequest", map[string]interface{}{
 		rlog.LogKeyPullRequest: request.String(),
 	})
 	var sleepTime time.Duration
@@ -649,7 +658,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 	NEXT:
 		select {
 		case <-pc.done:
-			rlog.Info("defaultPullConsumer.pullMessage push consumer close message handle.", map[string]interface{}{
+			rlog.Info("defaultPullConsumer close message handle.", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
 			return
@@ -657,13 +666,13 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 		}
 
 		if pq.IsDroppd() {
-			rlog.Debug("defaultPullConsumer.pullMessage the request was dropped, so stop task", map[string]interface{}{
+			rlog.Debug("defaultPullConsumer the request was dropped, so stop task", map[string]interface{}{
 				rlog.LogKeyPullRequest: request.String(),
 			})
 			return
 		}
 		if sleepTime > 0 {
-			rlog.Debug(fmt.Sprintf("pull MessageQueue: %d sleep %d ms for mq: %v", request.mq.QueueId, sleepTime/time.Millisecond, request.mq), nil)
+			rlog.Debug(fmt.Sprintf("defaultPullConsumer pull MessageQueue: %d sleep %d ms for mq: %v", request.mq.QueueId, sleepTime/time.Millisecond, request.mq), nil)
 			time.Sleep(sleepTime)
 		}
 		// reset time
@@ -671,7 +680,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
-			rlog.Warning("consumer state error", map[string]interface{}{
+			rlog.Warning("defaultPullConsumer state error", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err.Error(),
 			})
 			sleepTime = _PullDelayTimeWhenError
@@ -679,7 +688,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 		}
 
 		if pc.pause {
-			rlog.Debug(fmt.Sprintf("consumer [%s] of [%s] was paused, execute pull request [%s] later",
+			rlog.Debug(fmt.Sprintf("defaultPullConsumer [%s] of [%s] was paused, execute pull request [%s] later",
 				pc.option.InstanceName, pc.consumerGroup, request.String()), nil)
 			sleepTime = _PullDelayTimeWhenSuspend
 			goto NEXT
@@ -687,7 +696,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 
 		v, exist := pc.subscriptionDataTable.Load(request.mq.Topic)
 		if !exist {
-			rlog.Info("find the consumer's subscription failed", map[string]interface{}{
+			rlog.Info("defaultPullConsumer find the consumer's subscription failed", map[string]interface{}{
 				rlog.LogKeyPullRequest: request.String(),
 			})
 			sleepTime = _PullDelayTimeWhenError
@@ -713,7 +722,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 
 		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
 		if brokerResult == nil {
-			rlog.Warning("no broker found for mq", map[string]interface{}{
+			rlog.Warning("defaultPullConsumer no broker found for mq", map[string]interface{}{
 				rlog.LogKeyPullRequest: request.mq.String(),
 			})
 			sleepTime = _PullDelayTimeWhenError
