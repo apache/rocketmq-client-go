@@ -39,6 +39,13 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
+// ErrNoNewMsg returns a "no new message found". Occurs only when no new message found from broker
+var ErrNoNewMsg = errors.New("no new message found")
+
+func IsNoNewMsgError(err error) bool {
+	return err == ErrNoNewMsg
+}
+
 type PullConsumer interface {
 	Start() error
 
@@ -93,14 +100,10 @@ type defaultPullConsumer struct {
 	nextQueueSequence int64
 	allocateQueues    []*primitive.MessageQueue
 
-	interceptor primitive.Interceptor
-
-	queueFlowControlTimes        int
-	queueMaxSpanFlowControlTimes int
-	done                         chan struct{}
-	closeOnce                    sync.Once
-	consumeRequestCache          chan *consumeRequest
-	submitToConsume              func(*processQueue, *primitive.MessageQueue)
+	done                chan struct{}
+	closeOnce           sync.Once
+	consumeRequestCache chan *consumeRequest
+	submitToConsume     func(*processQueue, *primitive.MessageQueue)
 }
 
 func NewPullConsumer(options ...Option) (PullConsumer, error) {
@@ -219,20 +222,25 @@ func (pc *defaultPullConsumer) Start() error {
 func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) (*consumeRequest, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cr := &consumeRequest{}
 	select {
 	case <-ctx.Done():
-		return cr, nil
+		return nil, ErrNoNewMsg
 	case cr := <-pc.consumeRequestCache:
+		if len(cr.GetMsgList()) == 0 {
+			return nil, ErrNoNewMsg
+		}
 		return cr, nil
 	}
 }
 
 func (pc *defaultPullConsumer) ACK(ctx context.Context, cr *consumeRequest, result ConsumeResult) {
+	if cr == nil {
+		return
+	}
 	pq := cr.processQueue
 	mq := cr.messageQueue
 	msgList := cr.msgList
-	if len(msgList) == 0 {
+	if len(msgList) == 0 || pq == nil || mq == nil {
 		return
 	}
 RETRY:
@@ -328,7 +336,7 @@ func (pc *defaultPullConsumer) resetRetryAndNamespace(msgList []*primitive.Messa
 func (pc *defaultPullConsumer) Pull(ctx context.Context, numbers int) (*primitive.PullResult, error) {
 	mq := pc.getNextQueueOf(pc.topic)
 	if mq == nil {
-		return nil, fmt.Errorf("prepard to pull topic: %s, but no queue is founded", pc.topic)
+		return nil, fmt.Errorf("prepare to pull topic: %s, but no queue is founded", pc.topic)
 	}
 
 	data := buildSubscriptionData(mq.Topic, pc.selector)
@@ -601,10 +609,7 @@ func (pc *defaultPullConsumer) sendMessageBack(brokerName string, msg *primitive
 		brokerAddr = msg.StoreHost
 	}
 	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func (pc *defaultPullConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLevel int) *remote.RemotingCommand {

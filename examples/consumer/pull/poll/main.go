@@ -19,9 +19,10 @@ package main
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"log"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -92,13 +93,16 @@ func main() {
 
 func pull() {
 	cr, err := pullConsumer.Poll(context.TODO(), time.Second*5)
+	if consumer.IsNoNewMsgError(err) {
+		return
+	}
 	if err != nil {
 		log.Printf("[pull error] err=%v", err)
 		time.Sleep(sleepTime)
 		return
 	}
-	if len(cr.GetMsgList()) > 0 {
-		log.Println("===>", cr.GetMsgList())
-	}
-	pullConsumer.ACK(context.TODO(), cr, consumer.ConsumeRetryLater)
+	// todo LOGIC CODE HERE
+	log.Println("msgList: ", cr.GetMsgList())
+	// pullConsumer.ACK(context.TODO(), cr, consumer.ConsumeRetryLater)
+	pullConsumer.ACK(context.TODO(), cr, consumer.ConsumeSuccess)
 }

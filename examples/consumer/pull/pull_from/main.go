@@ -47,13 +47,13 @@ var client = redis.NewClient(&redis.Options{
 })
 
 func main() {
-	var namesrv, err = primitive.NewNamesrvAddr(nameSrvAddr)
+	var nameSrv, err = primitive.NewNamesrvAddr(nameSrvAddr)
 	if err != nil {
 		log.Fatalf("NewNamesrvAddr err: %v", err)
 	}
-	c, err := consumer.NewPullConsumer(
+	pullConsumer, err := consumer.NewPullConsumer(
 		consumer.WithGroupName(consumerGroupName),
-		consumer.WithNameServer(namesrv),
+		consumer.WithNameServer(nameSrv),
 		consumer.WithCredentials(primitive.Credentials{
 			AccessKey: accessKey,
 			SecretKey: secretKey,
@@ -63,7 +63,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
-	err = c.Start()
+	err = pullConsumer.Start()
 	if err != nil {
 		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
@@ -90,7 +90,7 @@ func main() {
 		Type:       consumer.TAG,
 		Expression: tag,
 	}
-	err = c.Subscribe(topic, selector)
+	err = pullConsumer.Subscribe(topic, selector)
 	if err != nil {
 		log.Fatalf("Subscribe error: %s\n", err)
 	}
@@ -101,7 +101,7 @@ func main() {
 		}
 		go func(queue *primitive.MessageQueue) {
 			for {
-				resp, err := c.PullFrom(ctx, queue, offset, 1) // pull one message per time for make sure easily ACK
+				resp, err := pullConsumer.PullFrom(ctx, queue, offset, 1) // pull one message per time for make sure easily ACK
 				if err != nil {
 					log.Printf("[pull error] topic=%s, queue id=%d, broker=%s, offset=%d\n", topic, queue.QueueId, queue.BrokerName, offset)
 					time.Sleep(sleepTime)
