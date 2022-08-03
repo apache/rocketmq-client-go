@@ -63,6 +63,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to new pullConsumer: %v", err)
 	}
+
+	selector := consumer.MessageSelector{
+		Type:       consumer.TAG,
+		Expression: tag,
+	}
+	err = pullConsumer.Subscribe(topic, selector)
+	if err != nil {
+		log.Fatalf("Subscribe error: %s\n", err)
+	}
 	err = pullConsumer.Start()
 	if err != nil {
 		log.Fatalf("fail to new pullConsumer: %v", err)
@@ -86,14 +95,7 @@ func main() {
 		log.Fatalf("fetch messahe queue error: %s\n", err)
 	}
 	var sleepTime = 1 * time.Second
-	selector := consumer.MessageSelector{
-		Type:       consumer.TAG,
-		Expression: tag,
-	}
-	err = pullConsumer.Subscribe(topic, selector)
-	if err != nil {
-		log.Fatalf("Subscribe error: %s\n", err)
-	}
+
 	for _, queue := range messageQueues {
 		offset := getOffset(client, consumerGroupName, topic, queue.QueueId)
 		if offset < 0 { // default consume from offset 0

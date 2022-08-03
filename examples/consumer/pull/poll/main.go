@@ -87,17 +87,17 @@ func main() {
 	}()
 
 	for {
-		pull()
+		poll()
 	}
 }
 
-func pull() {
+func poll() {
 	cr, err := pullConsumer.Poll(context.TODO(), time.Second*5)
 	if consumer.IsNoNewMsgError(err) {
 		return
 	}
 	if err != nil {
-		log.Printf("[pull error] err=%v", err)
+		log.Printf("[poll error] err=%v", err)
 		time.Sleep(sleepTime)
 		return
 	}
