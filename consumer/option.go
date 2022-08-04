@@ -106,6 +106,8 @@ type consumerOptions struct {
 	RebalanceLockInterval time.Duration
 
 	Resolver primitive.NsResolver
+
+	ConsumeGoroutineNums int
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -120,6 +122,7 @@ func defaultPushConsumerOptions() consumerOptions {
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
 		ConsumeTimestamp:           time.Now().Add(time.Minute * (-30)).Format("20060102150405"),
 		ConsumeTimeout:             15 * time.Minute,
+		ConsumeGoroutineNums:       20,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -298,5 +301,11 @@ func WithNameServerDomain(nameServerUrl string) Option {
 func WithConsumeTimeout(timeout time.Duration) Option {
 	return func(opts *consumerOptions) {
 		opts.ConsumeTimeout = timeout
+	}
+}
+
+func WithConsumeGoroutineNums(nums int) Option {
+	return func(opts *consumerOptions) {
+		opts.ConsumeGoroutineNums = nums
 	}
 }
