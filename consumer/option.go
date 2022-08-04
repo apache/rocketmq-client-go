@@ -181,6 +181,30 @@ func WithConsumeConcurrentlyMaxSpan(consumeConcurrentlyMaxSpan int) Option {
 	}
 }
 
+func WithPullThresholdForQueue(pullThresholdForQueue int64) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdForQueue = pullThresholdForQueue
+	}
+}
+
+func WithPullThresholdSizeForQueue(pullThresholdSizeForQueue int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdSizeForQueue = pullThresholdSizeForQueue
+	}
+}
+
+func WithPullThresholdForTopic(pullThresholdForTopic int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdForTopic = pullThresholdForTopic
+	}
+}
+
+func WithPullThresholdSizeForTopic(pullThresholdSizeForTopic int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdSizeForTopic = pullThresholdSizeForTopic
+	}
+}
+
 // WithChainConsumerInterceptor returns a ConsumerOption that specifies the chained interceptor for consumer.
 // The first interceptor will be the outer most, while the last interceptor will be the inner most wrapper
 // around the real call.
