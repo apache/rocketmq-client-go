@@ -20,6 +20,8 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2"
@@ -43,9 +45,10 @@ const (
 var pullConsumer rocketmq.PullConsumer
 var sleepTime = 1 * time.Second
 
-const refreshPersistOffsetDuration = time.Second * 5
-
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	rlog.SetLogLevel("info")
 	var nameSrv, err = primitive.NewNamesrvAddr(nameSrvAddr)
 	if err != nil {
@@ -76,17 +79,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to Start: %v", err)
 	}
-
-	timer := time.NewTimer(refreshPersistOffsetDuration)
-	go func() {
-		for ; true; <-timer.C {
-			err = pullConsumer.PersistOffset(context.TODO(), topic)
-			if err != nil {
-				log.Printf("[pullConsumer.PersistOffset] err=%v", err)
-			}
-			timer.Reset(refreshPersistOffsetDuration)
-		}
-	}()
 
 	for {
 		poll()
