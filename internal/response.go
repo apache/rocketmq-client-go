@@ -27,6 +27,7 @@ const (
 	ResPullNotFound         = int16(19)
 	ResPullRetryImmediately = int16(20)
 	ResPullOffsetMoved      = int16(21)
+	ResQueryNotFount        = int16(22)
 )
 
 type SendMessageResponse struct {
