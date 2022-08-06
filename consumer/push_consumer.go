@@ -225,7 +225,7 @@ func (pc *pushConsumer) Start() error {
 	for k := range pc.subscribedTopic {
 		_, exist := pc.topicSubscribeInfoTable.Load(k)
 		if !exist {
-			pc.client.Shutdown()
+			pc.Shutdown()
 			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 		}
 	}
