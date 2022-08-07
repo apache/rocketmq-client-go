@@ -72,6 +72,7 @@ type pushConsumer struct {
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
+	crCh                         chan struct{}
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -115,6 +116,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
+		crCh:            make(chan struct{}, defaultOpts.ConsumeGoroutineNums),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -1023,6 +1025,8 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			subMsgs = msgs[count:next]
 			count = next - 1
 		}
+
+		pc.crCh <- struct{}{}
 		go primitive.WithRecover(func() {
 		RETRY:
 			if pq.IsDroppd() {
@@ -1030,6 +1034,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					rlog.LogKeyMessageQueue:  mq.String(),
 					rlog.LogKeyConsumerGroup: pc.consumerGroup,
 				})
+				<-pc.crCh
 				return
 			}
 
@@ -1109,6 +1114,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					"message":               subMsgs,
 				})
 			}
+			<-pc.crCh
 		})
 	}
 }
