@@ -372,6 +372,11 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 	if err != nil {
 		return -1, err
 	}
+
+	if res.Code == internal.ResQueryNotFount {
+		return -1, nil
+	}
+
 	if res.Code != internal.ResSuccess {
 		return -2, fmt.Errorf("broker response code: %d, remarks: %s", res.Code, res.Remark)
 	}
