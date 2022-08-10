@@ -274,9 +274,7 @@ func (dc *defaultConsumer) start() error {
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
 		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
 		dc.subscriptionDataTable.Store(retryTopic, sub)
-	}
 
-	if dc.model == Clustering {
 		dc.option.ChangeInstanceNameToPID()
 		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client, dc.client.GetNameSrv())
 	} else {
