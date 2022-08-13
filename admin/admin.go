@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -35,6 +36,7 @@ type Admin interface {
 	//TODO
 	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
 }
 
@@ -61,6 +63,19 @@ func WithResolver(resolver primitive.NsResolver) AdminOption {
 	}
 }
 
+func WithCredentials(c primitive.Credentials) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}
+
+// WithNamespace set the namespace of admin
+func WithNamespace(namespace string) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Namespace = namespace
+	}
+}
+
 type admin struct {
 	cli internal.RMQClient
 
@@ -70,7 +85,7 @@ type admin struct {
 }
 
 // NewAdmin initialize admin
-func NewAdmin(opts ...AdminOption) (Admin, error) {
+func NewAdmin(opts ...AdminOption) (*admin, error) {
 	defaultOpts := defaultAdminOptions()
 	for _, opt := range opts {
 		opt(defaultOpts)
@@ -200,6 +215,10 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		rlog.LogKeyBroker: cfg.BrokerAddr,
 	})
 	return nil
+}
+
+func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
+	return a.cli.GetNameSrv().FetchPublishMessageQueues(utils.WrapNamespace(a.opts.Namespace, topic))
 }
 
 func (a *admin) Close() error {
