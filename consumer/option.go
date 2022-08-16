@@ -18,6 +18,7 @@ limitations under the License.
 package consumer
 
 import (
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -108,6 +109,8 @@ type consumerOptions struct {
 	Resolver primitive.NsResolver
 
 	ConsumeGoroutineNums int
+
+	filterMessageHooks []hooks.FilterMessageHook
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -333,5 +336,11 @@ func WithConsumeTimeout(timeout time.Duration) Option {
 func WithConsumeGoroutineNums(nums int) Option {
 	return func(opts *consumerOptions) {
 		opts.ConsumeGoroutineNums = nums
+	}
+}
+
+func WithFilterMessageHook(hooks []hooks.FilterMessageHook) Option {
+	return func(opts *consumerOptions) {
+		opts.filterMessageHooks = hooks
 	}
 }
