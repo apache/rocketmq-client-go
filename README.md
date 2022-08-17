@@ -19,7 +19,7 @@ A product ready RocketMQ Client in pure go, which supports almost the full featu
 
 ----------
 ## Features
-For 2.0.0 version, it supports:
+For 2.X version, it supports:
 * sending message in synchronous mode
 * sending message in asynchronous mode
 * sending message in oneway mode
@@ -27,6 +27,7 @@ For 2.0.0 version, it supports:
 * consuming message using push model
 * message tracing for pub and sub messages
 * ACL for producers and consumers
+* requset-reply model
 
 ----------
 ## How to use
