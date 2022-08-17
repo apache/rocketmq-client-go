@@ -23,8 +23,13 @@ For 2.X version, it supports:
 * sending message in synchronous mode
 * sending message in asynchronous mode
 * sending message in oneway mode
+* sending message in batch mode
 * sending orderly messages
+* sending delay messages
+* sending transaction messages
 * consuming message using push model
+* consuming message using pull model
+* consuming message using broadcast model
 * message tracing for pub and sub messages
 * ACL for producers and consumers
 * requset-reply model
