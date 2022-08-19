@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"sort"
 	"strconv"
 	"strings"
@@ -889,6 +890,18 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 				if exist {
 					msgListFilterAgain = append(msgListFilterAgain, msg)
 				}
+			}
+		}
+
+		if dc.option.filterMessageHooks != nil {
+			for _, hook := range dc.option.filterMessageHooks {
+				ctx := &hooks.FilterMessageContext{
+					ConsumerGroup: dc.consumerGroup,
+					Msg:           msgListFilterAgain,
+					MQ:            mq,
+					UnitMode:      dc.unitMode,
+				}
+				msgListFilterAgain, _ = hook(ctx)
 			}
 		}
 
