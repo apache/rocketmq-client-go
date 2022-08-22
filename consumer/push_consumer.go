@@ -1026,7 +1026,14 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			count = next - 1
 		}
 
-		pc.crCh <- struct{}{}
+		limiter := pc.option.Limiter
+		limiterOn := limiter != nil
+		if limiterOn {
+			limiter(utils.WithoutNamespace(mq.Topic))
+		} else {
+			pc.crCh <- struct{}{}
+		}
+
 		go primitive.WithRecover(func() {
 		RETRY:
 			if pq.IsDroppd() {
@@ -1034,7 +1041,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					rlog.LogKeyMessageQueue:  mq.String(),
 					rlog.LogKeyConsumerGroup: pc.consumerGroup,
 				})
-				<-pc.crCh
+				if !limiterOn {
+					<-pc.crCh
+				}
 				return
 			}
 
@@ -1114,7 +1123,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					"message":               subMsgs,
 				})
 			}
-			<-pc.crCh
+			if !limiterOn {
+				<-pc.crCh
+			}
 		})
 	}
 }

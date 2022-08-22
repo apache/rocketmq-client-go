@@ -111,6 +111,8 @@ type consumerOptions struct {
 	ConsumeGoroutineNums int
 
 	filterMessageHooks []hooks.FilterMessageHook
+
+	Limiter Limiter
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -342,5 +344,11 @@ func WithConsumeGoroutineNums(nums int) Option {
 func WithFilterMessageHook(hooks []hooks.FilterMessageHook) Option {
 	return func(opts *consumerOptions) {
 		opts.filterMessageHooks = hooks
+	}
+}
+
+func WithLimiter(limiter Limiter) Option {
+	return func(opts *consumerOptions) {
+		opts.Limiter = limiter
 	}
 }
