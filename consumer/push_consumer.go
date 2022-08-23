@@ -241,6 +241,9 @@ func (pc *pushConsumer) Start() error {
 func (pc *pushConsumer) Shutdown() error {
 	var err error
 	pc.closeOnce.Do(func() {
+		if pc.option.TraceDispatcher != nil {
+			pc.option.TraceDispatcher.Close()
+		}
 		close(pc.done)
 
 		pc.client.UnregisterConsumer(pc.consumerGroup)

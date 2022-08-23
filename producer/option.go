@@ -49,6 +49,7 @@ type producerOptions struct {
 	Resolver                   primitive.NsResolver
 	CompressMsgBodyOverHowmuch int
 	CompressLevel              int
+	TraceDispatcher            internal.TraceDispatcher
 }
 
 type Option func(*producerOptions)
