@@ -113,6 +113,8 @@ type consumerOptions struct {
 	filterMessageHooks []hooks.FilterMessageHook
 
 	Limiter Limiter
+
+	TraceDispatcher internal.TraceDispatcher
 }
 
 func defaultPushConsumerOptions() consumerOptions {

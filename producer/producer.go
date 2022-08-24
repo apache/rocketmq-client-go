@@ -100,6 +100,9 @@ func (p *defaultProducer) Start() error {
 
 func (p *defaultProducer) Shutdown() error {
 	p.ShutdownOnce.Do(func() {
+		if p.options.TraceDispatcher != nil {
+			p.options.TraceDispatcher.Close()
+		}
 		atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
 		p.client.UnregisterProducer(p.group)
 		p.client.Shutdown()
