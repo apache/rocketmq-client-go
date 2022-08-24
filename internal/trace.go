@@ -169,7 +169,12 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(strconv.FormatInt(ctx.TimeStamp, 10))
 			buffer.WriteRune(contentSplitter)
-			buffer.WriteString(ctx.GroupName)
+			ss := strings.Split(ctx.GroupName, "%")
+			if len(ss) == 2 {
+				buffer.WriteString(ss[1])
+			} else {
+				buffer.WriteString(ctx.GroupName)
+			}
 			buffer.WriteRune(fieldSplitter)
 		}
 	}
