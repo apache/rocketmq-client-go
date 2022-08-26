@@ -422,7 +422,7 @@ func (si *statsItem) samplingInHour() {
 
 func (si *statsItem) printAtMinutes() {
 	ss := computeStatsData(&si.csListMinuteLock, si.csListMinute)
-	rlog.Info("Stats In One Minute, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	rlog.Info("Stats In One Minute.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,
@@ -433,7 +433,7 @@ func (si *statsItem) printAtMinutes() {
 
 func (si *statsItem) printAtHour() {
 	ss := computeStatsData(&si.csListHourLock, si.csListHour)
-	rlog.Info("Stats In One Hour, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	rlog.Info("Stats In One Hour.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,
@@ -444,7 +444,7 @@ func (si *statsItem) printAtHour() {
 
 func (si *statsItem) printAtDay() {
 	ss := computeStatsData(&si.csListDayLock, si.csListDay)
-	rlog.Info("Stats In One Day, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	rlog.Info("Stats In One Day.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,
