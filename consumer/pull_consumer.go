@@ -201,9 +201,9 @@ func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) 
 	case <-ctx.Done():
 		return nil, ErrNoNewMsg
 	case cr := <-pc.consumeRequestCache:
-		if cr.GetPQ().IsDroppd() {
+		if cr.processQueue.IsDroppd() {
 			rlog.Info("defaultPullConsumer poll the message queue not be able to consume, because it was dropped", map[string]interface{}{
-				rlog.LogKeyMessageQueue:  cr.GetMQ().String(),
+				rlog.LogKeyMessageQueue:  cr.messageQueue.String(),
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
 			return nil, ErrNoNewMsg

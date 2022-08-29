@@ -97,6 +97,8 @@ func poll() {
 	}
 	// todo LOGIC CODE HERE
 	log.Println("msgList: ", cr.GetMsgList())
+	log.Println("messageQueue: ", cr.GetMQ())
+	log.Println("processQueue: ", cr.GetPQ())
 	// pullConsumer.ACK(context.TODO(), cr, consumer.ConsumeRetryLater)
 	pullConsumer.ACK(context.TODO(), cr, consumer.ConsumeSuccess)
 }
