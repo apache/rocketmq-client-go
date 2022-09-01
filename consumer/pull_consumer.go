@@ -56,6 +56,14 @@ func (cr *ConsumeRequest) GetMsgList() []*primitive.MessageExt {
 	return cr.msgList
 }
 
+func (cr *ConsumeRequest) GetMQ() *primitive.MessageQueue {
+	return cr.messageQueue
+}
+
+func (cr *ConsumeRequest) GetPQ() *processQueue {
+	return cr.processQueue
+}
+
 type defaultPullConsumer struct {
 	*defaultConsumer
 
@@ -193,6 +201,14 @@ func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) 
 	case <-ctx.Done():
 		return nil, ErrNoNewMsg
 	case cr := <-pc.consumeRequestCache:
+		if cr.processQueue.IsDroppd() {
+			rlog.Info("defaultPullConsumer poll the message queue not be able to consume, because it was dropped", map[string]interface{}{
+				rlog.LogKeyMessageQueue:  cr.messageQueue.String(),
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+			})
+			return nil, ErrNoNewMsg
+		}
+
 		if len(cr.GetMsgList()) == 0 {
 			return nil, ErrNoNewMsg
 		}
@@ -778,6 +794,13 @@ func (pc *defaultPullConsumer) correctTagsOffset(pr *PullRequest) {
 func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgList := pq.getMessages()
 	if msgList == nil {
+		return
+	}
+	if pq.IsDroppd() {
+		rlog.Info("defaultPullConsumer consumeMessageCurrently the message queue not be able to consume, because it was dropped", map[string]interface{}{
+			rlog.LogKeyMessageQueue:  mq.String(),
+			rlog.LogKeyConsumerGroup: pc.consumerGroup,
+		})
 		return
 	}
 	cr := &ConsumeRequest{
