@@ -1038,15 +1038,23 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		}
 
 		go primitive.WithRecover(func() {
+			defer func() {
+				if err := recover(); err != nil {
+					rlog.Error("consumeMessageCurrently panic", map[string]interface{}{
+						rlog.LogKeyUnderlayError: err,
+						rlog.LogKeyConsumerGroup: pc.consumerGroup,
+					})
+				}
+				if !limiterOn {
+					<-pc.crCh
+				}
+			}()
 		RETRY:
 			if pq.IsDroppd() {
 				rlog.Info("the message queue not be able to consume, because it was dropped", map[string]interface{}{
 					rlog.LogKeyMessageQueue:  mq.String(),
 					rlog.LogKeyConsumerGroup: pc.consumerGroup,
 				})
-				if !limiterOn {
-					<-pc.crCh
-				}
 				return
 			}
 
@@ -1125,9 +1133,6 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					rlog.LogKeyMessageQueue: mq,
 					"message":               subMsgs,
 				})
-			}
-			if !limiterOn {
-				<-pc.crCh
 			}
 		})
 	}
