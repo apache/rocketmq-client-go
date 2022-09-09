@@ -196,7 +196,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 		remoteClient: remote.NewRemotingClient(option.RemotingClientConfig),
 		done:         make(chan struct{}),
 	}
-	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
+	// actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 
 	// if loaded {
 	// 	// compare namesrv address
