@@ -28,6 +28,7 @@ import (
 )
 
 type Producer interface {
+	GetClient() internal.RMQClient
 	Start() error
 	Shutdown() error
 	SendSync(ctx context.Context, mq ...*primitive.Message) (*primitive.SendResult, error)
