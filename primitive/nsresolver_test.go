@@ -18,7 +18,7 @@ package primitive
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/MasterYang7/rocketmq-client-go/v2/rlog"
 	"io/ioutil"
 	"net"
 	"net/http"

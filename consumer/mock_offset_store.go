@@ -24,7 +24,7 @@ package consumer
 import (
 	reflect "reflect"
 
-	primitive "github.com/apache/rocketmq-client-go/v2/primitive"
+	primitive "github.com/MasterYang7/rocketmq-client-go/v2/primitive"
 	gomock "github.com/golang/mock/gomock"
 )
 
