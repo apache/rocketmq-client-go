@@ -50,6 +50,9 @@ type defaultProducer struct {
 	startOnce    sync.Once
 	ShutdownOnce sync.Once
 }
+func (p *defaultProducer) GetClient() internal.RMQClient {
+	return p.client
+}
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	defaultOpts := defaultProducerOptions()
