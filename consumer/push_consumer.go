@@ -72,7 +72,7 @@ type pushConsumer struct {
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
-	crCh                         chan struct{}
+	crCh                         map[string]chan struct{}
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -116,7 +116,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
-		crCh:            make(chan struct{}, defaultOpts.ConsumeGoroutineNums),
+		crCh:            make(map[string]chan struct{}),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -258,6 +258,10 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
+	}
+
+	if _, ok := pc.crCh[topic]; !ok {
+		pc.crCh[topic] = make(chan struct{})
 	}
 
 	if pc.option.Namespace != "" {
@@ -1018,6 +1022,11 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 	if msgs == nil {
 		return
 	}
+	if _, ok := pc.crCh[mq.Topic]; !ok {
+		defaultOpts := defaultPushConsumerOptions()
+		pc.crCh[mq.Topic] = make(chan struct{}, defaultOpts.ConsumeGoroutineNums)
+	}
+
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
@@ -1034,7 +1043,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		} else {
-			pc.crCh <- struct{}{}
+			pc.crCh[mq.Topic] <- struct{}{}
 		}
 
 		go primitive.WithRecover(func() {
@@ -1046,7 +1055,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					})
 				}
 				if !limiterOn {
-					<-pc.crCh
+					<-pc.crCh[mq.Topic]
 				}
 			}()
 		RETRY:
