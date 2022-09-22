@@ -261,7 +261,8 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	}
 
 	if _, ok := pc.crCh[topic]; !ok {
-		pc.crCh[topic] = make(chan struct{})
+		defaultOpts := defaultPushConsumerOptions()
+		pc.crCh[topic] = make(chan struct{}, defaultOpts.ConsumeGoroutineNums)
 	}
 
 	if pc.option.Namespace != "" {
@@ -1021,10 +1022,6 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 	msgs := pq.getMessages()
 	if msgs == nil {
 		return
-	}
-	if _, ok := pc.crCh[mq.Topic]; !ok {
-		defaultOpts := defaultPushConsumerOptions()
-		pc.crCh[mq.Topic] = make(chan struct{}, defaultOpts.ConsumeGoroutineNums)
 	}
 
 	for count := 0; count < len(msgs); count++ {
