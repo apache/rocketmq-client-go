@@ -261,8 +261,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	}
 
 	if _, ok := pc.crCh[topic]; !ok {
-		defaultOpts := defaultPushConsumerOptions()
-		pc.crCh[topic] = make(chan struct{}, defaultOpts.ConsumeGoroutineNums)
+		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 	}
 
 	if pc.option.Namespace != "" {
