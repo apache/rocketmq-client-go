@@ -99,16 +99,7 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	if pq.IsDroppd() {
 		return
 	}
-	if !pq.order {
-		select {
-		case <-pq.closeChan:
-			return
-		case pq.msgCh <- messages:
-		}
-	}
-
 	pq.mutex.Lock()
-
 	validMessageCount := 0
 	for idx := range messages {
 		msg := messages[idx]
@@ -126,9 +117,15 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 
 		pq.cachedMsgSize.Add(int64(len(msg.Body)))
 	}
-
 	pq.cachedMsgCount.Add(int64(validMessageCount))
 	pq.mutex.Unlock()
+	if !pq.order {
+		select {
+		case <-pq.closeChan:
+			return
+		case pq.msgCh <- messages:
+		}
+	}
 
 	if pq.cachedMsgCount.Load() > 0 && !pq.consuming {
 		pq.consuming = true
