@@ -72,7 +72,7 @@ type pushConsumer struct {
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
-	crCh                         map[string]chan struct{}
+	consumeGoroutineTable        sync.Map
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -116,7 +116,6 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
-		crCh:            make(map[string]chan struct{}),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -127,6 +126,8 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
+	retryGroupTopic := internal.RetryGroupTopicPrefix + dc.consumerGroup
+	p.consumeGoroutineTable.Store(retryGroupTopic, make(chan struct{}, dc.option.ConsumeGoroutineNums))
 	return p, nil
 }
 
@@ -259,16 +260,10 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
-	retryTopic := internal.RetryGroupTopicPrefix + pc.consumerGroup
-	if _, ok := pc.crCh[retryTopic]; !ok {
-		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
-	if _, ok := pc.crCh[topic]; !ok {
-		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
+	pc.consumeGoroutineTable.LoadOrStore(topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
@@ -374,7 +369,7 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 
 	result, err = pc.consumeInner(ctx, msgs)
 
-	consumeRT := time.Now().Sub(beginTime)
+	consumeRT := time.Since(beginTime)
 
 	res := &internal.ConsumeMessageDirectlyResult{
 		Order:          false,
@@ -452,8 +447,8 @@ func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRun
 }
 
 func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
-	v, exit := pc.subscriptionDataTable.Load(topic)
-	if !exit {
+	v, exist := pc.subscriptionDataTable.Load(topic)
+	if !exist {
 		return
 	}
 	data := v.(*internal.SubscriptionData)
@@ -811,7 +806,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
-			rt := time.Now().Sub(beginTime) / time.Millisecond
+			rt := time.Since(beginTime) / time.Millisecond
 			pc.stat.increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
 			msgFounded := result.GetMessageExts()
@@ -864,10 +859,7 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 		brokerAddr = msg.StoreHost
 	}
 	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLevel int) *remote.RemotingCommand {
@@ -1041,7 +1033,13 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		} else {
-			pc.crCh[mq.Topic] <- struct{}{}
+			v, loaded := pc.consumeGoroutineTable.LoadOrStore(mq.Topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
+			if !loaded {
+				rlog.Warning("[BUG]the consume goroutine pool not created", map[string]interface{}{
+					rlog.LogKeyTopic: mq.Topic,
+				})
+			}
+			v.(chan struct{}) <- struct{}{}
 		}
 
 		go primitive.WithRecover(func() {
@@ -1053,7 +1051,9 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 					})
 				}
 				if !limiterOn {
-					<-pc.crCh[mq.Topic]
+					if v, exist := pc.consumeGoroutineTable.Load(mq.Topic); exist {
+						<-v.(chan struct{})
+					}
 				}
 			}()
 		RETRY:
@@ -1085,7 +1085,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 
 			result, err = pc.consumeInner(ctx, subMsgs)
 
-			consumeRT := time.Now().Sub(beginTime)
+			consumeRT := time.Since(beginTime)
 			if err != nil {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionReturn)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
@@ -1183,7 +1183,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					return
 				}
 			}
-			interval := time.Now().Sub(beginTime)
+			interval := time.Since(beginTime)
 			if interval > pc.option.MaxTimeConsumeContinuously {
 				time.Sleep(10 * time.Millisecond)
 				return
@@ -1328,7 +1328,7 @@ func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
 
 func (pc *pushConsumer) tryLockLaterAndReconsume(mq *primitive.MessageQueue, delay int64) {
 	time.Sleep(time.Duration(delay) * time.Millisecond)
-	if pc.lock(mq) == true {
+	if pc.lock(mq) {
 		pc.submitConsumeRequestLater(10)
 	} else {
 		pc.submitConsumeRequestLater(3000)
