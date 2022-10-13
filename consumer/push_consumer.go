@@ -122,7 +122,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	if p.consumeOrderly {
 		p.submitToConsume = p.consumeMessageOrderly
 	} else {
-		p.submitToConsume = p.consumeMessageCurrently
+		p.submitToConsume = p.consumeMessageConcurrently
 	}
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
@@ -1017,7 +1017,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	}
 }
 
-func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
+func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
 		return
@@ -1045,7 +1045,7 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		go primitive.WithRecover(func() {
 			defer func() {
 				if err := recover(); err != nil {
-					rlog.Error("consumeMessageCurrently panic", map[string]interface{}{
+					rlog.Error("consumeMessageConcurrently panic", map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})

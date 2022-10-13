@@ -114,7 +114,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		consumeRequestCache: make(chan *ConsumeRequest, 4),
 	}
 	dc.mqChanged = c.messageQueueChanged
-	c.submitToConsume = c.consumeMessageCurrently
+	c.submitToConsume = c.consumeMessageConcurrently
 	return c, nil
 }
 
@@ -791,13 +791,13 @@ func (pc *defaultPullConsumer) correctTagsOffset(pr *PullRequest) {
 	}
 }
 
-func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
+func (pc *defaultPullConsumer) consumeMessageConcurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgList := pq.getMessages()
 	if msgList == nil {
 		return
 	}
 	if pq.IsDroppd() {
-		rlog.Info("defaultPullConsumer consumeMessageCurrently the message queue not be able to consume, because it was dropped", map[string]interface{}{
+		rlog.Info("defaultPullConsumer consumeMessageConcurrently the message queue not be able to consume, because it was dropped", map[string]interface{}{
 			rlog.LogKeyMessageQueue:  mq.String(),
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
 		})
