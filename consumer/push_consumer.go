@@ -260,12 +260,11 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 		return errors2.ErrStartTopic
 	}
 
-	if _, ok := pc.crCh[topic]; !ok {
-		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
-
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
+	}
+	if _, ok := pc.crCh[topic]; !ok {
+		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 	}
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
