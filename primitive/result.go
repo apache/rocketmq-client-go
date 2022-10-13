@@ -62,7 +62,7 @@ func (result *SendResult) String() string {
 		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
 }
 
-// SendResult RocketMQ send result
+// TransactionSendResult RocketMQ send result
 type TransactionSendResult struct {
 	*SendResult
 	State LocalTransactionState
