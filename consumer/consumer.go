@@ -420,7 +420,7 @@ func (dc *defaultConsumer) doBalance() {
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
-				rlog.Debug("MessageQueue do balance done", map[string]interface{}{
+				rlog.Info("MessageQueue do balance done", map[string]interface{}{
 					rlog.LogKeyConsumerGroup: dc.consumerGroup,
 					rlog.LogKeyTopic:         topic,
 					"clientID":               dc.client.ClientID(),
@@ -676,7 +676,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
+					rlog.Info("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
@@ -686,7 +686,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
+					rlog.Warning("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
