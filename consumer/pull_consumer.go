@@ -142,12 +142,18 @@ func (pc *defaultPullConsumer) Unsubscribe(topic string) error {
 }
 
 func (pc *defaultPullConsumer) Start() error {
-	atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
-
 	var err error
 	pc.once.Do(func() {
-		consumerGroupWithNs := utils.WrapNamespace(pc.option.Namespace, pc.consumerGroup)
-		err = pc.defaultConsumer.client.RegisterConsumer(consumerGroupWithNs, pc)
+		err = pc.validate()
+		if err != nil {
+			rlog.Error("the consumer group option validate fail", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
+			err = errors.Wrap(err, "the consumer group option validate fail")
+			return
+		}
+		err = pc.defaultConsumer.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			rlog.Error("defaultPullConsumer the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
@@ -159,7 +165,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			return
 		}
-
+		atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
 		go func() {
 			for {
 				select {
@@ -176,7 +182,9 @@ func (pc *defaultPullConsumer) Start() error {
 			}
 		}()
 	})
-
+	if err != nil {
+		return err
+	}
 	pc.client.UpdateTopicRouteInfo()
 	_, exist := pc.topicSubscribeInfoTable.Load(pc.topic)
 	if !exist {
@@ -843,4 +851,16 @@ func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *pri
 		return
 	case pc.consumeRequestCache <- cr:
 	}
+}
+
+func (pc *defaultPullConsumer) validate() error {
+	if err := internal.ValidateGroup(pc.consumerGroup); err != nil {
+		return err
+	}
+
+	if pc.consumerGroup == internal.DefaultConsumerGroup {
+		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
+	}
+
+	return nil
 }
