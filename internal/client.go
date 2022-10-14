@@ -603,7 +603,9 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		return true
 	})
 	if hbData.ProducerDatas.Len() == 0 && hbData.ConsumerDatas.Len() == 0 {
-		rlog.Info("sending heartbeat, but no producer and no consumer", nil)
+		rlog.Info("sending heartbeat, but no producer and no consumer", map[string]interface{}{
+			"clientid": hbData.ClientId,
+		})
 		return
 	}
 	c.GetNameSrv().(*namesrvs).brokerAddressesMap.Range(func(key, value interface{}) bool {
