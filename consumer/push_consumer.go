@@ -155,7 +155,9 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 
-		pc.handleRetryTopic()
+		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
+		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+
 		go func() {
 			// todo start clean msg expired
 			for {
@@ -237,13 +239,6 @@ func (pc *pushConsumer) Start() error {
 	pc.client.RebalanceImmediately()
 
 	return err
-}
-
-func (pc *pushConsumer) handleRetryTopic() {
-	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-	if _, ok := pc.crCh[retryTopic]; !ok {
-		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
 }
 
 func (pc *pushConsumer) Shutdown() error {
@@ -1030,6 +1025,14 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 		return
 	}
 
+	limiter := pc.option.Limiter
+	limiterOn := limiter != nil
+	if !limiterOn {
+		if _, ok := pc.crCh[mq.Topic]; !ok {
+			pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+		}
+	}
+
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
@@ -1041,8 +1044,6 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			count = next - 1
 		}
 
-		limiter := pc.option.Limiter
-		limiterOn := limiter != nil
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		} else {
