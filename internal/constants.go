@@ -17,6 +17,8 @@ limitations under the License.
 
 package internal
 
+import "strings"
+
 const (
 	RetryGroupTopicPrefix    = "%RETRY%"
 	DefaultConsumerGroup     = "DEFAULT_CONSUMER"
@@ -31,5 +33,8 @@ func GetReplyTopic(clusterName string) string {
 }
 
 func GetRetryTopic(group string) string {
+	if strings.HasPrefix(group, RetryGroupTopicPrefix) {
+		return group
+	}
 	return RetryGroupTopicPrefix + group
 }

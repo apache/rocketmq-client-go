@@ -155,6 +155,7 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 
+		pc.handleRetryTopic()
 		go func() {
 			// todo start clean msg expired
 			for {
@@ -236,6 +237,13 @@ func (pc *pushConsumer) Start() error {
 	pc.client.RebalanceImmediately()
 
 	return err
+}
+
+func (pc *pushConsumer) handleRetryTopic() {
+	retryTopic := internal.GetRetryTopic(pc.consumerGroup)
+	if _, ok := pc.crCh[retryTopic]; !ok {
+		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+	}
 }
 
 func (pc *pushConsumer) Shutdown() error {
