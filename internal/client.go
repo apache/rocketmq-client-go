@@ -384,8 +384,10 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 func (c *rmqClient) Start() {
 	//ctx, cancel := context.WithCancel(context.Background())
 	//c.cancel = cancel
-	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
+
+		atomic.AddInt32(&c.instanceCount, 1)
+
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
