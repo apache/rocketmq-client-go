@@ -606,7 +606,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 	})
 	if hbData.ProducerDatas.Len() == 0 && hbData.ConsumerDatas.Len() == 0 {
 		rlog.Info("sending heartbeat, but no producer and no consumer", map[string]interface{}{
-			"clientid": hbData.ClientId,
+			"clientId": hbData.ClientId,
 		})
 		return
 	}
