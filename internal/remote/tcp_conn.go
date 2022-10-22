@@ -41,13 +41,9 @@ func initConn(ctx context.Context, addr string, config *RemotingClientConfig) (*
 	var conn net.Conn
 	var err error
 	if config.UseTls {
-		tlsDialer := tls.Dialer{
-			NetDialer: &d,
-			Config: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
-		conn, err = tlsDialer.DialContext(ctx, "tcp", addr)
+		conn, err = tls.DialWithDialer(&d, "tcp", addr, &tls.Config{
+			InsecureSkipVerify: true,
+		})
 	} else {
 		conn, err = d.DialContext(ctx, "tcp", addr)
 	}
