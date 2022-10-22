@@ -537,7 +537,7 @@ func (pc *defaultPullConsumer) GetWhere() string {
 	case ConsumeFromTimestamp:
 		return "CONSUME_FROM_TIMESTAMP"
 	default:
-		return "UNKOWN"
+		return "UNKNOWN"
 	}
 
 }
