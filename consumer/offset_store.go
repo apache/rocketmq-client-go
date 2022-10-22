@@ -373,7 +373,7 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 		return -1, err
 	}
 
-	if res.Code == internal.ResQueryNotFount {
+	if res.Code == internal.ResQueryNotFound {
 		return -1, nil
 	}
 
