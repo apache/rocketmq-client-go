@@ -354,3 +354,9 @@ func WithLimiter(limiter Limiter) Option {
 		opts.Limiter = limiter
 	}
 }
+
+func WithTls(useTls bool) Option {
+	return func(opts *consumerOptions) {
+		opts.ClientOptions.RemotingClientConfig.UseTls = useTls
+	}
+}

@@ -38,6 +38,7 @@ type TcpOption struct {
 	ConnectionTimeout time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
+	UseTls            bool
 }
 
 //go:generate mockgen -source remote_client.go -destination mock_remote_client.go -self_package github.com/apache/rocketmq-client-go/v2/internal/remote  --package remote RemotingClient
