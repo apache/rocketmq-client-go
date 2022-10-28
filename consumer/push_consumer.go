@@ -1046,11 +1046,6 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 	limiter := pc.option.Limiter
 	limiterOn := limiter != nil
-	if !limiterOn {
-		if _, ok := pc.crCh[mq.Topic]; !ok {
-			pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-		}
-	}
 
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
@@ -1065,9 +1060,8 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
-		} else {
-			pc.crCh[mq.Topic] <- struct{}{}
 		}
+		pc.crCh[mq.Topic] <- struct{}{}
 
 		go primitive.WithRecover(func() {
 			defer func() {
@@ -1077,9 +1071,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}
-				if !limiterOn {
-					<-pc.crCh[mq.Topic]
-				}
+				<-pc.crCh[mq.Topic]
 			}()
 		RETRY:
 			if pq.IsDroppd() {
