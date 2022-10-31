@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,11 +27,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/errors"
-
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -881,7 +880,7 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// filter message according to tags
 		msgListFilterAgain := msgs
-		if data.Tags.Len() > 0 && data.ClassFilterMode {
+		if data.Tags.Len() > 0 && !data.ClassFilterMode {
 			msgListFilterAgain = make([]*primitive.MessageExt, 0)
 			for _, msg := range msgs {
 				_, exist := data.Tags.Contains(msg.GetTags())
