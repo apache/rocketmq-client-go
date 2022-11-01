@@ -1046,6 +1046,9 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 	limiter := pc.option.Limiter
 	limiterOn := limiter != nil
+	if _, ok := pc.crCh[mq.Topic]; !ok {
+		pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+	}
 
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
