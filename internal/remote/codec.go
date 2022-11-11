@@ -33,7 +33,7 @@ const (
 	RPCType = 0
 	// 1, RPC
 	RPCOneWay = 1
-	//ResponseType for response
+	// ResponseType for response
 	ResponseType = 1
 	_Flag        = 0
 	_Version     = 317
@@ -133,7 +133,7 @@ var (
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 // + len  |   4bytes   |     4bytes    | (21 + r_len + e_len) bytes | remain bytes +
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-func (command *RemotingCommand) WriteTo(w io.Writer) error {
+func (command *RemotingCommand) WriteTo(w io.Writer) (int64, error) {
 	var (
 		header []byte
 		err    error
@@ -147,27 +147,30 @@ func (command *RemotingCommand) WriteTo(w io.Writer) error {
 	}
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	frameSize := 4 + len(header) + len(command.Body)
 	err = binary.Write(w, binary.BigEndian, int32(frameSize))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = binary.Write(w, binary.BigEndian, markProtocolType(int32(len(header))))
 	if err != nil {
-		return err
+		return 4, err
 	}
 
 	_, err = w.Write(header)
 	if err != nil {
-		return err
+		return 8, err
 	}
 
 	_, err = w.Write(command.Body)
-	return err
+	if err != nil {
+		return int64(8 + len(header)), err
+	}
+	return int64(frameSize + 4), err
 }
 
 func encode(command *RemotingCommand) ([]byte, error) {

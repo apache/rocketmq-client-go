@@ -149,7 +149,7 @@ func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request 
 }
 
 func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrapper, error) {
-	//it needs additional locker.
+	// it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
@@ -323,7 +323,7 @@ func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingComman
 		return err
 	}
 
-	err = request.WriteTo(conn)
+	_, err = request.WriteTo(conn)
 	if err != nil {
 		rlog.Error("conn error, close connection", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
