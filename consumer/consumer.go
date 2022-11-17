@@ -435,7 +435,7 @@ func (dc *defaultConsumer) doBalance() {
 func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 	result := make([]*internal.SubscriptionData, 0)
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
-		result = append(result, value.(*internal.SubscriptionData))
+		result = append(result, value.(*internal.SubscriptionData).Clone())
 		return true
 	})
 	return result
