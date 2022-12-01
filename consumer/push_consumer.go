@@ -249,6 +249,27 @@ func (pc *pushConsumer) Start() error {
 	return err
 }
 
+func (pc *pushConsumer) GetOffsetDiffMap() map[string]int64 {
+	offsetDiffMap := make(map[string]int64)
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		mq := key.(primitive.MessageQueue)
+		pq := value.(*processQueue)
+		topic := mq.Topic
+		consumerOffset, _ := pc.storage.readWithException(&mq, _ReadFromMemory)
+		maxOffset := pq.maxOffsetInQueue
+		if consumerOffset < 0 || maxOffset < 0 || consumerOffset > maxOffset {
+			return true
+		}
+		if _, ok := offsetDiffMap[topic]; !ok {
+			offsetDiffMap[topic] = 0
+		}
+		offsetDiff := offsetDiffMap[topic]
+		offsetDiffMap[topic] = offsetDiff + (maxOffset - consumerOffset)
+		return true
+	})
+	return offsetDiffMap
+}
+
 func (pc *pushConsumer) Shutdown() error {
 	var err error
 	pc.closeOnce.Do(func() {
@@ -823,6 +844,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		pc.processPullResult(request.mq, result, sd)
+		if result.MaxOffset > pq.maxOffsetInQueue {
+			pq.maxOffsetInQueue = result.MaxOffset
+		}
 
 		switch result.Status {
 		case primitive.PullFound:
