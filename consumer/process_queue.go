@@ -60,6 +60,7 @@ type processQueue struct {
 	order                      bool
 	closeChanOnce              *sync.Once
 	closeChan                  chan struct{}
+	maxOffsetInQueue           int64
 }
 
 func newProcessQueue(order bool) *processQueue {
@@ -88,6 +89,7 @@ func newProcessQueue(order bool) *processQueue {
 		closeChan:                  make(chan struct{}),
 		locked:                     atomic.NewBool(false),
 		dropped:                    atomic.NewBool(false),
+		maxOffsetInQueue:           -1,
 	}
 	return pq
 }
@@ -372,6 +374,7 @@ func (pq *processQueue) clear() {
 	pq.cachedMsgCount.Store(0)
 	pq.cachedMsgSize.Store(0)
 	pq.queueOffsetMax = 0
+	pq.maxOffsetInQueue = -1
 }
 
 func (pq *processQueue) commit() int64 {
