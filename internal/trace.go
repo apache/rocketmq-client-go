@@ -277,6 +277,9 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.GroupName = traceCfg.GroupName
 	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
 	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
+	if traceCfg.InstanceName != "" {
+		cliOp.InstanceName = traceCfg.InstanceName
+	}
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
