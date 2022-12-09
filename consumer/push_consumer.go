@@ -538,7 +538,9 @@ func (pc *pushConsumer) validate() error {
 	}
 
 	if len(pc.subscribedTopic) == 0 {
-		return errors.New("number of subscribed topics is 0.")
+		rlog.Warning("not subscribe any topic yet", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: pc.consumerGroup,
+		})
 	}
 
 	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
