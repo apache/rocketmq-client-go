@@ -1054,7 +1054,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	for idx := range subMsgs {
 		msg := subMsgs[idx]
 		retryTopic := msg.GetProperty(primitive.PropertyRetryTopic)
-		if retryTopic == "" && groupTopic == msg.Topic {
+		if retryTopic != "" && groupTopic == msg.Topic {
 			msg.Topic = retryTopic
 		}
 		subMsgs[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
