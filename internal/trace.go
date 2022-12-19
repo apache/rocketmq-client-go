@@ -382,6 +382,7 @@ func (td *traceDispatcher) process() {
 				runtime.Gosched()
 			}
 			rlog.Info(fmt.Sprintf("------end trace send %v %v", td.input, td.batchCh), nil)
+			return
 		}
 	}
 }
