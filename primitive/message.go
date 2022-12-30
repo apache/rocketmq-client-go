@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -456,7 +457,7 @@ const (
 
 type TransactionListener interface {
 	//  When send transactional prepare(half) message succeed, this method will be invoked to execute local transaction.
-	ExecuteLocalTransaction(*Message) LocalTransactionState
+	ExecuteLocalTransaction(ctx context.Context, msg *Message) LocalTransactionState
 
 	// When no response to prepare(half) message. broker will send check message to check the transaction status, and this
 	// method will be invoked to get local transaction status.
