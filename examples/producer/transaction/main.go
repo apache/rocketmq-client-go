@@ -42,7 +42,7 @@ func NewDemoListener() *DemoListener {
 	}
 }
 
-func (dl *DemoListener) ExecuteLocalTransaction(ctx context.Context, msg *primitive.Message) primitive.LocalTransactionState {
+func (dl *DemoListener) ExecuteLocalTransaction(msg *primitive.Message) primitive.LocalTransactionState {
 	nextIndex := atomic.AddInt32(&dl.transactionIndex, 1)
 	fmt.Printf("nextIndex: %v for transactionID: %v\n", nextIndex, msg.TransactionId)
 	status := nextIndex % 3
@@ -76,6 +76,11 @@ func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primiti
 	}
 }
 
+func localTxFunc(ctx context.Context, val int) (res int, err error) {
+	res = val + 1
+	return
+}
+
 func main() {
 	p, _ := rocketmq.NewTransactionProducer(
 		NewDemoListener(),
@@ -88,16 +93,29 @@ func main() {
 		os.Exit(1)
 	}
 
+	localRes := 0
 	for i := 0; i < 10; i++ {
-		res, err := p.SendMessageInTransaction(context.Background(),
-			primitive.NewMessage("TopicTest5", []byte("Hello RocketMQ again "+strconv.Itoa(i))))
+		msg := primitive.NewMessage("TopicTest5", []byte("Hello RocketMQ again "+strconv.Itoa(i)))
+		msg.WithTxHandler(func(ctx context.Context) primitive.LocalTransactionState {
+			println("MsgTxHandler start")
+			Res, err := localTxFunc(ctx, i)
+			if err != nil {
+				return primitive.RollbackMessageState
+			}
+			println("Res", Res)
+			localRes = Res
+			//return primitive.CommitMessageState
+			return primitive.UnknowState
+		})
 
+		res, err := p.SendMessageInTransaction(context.Background(), msg)
 		if err != nil {
 			fmt.Printf("send message error: %s\n", err)
 		} else {
 			fmt.Printf("send message success: result=%s\n", res.String())
 		}
 	}
+	println("localRes", localRes)
 	time.Sleep(5 * time.Minute)
 	err = p.Shutdown()
 	if err != nil {
