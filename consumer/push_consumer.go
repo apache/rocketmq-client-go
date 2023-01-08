@@ -403,7 +403,7 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 
 	result, err = pc.consumeInner(ctx, msgs)
 
-	consumeRT := time.Now().Sub(beginTime)
+	consumeRT := time.Since(beginTime)
 
 	res := &internal.ConsumeMessageDirectlyResult{
 		Order:          false,
@@ -854,7 +854,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
-			rt := time.Now().Sub(beginTime) / time.Millisecond
+			rt := time.Since(beginTime) / time.Millisecond
 			pc.stat.increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
 			msgFounded := result.GetMessageExts()
@@ -1129,7 +1129,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 			result, err = pc.consumeInner(ctx, subMsgs)
 
-			consumeRT := time.Now().Sub(beginTime)
+			consumeRT := time.Since(beginTime)
 			if err != nil {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionReturn)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
@@ -1227,7 +1227,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					return
 				}
 			}
-			interval := time.Now().Sub(beginTime)
+			interval := time.Since(beginTime)
 			if interval > pc.option.MaxTimeConsumeContinuously {
 				time.Sleep(10 * time.Millisecond)
 				return
