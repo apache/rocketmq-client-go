@@ -428,6 +428,15 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 	return res
 }
 
+func (pc *pushConsumer) GetConsumerStatus(topic string) *internal.ConsumerStatus {
+	consumerStatus := internal.NewConsumerStatus()
+	mqOffsetMap := pc.storage.getMQOffsetMap(topic)
+	if mqOffsetMap != nil {
+		consumerStatus.MQOffsetMap = mqOffsetMap
+	}
+	return consumerStatus
+}
+
 func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRunningInfo {
 	info := internal.NewConsumerRunningInfo()
 

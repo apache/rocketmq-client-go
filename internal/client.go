@@ -93,6 +93,7 @@ type InnerConsumer interface {
 	GetModel() string
 	GetWhere() string
 	ResetOffset(topic string, table map[primitive.MessageQueue]int64)
+	GetConsumerStatus(topic string) *ConsumerStatus
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -375,6 +376,32 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 
 			res := remote.NewRemotingCommand(ResError, nil, nil)
 			res.Code = ResSuccess
+			return res
+		})
+
+		client.remoteClient.RegisterRequestFunc(ReqGetConsumerStatsFromClient, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive get consumer status from client request...", map[string]interface{}{
+				rlog.LogKeyBroker:        addr.String(),
+				rlog.LogKeyTopic:         req.ExtFields["topic"],
+				rlog.LogKeyConsumerGroup: req.ExtFields["group"],
+			})
+
+			header := new(GetConsumerStatusRequestHeader)
+			header.Decode(req.ExtFields)
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+
+			consumerStatus := client.getConsumerStatus(header.topic, header.group)
+			if consumerStatus != nil {
+				res.Code = ResSuccess
+				data, err := consumerStatus.Encode()
+				if err != nil {
+					res.Remark = fmt.Sprintf("Failed to encode consumer status: %s", err.Error())
+				} else {
+					res.Body = data
+				}
+			} else {
+				res.Remark = "there is unexpected error when get consumer status, please check log"
+			}
 			return res
 		})
 	}
@@ -905,6 +932,15 @@ func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[prim
 		return
 	}
 	consumer.(InnerConsumer).ResetOffset(topic, offsetTable)
+}
+
+func (c *rmqClient) getConsumerStatus(topic string, group string) *ConsumerStatus {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		rlog.Warning("group "+group+" do not exists", nil)
+		return nil
+	}
+	return consumer.(InnerConsumer).GetConsumerStatus(topic)
 }
 
 func (c *rmqClient) getConsumerRunningInfo(group string, stack bool) *ConsumerRunningInfo {

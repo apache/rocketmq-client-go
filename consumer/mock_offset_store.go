@@ -115,3 +115,17 @@ func (mr *MockOffsetStoreMockRecorder) update(mq, offset, increaseOnly interface
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "update", reflect.TypeOf((*MockOffsetStore)(nil).update), mq, offset, increaseOnly)
 }
+
+// getMQOffsetMap mocks base method
+func (m *MockOffsetStore) getMQOffsetMap(topic string) map[primitive.MessageQueue]int64  {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getMQOffsetMap", topic)
+	ret0, _ := ret[0].(map[primitive.MessageQueue]int64)
+	return ret0
+}
+
+// getMQOffsetMap indicates an expected call of getMQOffsetMap
+func (mr *MockOffsetStoreMockRecorder) getMQOffsetMap(topic string) *gomock.Call{
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getMQOffsetMap", reflect.TypeOf((*MockOffsetStore)(nil).getMQOffsetMap), topic)
+}
