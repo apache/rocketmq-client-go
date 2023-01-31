@@ -18,9 +18,10 @@ limitations under the License.
 package consumer
 
 import (
-	"github.com/apache/rocketmq-client-go/v2/hooks"
+	"strings"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
@@ -327,7 +328,21 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 // WithNameServerDomain set NameServer domain
 func WithNameServerDomain(nameServerUrl string) Option {
 	return func(opts *consumerOptions) {
-		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+		h := primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+		if opts.UnitName != "" {
+			h.DomainWithUnit(opts.UnitName)
+		}
+		opts.Resolver = h
+	}
+}
+
+// WithUnitName set the name of specified unit
+func WithUnitName(unitName string) Option {
+	return func(opts *consumerOptions) {
+		opts.UnitName = strings.TrimSpace(unitName)
+		if ns, ok := opts.Resolver.(*primitive.HttpResolver); ok {
+			ns.DomainWithUnit(opts.UnitName)
+		}
 	}
 }
 
