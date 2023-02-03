@@ -143,7 +143,7 @@ func (pc *pushConsumer) Start() error {
 		if err != nil {
 			rlog.Error("the consumer group option validate fail", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
-				rlog.LogKeyUnderlayError: err.Error(),
+				rlog.LogKeyUnderlayError: err,
 			})
 			err = errors.Wrap(err, "the consumer group option validate fail")
 			return
@@ -153,6 +153,7 @@ func (pc *pushConsumer) Start() error {
 		if err != nil {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				rlog.LogKeyUnderlayError: err,
 			})
 			err = errors2.ErrCreated
 			return
@@ -461,7 +462,7 @@ func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRun
 		err := pprof.Lookup("goroutine").WriteTo(&buffer, 2)
 		if err != nil {
 			rlog.Error("error when get stack ", map[string]interface{}{
-				"error": err,
+				rlog.LogKeyUnderlayError: err,
 			})
 		} else {
 			info.JStack = buffer.String()
@@ -806,11 +807,11 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SuspendTimeoutMillis: 20 * time.Second,
 		}
 		//
-		//if data.ExpType == string(TAG) {
+		// if data.ExpType == string(TAG) {
 		//	pullRequest.SubVersion = 0
-		//} else {
+		// } else {
 		//	pullRequest.SubVersion = data.SubVersion
-		//}
+		// }
 
 		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
 		if brokerResult == nil {
@@ -938,31 +939,31 @@ func (pc *pushConsumer) resume() {
 }
 
 func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQueue]int64) {
-	//topic := cmd.ExtFields["topic"]
-	//group := cmd.ExtFields["group"]
-	//if topic == "" || group == "" {
+	// topic := cmd.ExtFields["topic"]
+	// group := cmd.ExtFields["group"]
+	// if topic == "" || group == "" {
 	//	rlog.Warning("received reset offset command from: %s, but missing params.", from)
 	//	return
-	//}
-	//t, err := strconv.ParseInt(cmd.ExtFields["timestamp"], 10, 64)
-	//if err != nil {
+	// }
+	// t, err := strconv.ParseInt(cmd.ExtFields["timestamp"], 10, 64)
+	// if err != nil {
 	//	rlog.Warning("received reset offset command from: %s, but parse time error: %s", err.Error())
 	//	return
-	//}
-	//rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
+	// }
+	// rlog.Infof("invoke reset offset operation from broker. brokerAddr=%s, topic=%s, group=%s, timestamp=%v",
 	//	from, topic, group, t)
 	//
-	//offsetTable := make(map[MessageQueue]int64, 0)
-	//err = json.Unmarshal(cmd.Body, &offsetTable)
-	//if err != nil {
+	// offsetTable := make(map[MessageQueue]int64, 0)
+	// err = json.Unmarshal(cmd.Body, &offsetTable)
+	// if err != nil {
 	//	rlog.Warning("received reset offset command from: %s, but parse offset table: %s", err.Error())
 	//	return
-	//}
-	//v, exist := c.consumerMap.Load(group)
-	//if !exist {
+	// }
+	// v, exist := c.consumerMap.Load(group)
+	// if !exist {
 	//	rlog.Infof("[reset-offset] consumer dose not exist. group=%s", group)
 	//	return
-	//}
+	// }
 	pc.suspend()
 	defer pc.resume()
 
@@ -1272,15 +1273,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			}
 
 			// just put consumeResult in consumerMessageCtx
-			//interval = time.Now().Sub(beginTime)
-			//consumeReult := SuccessReturn
-			//if interval > pc.option.ConsumeTimeout {
+			// interval = time.Now().Sub(beginTime)
+			// consumeReult := SuccessReturn
+			// if interval > pc.option.ConsumeTimeout {
 			//	consumeReult = TimeoutReturn
-			//} else if SuspendCurrentQueueAMoment == result {
+			// } else if SuspendCurrentQueueAMoment == result {
 			//	consumeReult = FailedReturn
-			//} else if ConsumeSuccess == result {
+			// } else if ConsumeSuccess == result {
 			//	consumeReult = SuccessReturn
-			//}
+			// }
 
 			// process result
 			commitOffset := int64(-1)

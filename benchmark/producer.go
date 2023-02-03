@@ -20,16 +20,17 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/apache/rocketmq-client-go/v2"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/producer"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 type statiBenchmarkProducerSnapshot struct {
@@ -135,7 +136,7 @@ func (bp *producerBenchmark) produceMsg(stati *statiBenchmarkProducerSnapshot, e
 
 	if err != nil {
 		rlog.Error("New Producer Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
+			rlog.LogKeyUnderlayError: err,
 		})
 		return
 	}
@@ -159,7 +160,7 @@ AGAIN:
 
 	if err != nil {
 		rlog.Error("Send Message Error", map[string]interface{}{
-			rlog.LogKeyUnderlayError: err.Error(),
+			rlog.LogKeyUnderlayError: err,
 		})
 		goto AGAIN
 	}
@@ -179,9 +180,9 @@ AGAIN:
 		goto AGAIN
 	}
 	rlog.Error("Send Message Error", map[string]interface{}{
-		"topic":                  topic,
+		rlog.LogKeyTopic:         topic,
 		"tag":                    tag,
-		rlog.LogKeyUnderlayError: err.Error(),
+		rlog.LogKeyUnderlayError: err,
 	})
 	goto AGAIN
 }

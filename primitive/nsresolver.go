@@ -6,7 +6,7 @@ The ASF licenses this file to You under the Apache License, Version 2.0
 (the "License"); you may not use this file except in compliance with
 the License.  You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -146,8 +146,8 @@ func (h *HttpResolver) get() []string {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		rlog.Error("name server read http response failed", map[string]interface{}{
-			"NameServerDomain": h.domain,
-			"err":              err,
+			"NameServerDomain":       h.domain,
+			rlog.LogKeyUnderlayError: err,
 		})
 		return nil
 	}
@@ -167,8 +167,8 @@ func (h *HttpResolver) saveSnapshot(body []byte) error {
 	err := ioutil.WriteFile(filePath, body, 0644)
 	if err != nil {
 		rlog.Error("name server snapshot save failed", map[string]interface{}{
-			"filePath": filePath,
-			"err":      err,
+			"filePath":               filePath,
+			rlog.LogKeyUnderlayError: err,
 		})
 		return err
 	}
@@ -206,7 +206,7 @@ func (h *HttpResolver) getSnapshotFilePath(instanceName string) string {
 		homeDir = usr.HomeDir
 	} else {
 		rlog.Error("name server domain, can't get user home directory", map[string]interface{}{
-			"err": err,
+			rlog.LogKeyUnderlayError: err,
 		})
 	}
 	storePath := path.Join(homeDir, "/logs/rocketmq-go/snapshot")

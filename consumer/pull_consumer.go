@@ -148,7 +148,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			rlog.Error("the consumer group option validate fail", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
-				rlog.LogKeyUnderlayError: err.Error(),
+				rlog.LogKeyUnderlayError: err,
 			})
 			err = errors.Wrap(err, "the consumer group option validate fail")
 			return
@@ -157,6 +157,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			rlog.Error("defaultPullConsumer the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				rlog.LogKeyUnderlayError: err,
 			})
 			err = errors2.ErrCreated
 			return
@@ -380,7 +381,7 @@ func (pc *defaultPullConsumer) getNextQueueOf(topic string) *primitive.MessageQu
 		if err != nil {
 			rlog.Error("get next mq error", map[string]interface{}{
 				rlog.LogKeyTopic:         topic,
-				rlog.LogKeyUnderlayError: err.Error(),
+				rlog.LogKeyUnderlayError: err,
 			})
 			return nil
 		}
@@ -583,7 +584,7 @@ func (pc *defaultPullConsumer) GetConsumerRunningInfo(stack bool) *internal.Cons
 		err := pprof.Lookup("goroutine").WriteTo(&buffer, 2)
 		if err != nil {
 			rlog.Error("error when get stack ", map[string]interface{}{
-				"error": err,
+				rlog.LogKeyUnderlayError: err,
 			})
 		} else {
 			info.JStack = buffer.String()

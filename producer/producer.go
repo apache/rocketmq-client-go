@@ -88,6 +88,7 @@ func (p *defaultProducer) Start() error {
 		if err != nil {
 			rlog.Error("the producer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyProducerGroup: p.group,
+				rlog.LogKeyUnderlayError: err,
 			})
 			err = errors2.ErrProducerCreated
 			return
