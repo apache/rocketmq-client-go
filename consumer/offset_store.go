@@ -285,7 +285,7 @@ func (r *remoteBrokerOffsetStore) remove(mq *primitive.MessageQueue) {
 	defer r.mutex.Unlock()
 
 	delete(r.OffsetTable, *mq)
-	rlog.Warning("delete mq from offset table", map[string]interface{}{
+	rlog.Info("delete mq from offset table", map[string]interface{}{
 		rlog.LogKeyConsumerGroup: r.group,
 		rlog.LogKeyMessageQueue:  mq,
 	})
@@ -322,7 +322,7 @@ func (r *remoteBrokerOffsetStore) readWithException(mq *primitive.MessageQueue, 
 			r.mutex.RUnlock()
 			return -1, err
 		}
-		rlog.Warning("fetch offset of mq from broker success", map[string]interface{}{
+		rlog.Info("fetch offset of mq from broker success", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: r.group,
 			rlog.LogKeyMessageQueue:  mq.String(),
 			"offset":                 off,
