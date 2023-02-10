@@ -702,8 +702,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		status = primitive.SendUnknownError
-		return errors.New(cmd.Remark)
+		return errors.New(fmt.Sprintf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark))
 	}
 
 	msgIDs := make([]string, 0)
