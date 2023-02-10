@@ -286,7 +286,7 @@ func (r *remoteBrokerOffsetStore) remove(mq *primitive.MessageQueue) {
 	defer r.mutex.Unlock()
 
 	delete(r.OffsetTable, *mq)
-	rlog.Warning("delete mq from offset table", map[string]interface{}{
+	rlog.Info("delete mq from offset table", map[string]interface{}{
 		rlog.LogKeyConsumerGroup: r.group,
 		rlog.LogKeyMessageQueue:  mq,
 	})
