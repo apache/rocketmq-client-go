@@ -373,13 +373,18 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
 		cancel()
-		resp := primitive.NewSendResult()
 		if err != nil {
 			h(ctx, nil, err)
-		} else {
-			p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
-			h(ctx, resp, nil)
 		}
+
+		resp := primitive.NewSendResult()
+		err = p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+		if err != nil {
+			h(ctx, nil, err)
+			return
+		}
+
+		h(ctx, resp, nil)
 	})
 
 	if err != nil {
