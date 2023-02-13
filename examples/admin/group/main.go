@@ -26,7 +26,6 @@ import (
 )
 
 func main() {
-	topic := "newOne"
 	//clusterName := "DefaultCluster"
 	nameSrvAddr := []string{"127.0.0.1:9876"}
 	brokerAddr := "127.0.0.1:10911"
@@ -39,33 +38,12 @@ func main() {
 		}),
 	)
 
-	// topic list
-	topicList, err := testAdmin.TopicList(context.Background())
+	// group list
+	groupList, err := testAdmin.GroupList(context.Background(), brokerAddr)
 	if err != nil {
-		fmt.Println("TopicList error:", err.Error())
+		fmt.Println("GroupList error:", err.Error())
 	}
-	fmt.Println(string(topicList.Body))
-
-	//create topic
-	err = testAdmin.CreateTopic(
-		context.Background(),
-		admin.WithTopicCreate(topic),
-		admin.WithBrokerAddrCreate(brokerAddr),
-	)
-	if err != nil {
-		fmt.Println("Create topic error:", err.Error())
-	}
-
-	//deletetopic
-	err = testAdmin.DeleteTopic(
-		context.Background(),
-		admin.WithTopicDelete(topic),
-		//admin.WithBrokerAddrDelete(brokerAddr),
-		//admin.WithNameSrvAddr(nameSrvAddr),
-	)
-	if err != nil {
-		fmt.Println("Delete topic error:", err.Error())
-	}
+	fmt.Println(string(groupList.Body))
 
 	err = testAdmin.Close()
 	if err != nil {

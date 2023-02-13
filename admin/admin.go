@@ -34,7 +34,8 @@ type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
 	//TODO
-	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
+	GroupList(ctx context.Context, brokerAddr string) (*remote.RemotingCommand, error)
+	TopicList(ctx context.Context) (*remote.RemotingCommand, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
@@ -106,6 +107,37 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 		cli:  cli,
 		opts: defaultOpts,
 	}, nil
+}
+
+func (a *admin) GroupList(ctx context.Context, brokerAddr string) (*remote.RemotingCommand, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetAllSubscriptionGroupConfig, nil, nil)
+	a.cli.RegisterACL()
+	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Get all group list error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+	} else {
+		rlog.Info("Get all group list success", map[string]interface{}{})
+	}
+	rpsCmd := remote.NewRemotingCommand(internal.ReqGetAllSubscriptionGroupConfig, nil, response.Body)
+
+	return rpsCmd, nil
+}
+
+func (a *admin) TopicList(ctx context.Context) (*remote.RemotingCommand, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetAllTopicListFromNameServer, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, a.cli.GetNameSrv().AddrList()[0], cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Get all topic list error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+	} else {
+		rlog.Info("Get all topic list success", map[string]interface{}{})
+	}
+	rpsCmd := remote.NewRemotingCommand(internal.ReqGetAllTopicListFromNameServer, nil, response.Body)
+
+	return rpsCmd, nil
 }
 
 // CreateTopic create topic.

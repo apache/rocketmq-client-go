@@ -162,6 +162,7 @@ type RMQClient interface {
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 
 	GetNameSrv() Namesrvs
+	RegisterACL()
 }
 
 var _ RMQClient = new(rmqClient)
@@ -938,6 +939,12 @@ func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group stri
 	}
 	res := consumer.(InnerConsumer).ConsumeMessageDirectly(msg, brokerName)
 	return res
+}
+
+func (c *rmqClient) RegisterACL() {
+	if !c.option.Credentials.IsEmpty() {
+		c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+	}
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {
