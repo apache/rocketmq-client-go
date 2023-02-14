@@ -73,15 +73,15 @@ func (sd *SubscriptionData) Clone() *SubscriptionData {
 
 	if sd.Tags.Items() != nil {
 		cloned.Tags = utils.NewSet()
-		for _, value := range sd.Tags.Items() {
-			cloned.Tags.Add(value)
+		for key, value := range sd.Tags.Items() {
+			cloned.Tags.AddKV(key, value.UniqueID())
 		}
 	}
 
 	if sd.Codes.Items() != nil {
 		cloned.Codes = utils.NewSet()
-		for _, value := range sd.Codes.Items() {
-			cloned.Codes.Add(value)
+		for key, value := range sd.Codes.Items() {
+			cloned.Codes.AddKV(key, value.UniqueID())
 		}
 	}
 
