@@ -652,6 +652,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerId":     id,
 					"brokerAddr":   addr,
 					"responseCode": response.Code,
+					"remark":       response.Remark,
 				})
 			}
 		}
