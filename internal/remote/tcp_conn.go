@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"go.uber.org/atomic"
 )
 
@@ -32,7 +33,7 @@ type tcpConnWrapper struct {
 	closed atomic.Bool
 }
 
-func initConn(ctx context.Context, addr string, config *RemotingClientConfig) (*tcpConnWrapper, error) {
+func initConn(ctx context.Context, addr string, config *primitive.RemotingClientConfig) (*tcpConnWrapper, error) {
 	var d net.Dialer
 
 	d.KeepAlive = config.KeepAliveDuration

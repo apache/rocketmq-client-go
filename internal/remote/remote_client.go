@@ -33,13 +33,6 @@ import (
 
 type ClientRequestFunc func(*RemotingCommand, net.Addr) *RemotingCommand
 
-type TcpOption struct {
-	KeepAliveDuration time.Duration
-	ConnectionTimeout time.Duration
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-}
-
 //go:generate mockgen -source remote_client.go -destination mock_remote_client.go -self_package github.com/apache/rocketmq-client-go/v2/internal/remote  --package remote RemotingClient
 type RemotingClient interface {
 	RegisterRequestFunc(code int16, f ClientRequestFunc)
@@ -55,26 +48,22 @@ var _ RemotingClient = &remotingClient{}
 type remotingClient struct {
 	responseTable    sync.Map
 	connectionTable  sync.Map
-	config           *RemotingClientConfig
+	config           *primitive.RemotingClientConfig
 	processors       map[int16]ClientRequestFunc
 	connectionLocker sync.Mutex
 	interceptor      primitive.Interceptor
 }
 
-type RemotingClientConfig struct {
-	TcpOption
-}
+var DefaultRemotingClientConfig = primitive.RemotingClientConfig{TcpOption: defaultTcpOption}
 
-var DefaultRemotingClientConfig = RemotingClientConfig{defaultTcpOption}
-
-var defaultTcpOption = TcpOption{
+var defaultTcpOption = primitive.TcpOption{
 	KeepAliveDuration: 0, // default 15s in golang
 	ConnectionTimeout: time.Second * 15,
 	ReadTimeout:       time.Second * 120,
 	WriteTimeout:      time.Second * 120,
 }
 
-func NewRemotingClient(config *RemotingClientConfig) *remotingClient {
+func NewRemotingClient(config *primitive.RemotingClientConfig) *remotingClient {
 	if config == nil {
 		config = &DefaultRemotingClientConfig
 	}

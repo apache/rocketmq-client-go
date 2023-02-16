@@ -354,3 +354,9 @@ func WithLimiter(limiter Limiter) Option {
 		opts.Limiter = limiter
 	}
 }
+
+func WithRemoteConfig(config *primitive.RemotingClientConfig) Option {
+	return func(opts *consumerOptions) {
+		opts.ClientOptions.RemotingClientConfig = config
+	}
+}

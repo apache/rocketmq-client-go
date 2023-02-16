@@ -163,3 +163,9 @@ func WithCompressLevel(level int) Option {
 		opts.CompressLevel = level
 	}
 }
+
+func WithRemoteConfig(config *primitive.RemotingClientConfig) Option {
+	return func(opts *producerOptions) {
+		opts.ClientOptions.RemotingClientConfig = config
+	}
+}

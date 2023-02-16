@@ -108,7 +108,7 @@ func GetNamesrv(clientId string) (*namesrvs, error) {
 
 // NewNamesrv init Namesrv from namesrv addr string.
 // addr primitive.NamesrvAddr
-func NewNamesrv(resolver primitive.NsResolver, config *remote.RemotingClientConfig) (*namesrvs, error) {
+func NewNamesrv(resolver primitive.NsResolver, config *primitive.RemotingClientConfig) (*namesrvs, error) {
 	addr := resolver.Resolve()
 	if len(addr) == 0 {
 		return nil, errors.New("no name server addr found with resolver: " + resolver.Description())

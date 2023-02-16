@@ -119,7 +119,7 @@ type ClientOptions struct {
 	Credentials          primitive.Credentials
 	Namespace            string
 	Resolver             primitive.NsResolver
-	RemotingClientConfig *remote.RemotingClientConfig
+	RemotingClientConfig *primitive.RemotingClientConfig
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
