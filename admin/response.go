@@ -17,7 +17,11 @@ limitations under the License.
 
 package admin
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/robertkrimen/otto"
+)
 
 type RemotingSerializable struct {
 }
@@ -45,6 +49,7 @@ func (r *RemotingSerializable) ToJson(obj interface{}, prettyFormat bool) string
 		return string(jsonBytes)
 	}
 }
+
 func (r *RemotingSerializable) Decode(data []byte, classOfT interface{}) (interface{}, error) {
 	jsonStr := string(data)
 	return r.FromJson(jsonStr, classOfT)
@@ -59,30 +64,56 @@ func (r *RemotingSerializable) FromJson(jsonStr string, classOfT interface{}) (i
 }
 
 type TopicList struct {
-	TopicList  []string
-	BrokerAddr string
+	TopicList  []string `json:"topicList"`
+	BrokerAddr string   `json:"brokerAddr"`
 	RemotingSerializable
 }
 
 type SubscriptionGroupWrapper struct {
-	SubscriptionGroupTable map[string]SubscriptionGroupConfig
-	DataVersion            DataVersion
+	SubscriptionGroupTable map[string]SubscriptionGroupConfig `json:"subscriptionGroupTable"`
+	DataVersion            DataVersion                        `json:"dataVersion"`
 	RemotingSerializable
 }
 
 type DataVersion struct {
-	Timestamp int64
-	Counter   int32
+	Timestamp int64 `json:"timestamp"`
+	Counter   int32 `json:"counter"`
 }
 
 type SubscriptionGroupConfig struct {
-	GroupName                      string
-	ConsumeEnable                  bool
-	ConsumeFromMinEnable           bool
-	ConsumeBroadcastEnable         bool
-	RetryMaxTimes                  int
-	RetryQueueNums                 int
-	BrokerId                       int
-	WhichBrokerWhenConsumeSlowly   int
-	NotifyConsumerIdsChangedEnable bool
+	GroupName                      string `json:"groupName"`
+	ConsumeEnable                  bool   `json:"consumeEnable"`
+	ConsumeFromMinEnable           bool   `json:"consumeFromMinEnable"`
+	ConsumeBroadcastEnable         bool   `json:"consumeBroadcastEnable"`
+	RetryMaxTimes                  int    `json:"retryMaxTimes"`
+	RetryQueueNums                 int    `json:"retryQueueNums"`
+	BrokerId                       int    `json:"brokerId"`
+	WhichBrokerWhenConsumeSlowly   int    `json:"whichBrokerWhenConsumeSlowly"`
+	NotifyConsumerIdsChangedEnable bool   `json:"notifyConsumerIdsChangedEnable"`
+}
+
+type ClusterInfo struct {
+	BrokerAddrTable  map[string]BrokerData `json:"brokerAddrTable"`
+	ClusterAddrTable map[string][]string   `json:"clusterAddrTable"`
+	RemotingSerializable
+}
+
+type BrokerData struct {
+	Cluster     string           `json:"cluster"`
+	BrokerName  string           `json:"brokerName"`
+	BrokerAddrs map[int64]string `json:"brokerAddrs"`
+}
+
+func BuildClusterInformation(response []byte) string {
+	vm := otto.New()
+	vm.Set("source", string(response))
+	value, err := vm.Run(`
+	    var code = 'JSON.stringify(' + source + ')';
+	   eval(code);
+	`)
+	if err != nil {
+		fmt.Printf("Format reponse error: %s", err.Error())
+	}
+	result, _ := value.ToString()
+	return result
 }
