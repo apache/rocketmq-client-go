@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	clientVersion        = "v2.1.0"
+	clientVersion        = "v2.1.1"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
