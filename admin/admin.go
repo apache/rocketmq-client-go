@@ -117,6 +117,7 @@ func (a *admin) GroupList(ctx context.Context, brokerAddr string) (*remote.Remot
 		rlog.Error("Get all group list error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})
+		return nil, err
 	} else {
 		rlog.Info("Get all group list success", map[string]interface{}{})
 	}
@@ -132,6 +133,7 @@ func (a *admin) TopicList(ctx context.Context) (*remote.RemotingCommand, error) 
 		rlog.Error("Get all topic list error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})
+		return nil, err
 	} else {
 		rlog.Info("Get all topic list success", map[string]interface{}{})
 	}
