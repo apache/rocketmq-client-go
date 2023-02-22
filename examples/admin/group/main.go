@@ -39,11 +39,11 @@ func main() {
 	)
 
 	// group list
-	groupList, err := testAdmin.GroupList(context.Background(), brokerAddr)
+	result, err := testAdmin.GetAllSubscriptionGroup(context.Background(), brokerAddr)
 	if err != nil {
-		fmt.Println("GroupList error:", err.Error())
+		fmt.Println("GetAllSubscriptionGroup error:", err.Error())
 	}
-	fmt.Println(string(groupList.Body))
+	fmt.Println(result.SubscriptionGroupTable)
 
 	err = testAdmin.Close()
 	if err != nil {

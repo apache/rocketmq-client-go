@@ -40,11 +40,11 @@ func main() {
 	)
 
 	// topic list
-	topicList, err := testAdmin.TopicList(context.Background())
+	result, err := testAdmin.FetchAllTopicList(context.Background())
 	if err != nil {
-		fmt.Println("TopicList error:", err.Error())
+		fmt.Println("FetchAllTopicList error:", err.Error())
 	}
-	fmt.Println(string(topicList.Body))
+	fmt.Println(result.TopicList)
 
 	//create topic
 	err = testAdmin.CreateTopic(
