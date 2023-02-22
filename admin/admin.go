@@ -34,7 +34,7 @@ type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
 
-	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string) (*SubscriptionGroupWrapper, error)
+	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
@@ -109,10 +109,10 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 	}, nil
 }
 
-func (a *admin) GetAllSubscriptionGroup(ctx context.Context, brokerAddr string) (*SubscriptionGroupWrapper, error) {
+func (a *admin) GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error) {
 	cmd := remote.NewRemotingCommand(internal.ReqGetAllSubscriptionGroupConfig, nil, nil)
 	a.cli.RegisterACL()
-	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, 3*time.Second)
+	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, timeoutMillis)
 	if err != nil {
 		rlog.Error("Get all group list error", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

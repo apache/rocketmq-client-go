@@ -20,6 +20,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/admin"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -39,7 +40,7 @@ func main() {
 	)
 
 	// group list
-	result, err := testAdmin.GetAllSubscriptionGroup(context.Background(), brokerAddr)
+	result, err := testAdmin.GetAllSubscriptionGroup(context.Background(), brokerAddr, 3*time.Second)
 	if err != nil {
 		fmt.Println("GetAllSubscriptionGroup error:", err.Error())
 	}
