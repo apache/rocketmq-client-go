@@ -19,13 +19,9 @@ package primitive
 
 import (
 	"github.com/apache/rocketmq-client-go/v2/errors"
-	"regexp"
+	"net"
+	"net/url"
 	"strings"
-)
-
-var (
-	ipv4Regex, _ = regexp.Compile(`^((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))`)
-	ipv6Regex, _ = regexp.Compile(`(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))`)
 )
 
 type NamesrvAddr []string
@@ -42,7 +38,7 @@ func NewNamesrvAddr(s ...string) (NamesrvAddr, error) {
 	}
 
 	for _, srv := range ss {
-		if err := verifyIP(srv); err != nil {
+		if err := verifyAddr(srv); err != nil {
 			return nil, err
 		}
 	}
@@ -54,35 +50,29 @@ func NewNamesrvAddr(s ...string) (NamesrvAddr, error) {
 
 func (addr NamesrvAddr) Check() error {
 	for _, srv := range addr {
-		if err := verifyIP(srv); err != nil {
+		if err := verifyAddr(srv); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-var (
-	httpPrefixRegex, _ = regexp.Compile("^(http|https)://")
-)
-
-func verifyIP(ip string) error {
-	if httpPrefixRegex.MatchString(ip) {
+func verifyAddr(addr string) error {
+	// url
+	_, err := url.ParseRequestURI(addr)
+	if err == nil {
 		return nil
 	}
-	if strings.Contains(ip, ";") {
-		return errors.ErrMultiIP
+	// ipv4, ipv6
+	ip := net.ParseIP(addr)
+	if ip != nil {
+		return nil
 	}
-	ipV4s := ipv4Regex.FindAllString(ip, -1)
-	ipV6s := ipv6Regex.FindAllString(ip, -1)
-
-	if len(ipV4s) == 0 && len(ipV6s) == 0 {
-		return errors.ErrIllegalIP
+	// domain
+	if isDomainName(addr) {
+		return nil
 	}
-
-	if len(ipV4s) > 1 || len(ipV6s) > 1 {
-		return errors.ErrMultiIP
-	}
-	return nil
+	return errors.ErrIllegalAddr
 }
 
 var PanicHandler func(interface{})
@@ -126,4 +116,69 @@ func Diff(origin, latest []string) bool {
 		}
 	}
 	return false
+}
+
+// copy from go src/net/dnsclient.go
+// https://github.com/golang/go/blob/master/src/net/dnsclient.go#L75
+
+// isDomainName checks if a string is a presentation-format domain name
+// (currently restricted to hostname-compatible "preferred name" LDH labels and
+// SRV-like "underscore labels"; see golang.org/issue/12421).
+func isDomainName(s string) bool {
+	// The root domain name is valid. See golang.org/issue/45715.
+	if s == "." {
+		return true
+	}
+
+	// See RFC 1035, RFC 3696.
+	// Presentation format has dots before every label except the first, and the
+	// terminal empty label is optional here because we assume fully-qualified
+	// (absolute) input. We must therefore reserve space for the first and last
+	// labels' length octets in wire format, where they are necessary and the
+	// maximum total length is 255.
+	// So our _effective_ maximum is 253, but 254 is not rejected if the last
+	// character is a dot.
+	l := len(s)
+	if l == 0 || l > 254 || l == 254 && s[l-1] != '.' {
+		return false
+	}
+
+	last := byte('.')
+	nonNumeric := false // true once we've seen a letter or hyphen
+	partlen := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		default:
+			return false
+		case 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_':
+			nonNumeric = true
+			partlen++
+		case '0' <= c && c <= '9':
+			// fine
+			partlen++
+		case c == '-':
+			// Byte before dash cannot be dot.
+			if last == '.' {
+				return false
+			}
+			partlen++
+			nonNumeric = true
+		case c == '.':
+			// Byte before dot cannot be dot, dash.
+			if last == '.' || last == '-' {
+				return false
+			}
+			if partlen > 63 || partlen == 0 {
+				return false
+			}
+			partlen = 0
+		}
+		last = c
+	}
+	if last == '-' || partlen > 63 {
+		return false
+	}
+
+	return nonNumeric
 }
