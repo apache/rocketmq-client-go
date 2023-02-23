@@ -19,7 +19,7 @@ package primitive
 
 import (
 	"github.com/apache/rocketmq-client-go/v2/errors"
-	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -64,8 +64,13 @@ func verifyAddr(addr string) error {
 		return nil
 	}
 	// ipv4, ipv6
-	ip := net.ParseIP(addr)
-	if ip != nil {
+	_, err = netip.ParseAddr(addr)
+	if err == nil {
+		return nil
+	}
+	// host:port
+	_, err = netip.ParseAddrPort(addr)
+	if err == nil {
 		return nil
 	}
 	// domain
@@ -118,7 +123,7 @@ func Diff(origin, latest []string) bool {
 	return false
 }
 
-// copy from go src/net/dnsclient.go
+// from go src/net/dnsclient.go
 // https://github.com/golang/go/blob/master/src/net/dnsclient.go#L75
 
 // isDomainName checks if a string is a presentation-format domain name
