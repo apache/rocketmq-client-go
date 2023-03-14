@@ -94,7 +94,6 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	}
 
 	dc := &defaultConsumer{
-		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
 		state:          int32(internal.StateCreateJust),
@@ -149,6 +148,11 @@ func (pc *pushConsumer) Start() error {
 			return
 		}
 
+		if pc.model == Clustering {
+			pc.option.ChangeInstanceNameToPID()
+		}
+
+		pc.client = internal.GetOrNewRocketMQClient(pc.option.ClientOptions, nil)
 		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			rlog.Error("the consumer group has been created, specify another one", map[string]interface{}{
@@ -157,7 +161,6 @@ func (pc *pushConsumer) Start() error {
 			err = errors2.ErrCreated
 			return
 		}
-
 		err = pc.defaultConsumer.start()
 		if err != nil {
 			return
