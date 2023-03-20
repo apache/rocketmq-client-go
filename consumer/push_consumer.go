@@ -277,7 +277,9 @@ func (pc *pushConsumer) Shutdown() error {
 			pc.option.TraceDispatcher.Close()
 		}
 		close(pc.done)
-
+		if pc.consumeOrderly && pc.model == Clustering {
+			pc.unlockAll(false)
+		}
 		pc.client.UnregisterConsumer(pc.consumerGroup)
 		err = pc.defaultConsumer.shutdown()
 	})
