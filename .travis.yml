@@ -4,7 +4,7 @@ go:
   - "1.13.x"
   - "1.16.x"
   - "1.18.x"
-go_import_path: github.com/apache/rocketmq-client-go/v2
+go_import_path: github.com/bilinxing/rocketmq-client-go/v2
 env:
   global:
     - NAME_SERVER_ADDRESS=127.0.0.1:9876

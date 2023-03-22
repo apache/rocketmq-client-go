@@ -19,7 +19,7 @@ package internal
 
 import (
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/bilinxing/rocketmq-client-go/v2/rlog"
 	"net"
 	"net/http"
 	"os"
@@ -27,7 +27,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/bilinxing/rocketmq-client-go/v2/primitive"
 
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/stretchr/testify/assert"

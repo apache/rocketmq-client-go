@@ -18,11 +18,11 @@ limitations under the License.
 package consumer
 
 import (
-	"github.com/apache/rocketmq-client-go/v2/hooks"
+	"github.com/bilinxing/rocketmq-client-go/v2/hooks"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/internal"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/bilinxing/rocketmq-client-go/v2/internal"
+	"github.com/bilinxing/rocketmq-client-go/v2/primitive"
 )
 
 type consumerOptions struct {

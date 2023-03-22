@@ -18,11 +18,12 @@ package remote
 
 import (
 	"encoding/json"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"math/rand"
 	"reflect"
 	"testing"
 	"unsafe"
+
+	"github.com/bilinxing/rocketmq-client-go/v2/rlog"
 
 	jsoniter "github.com/json-iterator/go"
 

@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/bilinxing/rocketmq-client-go/v2/primitive"
 )
 
 func TestRoundRobin(t *testing.T) {

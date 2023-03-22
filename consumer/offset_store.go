@@ -26,11 +26,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/internal"
-	"github.com/apache/rocketmq-client-go/v2/internal/remote"
-	"github.com/apache/rocketmq-client-go/v2/internal/utils"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/bilinxing/rocketmq-client-go/v2/internal"
+	"github.com/bilinxing/rocketmq-client-go/v2/internal/remote"
+	"github.com/bilinxing/rocketmq-client-go/v2/internal/utils"
+	"github.com/bilinxing/rocketmq-client-go/v2/primitive"
+	"github.com/bilinxing/rocketmq-client-go/v2/rlog"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -52,7 +52,7 @@ func init() {
 	}
 }
 
-//go:generate mockgen -source offset_store.go -destination mock_offset_store.go -self_package github.com/apache/rocketmq-client-go/v2/consumer  --package consumer OffsetStore
+//go:generate mockgen -source offset_store.go -destination mock_offset_store.go -self_package github.com/bilinxing/rocketmq-client-go/v2/consumer  --package consumer OffsetStore
 type OffsetStore interface {
 	persist(mqs []*primitive.MessageQueue)
 	remove(mq *primitive.MessageQueue)

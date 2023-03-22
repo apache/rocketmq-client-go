@@ -21,10 +21,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/consumer"
-	"github.com/apache/rocketmq-client-go/v2/internal"
-	"github.com/apache/rocketmq-client-go/v2/primitive"
-	"github.com/apache/rocketmq-client-go/v2/producer"
+	"github.com/bilinxing/rocketmq-client-go/v2/consumer"
+	"github.com/bilinxing/rocketmq-client-go/v2/internal"
+	"github.com/bilinxing/rocketmq-client-go/v2/primitive"
+	"github.com/bilinxing/rocketmq-client-go/v2/producer"
 )
 
 type Producer interface {
