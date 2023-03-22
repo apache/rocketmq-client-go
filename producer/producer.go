@@ -694,7 +694,7 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	default:
 	}
 
-	tp.endTransaction(*rsp, err, localTransactionState)
+	tp.endTransaction(ctx, rsp, err, localTransactionState)
 
 	transactionSendResult := &primitive.TransactionSendResult{
 		SendResult: rsp,
@@ -704,7 +704,35 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	return transactionSendResult, nil
 }
 
-func (tp *transactionProducer) endTransaction(result primitive.SendResult, err error, state primitive.LocalTransactionState) error {
+func (tp *transactionProducer) SendMessageInTransactionHalf(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error) {
+	msg.WithProperty(primitive.PropertyTransactionPrepared, "true")
+	msg.WithProperty(primitive.PropertyProducerGroup, tp.producer.options.GroupName)
+
+	rsp, err := tp.producer.SendSync(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	if rsp.Status == primitive.SendOK {
+		if len(rsp.TransactionID) > 0 {
+			msg.WithProperty("__transactionId__", rsp.TransactionID)
+		}
+		transactionId := msg.GetProperty(primitive.PropertyUniqueClientMessageIdKeyIndex)
+		if len(transactionId) > 0 {
+			msg.TransactionId = transactionId
+		}
+
+		return rsp, nil
+	}
+
+	return rsp, tp.endTransaction(ctx, rsp, err, primitive.RollbackMessageState)
+}
+
+func (tp *transactionProducer) EndTransaction(ctx context.Context, result *primitive.SendResult, state primitive.LocalTransactionState) error {
+	return tp.endTransaction(ctx, result, nil, state)
+}
+
+func (tp *transactionProducer) endTransaction(ctx context.Context, result *primitive.SendResult, err error, state primitive.LocalTransactionState) error {
 	var msgID *primitive.MessageID
 	if len(result.OffsetMsgID) > 0 {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.OffsetMsgID))
@@ -725,7 +753,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 	req := remote.NewRemotingCommand(internal.ReqENDTransaction, requestHeader, nil)
 	req.Remark = tp.errRemark(err)
 
-	return tp.producer.client.InvokeOneWay(context.Background(), brokerAddr, req, tp.producer.options.SendMsgTimeout)
+	return tp.producer.client.InvokeOneWay(ctx, brokerAddr, req, tp.producer.options.SendMsgTimeout)
 }
 
 func (tp *transactionProducer) errRemark(err error) string {

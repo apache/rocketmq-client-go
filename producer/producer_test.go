@@ -19,8 +19,11 @@ package producer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
+	"log"
 	"testing"
+	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -355,4 +358,49 @@ func TestBatchSendDifferentTopics(t *testing.T) {
 	assert.Nil(t, resp)
 	assert.NotNil(t, err)
 	assert.Equal(t, err, errors.ErrMultipleTopics)
+}
+
+type Listener struct {
+}
+
+func (dl *Listener) ExecuteLocalTransaction(msg *primitive.Message) primitive.LocalTransactionState {
+	log.Printf("ExecuteLocalTransaction for transactionID: %v\n", msg.TransactionId)
+	return primitive.UnknowState
+}
+
+// 回查函数，只有当 ExecuteLocalTransaction 函数返回的不是CommitMessageState或RollbackMessageState状态，才会调用
+func (dl *Listener) CheckLocalTransaction(msg *primitive.MessageExt) primitive.LocalTransactionState {
+	log.Printf("CheckLocalTransaction for transactionID: %v\n", msg.TransactionId)
+	return primitive.UnknowState
+}
+
+func TestMessageInTransaction(t *testing.T) {
+
+	p, _ := NewTransactionProducer(
+		&Listener{},
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"172.29.99.188:9876"})),
+		WithCredentials(primitive.Credentials{}),
+		WithNamespace(""),
+		WithGroupName("test"),
+		WithSendMsgTimeout(3*time.Second),
+		WithRetry(3),
+	)
+
+	err := p.Start()
+	assert.Nil(t, err)
+
+	ctx := context.Background()
+	msgToA := &primitive.Message{
+		Topic: "topic-A",
+		Body:  []byte("this is a message body"),
+	}
+
+	resp, err := p.SendMessageInTransactionHalf(ctx, msgToA)
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+	if resp != nil {
+		err = p.EndTransaction(ctx, resp, primitive.CommitMessageState)
+		assert.Nil(t, err)
+	}
+
 }
