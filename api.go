@@ -46,6 +46,8 @@ type TransactionProducer interface {
 	Start() error
 	Shutdown() error
 	SendMessageInTransaction(ctx context.Context, mq *primitive.Message) (*primitive.TransactionSendResult, error)
+	SendMessageInTransactionHalf(ctx context.Context, msg *primitive.Message) (*primitive.SendResult, error)
+	EndTransaction(ctx context.Context, result *primitive.SendResult, state primitive.LocalTransactionState) error
 }
 
 func NewTransactionProducer(listener primitive.TransactionListener, opts ...producer.Option) (TransactionProducer, error) {
