@@ -70,6 +70,12 @@ func WithInstanceName(name string) Option {
 	}
 }
 
+func WithInstance(name string) Option {
+	return func(options *producerOptions) {
+		options.InstanceName = name
+	}
+}
+
 // WithNamespace set the namespace of producer
 func WithNamespace(namespace string) Option {
 	return func(opts *producerOptions) {
