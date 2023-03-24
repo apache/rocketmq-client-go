@@ -70,9 +70,9 @@ func WithInstanceName(name string) Option {
 	}
 }
 
-func WithInstance(name string) Option {
+func WithUnitName(name string) Option {
 	return func(options *producerOptions) {
-		options.InstanceName = name
+		options.UnitName = name
 	}
 }
 
