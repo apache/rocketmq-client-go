@@ -32,7 +32,7 @@ For 2.X version, it supports:
 * consuming message using broadcast model
 * message tracing for pub and sub messages
 * ACL for producers and consumers
-* requset-reply model
+* request-reply model
 
 ----------
 ## How to use
