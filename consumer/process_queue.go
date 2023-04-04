@@ -60,6 +60,7 @@ type processQueue struct {
 	order                      bool
 	closeChanOnce              *sync.Once
 	closeChan                  chan struct{}
+	maxOffsetInQueue           int64
 }
 
 func newProcessQueue(order bool) *processQueue {
@@ -88,6 +89,7 @@ func newProcessQueue(order bool) *processQueue {
 		closeChan:                  make(chan struct{}),
 		locked:                     atomic.NewBool(false),
 		dropped:                    atomic.NewBool(false),
+		maxOffsetInQueue:           -1,
 	}
 	return pq
 }
@@ -99,16 +101,7 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 	if pq.IsDroppd() {
 		return
 	}
-	if !pq.order {
-		select {
-		case <-pq.closeChan:
-			return
-		case pq.msgCh <- messages:
-		}
-	}
-
 	pq.mutex.Lock()
-
 	validMessageCount := 0
 	for idx := range messages {
 		msg := messages[idx]
@@ -126,9 +119,15 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 
 		pq.cachedMsgSize.Add(int64(len(msg.Body)))
 	}
-
 	pq.cachedMsgCount.Add(int64(validMessageCount))
 	pq.mutex.Unlock()
+	if !pq.order {
+		select {
+		case <-pq.closeChan:
+			return
+		case pq.msgCh <- messages:
+		}
+	}
 
 	if pq.cachedMsgCount.Load() > 0 && !pq.consuming {
 		pq.consuming = true
@@ -375,6 +374,7 @@ func (pq *processQueue) clear() {
 	pq.cachedMsgCount.Store(0)
 	pq.cachedMsgSize.Store(0)
 	pq.queueOffsetMax = 0
+	pq.maxOffsetInQueue = -1
 }
 
 func (pq *processQueue) commit() int64 {

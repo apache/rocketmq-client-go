@@ -79,6 +79,7 @@ type defaultPullConsumer struct {
 	closeOnce           sync.Once
 	consumeRequestCache chan *ConsumeRequest
 	submitToConsume     func(*processQueue, *primitive.MessageQueue)
+	interceptor         primitive.Interceptor
 }
 
 func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
@@ -114,7 +115,8 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		consumeRequestCache: make(chan *ConsumeRequest, 4),
 	}
 	dc.mqChanged = c.messageQueueChanged
-	c.submitToConsume = c.consumeMessageCurrently
+	c.submitToConsume = c.consumeMessageConcurrently
+	c.interceptor = primitive.ChainInterceptors(c.option.Interceptors...)
 	return c, nil
 }
 
@@ -140,12 +142,18 @@ func (pc *defaultPullConsumer) Unsubscribe(topic string) error {
 }
 
 func (pc *defaultPullConsumer) Start() error {
-	atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
-
 	var err error
 	pc.once.Do(func() {
-		consumerGroupWithNs := utils.WrapNamespace(pc.option.Namespace, pc.consumerGroup)
-		err = pc.defaultConsumer.client.RegisterConsumer(consumerGroupWithNs, pc)
+		err = pc.validate()
+		if err != nil {
+			rlog.Error("the consumer group option validate fail", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
+			err = errors.Wrap(err, "the consumer group option validate fail")
+			return
+		}
+		err = pc.defaultConsumer.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			rlog.Error("defaultPullConsumer the consumer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
@@ -157,7 +165,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			return
 		}
-
+		atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
 		go func() {
 			for {
 				select {
@@ -174,7 +182,9 @@ func (pc *defaultPullConsumer) Start() error {
 			}
 		}()
 	})
-
+	if err != nil {
+		return err
+	}
 	pc.client.UpdateTopicRouteInfo()
 	_, exist := pc.topicSubscribeInfoTable.Load(pc.topic)
 	if !exist {
@@ -251,8 +261,16 @@ RETRY:
 
 	if result == ConsumeSuccess {
 		msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
+		msgCtx.Success = true
 	} else {
 		msgCtx.Properties[primitive.PropCtxType] = string(primitive.FailedReturn)
+		msgCtx.Success = false
+	}
+
+	if pc.interceptor != nil {
+		pc.interceptor(ctx, msgList, nil, func(ctx context.Context, req, reply interface{}) error {
+			return nil
+		})
 	}
 
 	if !pq.IsDroppd() {
@@ -334,6 +352,22 @@ func (pc *defaultPullConsumer) Pull(ctx context.Context, numbers int) (*primitiv
 	}
 
 	pc.processPullResult(mq, result, data)
+
+	if pc.interceptor != nil {
+		msgCtx := &primitive.ConsumeMessageContext{
+			Properties:    make(map[string]string),
+			ConsumerGroup: pc.consumerGroup,
+			MQ:            mq,
+			Msgs:          result.GetMessageExts(),
+			Success:       true,
+		}
+		ctx = primitive.WithConsumerCtx(ctx, msgCtx)
+		ctx = primitive.WithMethod(ctx, primitive.ConsumerPull)
+		pc.interceptor(ctx, result.GetMessageExts(), nil, func(ctx context.Context, req, reply interface{}) error {
+			return nil
+		})
+	}
+
 	return result, nil
 }
 
@@ -454,6 +488,9 @@ func (pc *defaultPullConsumer) CurrentOffset(queue *primitive.MessageQueue) (int
 func (pc *defaultPullConsumer) Shutdown() error {
 	var err error
 	pc.closeOnce.Do(func() {
+		if pc.option.TraceDispatcher != nil {
+			pc.option.TraceDispatcher.Close()
+		}
 		close(pc.done)
 
 		pc.client.UnregisterConsumer(pc.consumerGroup)
@@ -500,7 +537,7 @@ func (pc *defaultPullConsumer) GetWhere() string {
 	case ConsumeFromTimestamp:
 		return "CONSUME_FROM_TIMESTAMP"
 	default:
-		return "UNKOWN"
+		return "UNKNOWN"
 	}
 
 }
@@ -791,13 +828,13 @@ func (pc *defaultPullConsumer) correctTagsOffset(pr *PullRequest) {
 	}
 }
 
-func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
+func (pc *defaultPullConsumer) consumeMessageConcurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgList := pq.getMessages()
 	if msgList == nil {
 		return
 	}
 	if pq.IsDroppd() {
-		rlog.Info("defaultPullConsumer consumeMessageCurrently the message queue not be able to consume, because it was dropped", map[string]interface{}{
+		rlog.Info("defaultPullConsumer consumeMessageConcurrently the message queue not be able to consume, because it was dropped", map[string]interface{}{
 			rlog.LogKeyMessageQueue:  mq.String(),
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
 		})
@@ -814,4 +851,16 @@ func (pc *defaultPullConsumer) consumeMessageCurrently(pq *processQueue, mq *pri
 		return
 	case pc.consumeRequestCache <- cr:
 	}
+}
+
+func (pc *defaultPullConsumer) validate() error {
+	if err := internal.ValidateGroup(pc.consumerGroup); err != nil {
+		return err
+	}
+
+	if pc.consumerGroup == internal.DefaultConsumerGroup {
+		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
+	}
+
+	return nil
 }

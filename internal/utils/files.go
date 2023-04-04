@@ -38,6 +38,7 @@ func FileReadAll(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	CheckError(fmt.Sprintf("close %s", file.Name()), file.Close())
 	return data, nil
 }
 

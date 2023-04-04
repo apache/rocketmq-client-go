@@ -72,7 +72,7 @@ type pushConsumer struct {
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
-	crCh                         chan struct{}
+	crCh                         map[string]chan struct{}
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -116,13 +116,13 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
-		crCh:            make(chan struct{}, defaultOpts.ConsumeGoroutineNums),
+		crCh:            make(map[string]chan struct{}),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
 		p.submitToConsume = p.consumeMessageOrderly
 	} else {
-		p.submitToConsume = p.consumeMessageCurrently
+		p.submitToConsume = p.consumeMessageConcurrently
 	}
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
@@ -139,7 +139,15 @@ func (pc *pushConsumer) Start() error {
 			"unitMode":               pc.unitMode,
 		})
 		atomic.StoreInt32(&pc.state, int32(internal.StateStartFailed))
-		pc.validate()
+		err = pc.validate()
+		if err != nil {
+			rlog.Error("the consumer group option validate fail", map[string]interface{}{
+				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				rlog.LogKeyUnderlayError: err.Error(),
+			})
+			err = errors.Wrap(err, "the consumer group option validate fail")
+			return
+		}
 
 		err = pc.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
@@ -154,6 +162,9 @@ func (pc *pushConsumer) Start() error {
 		if err != nil {
 			return
 		}
+
+		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
+		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 
 		go func() {
 			// todo start clean msg expired
@@ -238,6 +249,27 @@ func (pc *pushConsumer) Start() error {
 	return err
 }
 
+func (pc *pushConsumer) GetOffsetDiffMap() map[string]int64 {
+	offsetDiffMap := make(map[string]int64)
+	pc.processQueueTable.Range(func(key, value interface{}) bool {
+		mq := key.(primitive.MessageQueue)
+		pq := value.(*processQueue)
+		topic := mq.Topic
+		consumerOffset, _ := pc.storage.readWithException(&mq, _ReadFromMemory)
+		maxOffset := pq.maxOffsetInQueue
+		if consumerOffset < 0 || maxOffset < 0 || consumerOffset > maxOffset {
+			return true
+		}
+		if _, ok := offsetDiffMap[topic]; !ok {
+			offsetDiffMap[topic] = 0
+		}
+		offsetDiff := offsetDiffMap[topic]
+		offsetDiffMap[topic] = offsetDiff + (maxOffset - consumerOffset)
+		return true
+	})
+	return offsetDiffMap
+}
+
 func (pc *pushConsumer) Shutdown() error {
 	var err error
 	pc.closeOnce.Do(func() {
@@ -245,7 +277,9 @@ func (pc *pushConsumer) Shutdown() error {
 			pc.option.TraceDispatcher.Close()
 		}
 		close(pc.done)
-
+		if pc.consumeOrderly && pc.model == Clustering {
+			pc.unlockAll(false)
+		}
 		pc.client.UnregisterConsumer(pc.consumerGroup)
 		err = pc.defaultConsumer.shutdown()
 	})
@@ -262,6 +296,9 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
+	}
+	if _, ok := pc.crCh[topic]; !ok {
+		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 	}
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
@@ -335,7 +372,7 @@ func (pc *pushConsumer) GetWhere() string {
 	case ConsumeFromTimestamp:
 		return "CONSUME_FROM_TIMESTAMP"
 	default:
-		return "UNKOWN"
+		return "UNKNOWN"
 	}
 
 }
@@ -492,23 +529,25 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 	pc.client.SendHeartbeatToAllBrokerWithLock()
 }
 
-func (pc *pushConsumer) validate() {
-	internal.ValidateGroup(pc.consumerGroup)
+func (pc *pushConsumer) validate() error {
+	if err := internal.ValidateGroup(pc.consumerGroup); err != nil {
+		return err
+	}
 
 	if pc.consumerGroup == internal.DefaultConsumerGroup {
 		// TODO FQA
-		rlog.Error(fmt.Sprintf("consumerGroup can't equal [%s], please specify another one.", internal.DefaultConsumerGroup), nil)
+		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
 	}
 
 	if len(pc.subscribedTopic) == 0 {
-		rlog.Error("number of subscribed topics is 0.", nil)
+		return errors.New("number of subscribed topics is 0.")
 	}
 
 	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
 		if pc.option.ConsumeConcurrentlyMaxSpan == 0 {
 			pc.option.ConsumeConcurrentlyMaxSpan = 1000
 		} else {
-			rlog.Error("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]", nil)
+			return errors.New("option.ConsumeConcurrentlyMaxSpan out of range [1, 65535]")
 		}
 	}
 
@@ -516,7 +555,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdForQueue == 0 {
 			pc.option.PullThresholdForQueue = 1024
 		} else {
-			rlog.Error("option.PullThresholdForQueue out of range [1, 65535]", nil)
+			return errors.New("option.PullThresholdForQueue out of range [1, 65535]")
 		}
 	}
 
@@ -524,7 +563,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdForTopic == 0 {
 			pc.option.PullThresholdForTopic = 102400
 		} else {
-			rlog.Error("option.PullThresholdForTopic out of range [1, 6553500]", nil)
+			return errors.New("option.PullThresholdForTopic out of range [1, 6553500]")
 		}
 	}
 
@@ -532,7 +571,7 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdSizeForQueue == 0 {
 			pc.option.PullThresholdSizeForQueue = 512
 		} else {
-			rlog.Error("option.PullThresholdSizeForQueue out of range [1, 1024]", nil)
+			return errors.New("option.PullThresholdSizeForQueue out of range [1, 1024]")
 		}
 	}
 
@@ -540,19 +579,19 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullThresholdSizeForTopic == 0 {
 			pc.option.PullThresholdSizeForTopic = 51200
 		} else {
-			rlog.Error("option.PullThresholdSizeForTopic out of range [1, 102400]", nil)
+			return errors.New("option.PullThresholdSizeForTopic out of range [1, 102400]")
 		}
 	}
 
 	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535*time.Millisecond {
-		rlog.Error("option.PullInterval out of range [0, 65535]", nil)
+		return errors.New("option.PullInterval out of range [0, 65535]")
 	}
 
 	if pc.option.ConsumeMessageBatchMaxSize < 1 || pc.option.ConsumeMessageBatchMaxSize > 1024 {
 		if pc.option.ConsumeMessageBatchMaxSize == 0 {
 			pc.option.ConsumeMessageBatchMaxSize = 1
 		} else {
-			rlog.Error("option.ConsumeMessageBatchMaxSize out of range [1, 1024]", nil)
+			return errors.New("option.ConsumeMessageBatchMaxSize out of range [1, 1024]")
 		}
 	}
 
@@ -560,9 +599,18 @@ func (pc *pushConsumer) validate() {
 		if pc.option.PullBatchSize == 0 {
 			pc.option.PullBatchSize = 32
 		} else {
-			rlog.Error("option.PullBatchSize out of range [1, 1024]", nil)
+			return errors.New("option.PullBatchSize out of range [1, 1024]")
 		}
 	}
+
+	if pc.option.ConsumeGoroutineNums < 1 || pc.option.ConsumeGoroutineNums > 1000 {
+		if pc.option.ConsumeGoroutineNums == 0 {
+			pc.option.ConsumeGoroutineNums = 20
+		} else {
+			return errors.New("option.ConsumeGoroutineNums out of range [1, 1000]")
+		}
+	}
+	return nil
 }
 
 func (pc *pushConsumer) pullMessage(request *PullRequest) {
@@ -798,6 +846,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		pc.processPullResult(request.mq, result, sd)
+		if result.MaxOffset > pq.maxOffsetInQueue {
+			pq.maxOffsetInQueue = result.MaxOffset
+		}
 
 		switch result.Status {
 		case primitive.PullFound:
@@ -940,7 +991,7 @@ func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQue
 			}
 			pq := v.(*processQueue)
 			pc.removeUnnecessaryMessageQueue(mq, pq)
-			pc.processQueueTable.Delete(mq)
+			pc.processQueueTable.Delete(*mq)
 		}
 	}
 }
@@ -1005,7 +1056,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	for idx := range subMsgs {
 		msg := subMsgs[idx]
 		retryTopic := msg.GetProperty(primitive.PropertyRetryTopic)
-		if retryTopic == "" && groupTopic == msg.Topic {
+		if retryTopic != "" && groupTopic == msg.Topic {
 			msg.Topic = retryTopic
 		}
 		subMsgs[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
@@ -1013,11 +1064,18 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	}
 }
 
-func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.MessageQueue) {
+func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primitive.MessageQueue) {
 	msgs := pq.getMessages()
 	if msgs == nil {
 		return
 	}
+
+	limiter := pc.option.Limiter
+	limiterOn := limiter != nil
+	if _, ok := pc.crCh[mq.Topic]; !ok {
+		pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+	}
+
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
 		if count+pc.option.ConsumeMessageBatchMaxSize > len(msgs) {
@@ -1029,25 +1087,20 @@ func (pc *pushConsumer) consumeMessageCurrently(pq *processQueue, mq *primitive.
 			count = next - 1
 		}
 
-		limiter := pc.option.Limiter
-		limiterOn := limiter != nil
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
-		} else {
-			pc.crCh <- struct{}{}
 		}
+		pc.crCh[mq.Topic] <- struct{}{}
 
 		go primitive.WithRecover(func() {
 			defer func() {
 				if err := recover(); err != nil {
-					rlog.Error("consumeMessageCurrently panic", map[string]interface{}{
+					rlog.Error("consumeMessageConcurrently panic", map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}
-				if !limiterOn {
-					<-pc.crCh
-				}
+				<-pc.crCh[mq.Topic]
 			}()
 		RETRY:
 			if pq.IsDroppd() {

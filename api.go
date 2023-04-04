@@ -70,6 +70,9 @@ type PushConsumer interface {
 
 	// Resume the consumption
 	Resume()
+
+	// GetOffsetDiffMap Get offset difference map
+	GetOffsetDiffMap() map[string]int64
 }
 
 func NewPushConsumer(opts ...consumer.Option) (PushConsumer, error) {

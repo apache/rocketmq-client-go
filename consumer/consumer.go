@@ -20,7 +20,6 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,11 +27,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/rocketmq-client-go/v2/errors"
-
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
 
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
@@ -276,9 +275,7 @@ func (dc *defaultConsumer) start() error {
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
 		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
 		dc.subscriptionDataTable.Store(retryTopic, sub)
-	}
 
-	if dc.model == Clustering {
 		dc.option.ChangeInstanceNameToPID()
 		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client, dc.client.GetNameSrv())
 	} else {
@@ -420,7 +417,7 @@ func (dc *defaultConsumer) doBalance() {
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
-				rlog.Debug("MessageQueue do balance done", map[string]interface{}{
+				rlog.Info("MessageQueue do balance done", map[string]interface{}{
 					rlog.LogKeyConsumerGroup: dc.consumerGroup,
 					rlog.LogKeyTopic:         topic,
 					"clientID":               dc.client.ClientID(),
@@ -438,7 +435,7 @@ func (dc *defaultConsumer) doBalance() {
 func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 	result := make([]*internal.SubscriptionData, 0)
 	dc.subscriptionDataTable.Range(func(key, value interface{}) bool {
-		result = append(result, value.(*internal.SubscriptionData))
+		result = append(result, value.(*internal.SubscriptionData).Clone())
 		return true
 	})
 	return result
@@ -634,12 +631,12 @@ func (dc *defaultConsumer) doUnlock(addr string, body *lockBatchRequestBody, one
 		}
 	} else {
 		response, err := dc.client.InvokeSync(context.Background(), addr, request, 1*time.Second)
-		rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
-			rlog.LogKeyBroker:        addr,
-			rlog.LogKeyUnderlayError: err,
-		})
-		if response.Code != internal.ResSuccess {
-			// TODO error
+		if err != nil || response == nil || response.Code != internal.ResSuccess {
+			rlog.Error("lock MessageQueue to broker invoke error", map[string]interface{}{
+				rlog.LogKeyBroker:        addr,
+				rlog.LogKeyUnderlayError: err,
+				"response":               response,
+			})
 		}
 	}
 }
@@ -676,7 +673,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
+					rlog.Info("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
@@ -686,7 +683,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
 					changed = true
-					rlog.Debug("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
+					rlog.Warning("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
@@ -883,7 +880,7 @@ func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result 
 
 		// filter message according to tags
 		msgListFilterAgain := msgs
-		if data.Tags.Len() > 0 && data.ClassFilterMode {
+		if data.Tags.Len() > 0 && !data.ClassFilterMode {
 			msgListFilterAgain = make([]*primitive.MessageExt, 0)
 			for _, msg := range msgs {
 				_, exist := data.Tags.Contains(msg.GetTags())
