@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	clientVersion        = "v2.1.0"
+	clientVersion        = "v2.1.1"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
@@ -162,6 +162,7 @@ type RMQClient interface {
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 
 	GetNameSrv() Namesrvs
+	RegisterACL()
 }
 
 var _ RMQClient = new(rmqClient)
@@ -652,6 +653,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerId":     id,
 					"brokerAddr":   addr,
 					"responseCode": response.Code,
+					"remark":       response.Remark,
 				})
 			}
 		}
@@ -702,8 +704,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		status = primitive.SendUnknownError
-		return errors.New(cmd.Remark)
+		return errors.New(fmt.Sprintf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark))
 	}
 
 	msgIDs := make([]string, 0)
@@ -938,6 +939,12 @@ func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group stri
 	}
 	res := consumer.(InnerConsumer).ConsumeMessageDirectly(msg, brokerName)
 	return res
+}
+
+func (c *rmqClient) RegisterACL() {
+	if !c.option.Credentials.IsEmpty() {
+		c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+	}
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {

@@ -277,7 +277,9 @@ func (pc *pushConsumer) Shutdown() error {
 			pc.option.TraceDispatcher.Close()
 		}
 		close(pc.done)
-
+		if pc.consumeOrderly && pc.model == Clustering {
+			pc.unlockAll(false)
+		}
 		pc.client.UnregisterConsumer(pc.consumerGroup)
 		err = pc.defaultConsumer.shutdown()
 	})
@@ -1054,7 +1056,7 @@ func (pc *pushConsumer) resetRetryAndNamespace(subMsgs []*primitive.MessageExt) 
 	for idx := range subMsgs {
 		msg := subMsgs[idx]
 		retryTopic := msg.GetProperty(primitive.PropertyRetryTopic)
-		if retryTopic == "" && groupTopic == msg.Topic {
+		if retryTopic != "" && groupTopic == msg.Topic {
 			msg.Topic = retryTopic
 		}
 		subMsgs[idx].WithProperty(primitive.PropertyConsumeStartTime, strconv.FormatInt(
