@@ -305,8 +305,11 @@ func (td *traceDispatcher) GetTraceTopicName() string {
 func (td *traceDispatcher) Start() {
 	td.running = true
 	td.cli.Start()
+	maxWaitDuration := 5 * time.Millisecond
+	td.ticker = time.NewTicker(maxWaitDuration)
+	maxWaitTime := maxWaitDuration.Nanoseconds()
 	go primitive.WithRecover(func() {
-		td.process()
+		td.process(maxWaitTime)
 	})
 }
 
@@ -334,12 +337,9 @@ func (td *traceDispatcher) Append(ctx TraceContext) bool {
 }
 
 // process
-func (td *traceDispatcher) process() {
+func (td *traceDispatcher) process(maxWaitTime int64) {
 	var count int
 	var batch []TraceContext
-	maxWaitDuration := 5 * time.Millisecond
-	maxWaitTime := maxWaitDuration.Nanoseconds()
-	td.ticker = time.NewTicker(maxWaitDuration)
 	lastput := time.Now()
 	for {
 		select {
