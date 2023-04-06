@@ -18,9 +18,9 @@ limitations under the License.
 package consumer
 
 import (
-	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
@@ -236,6 +236,12 @@ func WithGroupName(group string) Option {
 func WithInstance(name string) Option {
 	return func(options *consumerOptions) {
 		options.InstanceName = name
+	}
+}
+
+func WithUnitName(name string) Option {
+	return func(options *consumerOptions) {
+		options.UnitName = name
 	}
 }
 
