@@ -182,13 +182,7 @@ func (m *Message) WithTag(tags string) *Message {
 }
 
 func (m *Message) WithKeys(keys []string) *Message {
-	var sb strings.Builder
-	for _, k := range keys {
-		sb.WriteString(k)
-		sb.WriteString(PropertyKeySeparator)
-	}
-
-	m.WithProperty(PropertyKeys, sb.String())
+	m.WithProperty(PropertyKeys, strings.Join(keys, PropertyKeySeparator))
 	return m
 }
 
