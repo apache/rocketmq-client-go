@@ -1133,8 +1133,19 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
+				rlog.Warning("consumeMessageCurrently error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq,
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionReturn)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
+				rlog.Warning("consumeMessageCurrently time out", map[string]interface{}{
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq,
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
@@ -1262,7 +1273,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			ctx = primitive.WithOrderlyCtx(ctx, orderlyCtx)
 
 			pq.lockConsume.Lock()
-			result, _ := pc.consumeInner(ctx, msgs)
+			result, err := pc.consumeInner(ctx, msgs)
+			if err != nil {
+				rlog.Warning("consumeMessage orderly error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq.String(),
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
+			}
 			pq.lockConsume.Unlock()
 
 			if result == Rollback || result == SuspendCurrentQueueAMoment {
