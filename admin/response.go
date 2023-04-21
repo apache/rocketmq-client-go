@@ -45,6 +45,7 @@ func (r *RemotingSerializable) ToJson(obj interface{}, prettyFormat bool) string
 		return string(jsonBytes)
 	}
 }
+
 func (r *RemotingSerializable) Decode(data []byte, classOfT interface{}) (interface{}, error) {
 	jsonStr := string(data)
 	return r.FromJson(jsonStr, classOfT)
@@ -85,4 +86,21 @@ type SubscriptionGroupConfig struct {
 	BrokerId                       int
 	WhichBrokerWhenConsumeSlowly   int
 	NotifyConsumerIdsChangedEnable bool
+}
+
+type AclConfig struct {
+	GlobalWhiteAddrs   []string            `json:"globalWhiteAddrs"`
+	PlainAccessConfigs []PlainAccessConfig `json:"plainAccessConfigs"`
+	RemotingSerializable
+}
+
+type PlainAccessConfig struct {
+	AccessKey          string   `json:"accessKey"`
+	SecretKey          string   `json:"secretKey"`
+	WhiteRemoteAddress string   `json:"whiteRemoteAddress"`
+	Admin              bool     `json:"admin"`
+	DefaultTopicPerm   string   `json:"defaultTopicPerm"`
+	DefaultGroupPerm   string   `json:"defaultGroupPerm"`
+	TopicPerms         []string `json:"topicPerms"`
+	GroupPerms         []string `json:"groupPerms"`
 }
