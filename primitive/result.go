@@ -62,7 +62,7 @@ func (result *SendResult) String() string {
 		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
 }
 
-// SendResult RocketMQ send result
+// TransactionSendResult RocketMQ send result
 type TransactionSendResult struct {
 	*SendResult
 	State LocalTransactionState
@@ -123,6 +123,8 @@ func (result *PullResult) String() string {
 
 func toMessages(messageExts []*MessageExt) []*Message {
 	msgs := make([]*Message, 0)
-
+	for _, messageExt := range messageExts {
+		msgs = append(msgs, &messageExt.Message)
+	}
 	return msgs
 }

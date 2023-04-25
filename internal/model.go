@@ -62,6 +62,32 @@ type SubscriptionData struct {
 	ExpType         string    `json:"expressionType"`
 }
 
+func (sd *SubscriptionData) Clone() *SubscriptionData {
+	cloned := &SubscriptionData{
+		ClassFilterMode: sd.ClassFilterMode,
+		Topic:           sd.Topic,
+		SubString:       sd.SubString,
+		SubVersion:      sd.SubVersion,
+		ExpType:         sd.ExpType,
+	}
+
+	if sd.Tags.Items() != nil {
+		cloned.Tags = utils.NewSet()
+		for _, value := range sd.Tags.Items() {
+			cloned.Tags.Add(value)
+		}
+	}
+
+	if sd.Codes.Items() != nil {
+		cloned.Codes = utils.NewSet()
+		for _, value := range sd.Codes.Items() {
+			cloned.Codes.Add(value)
+		}
+	}
+
+	return cloned
+}
+
 type producerData struct {
 	GroupName string `json:"groupName"`
 }
@@ -149,6 +175,7 @@ type ConsumerRunningInfo struct {
 	SubscriptionData map[*SubscriptionData]bool
 	MQTable          map[primitive.MessageQueue]ProcessQueueInfo
 	StatusTable      map[string]ConsumeStatus
+	JStack           string // just follow java request param name, but pass golang stack here.
 }
 
 func (info ConsumerRunningInfo) Encode() ([]byte, error) {
@@ -251,7 +278,11 @@ func (info ConsumerRunningInfo) Encode() ([]byte, error) {
 		tableJson = fmt.Sprintf("%s,%s:%s", tableJson, string(dataK), string(dataV))
 	}
 	tableJson = strings.TrimLeft(tableJson, ",")
-	jsonData = fmt.Sprintf("%s,\"%s\":%s}", jsonData, "mqTable", fmt.Sprintf("{%s}", tableJson))
+
+	jsonData = fmt.Sprintf("%s,\"%s\":%s, \"%s\":\"%s\" }",
+		jsonData, "mqTable", fmt.Sprintf("{%s}", tableJson),
+		"jstack", info.JStack)
+
 	return []byte(jsonData), nil
 }
 

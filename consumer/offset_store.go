@@ -57,6 +57,7 @@ type OffsetStore interface {
 	persist(mqs []*primitive.MessageQueue)
 	remove(mq *primitive.MessageQueue)
 	read(mq *primitive.MessageQueue, t readType) int64
+	readWithException(mq *primitive.MessageQueue, t readType) (int64, error)
 	update(mq *primitive.MessageQueue, offset int64, increaseOnly bool)
 }
 
@@ -156,21 +157,27 @@ func (local *localFileOffsetStore) load() {
 	}
 }
 
+// Deprecated: Use readWithException instead.
 func (local *localFileOffsetStore) read(mq *primitive.MessageQueue, t readType) int64 {
+	result, _ := local.readWithException(mq, t)
+	return result
+}
+
+func (local *localFileOffsetStore) readWithException(mq *primitive.MessageQueue, t readType) (int64, error) {
 	switch t {
 	case _ReadFromMemory, _ReadMemoryThenStore:
 		off := readFromMemory(local.OffsetTable, mq)
 		if off >= 0 || (off == -1 && t == _ReadFromMemory) {
-			return off
+			return off, nil
 		}
 		fallthrough
 	case _ReadFromStore:
 		local.load()
-		return readFromMemory(local.OffsetTable, mq)
+		return readFromMemory(local.OffsetTable, mq), nil
 	default:
 
 	}
-	return -1
+	return -1, nil
 }
 
 func (local *localFileOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
@@ -278,24 +285,30 @@ func (r *remoteBrokerOffsetStore) remove(mq *primitive.MessageQueue) {
 	defer r.mutex.Unlock()
 
 	delete(r.OffsetTable, *mq)
-	rlog.Warning("delete mq from offset table", map[string]interface{}{
+	rlog.Info("delete mq from offset table", map[string]interface{}{
 		rlog.LogKeyConsumerGroup: r.group,
 		rlog.LogKeyMessageQueue:  mq,
 	})
 }
 
+// Deprecated: Use readWithException instead.
 func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) int64 {
+	result, _ := r.readWithException(mq, t)
+	return result
+}
+
+func (r *remoteBrokerOffsetStore) readWithException(mq *primitive.MessageQueue, t readType) (int64, error) {
 	r.mutex.RLock()
 	switch t {
 	case _ReadFromMemory, _ReadMemoryThenStore:
 		off, exist := r.OffsetTable[*mq]
 		if exist {
 			r.mutex.RUnlock()
-			return off
+			return off, nil
 		}
 		if t == _ReadFromMemory {
 			r.mutex.RUnlock()
-			return -1
+			return -1, nil
 		}
 		fallthrough
 	case _ReadFromStore:
@@ -307,20 +320,20 @@ func (r *remoteBrokerOffsetStore) read(mq *primitive.MessageQueue, t readType) i
 				rlog.LogKeyUnderlayError: err,
 			})
 			r.mutex.RUnlock()
-			return -1
+			return -1, err
 		}
-		rlog.Warning("fetch offset of mq from broker success", map[string]interface{}{
+		rlog.Info("fetch offset of mq from broker success", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: r.group,
 			rlog.LogKeyMessageQueue:  mq.String(),
 			"offset":                 off,
 		})
 		r.mutex.RUnlock()
 		r.update(mq, off, true)
-		return off
+		return off, nil
 	default:
 	}
 
-	return -1
+	return -1, nil
 }
 
 func (r *remoteBrokerOffsetStore) update(mq *primitive.MessageQueue, offset int64, increaseOnly bool) {
@@ -359,6 +372,11 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 	if err != nil {
 		return -1, err
 	}
+
+	if res.Code == internal.ResQueryNotFound {
+		return -1, nil
+	}
+
 	if res.Code != internal.ResSuccess {
 		return -2, fmt.Errorf("broker response code: %d, remarks: %s", res.Code, res.Remark)
 	}

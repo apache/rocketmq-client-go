@@ -19,22 +19,26 @@ package rlog
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	LogKeyProducerGroup    = "producerGroup"
-	LogKeyConsumerGroup    = "consumerGroup"
-	LogKeyTopic            = "topic"
-	LogKeyMessageQueue     = "MessageQueue"
-	LogKeyUnderlayError    = "underlayError"
-	LogKeyBroker           = "broker"
-	LogKeyValueChangedFrom = "changedFrom"
-	LogKeyValueChangedTo   = "changeTo"
-	LogKeyPullRequest      = "PullRequest"
-	LogKeyTimeStamp        = "timestamp"
+	LogKeyProducerGroup        = "producerGroup"
+	LogKeyConsumerGroup        = "consumerGroup"
+	LogKeyTopic                = "topic"
+	LogKeyMessageQueue         = "MessageQueue"
+	LogKeyAllocateMessageQueue = "AllocateMessageQueue"
+	LogKeyUnderlayError        = "underlayError"
+	LogKeyBroker               = "broker"
+	LogKeyValueChangedFrom     = "changedFrom"
+	LogKeyValueChangedTo       = "changeTo"
+	LogKeyPullRequest          = "PullRequest"
+	LogKeyTimeStamp            = "timestamp"
 )
 
 type Logger interface {
@@ -123,14 +127,49 @@ func (l *defaultLogger) Level(level string) {
 	}
 }
 
-func (l *defaultLogger) OutputPath(path string) (err error) {
-	var file *os.File
-	file, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return
-	}
+type Config struct {
+	OutputPath    string
+	MaxFileSizeMB int
+	MaxBackups    int
+	MaxAges       int
+	Compress      bool
+	LocalTime     bool
+}
 
-	l.logger.Out = file
+func (c *Config) Logger() *lumberjack.Logger {
+	return &lumberjack.Logger{
+		Filename:   filepath.ToSlash(c.OutputPath),
+		MaxSize:    c.MaxFileSizeMB, // MB
+		MaxBackups: c.MaxBackups,
+		MaxAge:     c.MaxAges,  // days
+		Compress:   c.Compress, // disabled by default
+		LocalTime:  c.LocalTime,
+	}
+}
+
+const defaultLogPath = "/tmp/rocketmq-client.log"
+
+func defaultConfig() Config {
+	return Config{
+		OutputPath:    defaultLogPath,
+		MaxFileSizeMB: 10,
+		MaxBackups:    5,
+		MaxAges:       3,
+		Compress:      false,
+		LocalTime:     true,
+	}
+}
+
+func (l *defaultLogger) Config(conf Config) (err error) {
+	l.logger.Out = conf.Logger()
+	return
+}
+
+func (l *defaultLogger) OutputPath(path string) (err error) {
+	config := defaultConfig()
+	config.OutputPath = path
+
+	l.logger.Out = config.Logger()
 	return
 }
 
@@ -138,6 +177,7 @@ func (l *defaultLogger) OutputPath(path string) (err error) {
 func SetLogger(logger Logger) {
 	rLog = logger
 }
+
 func SetLogLevel(level string) {
 	if level == "" {
 		return

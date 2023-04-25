@@ -18,8 +18,10 @@ limitations under the License.
 package consumer
 
 import (
+	"strings"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 )
@@ -106,6 +108,14 @@ type consumerOptions struct {
 	RebalanceLockInterval time.Duration
 
 	Resolver primitive.NsResolver
+
+	ConsumeGoroutineNums int
+
+	filterMessageHooks []hooks.FilterMessageHook
+
+	Limiter Limiter
+
+	TraceDispatcher internal.TraceDispatcher
 }
 
 func defaultPushConsumerOptions() consumerOptions {
@@ -118,6 +128,9 @@ func defaultPushConsumerOptions() consumerOptions {
 		ConsumerModel:              Clustering,
 		AutoCommit:                 true,
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
+		ConsumeTimestamp:           time.Now().Add(time.Minute * (-30)).Format("20060102150405"),
+		ConsumeTimeout:             15 * time.Minute,
+		ConsumeGoroutineNums:       20,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -129,6 +142,8 @@ func defaultPullConsumerOptions() consumerOptions {
 	opts := consumerOptions{
 		ClientOptions: internal.DefaultClientOptions(),
 		Resolver:      primitive.NewHttpResolver("DEFAULT"),
+		ConsumerModel: Clustering,
+		Strategy:      AllocateByAveragely,
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_CONSUMER"
 	return opts
@@ -155,6 +170,48 @@ func WithConsumerOrder(order bool) Option {
 func WithConsumeMessageBatchMaxSize(consumeMessageBatchMaxSize int) Option {
 	return func(options *consumerOptions) {
 		options.ConsumeMessageBatchMaxSize = consumeMessageBatchMaxSize
+	}
+}
+
+func WithConsumeTimestamp(consumeTimestamp string) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeTimestamp = consumeTimestamp
+	}
+}
+
+func WithConsumerPullTimeout(consumerPullTimeout time.Duration) Option {
+	return func(options *consumerOptions) {
+		options.ConsumerPullTimeout = consumerPullTimeout
+	}
+}
+
+func WithConsumeConcurrentlyMaxSpan(consumeConcurrentlyMaxSpan int) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeConcurrentlyMaxSpan = consumeConcurrentlyMaxSpan
+	}
+}
+
+func WithPullThresholdForQueue(pullThresholdForQueue int64) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdForQueue = pullThresholdForQueue
+	}
+}
+
+func WithPullThresholdSizeForQueue(pullThresholdSizeForQueue int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdSizeForQueue = pullThresholdSizeForQueue
+	}
+}
+
+func WithPullThresholdForTopic(pullThresholdForTopic int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdForTopic = pullThresholdForTopic
+	}
+}
+
+func WithPullThresholdSizeForTopic(pullThresholdSizeForTopic int) Option {
+	return func(options *consumerOptions) {
+		options.PullThresholdSizeForTopic = pullThresholdSizeForTopic
 	}
 }
 
@@ -271,6 +328,44 @@ func WithNameServer(nameServers primitive.NamesrvAddr) Option {
 // WithNameServerDomain set NameServer domain
 func WithNameServerDomain(nameServerUrl string) Option {
 	return func(opts *consumerOptions) {
-		opts.Resolver = primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+		h := primitive.NewHttpResolver("DEFAULT", nameServerUrl)
+		if opts.UnitName != "" {
+			h.DomainWithUnit(opts.UnitName)
+		}
+		opts.Resolver = h
+	}
+}
+
+// WithUnitName set the name of specified unit
+func WithUnitName(unitName string) Option {
+	return func(opts *consumerOptions) {
+		opts.UnitName = strings.TrimSpace(unitName)
+		if ns, ok := opts.Resolver.(*primitive.HttpResolver); ok {
+			ns.DomainWithUnit(opts.UnitName)
+		}
+	}
+}
+
+func WithConsumeTimeout(timeout time.Duration) Option {
+	return func(opts *consumerOptions) {
+		opts.ConsumeTimeout = timeout
+	}
+}
+
+func WithConsumeGoroutineNums(nums int) Option {
+	return func(opts *consumerOptions) {
+		opts.ConsumeGoroutineNums = nums
+	}
+}
+
+func WithFilterMessageHook(hooks []hooks.FilterMessageHook) Option {
+	return func(opts *consumerOptions) {
+		opts.filterMessageHooks = hooks
+	}
+}
+
+func WithLimiter(limiter Limiter) Option {
+	return func(opts *consumerOptions) {
+		opts.Limiter = limiter
 	}
 }

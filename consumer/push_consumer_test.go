@@ -19,8 +19,9 @@ package consumer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"testing"
+
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -80,6 +81,7 @@ func TestStart(t *testing.T) {
 
 		Convey("test topic route info not found", func() {
 			client.EXPECT().Shutdown().Return()
+			client.EXPECT().UnregisterConsumer(gomock.Any()).Return()
 			err = c.Start()
 			So(err.Error(), ShouldContainSubstring, "route info not found")
 		})

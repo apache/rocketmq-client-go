@@ -31,10 +31,20 @@ func main() {
 	nameSrvAddr := []string{"127.0.0.1:9876"}
 	brokerAddr := "127.0.0.1:10911"
 
-	testAdmin, err := admin.NewAdmin(admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)))
+	testAdmin, err := admin.NewAdmin(
+		admin.WithResolver(primitive.NewPassthroughResolver(nameSrvAddr)),
+		admin.WithCredentials(primitive.Credentials{
+			AccessKey: "RocketMQ",
+			SecretKey: "12345678",
+		}),
+	)
+
+	// topic list
+	result, err := testAdmin.FetchAllTopicList(context.Background())
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("FetchAllTopicList error:", err.Error())
 	}
+	fmt.Println(result.TopicList)
 
 	//create topic
 	err = testAdmin.CreateTopic(

@@ -212,3 +212,17 @@ func TestGetConsumeStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestNewStatsManager(t *testing.T) {
+	stats := NewStatsManager()
+
+	st := time.Now()
+	for  {
+		stats.increasePullTPS("rocketmq", "default", 1)
+		time.Sleep(500*time.Millisecond)
+		if time.Now().Sub(st) > 5*time.Minute {
+			break
+		}
+	}
+	stats.ShutDownStat()
+}

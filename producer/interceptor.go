@@ -33,16 +33,16 @@ import (
 // WithTrace support rocketmq trace: https://github.com/apache/rocketmq/wiki/RIP-6-Message-Trace.
 func WithTrace(traceCfg *primitive.TraceConfig) Option {
 	return func(options *producerOptions) {
-
+		dispatcher := internal.NewTraceDispatcher(traceCfg)
+		options.TraceDispatcher = dispatcher
 		ori := options.Interceptors
 		options.Interceptors = make([]primitive.Interceptor, 0)
-		options.Interceptors = append(options.Interceptors, newTraceInterceptor(traceCfg))
+		options.Interceptors = append(options.Interceptors, newTraceInterceptor(dispatcher))
 		options.Interceptors = append(options.Interceptors, ori...)
 	}
 }
 
-func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor {
-	dispatcher := internal.NewTraceDispatcher(traceCfg)
+func newTraceInterceptor(dispatcher internal.TraceDispatcher) primitive.Interceptor {
 	if dispatcher != nil {
 		dispatcher.Start()
 	}
@@ -52,9 +52,12 @@ func newTraceInterceptor(traceCfg *primitive.TraceConfig) primitive.Interceptor 
 			return fmt.Errorf("GetOrNewRocketMQClient faild")
 		}
 		beginT := time.Now()
+		producerCtx, ok := primitive.GetProducerCtx(ctx)
+		if !ok {
+			return fmt.Errorf("ProducerCtx Not Exist")
+		}
 		err := next(ctx, req, reply)
 
-		producerCtx := primitive.GetProducerCtx(ctx)
 		if producerCtx.Message.Topic == dispatcher.GetTraceTopicName() {
 			return err
 		}

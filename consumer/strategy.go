@@ -20,7 +20,7 @@ package consumer
 import (
 	"strings"
 
-	"github.com/stathat/consistent"
+	"stathat.com/c/consistent"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"

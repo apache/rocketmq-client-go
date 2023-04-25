@@ -43,6 +43,10 @@ func NewSet() Set {
 	}
 }
 
+func (s *Set) Items() map[string]UniqueItem {
+	return s.items
+}
+
 func (s *Set) Add(v UniqueItem) {
 	s.items[v.UniqueID()] = v
 }
@@ -98,6 +102,6 @@ func (s *Set) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func (s Set) UnmarshalJSON(data []byte) (err error) {
+func (s *Set) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }

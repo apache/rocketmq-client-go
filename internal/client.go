@@ -21,15 +21,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -37,7 +38,7 @@ import (
 )
 
 const (
-	clientVersion        = "v2.1.0"
+	clientVersion        = "v2.1.1"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
@@ -84,8 +85,9 @@ type InnerConsumer interface {
 	IsSubscribeTopicNeedUpdate(topic string) bool
 	SubscriptionDataList() []*SubscriptionData
 	Rebalance()
+	RebalanceIfNotPaused()
 	IsUnitMode() bool
-	GetConsumerRunningInfo() *ConsumerRunningInfo
+	GetConsumerRunningInfo(stack bool) *ConsumerRunningInfo
 	ConsumeMessageDirectly(msg *primitive.MessageExt, brokerName string) *ConsumeMessageDirectlyResult
 	GetcType() string
 	GetModel() string
@@ -95,27 +97,29 @@ type InnerConsumer interface {
 
 func DefaultClientOptions() ClientOptions {
 	opts := ClientOptions{
-		InstanceName: "DEFAULT",
-		RetryTimes:   3,
-		ClientIP:     utils.LocalIP,
+		InstanceName:         "DEFAULT",
+		RetryTimes:           3,
+		ClientIP:             utils.LocalIP,
+		RemotingClientConfig: &remote.DefaultRemotingClientConfig,
 	}
 	return opts
 }
 
 type ClientOptions struct {
-	GroupName         string
-	NameServerAddrs   primitive.NamesrvAddr
-	Namesrv           Namesrvs
-	ClientIP          string
-	InstanceName      string
-	UnitMode          bool
-	UnitName          string
-	VIPChannelEnabled bool
-	RetryTimes        int
-	Interceptors      []primitive.Interceptor
-	Credentials       primitive.Credentials
-	Namespace         string
-	Resolver          primitive.NsResolver
+	GroupName            string
+	NameServerAddrs      primitive.NamesrvAddr
+	Namesrv              Namesrvs
+	ClientIP             string
+	InstanceName         string
+	UnitMode             bool
+	UnitName             string
+	VIPChannelEnabled    bool
+	RetryTimes           int
+	Interceptors         []primitive.Interceptor
+	Credentials          primitive.Credentials
+	Namespace            string
+	Resolver             primitive.NsResolver
+	RemotingClientConfig *remote.RemotingClientConfig
 }
 
 func (opt *ClientOptions) ChangeInstanceNameToPID() {
@@ -158,6 +162,7 @@ type RMQClient interface {
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 
 	GetNameSrv() Namesrvs
+	RegisterACL()
 }
 
 var _ RMQClient = new(rmqClient)
@@ -177,6 +182,8 @@ type rmqClient struct {
 	rbMutex      sync.Mutex
 	done         chan struct{}
 	shutdownOnce sync.Once
+
+	instanceCount int32
 }
 
 func (c *rmqClient) GetNameSrv() Namesrvs {
@@ -188,7 +195,7 @@ var clientMap sync.Map
 func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) RMQClient {
 	client := &rmqClient{
 		option:       option,
-		remoteClient: remote.NewRemotingClient(),
+		remoteClient: remote.NewRemotingClient(option.RemotingClientConfig),
 		done:         make(chan struct{}),
 	}
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
@@ -221,7 +228,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			rlog.Info("receive broker's notification to consumer group", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: req.ExtFields["consumerGroup"],
 			})
-			client.RebalanceImmediately()
+			client.RebalanceIfNotPaused()
 			return nil
 		})
 		client.remoteClient.RegisterRequestFunc(ReqCheckTransactionState, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
@@ -268,7 +275,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				cli, ok := val.(*rmqClient)
 				var runningInfo *ConsumerRunningInfo
 				if ok {
-					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup)
+					runningInfo = cli.getConsumerRunningInfo(header.consumerGroup, header.jstackEnable)
 				}
 				if runningInfo != nil {
 					res.Code = ResSuccess
@@ -331,6 +338,46 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			client.resetOffset(header.topic, header.group, body.OffsetTable)
 			return nil
 		})
+
+		client.remoteClient.RegisterRequestFunc(ReqPushReplyMessageToClient, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			receiveTime := time.Now().UnixNano() / int64(time.Millisecond)
+			rlog.Info("receive push reply to client request...", map[string]interface{}{
+				rlog.LogKeyBroker:        addr.String(),
+				rlog.LogKeyTopic:         req.ExtFields["topic"],
+				rlog.LogKeyConsumerGroup: req.ExtFields["group"],
+				rlog.LogKeyTimeStamp:     req.ExtFields["timestamp"],
+			})
+
+			header := new(ReplyMessageRequestHeader)
+			header.Decode(req.ExtFields)
+
+			var msgExt primitive.MessageExt
+			msgExt.Topic = header.topic
+			msgExt.Queue = &primitive.MessageQueue{
+				QueueId: header.queueId,
+				Topic:   header.topic,
+			}
+			msgExt.StoreTimestamp = header.storeTimestamp
+			msgExt.BornHost = header.bornHost
+			msgExt.StoreHost = header.storeHost
+
+			body := req.Body
+			if (header.sysFlag & primitive.FlagCompressed) == primitive.FlagCompressed {
+				body = utils.UnCompress(req.Body)
+			}
+			msgExt.Body = body
+			msgExt.Flag = header.flag
+			msgExt.UnmarshalProperties([]byte(header.properties))
+			msgExt.WithProperty(primitive.PropertyReplyMessageArriveTime, strconv.FormatInt(receiveTime, 10))
+			msgExt.BornTimestamp = header.bornTimestamp
+			msgExt.ReconsumeTimes = header.reconsumeTimes
+
+			client.getReplyMessageRequest(&msgExt, header.bornHost)
+
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+			res.Code = ResSuccess
+			return res
+		})
 	}
 	return client
 }
@@ -339,6 +386,9 @@ func (c *rmqClient) Start() {
 	//ctx, cancel := context.WithCancel(context.Background())
 	//c.cancel = cancel
 	c.once.Do(func() {
+
+		atomic.AddInt32(&c.instanceCount, 1)
+
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
@@ -450,7 +500,7 @@ func (c *rmqClient) Start() {
 			for {
 				select {
 				case <-ticker.C:
-					c.RebalanceImmediately()
+					c.RebalanceIfNotPaused()
 				case <-c.done:
 					rlog.Info("The RMQClient stopping do rebalance", map[string]interface{}{
 						"clientID": c.ClientID(),
@@ -470,6 +520,10 @@ func (c *rmqClient) removeClient() {
 }
 
 func (c *rmqClient) Shutdown() {
+	if atomic.AddInt32(&c.instanceCount, -1) > 0 {
+		return
+	}
+
 	c.shutdownOnce.Do(func() {
 		close(c.done)
 		c.close = true
@@ -552,7 +606,9 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 		return true
 	})
 	if hbData.ProducerDatas.Len() == 0 && hbData.ConsumerDatas.Len() == 0 {
-		rlog.Info("sending heartbeat, but no producer and no consumer", nil)
+		rlog.Info("sending heartbeat, but no producer and no consumer", map[string]interface{}{
+			"clientId": hbData.ClientId,
+		})
 		return
 	}
 	c.GetNameSrv().(*namesrvs).brokerAddressesMap.Range(func(key, value interface{}) bool {
@@ -597,6 +653,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerId":     id,
 					"brokerAddr":   addr,
 					"responseCode": response.Code,
+					"remark":       response.Remark,
 				})
 			}
 		}
@@ -647,8 +704,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		status = primitive.SendUnknownError
-		return errors.New(cmd.Remark)
+		return errors.New(fmt.Sprintf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark))
 	}
 
 	msgIDs := make([]string, 0)
@@ -757,10 +813,14 @@ func (c *rmqClient) UnregisterConsumer(group string) {
 }
 
 func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) error {
-	_, loaded := c.producerMap.LoadOrStore(group, producer)
-	if loaded {
-		return fmt.Errorf("the producer group \"%s\" has been created, specify another one", c.option.GroupName)
+	_, exist := c.producerMap.Load(group)
+	if exist {
+		rlog.Warning("the producer group exist already", map[string]interface{}{
+			rlog.LogKeyProducerGroup: group,
+		})
+		return fmt.Errorf("the producer group exist already")
 	}
+	c.producerMap.Store(group, producer)
 	return nil
 }
 
@@ -774,6 +834,16 @@ func (c *rmqClient) RebalanceImmediately() {
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
 		consumer.Rebalance()
+		return true
+	})
+}
+
+func (c *rmqClient) RebalanceIfNotPaused() {
+	c.rbMutex.Lock()
+	defer c.rbMutex.Unlock()
+	c.consumerMap.Range(func(key, value interface{}) bool {
+		consumer := value.(InnerConsumer)
+		consumer.RebalanceIfNotPaused()
 		return true
 	})
 }
@@ -838,16 +908,28 @@ func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[prim
 	consumer.(InnerConsumer).ResetOffset(topic, offsetTable)
 }
 
-func (c *rmqClient) getConsumerRunningInfo(group string) *ConsumerRunningInfo {
+func (c *rmqClient) getConsumerRunningInfo(group string, stack bool) *ConsumerRunningInfo {
 	consumer, exist := c.consumerMap.Load(group)
 	if !exist {
 		return nil
 	}
-	info := consumer.(InnerConsumer).GetConsumerRunningInfo()
+	info := consumer.(InnerConsumer).GetConsumerRunningInfo(stack)
 	if info != nil {
 		info.Properties[PropClientVersion] = clientVersion
 	}
 	return info
+}
+
+func (c *rmqClient) getReplyMessageRequest(msg *primitive.MessageExt, bornHost string) {
+	correlationId := msg.GetProperty(primitive.PropertyCorrelationID)
+	if err := RequestResponseFutureMap.SetResponseToRequestResponseFuture(correlationId, &msg.Message); err != nil {
+		rlog.Warning("receive reply message, but not matched any request", map[string]interface{}{
+			"CorrelationId": correlationId,
+			"ReplyHost":     bornHost,
+		})
+		return
+	}
+	RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 }
 
 func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group string, brokerName string) *ConsumeMessageDirectlyResult {
@@ -857,6 +939,12 @@ func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group stri
 	}
 	res := consumer.(InnerConsumer).ConsumeMessageDirectly(msg, brokerName)
 	return res
+}
+
+func (c *rmqClient) RegisterACL() {
+	if !c.option.Credentials.IsEmpty() {
+		c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+	}
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {

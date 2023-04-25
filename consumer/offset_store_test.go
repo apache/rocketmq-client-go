@@ -98,7 +98,7 @@ func TestLocalFileOffsetStore(t *testing.T) {
 				}
 				for _, value := range cases {
 					localStore.update(value.queue, value.setOffset, false)
-					offset := localStore.read(value.queue, _ReadFromMemory)
+					offset, _ := localStore.readWithException(value.queue, _ReadFromMemory)
 					So(offset, ShouldEqual, value.expectedOffset)
 				}
 			})
@@ -119,7 +119,7 @@ func TestLocalFileOffsetStore(t *testing.T) {
 				}
 				for _, value := range cases {
 					localStore.update(value.queue, value.setOffset, true)
-					offset := localStore.read(value.queue, _ReadFromMemory)
+					offset, _ := localStore.readWithException(value.queue, _ReadFromMemory)
 					So(offset, ShouldEqual, value.expectedOffset)
 				}
 			})
@@ -127,16 +127,16 @@ func TestLocalFileOffsetStore(t *testing.T) {
 
 		Convey("test persist", func() {
 			localStore.update(mq, 1, false)
-			offset := localStore.read(mq, _ReadFromMemory)
+			offset, _ := localStore.readWithException(mq, _ReadFromMemory)
 			So(offset, ShouldEqual, 1)
 
 			queues := []*primitive.MessageQueue{mq}
 			localStore.persist(queues)
-			offset = localStore.read(mq, _ReadFromStore)
+			offset, _ = localStore.readWithException(mq, _ReadFromStore)
 			So(offset, ShouldEqual, 1)
 
 			localStore.(*localFileOffsetStore).OffsetTable.Delete(MessageQueueKey(*mq))
-			offset = localStore.read(mq, _ReadMemoryThenStore)
+			offset, _ = localStore.readWithException(mq, _ReadMemoryThenStore)
 			So(offset, ShouldEqual, 1)
 		})
 	})
@@ -178,7 +178,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 				}
 				for _, value := range cases {
 					remoteStore.update(value.queue, value.setOffset, false)
-					offset := remoteStore.read(value.queue, _ReadFromMemory)
+					offset, _ := remoteStore.readWithException(value.queue, _ReadFromMemory)
 					So(offset, ShouldEqual, value.expectedOffset)
 				}
 			})
@@ -199,7 +199,7 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 				}
 				for _, value := range cases {
 					remoteStore.update(value.queue, value.setOffset, true)
-					offset := remoteStore.read(value.queue, _ReadFromMemory)
+					offset, _ := remoteStore.readWithException(value.queue, _ReadFromMemory)
 					So(offset, ShouldEqual, value.expectedOffset)
 				}
 			})
@@ -219,24 +219,24 @@ func TestRemoteBrokerOffsetStore(t *testing.T) {
 			rmqClient.EXPECT().InvokeSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(ret, nil).MaxTimes(2)
 
 			remoteStore.persist(queues)
-			offset := remoteStore.read(mq, _ReadFromStore)
+			offset, _ := remoteStore.readWithException(mq, _ReadFromStore)
 			So(offset, ShouldEqual, 1)
 
 			remoteStore.remove(mq)
-			offset = remoteStore.read(mq, _ReadFromMemory)
+			offset, _ = remoteStore.readWithException(mq, _ReadFromMemory)
 			So(offset, ShouldEqual, -1)
-			offset = remoteStore.read(mq, _ReadMemoryThenStore)
+			offset, _ = remoteStore.readWithException(mq, _ReadMemoryThenStore)
 			So(offset, ShouldEqual, 1)
 
 		})
 
 		Convey("test remove", func() {
 			remoteStore.update(mq, 1, false)
-			offset := remoteStore.read(mq, _ReadFromMemory)
+			offset, _ := remoteStore.readWithException(mq, _ReadFromMemory)
 			So(offset, ShouldEqual, 1)
 
 			remoteStore.remove(mq)
-			offset = remoteStore.read(mq, _ReadFromMemory)
+			offset, _ = remoteStore.readWithException(mq, _ReadFromMemory)
 			So(offset, ShouldEqual, -1)
 		})
 	})

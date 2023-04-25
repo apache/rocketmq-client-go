@@ -91,11 +91,11 @@ func (s *consumeSnapshots) printStati() {
 	s.RUnlock()
 
 	rlog.Info("Benchmark Consumer Snapshot", map[string]interface{}{
-		"consumeTPS": int64(consumeTps),
+		"consumeTPS":     int64(consumeTps),
 		"average(B2C)RT": avgB2CRT,
 		"average(S2C)RT": avgS2CRT,
-		"max(B2C)RT": l.born2ConsumerMaxRT,
-		"max(S2C)RT": l.store2ConsumerMaxRT,
+		"max(B2C)RT":     l.born2ConsumerMaxRT,
+		"max(S2C)RT":     l.store2ConsumerMaxRT,
 	})
 }
 

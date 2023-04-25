@@ -169,7 +169,12 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 			buffer.WriteRune(contentSplitter)
 			buffer.WriteString(strconv.FormatInt(ctx.TimeStamp, 10))
 			buffer.WriteRune(contentSplitter)
-			buffer.WriteString(ctx.GroupName)
+			ss := strings.Split(ctx.GroupName, "%")
+			if len(ss) == 2 {
+				buffer.WriteString(ss[1])
+			} else {
+				buffer.WriteString(ctx.GroupName)
+			}
 			buffer.WriteRune(fieldSplitter)
 		}
 	}
@@ -256,9 +261,9 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	var srvs *namesrvs
 	var err error
 	if len(traceCfg.NamesrvAddrs) > 0 {
-		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs))
+		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs), nil)
 	} else {
-		srvs, err = NewNamesrv(traceCfg.Resolver)
+		srvs, err = NewNamesrv(traceCfg.Resolver, nil)
 	}
 
 	if err != nil {
@@ -300,8 +305,11 @@ func (td *traceDispatcher) GetTraceTopicName() string {
 func (td *traceDispatcher) Start() {
 	td.running = true
 	td.cli.Start()
+	maxWaitDuration := 5 * time.Millisecond
+	td.ticker = time.NewTicker(maxWaitDuration)
+	maxWaitTime := maxWaitDuration.Nanoseconds()
 	go primitive.WithRecover(func() {
-		td.process()
+		td.process(maxWaitTime)
 	})
 }
 
@@ -329,12 +337,9 @@ func (td *traceDispatcher) Append(ctx TraceContext) bool {
 }
 
 // process
-func (td *traceDispatcher) process() {
+func (td *traceDispatcher) process(maxWaitTime int64) {
 	var count int
 	var batch []TraceContext
-	maxWaitDuration := 5 * time.Millisecond
-	maxWaitTime := maxWaitDuration.Nanoseconds()
-	td.ticker = time.NewTicker(maxWaitDuration)
 	lastput := time.Now()
 	for {
 		select {
@@ -377,6 +382,7 @@ func (td *traceDispatcher) process() {
 				runtime.Gosched()
 			}
 			rlog.Info(fmt.Sprintf("------end trace send %v %v", td.input, td.batchCh), nil)
+			return
 		}
 	}
 }
@@ -463,8 +469,8 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 
 	var req = td.buildSendRequest(mq, msg)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
+		cancel()
 		resp := primitive.NewSendResult()
 		if e != nil {
 			rlog.Info("send trace data error.", map[string]interface{}{
@@ -479,6 +485,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 		}
 	})
 	if err != nil {
+		cancel()
 		rlog.Info("send trace data error when invoke", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})

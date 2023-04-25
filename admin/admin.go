@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -32,9 +33,11 @@ import (
 type Admin interface {
 	CreateTopic(ctx context.Context, opts ...OptionCreate) error
 	DeleteTopic(ctx context.Context, opts ...OptionDelete) error
-	//TODO
-	//TopicList(ctx context.Context, mq *primitive.MessageQueue) (*remote.RemotingCommand, error)
+
+	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
+	FetchAllTopicList(ctx context.Context) (*TopicList, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
 }
 
@@ -61,6 +64,19 @@ func WithResolver(resolver primitive.NsResolver) AdminOption {
 	}
 }
 
+func WithCredentials(c primitive.Credentials) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Credentials = c
+	}
+}
+
+// WithNamespace set the namespace of admin
+func WithNamespace(namespace string) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.Namespace = namespace
+	}
+}
+
 type admin struct {
 	cli internal.RMQClient
 
@@ -70,12 +86,12 @@ type admin struct {
 }
 
 // NewAdmin initialize admin
-func NewAdmin(opts ...AdminOption) (Admin, error) {
+func NewAdmin(opts ...AdminOption) (*admin, error) {
 	defaultOpts := defaultAdminOptions()
 	for _, opt := range opts {
 		opt(defaultOpts)
 	}
-	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver)
+	namesrv, err := internal.NewNamesrv(defaultOpts.Resolver, defaultOpts.RemotingClientConfig)
 	defaultOpts.Namesrv = namesrv
 	if err != nil {
 		return nil, err
@@ -91,6 +107,51 @@ func NewAdmin(opts ...AdminOption) (Admin, error) {
 		cli:  cli,
 		opts: defaultOpts,
 	}, nil
+}
+
+func (a *admin) GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetAllSubscriptionGroupConfig, nil, nil)
+	a.cli.RegisterACL()
+	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, timeoutMillis)
+	if err != nil {
+		rlog.Error("Get all group list error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	} else {
+		rlog.Info("Get all group list success", map[string]interface{}{})
+	}
+	var subscriptionGroupWrapper SubscriptionGroupWrapper
+	_, err = subscriptionGroupWrapper.Decode(response.Body, &subscriptionGroupWrapper)
+	if err != nil {
+		rlog.Error("Get all group list decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &subscriptionGroupWrapper, nil
+}
+
+func (a *admin) FetchAllTopicList(ctx context.Context) (*TopicList, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetAllTopicListFromNameServer, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, a.cli.GetNameSrv().AddrList()[0], cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Fetch all topic list error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	} else {
+		rlog.Info("Fetch all topic list success", map[string]interface{}{})
+	}
+	var topicList TopicList
+	_, err = topicList.Decode(response.Body, &topicList)
+	if err != nil {
+		rlog.Error("Fetch all topic list decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &topicList, nil
 }
 
 // CreateTopic create topic.
@@ -200,6 +261,10 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		rlog.LogKeyBroker: cfg.BrokerAddr,
 	})
 	return nil
+}
+
+func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
+	return a.cli.GetNameSrv().FetchPublishMessageQueues(utils.WrapNamespace(a.opts.Namespace, topic))
 }
 
 func (a *admin) Close() error {

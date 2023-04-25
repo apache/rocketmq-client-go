@@ -168,6 +168,7 @@ func WithProducerCtx(ctx context.Context, c *ProducerCtx) context.Context {
 	return context.WithValue(ctx, producerCtx, c)
 }
 
-func GetProducerCtx(ctx context.Context) *ProducerCtx {
-	return ctx.Value(producerCtx).(*ProducerCtx)
+func GetProducerCtx(ctx context.Context) (*ProducerCtx, bool) {
+	c, exist := ctx.Value(producerCtx).(*ProducerCtx)
+	return c, exist
 }

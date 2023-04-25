@@ -134,9 +134,7 @@ func (mgr *StatsManager) getConsumeFailedTPS(group, topic string) statsSnapshot 
 	return mgr.topicAndGroupConsumeFailedTPS.getStatsDataInMinute(topic + "@" + group)
 }
 
-var csListLock sync.Mutex
-
-func computeStatsData(csList *list.List) statsSnapshot {
+func computeStatsData(csListLock *sync.Mutex, csList *list.List) statsSnapshot {
 	csListLock.Lock()
 	defer csListLock.Unlock()
 	tps, avgpt, sum := 0.0, 0.0, int64(0)
@@ -362,15 +360,15 @@ type statsItem struct {
 }
 
 func (si *statsItem) getStatsDataInMinute() statsSnapshot {
-	return computeStatsData(si.csListMinute)
+	return computeStatsData(&si.csListMinuteLock, si.csListMinute)
 }
 
 func (si *statsItem) getStatsDataInHour() statsSnapshot {
-	return computeStatsData(si.csListHour)
+	return computeStatsData(&si.csListHourLock, si.csListHour)
 }
 
 func (si *statsItem) getStatsDataInDay() statsSnapshot {
-	return computeStatsData(si.csListDay)
+	return computeStatsData(&si.csListDayLock, si.csListDay)
 }
 
 func newStatsItem(statsName, statsKey string) *statsItem {
@@ -423,8 +421,8 @@ func (si *statsItem) samplingInHour() {
 }
 
 func (si *statsItem) printAtMinutes() {
-	ss := computeStatsData(si.csListMinute)
-	rlog.Info("Stats In One Minute, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	ss := computeStatsData(&si.csListMinuteLock, si.csListMinute)
+	rlog.Info("Stats In One Minute.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,
@@ -434,8 +432,8 @@ func (si *statsItem) printAtMinutes() {
 }
 
 func (si *statsItem) printAtHour() {
-	ss := computeStatsData(si.csListHour)
-	rlog.Info("Stats In One Hour, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	ss := computeStatsData(&si.csListHourLock, si.csListHour)
+	rlog.Info("Stats In One Hour.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,
@@ -445,8 +443,8 @@ func (si *statsItem) printAtHour() {
 }
 
 func (si *statsItem) printAtDay() {
-	ss := computeStatsData(si.csListDay)
-	rlog.Info("Stats In One Day, SUM: %d TPS:  AVGPT: %.2f", map[string]interface{}{
+	ss := computeStatsData(&si.csListDayLock, si.csListDay)
+	rlog.Info("Stats In One Day.", map[string]interface{}{
 		"statsName": si.statsName,
 		"statsKey":  si.statsKey,
 		"SUM":       ss.sum,

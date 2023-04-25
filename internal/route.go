@@ -40,7 +40,7 @@ import (
 const (
 	EnvNameServerAddr = "NAMESRV_ADDR"
 
-	requestTimeout   = 3 * time.Second
+	requestTimeout   = 6 * time.Second
 	defaultTopic     = "TBW102"
 	defaultQueueNums = 4
 	MasterId         = int64(0)
@@ -110,6 +110,14 @@ func (info *TopicPublishInfo) fetchQueueIndex() int {
 
 func (s *namesrvs) UpdateTopicRouteInfo(topic string) (*TopicRouteData, bool, error) {
 	return s.UpdateTopicRouteInfoWithDefault(topic, "", 0)
+}
+
+func (s *namesrvs) CheckTopicRouteHasTopic(topic string) bool {
+	_, err := s.queryTopicRouteInfoFromServer(topic)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error) {
@@ -550,7 +558,8 @@ func (routeData *TopicRouteData) decode(data string) error {
 				if i < 0 {
 					continue
 				}
-				id, _ := strconv.ParseInt(str[0:i], 10, 64)
+				brokerId := strings.ReplaceAll(str[0:i], "\"", "")
+				id, _ := strconv.ParseInt(brokerId, 10, 64)
 				bd.BrokerAddresses[id] = strings.Replace(str[i+1:], "\"", "", -1)
 			}
 		}

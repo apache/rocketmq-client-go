@@ -428,3 +428,8 @@ func (m *MockRMQClient) UpdatePublishInfo(topic string, data *TopicRouteData, ch
 func (mr *MockRMQClientMockRecorder) UpdatePublishInfo(topic, data, changed interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePublishInfo", reflect.TypeOf((*MockRMQClient)(nil).UpdatePublishInfo), topic, data, changed)
 }
+
+// RegisterACL mocks base method
+func (m *MockRMQClient) RegisterACL() {
+	m.ctrl.Call(m, "RegisterACL")
+}
