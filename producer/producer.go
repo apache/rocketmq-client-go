@@ -492,16 +492,18 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	}
 
 	req := &internal.SendMessageRequestHeader{
-		ProducerGroup:  p.group,
-		Topic:          mq.Topic,
-		QueueId:        mq.QueueId,
-		SysFlag:        sysFlag,
-		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
-		Flag:           msg.Flag,
-		Properties:     msg.MarshallProperties(),
-		ReconsumeTimes: 0,
-		UnitMode:       p.options.UnitMode,
-		Batch:          msg.Batch,
+		ProducerGroup:         p.group,
+		Topic:                 mq.Topic,
+		QueueId:               mq.QueueId,
+		SysFlag:               sysFlag,
+		BornTimestamp:         time.Now().UnixNano() / int64(time.Millisecond),
+		Flag:                  msg.Flag,
+		Properties:            msg.MarshallProperties(),
+		ReconsumeTimes:        0,
+		UnitMode:              p.options.UnitMode,
+		Batch:                 msg.Batch,
+		DefaultTopic:          p.options.CreateTopicKey,
+		DefaultTopicQueueNums: p.options.DefaultTopicQueueNums,
 	}
 
 	msgType := msg.GetProperty(primitive.PropertyMsgType)
