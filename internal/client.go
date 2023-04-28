@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -385,10 +384,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 func (c *rmqClient) Start() {
 	//ctx, cancel := context.WithCancel(context.Background())
 	//c.cancel = cancel
+	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
-
-		atomic.AddInt32(&c.instanceCount, 1)
-
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
@@ -704,7 +701,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		return errors.New(fmt.Sprintf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark))
+		return fmt.Errorf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark)
 	}
 
 	msgIDs := make([]string, 0)
