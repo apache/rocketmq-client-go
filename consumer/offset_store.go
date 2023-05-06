@@ -59,6 +59,7 @@ type OffsetStore interface {
 	read(mq *primitive.MessageQueue, t readType) int64
 	readWithException(mq *primitive.MessageQueue, t readType) (int64, error)
 	update(mq *primitive.MessageQueue, offset int64, increaseOnly bool)
+	getMQOffsetMap(topic string) map[primitive.MessageQueue]int64
 }
 
 type OffsetSerializeWrapper struct {
@@ -228,6 +229,18 @@ func (local *localFileOffsetStore) remove(mq *primitive.MessageQueue) {
 	// nothing to do
 }
 
+func (local *localFileOffsetStore) getMQOffsetMap(topic string) map[primitive.MessageQueue]int64 {
+	copyOffsetTable := make(map[primitive.MessageQueue]int64)
+	local.OffsetTable.Range(func(key, value interface{}) bool {
+		if key.(MessageQueueKey).Topic != topic {
+			return true
+		}
+		copyOffsetTable[primitive.MessageQueue(key.(MessageQueueKey))] = value.(int64)
+		return true
+	})
+	return copyOffsetTable
+}
+
 type remoteBrokerOffsetStore struct {
 	group       string
 	OffsetTable map[primitive.MessageQueue]int64 `json:"OffsetTable"`
@@ -351,6 +364,17 @@ func (r *remoteBrokerOffsetStore) update(mq *primitive.MessageQueue, offset int6
 	} else {
 		r.OffsetTable[*mq] = offset
 	}
+}
+
+func (r *remoteBrokerOffsetStore) getMQOffsetMap(topic string) map[primitive.MessageQueue]int64 {
+	copyOffsetTable := make(map[primitive.MessageQueue]int64)
+	for mq, offset := range r.OffsetTable {
+		if mq.Topic != topic {
+			continue
+		}
+		copyOffsetTable[mq] = offset
+	}
+	return copyOffsetTable
 }
 
 func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq *primitive.MessageQueue) (int64, error) {
