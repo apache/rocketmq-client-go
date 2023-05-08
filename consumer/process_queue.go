@@ -125,7 +125,8 @@ func (pq *processQueue) putMessage(messages ...*primitive.MessageExt) {
 		select {
 		case <-pq.closeChan:
 			return
-		case pq.msgCh <- messages:
+		default:
+			pq.msgCh <- messages
 		}
 	}
 
@@ -293,8 +294,8 @@ func (pq *processQueue) getMessages() []*primitive.MessageExt {
 	select {
 	case <-pq.closeChan:
 		return nil
-	case mq := <-pq.msgCh:
-		return mq
+	default:
+		return <-pq.msgCh
 	}
 }
 

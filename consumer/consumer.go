@@ -297,10 +297,6 @@ func (dc *defaultConsumer) shutdown() error {
 		k := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
 		pq.WithDropped(true)
-		// close msg channel using RWMutex to make sure no data was writing
-		pq.mutex.Lock()
-		close(pq.msgCh)
-		pq.mutex.Unlock()
 		mqs = append(mqs, &k)
 		return true
 	})

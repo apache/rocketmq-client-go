@@ -643,6 +643,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 	NEXT:
 		select {
 		case <-pc.done:
+			close(pq.msgCh)
 			rlog.Info("push consumer close message handle.", map[string]interface{}{
 				rlog.LogKeyConsumerGroup: pc.consumerGroup,
 			})
