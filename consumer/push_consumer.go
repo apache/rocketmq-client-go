@@ -614,11 +614,11 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.ConsumeGoroutineNums < 1 || pc.option.ConsumeGoroutineNums > 1000 {
+	if pc.option.ConsumeGoroutineNums < 1 || pc.option.ConsumeGoroutineNums > 100000 {
 		if pc.option.ConsumeGoroutineNums == 0 {
 			pc.option.ConsumeGoroutineNums = 20
 		} else {
-			return errors.New("option.ConsumeGoroutineNums out of range [1, 1000]")
+			return errors.New("option.ConsumeGoroutineNums out of range [1, 100000]")
 		}
 	}
 	return nil
