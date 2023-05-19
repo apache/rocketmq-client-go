@@ -56,7 +56,7 @@ func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primiti
 	fmt.Printf("%v msg transactionID : %v\n", time.Now(), msg.TransactionId)
 	v, existed := dl.localTrans.Load(msg.TransactionId)
 	if !existed {
-		fmt.Printf("unknow msg: %v, return Commit", msg)
+		fmt.Printf("unknown msg: %v, return Commit", msg)
 		return primitive.CommitMessageState
 	}
 	state := v.(primitive.LocalTransactionState)
@@ -68,7 +68,7 @@ func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primiti
 		fmt.Printf("checkLocalTransaction ROLLBACK_MESSAGE: %v\n", msg)
 		return primitive.RollbackMessageState
 	case 3:
-		fmt.Printf("checkLocalTransaction unknow: %v\n", msg)
+		fmt.Printf("checkLocalTransaction unknown: %v\n", msg)
 		return primitive.UnkonwnState
 	default:
 		fmt.Printf("checkLocalTransaction default COMMIT_MESSAGE: %v\n", msg)
