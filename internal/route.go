@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -27,6 +26,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
@@ -575,13 +576,9 @@ func (routeData *TopicRouteData) clone() *TopicRouteData {
 		BrokerDataList: make([]*BrokerData, len(routeData.BrokerDataList)),
 	}
 
-	for index, value := range routeData.QueueDataList {
-		cloned.QueueDataList[index] = value
-	}
+	copy(cloned.QueueDataList, routeData.QueueDataList)
 
-	for index, value := range routeData.BrokerDataList {
-		cloned.BrokerDataList[index] = value
-	}
+	copy(cloned.BrokerDataList, routeData.BrokerDataList)
 
 	return cloned
 }
