@@ -21,10 +21,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -274,7 +275,7 @@ func (info ConsumerRunningInfo) Encode() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		dataV, err := json.Marshal(info.MQTable[keys[idx]])
+		dataV, _ := json.Marshal(info.MQTable[keys[idx]])
 		tableJson = fmt.Sprintf("%s,%s:%s", tableJson, string(dataK), string(dataV))
 	}
 	tableJson = strings.TrimLeft(tableJson, ",")
@@ -328,7 +329,7 @@ func (status ConsumerStatus) Encode() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		dataV, err := json.Marshal(status.MQOffsetMap[keys[idx]])
+		dataV, _ := json.Marshal(status.MQOffsetMap[keys[idx]])
 		mapJson = fmt.Sprintf("%s,%s:%s", mapJson, string(dataK), string(dataV))
 	}
 	mapJson = strings.TrimLeft(mapJson, ",")
@@ -467,7 +468,7 @@ func parseFastJsonFormat(body []byte) map[primitive.MessageQueue]int64 {
 
 		var err error
 		// ignore err for now
-		offset, err := strconv.Atoi(tuple[1])
+		offset, _ := strconv.Atoi(tuple[1])
 
 		var queue primitive.MessageQueue
 		err = json.Unmarshal([]byte(queueStr), &queue)
