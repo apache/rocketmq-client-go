@@ -26,15 +26,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
-
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 type defaultProducer struct {
@@ -157,7 +156,7 @@ func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
 }
 
 func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Duration) (string, error) {
-	correlationId := uuid.NewV4().String()
+	correlationId := uuid.New().String()
 	requestClientId := p.client.ClientID()
 	msg.WithProperty(primitive.PropertyCorrelationID, correlationId)
 	msg.WithProperty(primitive.PropertyMessageReplyToClient, requestClientId)
@@ -373,13 +372,18 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
 		cancel()
-		resp := primitive.NewSendResult()
 		if err != nil {
 			h(ctx, nil, err)
-		} else {
-			p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
-			h(ctx, resp, nil)
 		}
+
+		resp := primitive.NewSendResult()
+		err = p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+		if err != nil {
+			h(ctx, nil, err)
+			return
+		}
+
+		h(ctx, resp, nil)
 	})
 
 	if err != nil {
@@ -488,16 +492,18 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 	}
 
 	req := &internal.SendMessageRequestHeader{
-		ProducerGroup:  p.group,
-		Topic:          mq.Topic,
-		QueueId:        mq.QueueId,
-		SysFlag:        sysFlag,
-		BornTimestamp:  time.Now().UnixNano() / int64(time.Millisecond),
-		Flag:           msg.Flag,
-		Properties:     msg.MarshallProperties(),
-		ReconsumeTimes: 0,
-		UnitMode:       p.options.UnitMode,
-		Batch:          msg.Batch,
+		ProducerGroup:         p.group,
+		Topic:                 mq.Topic,
+		QueueId:               mq.QueueId,
+		SysFlag:               sysFlag,
+		BornTimestamp:         time.Now().UnixNano() / int64(time.Millisecond),
+		Flag:                  msg.Flag,
+		Properties:            msg.MarshallProperties(),
+		ReconsumeTimes:        0,
+		UnitMode:              p.options.UnitMode,
+		Batch:                 msg.Batch,
+		DefaultTopic:          p.options.CreateTopicKey,
+		DefaultTopicQueueNums: p.options.DefaultTopicQueueNums,
 	}
 
 	msgType := msg.GetProperty(primitive.PropertyMsgType)

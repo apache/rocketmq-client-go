@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -38,7 +37,7 @@ import (
 )
 
 const (
-	clientVersion        = "v2.1.0"
+	clientVersion        = "v2.1.1"
 	defaultTraceRegionID = "DefaultRegion"
 
 	// tracing message switch
@@ -93,6 +92,7 @@ type InnerConsumer interface {
 	GetModel() string
 	GetWhere() string
 	ResetOffset(topic string, table map[primitive.MessageQueue]int64)
+	GetConsumerStatus(topic string) *ConsumerStatus
 }
 
 func DefaultClientOptions() ClientOptions {
@@ -162,6 +162,7 @@ type RMQClient interface {
 	UpdatePublishInfo(topic string, data *TopicRouteData, changed bool)
 
 	GetNameSrv() Namesrvs
+	RegisterACL()
 }
 
 var _ RMQClient = new(rmqClient)
@@ -377,6 +378,32 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			res.Code = ResSuccess
 			return res
 		})
+
+		client.remoteClient.RegisterRequestFunc(ReqGetConsumerStatsFromClient, func(req *remote.RemotingCommand, addr net.Addr) *remote.RemotingCommand {
+			rlog.Info("receive get consumer status from client request...", map[string]interface{}{
+				rlog.LogKeyBroker:        addr.String(),
+				rlog.LogKeyTopic:         req.ExtFields["topic"],
+				rlog.LogKeyConsumerGroup: req.ExtFields["group"],
+			})
+
+			header := new(GetConsumerStatusRequestHeader)
+			header.Decode(req.ExtFields)
+			res := remote.NewRemotingCommand(ResError, nil, nil)
+
+			consumerStatus := client.getConsumerStatus(header.topic, header.group)
+			if consumerStatus != nil {
+				res.Code = ResSuccess
+				data, err := consumerStatus.Encode()
+				if err != nil {
+					res.Remark = fmt.Sprintf("Failed to encode consumer status: %s", err.Error())
+				} else {
+					res.Body = data
+				}
+			} else {
+				res.Remark = "there is unexpected error when get consumer status, please check log"
+			}
+			return res
+		})
 	}
 	return client
 }
@@ -384,10 +411,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 func (c *rmqClient) Start() {
 	//ctx, cancel := context.WithCancel(context.Background())
 	//c.cancel = cancel
+	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
-
-		atomic.AddInt32(&c.instanceCount, 1)
-
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
 		}
@@ -652,6 +677,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 					"brokerId":     id,
 					"brokerAddr":   addr,
 					"responseCode": response.Code,
+					"remark":       response.Remark,
 				})
 			}
 		}
@@ -660,19 +686,17 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 }
 
 func (c *rmqClient) UpdateTopicRouteInfo() {
+	allTopics := make(map[string]bool, 0)
 	publishTopicSet := make(map[string]bool, 0)
 	c.producerMap.Range(func(key, value interface{}) bool {
 		producer := value.(InnerProducer)
 		list := producer.PublishTopicList()
 		for idx := range list {
 			publishTopicSet[list[idx]] = true
+			allTopics[list[idx]] = true
 		}
 		return true
 	})
-	for topic := range publishTopicSet {
-		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
-		c.UpdatePublishInfo(topic, data, changed)
-	}
 
 	subscribedTopicSet := make(map[string]bool, 0)
 	c.consumerMap.Range(func(key, value interface{}) bool {
@@ -680,13 +704,22 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		list := consumer.SubscriptionDataList()
 		for idx := range list {
 			subscribedTopicSet[list[idx].Topic] = true
+			allTopics[list[idx].Topic] = true
 		}
 		return true
 	})
 
-	for topic := range subscribedTopicSet {
+	for topic := range allTopics {
 		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
-		c.updateSubscribeInfo(topic, data, changed)
+
+		if publishTopicSet[topic] {
+			c.UpdatePublishInfo(topic, data, changed)
+		}
+
+		if subscribedTopicSet[topic] {
+			c.updateSubscribeInfo(topic, data, changed)
+		}
+
 	}
 }
 
@@ -702,8 +735,7 @@ func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingC
 	case ResSuccess:
 		status = primitive.SendOK
 	default:
-		status = primitive.SendUnknownError
-		return errors.New(cmd.Remark)
+		return fmt.Errorf("CODE: %d, DESC: %s", cmd.Code, cmd.Remark)
 	}
 
 	msgIDs := make([]string, 0)
@@ -907,6 +939,15 @@ func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[prim
 	consumer.(InnerConsumer).ResetOffset(topic, offsetTable)
 }
 
+func (c *rmqClient) getConsumerStatus(topic string, group string) *ConsumerStatus {
+	consumer, exist := c.consumerMap.Load(group)
+	if !exist {
+		rlog.Warning("group "+group+" do not exists", nil)
+		return nil
+	}
+	return consumer.(InnerConsumer).GetConsumerStatus(topic)
+}
+
 func (c *rmqClient) getConsumerRunningInfo(group string, stack bool) *ConsumerRunningInfo {
 	consumer, exist := c.consumerMap.Load(group)
 	if !exist {
@@ -938,6 +979,12 @@ func (c *rmqClient) consumeMessageDirectly(msg *primitive.MessageExt, group stri
 	}
 	res := consumer.(InnerConsumer).ConsumeMessageDirectly(msg, brokerName)
 	return res
+}
+
+func (c *rmqClient) RegisterACL() {
+	if !c.option.Credentials.IsEmpty() {
+		c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
+	}
 }
 
 func routeData2SubscribeInfo(topic string, data *TopicRouteData) []*primitive.MessageQueue {

@@ -853,6 +853,15 @@ func (pc *defaultPullConsumer) consumeMessageConcurrently(pq *processQueue, mq *
 	}
 }
 
+func (pc *defaultPullConsumer) GetConsumerStatus(topic string) *internal.ConsumerStatus {
+	consumerStatus := internal.NewConsumerStatus()
+	mqOffsetMap := pc.storage.getMQOffsetMap(topic)
+	if mqOffsetMap != nil {
+		consumerStatus.MQOffsetMap = mqOffsetMap
+	}
+	return consumerStatus
+}
+
 func (pc *defaultPullConsumer) validate() error {
 	if err := internal.ValidateGroup(pc.consumerGroup); err != nil {
 		return err
