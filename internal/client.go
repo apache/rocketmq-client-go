@@ -685,19 +685,17 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 }
 
 func (c *rmqClient) UpdateTopicRouteInfo() {
+	allTopics := make(map[string]bool, 0)
 	publishTopicSet := make(map[string]bool, 0)
 	c.producerMap.Range(func(key, value interface{}) bool {
 		producer := value.(InnerProducer)
 		list := producer.PublishTopicList()
 		for idx := range list {
 			publishTopicSet[list[idx]] = true
+			allTopics[list[idx]] = true
 		}
 		return true
 	})
-	for topic := range publishTopicSet {
-		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
-		c.UpdatePublishInfo(topic, data, changed)
-	}
 
 	subscribedTopicSet := make(map[string]bool, 0)
 	c.consumerMap.Range(func(key, value interface{}) bool {
@@ -705,13 +703,22 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 		list := consumer.SubscriptionDataList()
 		for idx := range list {
 			subscribedTopicSet[list[idx].Topic] = true
+			allTopics[list[idx].Topic] = true
 		}
 		return true
 	})
 
-	for topic := range subscribedTopicSet {
+	for topic := range allTopics {
 		data, changed, _ := c.GetNameSrv().UpdateTopicRouteInfo(topic)
-		c.updateSubscribeInfo(topic, data, changed)
+
+		if publishTopicSet[topic] {
+			c.UpdatePublishInfo(topic, data, changed)
+		}
+
+		if subscribedTopicSet[topic] {
+			c.updateSubscribeInfo(topic, data, changed)
+		}
+
 	}
 }
 
