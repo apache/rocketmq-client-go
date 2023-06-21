@@ -241,8 +241,7 @@ type traceDispatcher struct {
 }
 
 func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	t := traceCfg.TraceTopic
 	if len(t) == 0 {
@@ -275,12 +274,16 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.GroupName = traceCfg.GroupName
 	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
 	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
+	if traceCfg.InstanceName != "" {
+		cliOp.InstanceName = traceCfg.InstanceName
+	}
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
 	if cli == nil {
 		rlog.Error("GetOrNewRocketMQClient failed.", nil)
+		cancel()
 		return nil
 	}
 	cliOp.Namesrv = cli.GetNameSrv()
