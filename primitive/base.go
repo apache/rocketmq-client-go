@@ -89,8 +89,8 @@ type PanicHandler func(interface{})
 
 func WithRecover(fn func(), handlers ...PanicHandler) {
 	defer func() {
-		for _, handler := range handlers {
-			if err := recover(); err != nil {
+		if err := recover(); err != nil {
+			for _, handler := range handlers {
 				handler(err)
 			}
 		}
