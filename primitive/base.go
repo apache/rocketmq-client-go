@@ -85,12 +85,11 @@ func verifyIP(ip string) error {
 	return nil
 }
 
-var PanicHandler func(interface{})
+type PanicHandler func(interface{})
 
-func WithRecover(fn func()) {
+func WithRecover(fn func(), handlers ...PanicHandler) {
 	defer func() {
-		handler := PanicHandler
-		if handler != nil {
+		for _, handler := range handlers {
 			if err := recover(); err != nil {
 				handler(err)
 			}
