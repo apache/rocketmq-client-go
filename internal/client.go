@@ -409,8 +409,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 }
 
 func (c *rmqClient) Start() {
-	//ctx, cancel := context.WithCancel(context.Background())
-	//c.cancel = cancel
+	// ctx, cancel := context.WithCancel(context.Background())
+	// c.cancel = cancel
 	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
 		if !c.option.Credentials.IsEmpty() {
@@ -905,14 +905,7 @@ func (c *rmqClient) updateSubscribeInfo(topic string, data *TopicRouteData, chan
 	}
 	c.consumerMap.Range(func(key, value interface{}) bool {
 		consumer := value.(InnerConsumer)
-		updated := changed
-		if !updated {
-			updated = consumer.IsSubscribeTopicNeedUpdate(topic)
-		}
-		if updated {
-			consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
-		}
-
+		consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, data))
 		return true
 	})
 }
