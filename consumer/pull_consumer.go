@@ -199,7 +199,7 @@ func (pc *defaultPullConsumer) Start() error {
 	}
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
-	pc.client.RebalanceImmediately()
+	go pc.client.RebalanceImmediately()
 
 	return err
 }
