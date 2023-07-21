@@ -259,22 +259,32 @@ func (pq *processQueue) cleanExpiredMsg(pc *pushConsumer) {
 					"time":                   startTime,
 					rlog.LogKeyUnderlayError: err,
 				})
+				pq.mutex.RUnlock()
 				continue
 			}
 			if time.Now().UnixNano()/1e6-st <= int64(pc.option.ConsumeTimeout/time.Millisecond) {
 				pq.mutex.RUnlock()
 				return
 			}
-		}
-		pq.mutex.RUnlock()
-
-		if !pc.sendMessageBack("", msg, int(3+msg.ReconsumeTimes)) {
-			rlog.Error("send message back to broker error when clean expired messages", map[string]interface{}{
-				rlog.LogKeyConsumerGroup: pc.consumerGroup,
+			rlog.Info("send expire msg back. ", map[string]interface{}{
+				rlog.LogKeyTopic:       msg.Topic,
+				rlog.LogKeyMessageId:   msg.MsgId,
+				"startTime":            startTime,
+				rlog.LogKeyStoreHost:   msg.StoreHost,
+				rlog.LogKeyQueueId:     msg.Queue.QueueId,
+				rlog.LogKeyQueueOffset: msg.QueueOffset,
 			})
-			continue
+			pq.mutex.RUnlock()
+			if !pc.sendMessageBack("", msg, int(3+msg.ReconsumeTimes)) {
+				rlog.Error("send message back to broker error when clean expired messages", map[string]interface{}{
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
+				continue
+			}
+			pq.removeMessage(msg)
+		} else {
+			pq.mutex.RUnlock()
 		}
-		pq.removeMessage(msg)
 	}
 }
 

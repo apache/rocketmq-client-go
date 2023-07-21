@@ -39,6 +39,11 @@ const (
 	LogKeyValueChangedTo       = "changeTo"
 	LogKeyPullRequest          = "PullRequest"
 	LogKeyTimeStamp            = "timestamp"
+	LogKeyMessageId            = "msgId"
+	LogKeyStoreHost            = "storeHost"
+	LogKeyQueueId              = "queueId"
+	LogKeyQueueOffset          = "queueOffset"
+	LogKeyMessages             = "messages"
 )
 
 type Logger interface {

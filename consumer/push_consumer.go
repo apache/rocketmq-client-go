@@ -430,6 +430,15 @@ func (pc *pushConsumer) ConsumeMessageDirectly(msg *primitive.MessageExt, broker
 	return res
 }
 
+func (pc *pushConsumer) GetConsumerStatus(topic string) *internal.ConsumerStatus {
+	consumerStatus := internal.NewConsumerStatus()
+	mqOffsetMap := pc.storage.getMQOffsetMap(topic)
+	if mqOffsetMap != nil {
+		consumerStatus.MQOffsetMap = mqOffsetMap
+	}
+	return consumerStatus
+}
+
 func (pc *pushConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRunningInfo {
 	info := internal.NewConsumerRunningInfo()
 
@@ -540,7 +549,9 @@ func (pc *pushConsumer) validate() error {
 	}
 
 	if len(pc.subscribedTopic) == 0 {
-		return errors.New("number of subscribed topics is 0.")
+		rlog.Warning("not subscribe any topic yet", map[string]interface{}{
+			rlog.LogKeyConsumerGroup: pc.consumerGroup,
+		})
 	}
 
 	if pc.option.ConsumeConcurrentlyMaxSpan < 1 || pc.option.ConsumeConcurrentlyMaxSpan > 65535 {
@@ -603,11 +614,11 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.ConsumeGoroutineNums < 1 || pc.option.ConsumeGoroutineNums > 1000 {
+	if pc.option.ConsumeGoroutineNums < 1 || pc.option.ConsumeGoroutineNums > 100000 {
 		if pc.option.ConsumeGoroutineNums == 0 {
 			pc.option.ConsumeGoroutineNums = 20
 		} else {
-			return errors.New("option.ConsumeGoroutineNums out of range [1, 1000]")
+			return errors.New("option.ConsumeGoroutineNums out of range [1, 100000]")
 		}
 	}
 	return nil
@@ -1133,8 +1144,19 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 			consumeRT := time.Now().Sub(beginTime)
 			if err != nil {
+				rlog.Warning("consumeMessageCurrently error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq,
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.ExceptionReturn)
 			} else if consumeRT >= pc.option.ConsumeTimeout {
+				rlog.Warning("consumeMessageCurrently time out", map[string]interface{}{
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq,
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.TimeoutReturn)
 			} else if result == ConsumeSuccess {
 				msgCtx.Properties[primitive.PropCtxType] = string(primitive.SuccessReturn)
@@ -1262,7 +1284,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			ctx = primitive.WithOrderlyCtx(ctx, orderlyCtx)
 
 			pq.lockConsume.Lock()
-			result, _ := pc.consumeInner(ctx, msgs)
+			result, err := pc.consumeInner(ctx, msgs)
+			if err != nil {
+				rlog.Warning("consumeMessage orderly error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+					rlog.LogKeyMessages:      msgs,
+					rlog.LogKeyMessageQueue:  mq.String(),
+					rlog.LogKeyConsumerGroup: pc.consumerGroup,
+				})
+			}
 			pq.lockConsume.Unlock()
 
 			if result == Rollback || result == SuspendCurrentQueueAMoment {

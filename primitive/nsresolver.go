@@ -6,7 +6,7 @@ The ASF licenses this file to You under the Apache License, Version 2.0
 (the "License"); you may not use this file except in compliance with
 the License.  You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -111,6 +111,20 @@ func NewHttpResolver(instance string, domain ...string) *HttpResolver {
 	return h
 }
 
+func (h *HttpResolver) DomainWithUnit(unitName string) {
+	if unitName == "" {
+		return
+	}
+	if strings.Contains(h.domain, "?nofix=1") {
+		return
+	}
+	if strings.Contains(h.domain, "?") {
+		h.domain = strings.Replace(h.domain, "?", fmt.Sprintf("-%s?nofix=1&", unitName), 1)
+	} else {
+		h.domain = fmt.Sprintf("%s-%s?nofix=1", h.domain, unitName)
+	}
+}
+
 func (h *HttpResolver) Resolve() []string {
 	addrs := h.get()
 	if len(addrs) > 0 {
@@ -152,14 +166,14 @@ func (h *HttpResolver) get() []string {
 		return nil
 	}
 
-	bodyStr := string(body)
+	bodyStr := strings.TrimSpace(string(body))
 	if bodyStr == "" {
 		return nil
 	}
 
-	h.saveSnapshot(body)
+	_ = h.saveSnapshot([]byte(bodyStr))
 
-	return strings.Split(string(body), ";")
+	return strings.Split(bodyStr, ";")
 }
 
 func (h *HttpResolver) saveSnapshot(body []byte) error {

@@ -36,3 +36,13 @@ func TestMessageID(t *testing.T) {
 	}
 	t.Log(msgID)
 }
+
+func TestMessageKey(t *testing.T) {
+	msg := &Message{}
+	expected := "testKey"
+	msg.WithKeys([]string{expected})
+	actual := msg.GetKeys()
+	if actual != expected {
+		t.Fatalf("get message key error: expected is '%s', actual is '%s'", expected, actual)
+	}
+}

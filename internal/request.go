@@ -50,6 +50,7 @@ const (
 	ReqDeleteTopicInBroker           = int16(215)
 	ReqDeleteTopicInNameSrv          = int16(216)
 	ReqResetConsumerOffset           = int16(220)
+	ReqGetConsumerStatsFromClient    = int16(221)
 	ReqGetConsumerRunningInfo        = int16(307)
 	ReqConsumeMessageDirectly        = int16(309)
 	ReqSendReplyMessage              = int16(324)
@@ -487,6 +488,38 @@ func (request *ConsumeMessageDirectlyHeader) Decode(properties map[string]string
 
 	if v, existed := properties["brokerName"]; existed {
 		request.brokerName = v
+	}
+}
+
+type GetConsumerStatusRequestHeader struct {
+	topic      string
+	group      string
+	clientAddr string
+}
+
+func (request *GetConsumerStatusRequestHeader) Encode() map[string]string {
+	return map[string]string{
+		"topic":      request.topic,
+		"group":      request.group,
+		"clientAddr": request.clientAddr,
+	}
+}
+
+func (request *GetConsumerStatusRequestHeader) Decode(properties map[string]string) {
+	if len(properties) == 0 {
+		return
+	}
+
+	if v, existed := properties["topic"]; existed {
+		request.topic = v
+	}
+
+	if v, existed := properties["group"]; existed {
+		request.group = v
+	}
+
+	if v, existed := properties["clientAddr"]; existed {
+		request.clientAddr = v
 	}
 }
 
