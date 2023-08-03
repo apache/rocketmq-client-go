@@ -405,6 +405,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			return res
 		})
 	}
+	// bundle this client to namesrv
+	client.GetNameSrv().(*namesrvs).bundleClient = client
 	return client
 }
 
