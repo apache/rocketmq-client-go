@@ -187,8 +187,21 @@ func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) 
 	return &clusterInfo, nil
 }
 
+func (a *admin) checkIsTopicDuplicated(ctx context.Context, topic string) (bool, error) {
+	topicList, err := a.FetchAllTopicList(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, t := range topicList.TopicList {
+		if t == topic {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // CreateTopic create topic.
-// TODO: another implementation like sarama, without brokerAddr as input
+// Done: another implementation like sarama, without brokerAddr as input
 func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	cfg := defaultTopicConfigCreate()
 	for _, apply := range opts {
@@ -197,6 +210,23 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	if cfg.Topic == "" {
 		rlog.Error("empty topic", map[string]interface{}{})
 		return errors.New("topic is empty string")
+	}
+
+	if cfg.OptNotOverride {
+		isExist, err := a.checkIsTopicDuplicated(ctx, cfg.Topic)
+		if err != nil {
+			rlog.Error("failed to FetchAllTopicList", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return errors.New("failed to FetchAllTopicList")
+		}
+		if isExist {
+			rlog.Error("same name topic is exist", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyUnderlayError: "topic is duplicated",
+			})
+			return errors.New("topic is duplicated")
+		}
 	}
 
 	request := &internal.CreateTopicRequestHeader{
