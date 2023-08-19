@@ -19,7 +19,9 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -192,6 +194,10 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	for _, apply := range opts {
 		apply(&cfg)
 	}
+	if cfg.Topic == "" {
+		rlog.Error("empty topic", map[string]interface{}{})
+		return errors.New("topic is empty string")
+	}
 
 	request := &internal.CreateTopicRequestHeader{
 		Topic:           cfg.Topic,
@@ -205,20 +211,60 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
-	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
-	if err != nil {
-		rlog.Error("create topic error", map[string]interface{}{
-			rlog.LogKeyTopic:         cfg.Topic,
-			rlog.LogKeyBroker:        cfg.BrokerAddr,
-			rlog.LogKeyUnderlayError: err,
-		})
+	var brokersAddrList []string
+	if cfg.BrokerAddr == "" {
+		// we need get broker addr table from RocketMQ server
+		clusterInfo, err := a.GetBrokerClusterInfo(ctx)
+		if err != nil {
+			rlog.Error("call GetBrokerClusterInfo error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        cfg.BrokerName,
+				rlog.LogKeyUnderlayError: err,
+			})
+			return err
+		}
+		// fetch broker addr via broker name
+		if cfg.BrokerName != "" {
+			if val, exist := clusterInfo.BrokerAddrTable[cfg.BrokerName]; exist {
+				// only add master broker address
+				brokersAddrList = append(brokersAddrList, val.BrokerAddresses[internal.MasterId])
+			} else {
+				rlog.Error("create topic error", map[string]interface{}{
+					rlog.LogKeyTopic:         cfg.Topic,
+					rlog.LogKeyBroker:        cfg.BrokerName,
+					rlog.LogKeyUnderlayError: "Broker Name not found",
+				})
+				return errors.New("create topic error due to broker name not found")
+			}
+		} else {
+			// not given broker addr and name, then create topic on all broker of default cluster
+			for _, nestedBrokerAddrData := range clusterInfo.BrokerAddrTable {
+				// only add master broker address
+				brokersAddrList = append(brokersAddrList, nestedBrokerAddrData.BrokerAddresses[internal.MasterId])
+			}
+		}
 	} else {
-		rlog.Info("create topic success", map[string]interface{}{
-			rlog.LogKeyTopic:  cfg.Topic,
-			rlog.LogKeyBroker: cfg.BrokerAddr,
-		})
+		brokersAddrList = append(brokersAddrList, cfg.BrokerAddr)
 	}
-	return err
+	var invokeErrorStrings []string
+	for _, brokerAddr := range brokersAddrList {
+		_, invokeErr := a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+		if invokeErr != nil {
+			invokeErrorStrings = append(invokeErrorStrings, invokeErr.Error())
+			rlog.Error("create topic error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        brokerAddr,
+				rlog.LogKeyUnderlayError: invokeErr,
+			})
+		} else {
+			rlog.Info("create topic success", map[string]interface{}{
+				rlog.LogKeyTopic:  cfg.Topic,
+				rlog.LogKeyBroker: brokerAddr,
+			})
+		}
+	}
+	// go 1.13 not support errors.Join(err, nil, err2, err3), so we join with string repr of error
+	return fmt.Errorf(strings.Join(invokeErrorStrings, "\n"))
 }
 
 // DeleteTopicInBroker delete topic in broker.

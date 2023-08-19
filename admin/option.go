@@ -32,6 +32,7 @@ func defaultTopicConfigCreate() TopicConfigCreate {
 
 type TopicConfigCreate struct {
 	Topic           string
+	BrokerName      string
 	BrokerAddr      string
 	DefaultTopic    string
 	ReadQueueNums   int
@@ -47,6 +48,12 @@ type OptionCreate func(*TopicConfigCreate)
 func WithTopicCreate(Topic string) OptionCreate {
 	return func(opts *TopicConfigCreate) {
 		opts.Topic = Topic
+	}
+}
+
+func WithBrokerNameCreate(BrokerName string) OptionCreate {
+	return func(opts *TopicConfigCreate) {
+		opts.BrokerName = BrokerName
 	}
 }
 
