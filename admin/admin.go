@@ -36,7 +36,7 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
-	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
 }
@@ -102,7 +102,7 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
 	}
 	defaultOpts.Namesrv = cli.GetNameSrv()
-	//log.Printf("Client: %#v", namesrv.srvs)
+	// log.Printf("Client: %#v", namesrv.srvs)
 	return &admin{
 		cli:  cli,
 		opts: defaultOpts,
@@ -152,6 +152,29 @@ func (a *admin) FetchAllTopicList(ctx context.Context) (*TopicList, error) {
 		return nil, err
 	}
 	return &topicList, nil
+}
+
+// GetBrokerClusterInfo Get Broker's Cluster Info, Address Table, and so on
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, a.cli.GetNameSrv().AddrList()[0], cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Fetch cluster info error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	rlog.Info("Fetch cluster info success", map[string]interface{}{})
+
+	var clusterInfo ClusterInfo
+	_, err = clusterInfo.Decode(response.Body, &clusterInfo)
+	if err != nil {
+		rlog.Error("Fetch cluster info decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &clusterInfo, nil
 }
 
 // CreateTopic create topic.
@@ -216,7 +239,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	for _, apply := range opts {
 		apply(&cfg)
 	}
-	//delete topic in broker
+	// delete topic in broker
 	if cfg.BrokerAddr == "" {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
 		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.Topic)
@@ -231,7 +254,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		return err
 	}
 
-	//delete topic in nameserver
+	// delete topic in nameserver
 	if len(cfg.NameSrvAddr) == 0 {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
 		cfg.NameSrvAddr = a.cli.GetNameSrv().AddrList()
