@@ -154,6 +154,14 @@ func (a *admin) FetchAllTopicList(ctx context.Context) (*TopicList, error) {
 	return &topicList, nil
 }
 
+// Decode overrides decode method avoid the problem of server-side returned JSON **not** conforming to
+// the JSON specification(JSON key should always is string, don't use int as key).
+// Related Issue: https://github.com/apache/rocketmq/issues/3369
+func (a *ClusterInfo) Decode(data []byte, classOfT interface{}) (interface{}, error) {
+	jsonStr := utils.RectifyJsonIntKeysByChar(string(data))
+	return a.FromJson(jsonStr, classOfT)
+}
+
 // GetBrokerClusterInfo Get Broker's Cluster Info, Address Table, and so on
 func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) {
 	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
