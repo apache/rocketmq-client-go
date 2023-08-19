@@ -13,6 +13,37 @@ var _testFuncMap = map[string]func(string) string{
 	"RectifyJsonIntKeysByChar": RectifyJsonIntKeysByChar,
 }
 
+var _brokerClusterInfoRespJsonTestData = []string{
+	// test normal response with two broker
+	`{
+    "brokerAddrTable": {
+        "broker-002": {
+            "brokerAddrs": {
+                0: "192.168.1.102:10911"
+            },
+            "brokerName": "broker-002",
+            "cluster": "DefaultCluster",
+            "enableActingMaster": false
+        },
+        "broker-001": {
+            "brokerAddrs": {
+                0: "192.168.1.101:10911"
+            },
+            "brokerName": "broker-001",
+            "cluster": "DefaultCluster",
+            "enableActingMaster": false
+        }
+    },
+    "clusterAddrTable": {
+        "DefaultCluster": [
+            "broker-002",
+            "broker-001"
+        ]
+    }
+}`, // test normal response with one broker
+	`{"brokerAddrTable":{"broker_37_master":{"brokerAddrs":{0:"172.16.16.37:10911"},"brokerName":"broker_37_master","cluster":"37_cluster"}},"clusterAddrTable":{"37_cluster":["broker_37_master"]}}`,
+}
+
 func TestRectifyJsonIntKeys(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -96,38 +127,7 @@ func TestRectifyJsonIntKeys(t *testing.T) {
 }
 
 func TestRectifyJsonIntKeysWithBrokerClusterInfoResp(t *testing.T) {
-	var jsonDataList = []string{
-		// test normal response with two broker
-		`{
-    "brokerAddrTable": {
-        "broker-002": {
-            "brokerAddrs": {
-                0: "192.168.1.102:10911"
-            },
-            "brokerName": "broker-002",
-            "cluster": "DefaultCluster",
-            "enableActingMaster": false
-        },
-        "broker-001": {
-            "brokerAddrs": {
-                0: "192.168.1.101:10911"
-            },
-            "brokerName": "broker-001",
-            "cluster": "DefaultCluster",
-            "enableActingMaster": false
-        }
-    },
-    "clusterAddrTable": {
-        "DefaultCluster": [
-            "broker-002",
-            "broker-001"
-        ]
-    }
-}`, // test normal response with one broker
-		`{"brokerAddrTable":{"broker_37_master":{"brokerAddrs":{0:"172.16.16.37:10911"},"brokerName":"broker_37_master","cluster":"37_cluster"}},"clusterAddrTable":{"37_cluster":["broker_37_master"]}}`,
-	}
-
-	for _, jsonData := range jsonDataList {
+	for _, jsonData := range _brokerClusterInfoRespJsonTestData {
 		for funcName, funcConv := range _testFuncMap {
 			correctedJSON := funcConv(jsonData)
 
@@ -138,6 +138,22 @@ func TestRectifyJsonIntKeysWithBrokerClusterInfoResp(t *testing.T) {
 			prettyJSON, err2 := json.MarshalIndent(result, "", "    ")
 			assert.Nil(t, err2, "%s failed to marshal int key JSON", funcName)
 			fmt.Printf("%s converted %s\n", funcName, string(prettyJSON))
+		}
+	}
+}
+
+func BenchmarkRectifyJsonIntKeys(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, jsonData := range _brokerClusterInfoRespJsonTestData {
+			RectifyJsonIntKeys(jsonData)
+		}
+	}
+}
+
+func BenchmarkRectifyJsonIntKeysByChar(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, jsonData := range _brokerClusterInfoRespJsonTestData {
+			RectifyJsonIntKeysByChar(jsonData)
 		}
 	}
 }
