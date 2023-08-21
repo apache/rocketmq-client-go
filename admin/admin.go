@@ -38,6 +38,7 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
+	FindBrokerAddrByName(ctx context.Context, BrokerName string) ([]string, error)
 	GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
@@ -200,6 +201,38 @@ func (a *admin) checkIsTopicDuplicated(ctx context.Context, topic string) (bool,
 	return false, nil
 }
 
+func (a *admin) FindBrokerAddrByName(ctx context.Context, brokerName string) ([]string, error) {
+	var brokersAddrList []string
+	clusterInfo, err := a.GetBrokerClusterInfo(ctx)
+	if err != nil {
+		rlog.Error("call GetBrokerClusterInfo error", map[string]interface{}{
+			rlog.LogKeyBroker:        brokerName,
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	// fetch broker addr via broker name
+	if brokerName != "" {
+		if val, exist := clusterInfo.BrokerAddrTable[brokerName]; exist {
+			// only add master broker address
+			brokersAddrList = append(brokersAddrList, val.BrokerAddresses[internal.MasterId])
+		} else {
+			rlog.Error("create topic error", map[string]interface{}{
+				rlog.LogKeyBroker:        brokerName,
+				rlog.LogKeyUnderlayError: "Broker Name not found",
+			})
+			return nil, errors.New("create topic error due to broker name not found")
+		}
+	} else {
+		// not given broker addr and name, then create topic on all broker of default cluster
+		for _, nestedBrokerAddrData := range clusterInfo.BrokerAddrTable {
+			// only add master broker address
+			brokersAddrList = append(brokersAddrList, nestedBrokerAddrData.BrokerAddresses[internal.MasterId])
+		}
+	}
+	return brokersAddrList, nil
+}
+
 // CreateTopic create topic.
 // Done: another implementation like sarama, without brokerAddr as input
 func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
@@ -244,35 +277,14 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	var brokersAddrList []string
 	if cfg.BrokerAddr == "" {
 		// we need get broker addr table from RocketMQ server
-		clusterInfo, err := a.GetBrokerClusterInfo(ctx)
+		foundBrokers, err := a.FindBrokerAddrByName(ctx, cfg.BrokerName)
 		if err != nil {
-			rlog.Error("call GetBrokerClusterInfo error", map[string]interface{}{
-				rlog.LogKeyTopic:         cfg.Topic,
-				rlog.LogKeyBroker:        cfg.BrokerName,
-				rlog.LogKeyUnderlayError: err,
-			})
 			return err
 		}
-		// fetch broker addr via broker name
-		if cfg.BrokerName != "" {
-			if val, exist := clusterInfo.BrokerAddrTable[cfg.BrokerName]; exist {
-				// only add master broker address
-				brokersAddrList = append(brokersAddrList, val.BrokerAddresses[internal.MasterId])
-			} else {
-				rlog.Error("create topic error", map[string]interface{}{
-					rlog.LogKeyTopic:         cfg.Topic,
-					rlog.LogKeyBroker:        cfg.BrokerName,
-					rlog.LogKeyUnderlayError: "Broker Name not found",
-				})
-				return errors.New("create topic error due to broker name not found")
-			}
-		} else {
-			// not given broker addr and name, then create topic on all broker of default cluster
-			for _, nestedBrokerAddrData := range clusterInfo.BrokerAddrTable {
-				// only add master broker address
-				brokersAddrList = append(brokersAddrList, nestedBrokerAddrData.BrokerAddresses[internal.MasterId])
-			}
+		if foundBrokers == nil || len(foundBrokers) == 0 {
+			return errors.New("broker name not found")
 		}
+		brokersAddrList = append(brokersAddrList, foundBrokers...)
 	} else {
 		brokersAddrList = append(brokersAddrList, cfg.BrokerAddr)
 	}
