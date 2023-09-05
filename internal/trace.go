@@ -27,11 +27,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"github.com/pkg/errors"
 )
 
 type TraceBean struct {
@@ -242,8 +241,7 @@ type traceDispatcher struct {
 }
 
 func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	t := traceCfg.TraceTopic
 	if len(t) == 0 {
@@ -255,7 +253,7 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	}
 
 	if len(traceCfg.NamesrvAddrs) == 0 && traceCfg.Resolver == nil {
-		panic("no NamesrvAddrs or Resolver configured")
+		panic("no NamesrvAddrs and Resolver configured")
 	}
 
 	var srvs *namesrvs
@@ -265,7 +263,6 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	} else {
 		srvs, err = NewNamesrv(traceCfg.Resolver, nil)
 	}
-
 	if err != nil {
 		panic(errors.Wrap(err, "new Namesrv failed."))
 	}
@@ -277,18 +274,22 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.GroupName = traceCfg.GroupName
 	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
 	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
+	if traceCfg.InstanceName != "" {
+		cliOp.InstanceName = traceCfg.InstanceName
+	}
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials
 	cli := GetOrNewRocketMQClient(cliOp, nil)
 	if cli == nil {
+		rlog.Error("GetOrNewRocketMQClient failed.", nil)
+		cancel()
 		return nil
 	}
 	cliOp.Namesrv = cli.GetNameSrv()
 	return &traceDispatcher{
-		ctx:    ctx,
-		cancel: cancel,
-
+		ctx:        ctx,
+		cancel:     cancel,
 		traceTopic: t,
 		access:     traceCfg.Access,
 		input:      make(chan TraceContext, 1024),

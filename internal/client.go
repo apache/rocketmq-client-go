@@ -590,7 +590,6 @@ func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remot
 	return c.remoteClient.InvokeAsync(ctx, addr, request, func(future *remote.ResponseFuture) {
 		f(future.ResponseCommand, future.Err)
 	})
-
 }
 
 func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
