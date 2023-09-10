@@ -65,6 +65,18 @@ func WithGroupName(group string) Option {
 	}
 }
 
+func WithNameServerAddrs(nameServerAddrs primitive.NamesrvAddr) Option {
+	return func(opts *producerOptions) {
+		opts.NameServerAddrs = nameServerAddrs
+	}
+}
+
+func WithNamesrv(namesrv internal.Namesrvs) Option {
+	return func(opts *producerOptions) {
+		opts.Namesrv = namesrv
+	}
+}
+
 func WithInstanceName(name string) Option {
 	return func(opts *producerOptions) {
 		opts.InstanceName = name
