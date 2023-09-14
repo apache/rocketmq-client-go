@@ -118,7 +118,11 @@ func (h *HttpResolver) DomainWithUnit(unitName string) {
 	if strings.Contains(h.domain, "?nofix=1") {
 		return
 	}
-	h.domain = fmt.Sprintf("%s-%s?nofix=1", h.domain, unitName)
+	if strings.Contains(h.domain, "?") {
+		h.domain = strings.Replace(h.domain, "?", fmt.Sprintf("-%s?nofix=1&", unitName), 1)
+	} else {
+		h.domain = fmt.Sprintf("%s-%s?nofix=1", h.domain, unitName)
+	}
 }
 
 func (h *HttpResolver) Resolve() []string {

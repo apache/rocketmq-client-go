@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -60,9 +61,20 @@ type SubscriptionData struct {
 	Codes           utils.Set `json:"codeSet"`
 	SubVersion      int64     `json:"subVersion"`
 	ExpType         string    `json:"expressionType"`
+	mux             sync.RWMutex
+}
+
+func (sd *SubscriptionData) Lock() {
+	sd.mux.Lock()
+}
+
+func (sd *SubscriptionData) Unlock() {
+	sd.mux.Unlock()
 }
 
 func (sd *SubscriptionData) Clone() *SubscriptionData {
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
 	cloned := &SubscriptionData{
 		ClassFilterMode: sd.ClassFilterMode,
 		Topic:           sd.Topic,
@@ -73,15 +85,15 @@ func (sd *SubscriptionData) Clone() *SubscriptionData {
 
 	if sd.Tags.Items() != nil {
 		cloned.Tags = utils.NewSet()
-		for _, value := range sd.Tags.Items() {
-			cloned.Tags.Add(value)
+		for key, value := range sd.Tags.Items() {
+			cloned.Tags.AddKV(key, value.UniqueID())
 		}
 	}
 
 	if sd.Codes.Items() != nil {
 		cloned.Codes = utils.NewSet()
-		for _, value := range sd.Codes.Items() {
-			cloned.Codes.Add(value)
+		for key, value := range sd.Codes.Items() {
+			cloned.Codes.AddKV(key, value.UniqueID())
 		}
 	}
 
@@ -292,6 +304,54 @@ func NewConsumerRunningInfo() *ConsumerRunningInfo {
 		SubscriptionData: make(map[*SubscriptionData]bool),
 		MQTable:          make(map[primitive.MessageQueue]ProcessQueueInfo),
 		StatusTable:      make(map[string]ConsumeStatus),
+	}
+}
+
+type ConsumerStatus struct {
+	MQOffsetMap map[primitive.MessageQueue]int64
+}
+
+func (status ConsumerStatus) Encode() ([]byte, error) {
+	mapJson := ""
+	keys := make([]primitive.MessageQueue, 0)
+
+	for k := range status.MQOffsetMap {
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		q1 := keys[i]
+		q2 := keys[j]
+		com := strings.Compare(q1.Topic, q2.Topic)
+		if com != 0 {
+			return com < 0
+		}
+
+		com = strings.Compare(q1.BrokerName, q2.BrokerName)
+		if com != 0 {
+			return com < 0
+		}
+
+		return q1.QueueId < q2.QueueId
+	})
+
+	for idx := range keys {
+		dataK, err := json.Marshal(keys[idx])
+		if err != nil {
+			return nil, err
+		}
+		dataV, err := json.Marshal(status.MQOffsetMap[keys[idx]])
+		mapJson = fmt.Sprintf("%s,%s:%s", mapJson, string(dataK), string(dataV))
+	}
+	mapJson = strings.TrimLeft(mapJson, ",")
+	jsonData := fmt.Sprintf("{\"%s\":%s}",
+		"messageQueueTable", fmt.Sprintf("{%s}", mapJson))
+	return []byte(jsonData), nil
+}
+
+func NewConsumerStatus() *ConsumerStatus {
+	return &ConsumerStatus{
+		MQOffsetMap: make(map[primitive.MessageQueue]int64),
 	}
 }
 

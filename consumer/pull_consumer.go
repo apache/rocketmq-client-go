@@ -199,7 +199,7 @@ func (pc *defaultPullConsumer) Start() error {
 	}
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
-	pc.client.RebalanceImmediately()
+	go pc.client.RebalanceImmediately()
 
 	return err
 }
@@ -851,6 +851,15 @@ func (pc *defaultPullConsumer) consumeMessageConcurrently(pq *processQueue, mq *
 		return
 	case pc.consumeRequestCache <- cr:
 	}
+}
+
+func (pc *defaultPullConsumer) GetConsumerStatus(topic string) *internal.ConsumerStatus {
+	consumerStatus := internal.NewConsumerStatus()
+	mqOffsetMap := pc.storage.getMQOffsetMap(topic)
+	if mqOffsetMap != nil {
+		consumerStatus.MQOffsetMap = mqOffsetMap
+	}
+	return consumerStatus
 }
 
 func (pc *defaultPullConsumer) validate() error {

@@ -23,6 +23,8 @@ const (
 	ResFlushDiskTimeout     = int16(10)
 	ResSlaveNotAvailable    = int16(11)
 	ResFlushSlaveTimeout    = int16(12)
+	ResServiceNotAvailable  = int16(14)
+	ResNoPermission         = int16(16)
 	ResTopicNotExist        = int16(17)
 	ResPullNotFound         = int16(19)
 	ResPullRetryImmediately = int16(20)
