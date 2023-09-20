@@ -17,6 +17,8 @@ limitations under the License.
 package primitive
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -139,7 +141,7 @@ func (h *HttpResolver) Resolve() []string {
 }
 
 func (h *HttpResolver) Description() string {
-	return fmt.Sprintf("passthrough resolver of domain:%v instance:%v", h.domain, h.instance)
+	return fmt.Sprintf("http resolver of domain:%v", h.domain)
 }
 
 func (h *HttpResolver) get() []string {
@@ -177,7 +179,7 @@ func (h *HttpResolver) get() []string {
 }
 
 func (h *HttpResolver) saveSnapshot(body []byte) error {
-	filePath := h.getSnapshotFilePath(h.instance)
+	filePath := h.getSnapshotFilePath()
 	err := ioutil.WriteFile(filePath, body, 0644)
 	if err != nil {
 		rlog.Error("name server snapshot save failed", map[string]interface{}{
@@ -194,7 +196,7 @@ func (h *HttpResolver) saveSnapshot(body []byte) error {
 }
 
 func (h *HttpResolver) loadSnapshot() []string {
-	filePath := h.getSnapshotFilePath(h.instance)
+	filePath := h.getSnapshotFilePath()
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		rlog.Warning("name server snapshot local file not exists", map[string]interface{}{
@@ -214,7 +216,7 @@ func (h *HttpResolver) loadSnapshot() []string {
 	return strings.Split(string(bs), ";")
 }
 
-func (h *HttpResolver) getSnapshotFilePath(instanceName string) string {
+func (h *HttpResolver) getSnapshotFilePath() string {
 	homeDir := ""
 	if usr, err := user.Current(); err == nil {
 		homeDir = usr.HomeDir
@@ -232,6 +234,8 @@ func (h *HttpResolver) getSnapshotFilePath(instanceName string) string {
 			})
 		}
 	}
-	filePath := path.Join(storePath, fmt.Sprintf("nameserver_addr-%s", instanceName))
+	hash := md5.Sum([]byte(h.domain))
+	domainHash := hex.EncodeToString(hash[:])
+	filePath := path.Join(storePath, fmt.Sprintf("nameserver_addr-%s", domainHash))
 	return filePath
 }
