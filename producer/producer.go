@@ -405,6 +405,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		cancel()
 		if err != nil {
 			h(ctx, nil, err)
+			return
 		}
 
 		resp := primitive.NewSendResult()

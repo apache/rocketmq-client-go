@@ -493,8 +493,9 @@ func (s *namesrvs) routeData2PublishInfo(topic string, data *TopicRouteData) *To
 	}
 
 	qds := data.QueueDataList
-	sort.Slice(qds, func(i, j int) bool {
-		return i-j >= 0
+	sort.SliceStable(qds, func(i, j int) bool {
+		// sort by increase
+		return strings.Compare(qds[i].BrokerName, qds[j].BrokerName) < 0
 	})
 
 	for _, qd := range qds {

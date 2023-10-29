@@ -596,7 +596,7 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535*time.Millisecond {
+	if interval := pc.option.PullInterval.Load(); interval < 0 || interval > 65535*time.Millisecond {
 		return errors.New("option.PullInterval out of range [0, 65535]")
 	}
 
@@ -608,9 +608,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
-		if pc.option.PullBatchSize == 0 {
-			pc.option.PullBatchSize = 32
+	if pullBatchSize := pc.option.PullBatchSize.Load(); pullBatchSize < 1 || pullBatchSize > 1024 {
+		if pullBatchSize == 0 {
+			pc.option.PullBatchSize.Store(32)
 		} else {
 			return errors.New("option.PullBatchSize out of range [1, 1024]")
 		}
@@ -674,7 +674,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(sleepTime)
 		}
 		// reset time
-		sleepTime = pc.option.PullInterval
+		sleepTime = pc.option.PullInterval.Load()
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
@@ -813,7 +813,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
 			QueueOffset:          request.nextOffset,
-			MaxMsgNums:           pc.option.PullBatchSize,
+			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         commitOffsetValue,
 			SubExpression:        subExpression,
