@@ -178,3 +178,9 @@ func WithCompressLevel(level int) Option {
 		opts.CompressLevel = level
 	}
 }
+
+func WithTls(useTls bool) Option {
+	return func(opts *producerOptions) {
+		opts.ClientOptions.RemotingClientConfig.UseTls = useTls
+	}
+}
