@@ -382,6 +382,15 @@ func WithLimiter(limiter Limiter) Option {
 	}
 }
 
+// WithRemotingTimeout set remote client timeout options
+func WithRemotingTimeout(connectionTimeout, readTimeout, writeTimeout time.Duration) Option {
+	return func(opts *consumerOptions) {
+		opts.ClientOptions.RemotingClientConfig.ConnectionTimeout = connectionTimeout
+		opts.ClientOptions.RemotingClientConfig.ReadTimeout = readTimeout
+		opts.ClientOptions.RemotingClientConfig.WriteTimeout = writeTimeout
+	}
+}
+
 func WithTls(useTls bool) Option {
 	return func(opts *consumerOptions) {
 		opts.ClientOptions.RemotingClientConfig.UseTls = useTls
