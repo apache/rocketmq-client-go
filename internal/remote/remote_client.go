@@ -102,7 +102,7 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
 
-	err = c.sendRequest(conn, request)
+	err = c.sendRequest(ctx, conn, request)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 
-	err = c.sendRequest(conn, request)
+	err = c.sendRequest(ctx, conn, request)
 	if err != nil {
 		c.responseTable.Delete(request.Opaque)
 		return err
@@ -146,11 +146,11 @@ func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request 
 	if err != nil {
 		return err
 	}
-	return c.sendRequest(conn, request)
+	return c.sendRequest(ctx, conn, request)
 }
 
 func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrapper, error) {
-	//it needs additional locker.
+	// it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
@@ -246,7 +246,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 				if res != nil {
 					res.Opaque = cmd.Opaque
 					res.Flag |= 1 << 0
-					err := c.sendRequest(r, res)
+					err := c.sendRequest(context.Background(), r, res)
 					if err != nil {
 						rlog.Warning("send response to broker error", map[string]interface{}{
 							rlog.LogKeyUnderlayError: err,
@@ -297,23 +297,27 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
+func (c *remotingClient) sendRequest(ctx context.Context, conn *tcpConnWrapper, request *RemotingCommand) error {
 	var err error
 	if c.interceptor != nil {
-		err = c.interceptor(context.Background(), request, nil, func(ctx context.Context, req, reply interface{}) error {
-			return c.doRequest(conn, request)
+		err = c.interceptor(ctx, request, nil, func(ctx context.Context, req, reply interface{}) error {
+			return c.doRequest(ctx, conn, request)
 		})
 	} else {
-		err = c.doRequest(conn, request)
+		err = c.doRequest(ctx, conn, request)
 	}
 	return err
 }
 
-func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
+func (c *remotingClient) doRequest(ctx context.Context, conn *tcpConnWrapper, request *RemotingCommand) error {
 	conn.Lock()
 	defer conn.Unlock()
 
-	err := conn.Conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout))
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(c.config.WriteTimeout)
+	}
+	err := conn.Conn.SetWriteDeadline(deadline)
 	if err != nil {
 		rlog.Error("conn error, close connection", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
