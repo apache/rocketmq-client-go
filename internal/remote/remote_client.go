@@ -230,10 +230,10 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			responseFuture := resp.(*ResponseFuture)
 			go primitive.WithRecover(func() {
 				responseFuture.ResponseCommand = cmd
-				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
 					close(responseFuture.Done)
 				}
+				responseFuture.executeInvokeCallback()
 			})
 		}
 	} else {
