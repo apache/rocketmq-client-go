@@ -3,6 +3,7 @@ package producer
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func getFieldString(obj interface{}, field string) string {
@@ -10,6 +11,20 @@ func getFieldString(obj interface{}, field string) string {
 	return v.FieldByNameFunc(func(n string) bool {
 		return n == field
 	}).String()
+}
+
+func TestWithRemotingTimeout(t *testing.T) {
+	opt := defaultProducerOptions()
+	WithRemotingTimeout(3*time.Second, 4*time.Second, 5*time.Second)(&opt)
+	if timeout := opt.RemotingClientConfig.ConnectionTimeout; timeout != 3*time.Second {
+		t.Errorf("consumer option WithRemotingTimeout connectionTimeout. want:%s, got=%s", 3*time.Second, timeout)
+	}
+	if timeout := opt.RemotingClientConfig.ReadTimeout; timeout != 4*time.Second {
+		t.Errorf("consumer option WithRemotingTimeout readTimeout. want:%s, got=%s", 4*time.Second, timeout)
+	}
+	if timeout := opt.RemotingClientConfig.WriteTimeout; timeout != 5*time.Second {
+		t.Errorf("consumer option WithRemotingTimeout writeTimeout. want:%s, got=%s", 5*time.Second, timeout)
+	}
 }
 
 func TestWithUnitName(t *testing.T) {

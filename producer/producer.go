@@ -26,14 +26,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
 )
 
 type defaultProducer struct {
@@ -355,7 +356,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			producerCtx.MQ = *mq
 		}
 
-		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), p.options.SendMsgTimeout)
 		if _err != nil {
 			err = _err
 			continue
@@ -400,7 +401,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
 		cancel()
 		if err != nil {
@@ -465,7 +466,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
-		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), p.options.SendMsgTimeout)
 		if _err != nil {
 			err = _err
 			continue
