@@ -783,7 +783,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			prevRequestOffset := request.nextOffset
 			request.nextOffset = result.NextBeginOffset
 
-			rt := time.Now().Sub(beginTime) / time.Millisecond
+			rt := time.Since(beginTime) / time.Millisecond
 			pc.stat.increasePullRT(pc.consumerGroup, request.mq.Topic, int64(rt))
 
 			msgFounded := result.GetMessageExts()
