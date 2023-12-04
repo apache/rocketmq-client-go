@@ -112,23 +112,24 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 
 // InvokeAsync send request without blocking, just return immediately.
 func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, callback func(*ResponseFuture)) error {
-	conn, err := c.connect(ctx, addr)
-	if err != nil {
-		return err
-	}
-
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 
-	err = c.sendRequest(ctx, conn, request)
-	if err != nil {
-		c.responseTable.Delete(request.Opaque)
-		return err
-	}
-
 	go primitive.WithRecover(func() {
+		defer resp.executeInvokeCallback()
+		defer c.responseTable.Delete(request.Opaque)
+
+		conn, err := c.connect(ctx, addr)
+		if err != nil {
+			resp.Err = err
+			return
+		}
+		err = c.sendRequest(ctx, conn, request)
+		if err != nil {
+			resp.Err = err
+			return
+		}
 		c.receiveAsync(resp)
-		c.responseTable.Delete(request.Opaque)
 	})
 
 	return nil
