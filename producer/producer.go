@@ -329,7 +329,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		if mq != nil {
 			lastBrokerName = mq.BrokerName
 		}
-		mq := p.selectMessageQueue(msg, lastBrokerName)
+		mq = p.selectMessageQueue(msg, lastBrokerName)
 		if mq == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
