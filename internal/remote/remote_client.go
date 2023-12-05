@@ -174,6 +174,10 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 	header := primitive.GetHeader()
 	defer primitive.BackHeader(header)
 	for {
+		// ignore timeout
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			err = nil
+		}
 		if err != nil {
 			// conn has been closed actively
 			if r.isClosed(err) {
