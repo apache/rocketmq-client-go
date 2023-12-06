@@ -700,7 +700,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(sleepTime)
 		}
 		// reset time
-		sleepTime = pc.option.PullInterval
+		sleepTime = pc.option.PullInterval.Load()
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
@@ -736,7 +736,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
 			QueueOffset:          request.nextOffset,
-			MaxMsgNums:           pc.option.PullBatchSize,
+			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         0,
 			SubExpression:        sd.SubString,

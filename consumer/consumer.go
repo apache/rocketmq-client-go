@@ -414,6 +414,14 @@ func (dc *defaultConsumer) doBalance() {
 				return (mqAll[i].QueueId - mqAll[j].QueueId) < 0
 			})
 			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
+
+			// Principle of flow control: pull TPS = 1000ms/PullInterval * BatchSize * len(allocateResult)
+			if consumeTPS := dc.option.ConsumeTPS.Load(); consumeTPS > 0 && len(allocateResult) > 0 {
+				pullBatchSize := dc.option.PullBatchSize.Load()
+				pullTimesPerSecond := float64(consumeTPS) / float64(pullBatchSize*int32(len(allocateResult)))
+				dc.option.PullInterval.Store(time.Duration(float64(time.Second) / pullTimesPerSecond))
+			}
+
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)

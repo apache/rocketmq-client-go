@@ -77,6 +77,12 @@ func WithNamespace(namespace string) AdminOption {
 	}
 }
 
+func WithTls(useTls bool) AdminOption {
+	return func(options *adminOptions) {
+		options.ClientOptions.RemotingClientConfig.UseTls = useTls
+	}
+}
+
 type admin struct {
 	cli internal.RMQClient
 

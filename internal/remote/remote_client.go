@@ -38,6 +38,7 @@ type TcpOption struct {
 	ConnectionTimeout time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
+	UseTls            bool
 }
 
 //go:generate mockgen -source remote_client.go -destination mock_remote_client.go -self_package github.com/apache/rocketmq-client-go/v2/internal/remote  --package remote RemotingClient
@@ -101,7 +102,7 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 	c.responseTable.Store(resp.Opaque, resp)
 	defer c.responseTable.Delete(request.Opaque)
 
-	err = c.sendRequest(conn, request)
+	err = c.sendRequest(ctx, conn, request)
 	if err != nil {
 		return nil, err
 	}
@@ -111,23 +112,24 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 
 // InvokeAsync send request without blocking, just return immediately.
 func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, callback func(*ResponseFuture)) error {
-	conn, err := c.connect(ctx, addr)
-	if err != nil {
-		return err
-	}
-
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
 	c.responseTable.Store(resp.Opaque, resp)
 
-	err = c.sendRequest(conn, request)
-	if err != nil {
-		c.responseTable.Delete(request.Opaque)
-		return err
-	}
-
 	go primitive.WithRecover(func() {
+		defer resp.executeInvokeCallback()
+		defer c.responseTable.Delete(request.Opaque)
+
+		conn, err := c.connect(ctx, addr)
+		if err != nil {
+			resp.Err = err
+			return
+		}
+		err = c.sendRequest(ctx, conn, request)
+		if err != nil {
+			resp.Err = err
+			return
+		}
 		c.receiveAsync(resp)
-		c.responseTable.Delete(request.Opaque)
 	})
 
 	return nil
@@ -145,11 +147,11 @@ func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request 
 	if err != nil {
 		return err
 	}
-	return c.sendRequest(conn, request)
+	return c.sendRequest(ctx, conn, request)
 }
 
 func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrapper, error) {
-	//it needs additional locker.
+	// it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
 	conn, ok := c.connectionTable.Load(addr)
@@ -229,10 +231,10 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 			responseFuture := resp.(*ResponseFuture)
 			go primitive.WithRecover(func() {
 				responseFuture.ResponseCommand = cmd
-				responseFuture.executeInvokeCallback()
 				if responseFuture.Done != nil {
 					close(responseFuture.Done)
 				}
+				responseFuture.executeInvokeCallback()
 			})
 		}
 	} else {
@@ -245,7 +247,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 				if res != nil {
 					res.Opaque = cmd.Opaque
 					res.Flag |= 1 << 0
-					err := c.sendRequest(r, res)
+					err := c.sendRequest(context.Background(), r, res)
 					if err != nil {
 						rlog.Warning("send response to broker error", map[string]interface{}{
 							rlog.LogKeyUnderlayError: err,
@@ -296,23 +298,27 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func (c *remotingClient) sendRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
+func (c *remotingClient) sendRequest(ctx context.Context, conn *tcpConnWrapper, request *RemotingCommand) error {
 	var err error
 	if c.interceptor != nil {
-		err = c.interceptor(context.Background(), request, nil, func(ctx context.Context, req, reply interface{}) error {
-			return c.doRequest(conn, request)
+		err = c.interceptor(ctx, request, nil, func(ctx context.Context, req, reply interface{}) error {
+			return c.doRequest(ctx, conn, request)
 		})
 	} else {
-		err = c.doRequest(conn, request)
+		err = c.doRequest(ctx, conn, request)
 	}
 	return err
 }
 
-func (c *remotingClient) doRequest(conn *tcpConnWrapper, request *RemotingCommand) error {
+func (c *remotingClient) doRequest(ctx context.Context, conn *tcpConnWrapper, request *RemotingCommand) error {
 	conn.Lock()
 	defer conn.Unlock()
 
-	err := conn.Conn.SetWriteDeadline(time.Now().Add(c.config.WriteTimeout))
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(c.config.WriteTimeout)
+	}
+	err := conn.Conn.SetWriteDeadline(deadline)
 	if err != nil {
 		rlog.Error("conn error, close connection", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/apache/rocketmq-client-go/v2/hooks"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -55,8 +57,8 @@ type consumerOptions struct {
 
 	// Flow control threshold on topic level, default value is -1(Unlimited)
 	//
-	// The value of {@code pullThresholdForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdForTopic} if it is't unlimited
+	// The value of {@code pullThresholdForQueue} will be overwritten and calculated based on
+	// {@code pullThresholdForTopic} if it isn't unlimited
 	//
 	// For example, if the value of pullThresholdForTopic is 1000 and 10 message queues are assigned to this consumer,
 	// then pullThresholdForQueue will be set to 100
@@ -64,21 +66,24 @@ type consumerOptions struct {
 
 	// Limit the cached message size on topic level, default value is -1 MiB(Unlimited)
 	//
-	// The value of {@code pullThresholdSizeForQueue} will be overwrote and calculated based on
-	// {@code pullThresholdSizeForTopic} if it is't unlimited
+	// The value of {@code pullThresholdSizeForQueue} will be overwritten and calculated based on
+	// {@code pullThresholdSizeForTopic} if it isn't unlimited
 	//
 	// For example, if the value of pullThresholdSizeForTopic is 1000 MiB and 10 message queues are
 	// assigned to this consumer, then pullThresholdSizeForQueue will be set to 100 MiB
 	PullThresholdSizeForTopic int
 
 	// Message pull Interval
-	PullInterval time.Duration
+	PullInterval atomic.Duration
+
+	// Message consumer tps
+	ConsumeTPS atomic.Int32
 
 	// Batch consumption size
 	ConsumeMessageBatchMaxSize int
 
 	// Batch pull size
-	PullBatchSize int32
+	PullBatchSize atomic.Int32
 
 	// Whether update subscription relationship when every pull
 	PostSubscriptionWhenPull bool
@@ -283,7 +288,7 @@ func WithStrategy(strategy AllocateStrategy) Option {
 
 func WithPullBatchSize(batchSize int32) Option {
 	return func(options *consumerOptions) {
-		options.PullBatchSize = batchSize
+		options.PullBatchSize.Store(batchSize)
 	}
 }
 
@@ -307,7 +312,14 @@ func WithSuspendCurrentQueueTimeMillis(suspendT time.Duration) Option {
 
 func WithPullInterval(interval time.Duration) Option {
 	return func(options *consumerOptions) {
-		options.PullInterval = interval
+		options.PullInterval.Store(interval)
+	}
+}
+
+// WithConsumeTPS set single-machine consumption tps
+func WithConsumeTPS(tps int32) Option {
+	return func(options *consumerOptions) {
+		options.ConsumeTPS.Store(tps)
 	}
 }
 
@@ -367,5 +379,20 @@ func WithFilterMessageHook(hooks []hooks.FilterMessageHook) Option {
 func WithLimiter(limiter Limiter) Option {
 	return func(opts *consumerOptions) {
 		opts.Limiter = limiter
+	}
+}
+
+// WithRemotingTimeout set remote client timeout options
+func WithRemotingTimeout(connectionTimeout, readTimeout, writeTimeout time.Duration) Option {
+	return func(opts *consumerOptions) {
+		opts.ClientOptions.RemotingClientConfig.ConnectionTimeout = connectionTimeout
+		opts.ClientOptions.RemotingClientConfig.ReadTimeout = readTimeout
+		opts.ClientOptions.RemotingClientConfig.WriteTimeout = writeTimeout
+	}
+}
+
+func WithTls(useTls bool) Option {
+	return func(opts *consumerOptions) {
+		opts.ClientOptions.RemotingClientConfig.UseTls = useTls
 	}
 }
