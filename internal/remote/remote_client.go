@@ -180,12 +180,20 @@ func (c *remotingClient) receiveResponse(r *tcpConnWrapper) {
 				return
 			}
 			// ignore name server connection read timeout
+			var isTimeout bool
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				rlog.Debug("conn error, close connection", map[string]interface{}{
+				isTimeout = true
+			}
+			if !(err == io.EOF || isTimeout) {
+				rlog.Error("conn error, close connection", map[string]interface{}{
+					"remoteAddr":             r.RemoteAddr(),
+					"localAddr":              r.LocalAddr(),
 					rlog.LogKeyUnderlayError: err,
 				})
-			} else if err != io.EOF {
-				rlog.Error("conn error, close connection", map[string]interface{}{
+			} else {
+				rlog.Debug("conn error, close connection", map[string]interface{}{
+					"remoteAddr":             r.RemoteAddr(),
+					"localAddr":              r.LocalAddr(),
 					rlog.LogKeyUnderlayError: err,
 				})
 			}
