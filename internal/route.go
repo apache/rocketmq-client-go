@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -27,6 +26,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
@@ -340,7 +341,8 @@ func (s *namesrvs) FetchPublishMessageQueues(topic string) ([]*primitive.Message
 		routeData, err = s.queryTopicRouteInfoFromServer(topic)
 		if err != nil {
 			rlog.Error("queryTopicRouteInfoFromServer failed", map[string]interface{}{
-				rlog.LogKeyTopic: topic,
+				rlog.LogKeyTopic:         topic,
+				rlog.LogKeyUnderlayError: err,
 			})
 			return nil, err
 		}
@@ -393,11 +395,11 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		err      error
 	)
 
-	//if s.Size() == 0, response will be nil, lead to panic below.
+	// if s.Size() == 0, response will be nil, lead to panic below.
 	if s.Size() == 0 {
 		rlog.Error("namesrv list empty. UpdateNameServerAddress should be called first.", map[string]interface{}{
-			"namesrv": s,
-			"topic":   topic,
+			"namesrv":        s,
+			rlog.LogKeyTopic: topic,
 		})
 		return nil, primitive.NewRemotingErr("namesrv list empty")
 	}
@@ -406,7 +408,6 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		rc := remote.NewRemotingCommand(ReqGetRouteInfoByTopic, request, nil)
 		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		response, err = s.nameSrvClient.InvokeSync(ctx, s.getNameServerAddress(), rc)
-
 		if err == nil {
 			cancel()
 			break
@@ -415,8 +416,9 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 	}
 	if err != nil {
 		rlog.Error("connect to namesrv failed.", map[string]interface{}{
-			"namesrv": s,
-			"topic":   topic,
+			"namesrv":                s,
+			rlog.LogKeyTopic:         topic,
+			rlog.LogKeyUnderlayError: err,
 		})
 		return nil, primitive.NewRemotingErr(err.Error())
 	}
@@ -430,9 +432,9 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 
 		err = routeData.decode(string(response.Body))
 		if err != nil {
-			rlog.Warning("decode TopicRouteData error: %s", map[string]interface{}{
+			rlog.Warning("decode TopicRouteData error", map[string]interface{}{
 				rlog.LogKeyUnderlayError: err,
-				"topic":                  topic,
+				rlog.LogKeyTopic:         topic,
 			})
 			return nil, err
 		}
