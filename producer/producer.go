@@ -268,8 +268,9 @@ func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duratio
 		resErr = p.interceptor(ctx, msg, nil, func(ctx context.Context, req, reply interface{}) error {
 			return p.sendAsync(ctx, msg, f)
 		})
+	} else {
+		resErr = p.sendAsync(ctx, msg, f)
 	}
-	resErr = p.sendAsync(ctx, msg, f)
 	if resErr != nil {
 		internal.RequestResponseFutureMap.RemoveRequestResponseFuture(correlationId)
 	}
@@ -292,7 +293,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 			ProducerGroup:     p.group,
 			CommunicationMode: primitive.SendSync,
 			BornHost:          utils.LocalIP,
-			Message:           *msg,
+			Message:           msg,
 			SendResult:        resp,
 		}
 		ctx = primitive.WithProducerCtx(ctx, producerCtx)
