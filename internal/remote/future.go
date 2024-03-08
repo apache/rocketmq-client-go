@@ -61,8 +61,7 @@ func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
 	case <-r.Done:
 		cmd, err = r.ResponseCommand, r.Err
 	case <-r.ctx.Done():
-		err = errors.ErrRequestTimeout
-		r.Err = err
+		r.Err = r.ctx.Err()
 	}
 	return cmd, err
 }
