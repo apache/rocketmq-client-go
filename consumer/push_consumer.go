@@ -921,9 +921,10 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
+	resp, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	if err != nil || resp.Code != internal.ResSuccess {
+		// send back as a normal message
+		return pc.defaultConsumer.sendMessageBackAsNormal(msg, pc.getMaxReconsumeTimes())
 	}
 	return true
 }
