@@ -275,8 +275,6 @@ func (dc *defaultConsumer) start() error {
 		retryTopic := internal.GetRetryTopic(dc.consumerGroup)
 		sub := buildSubscriptionData(retryTopic, MessageSelector{TAG, _SubAll})
 		dc.subscriptionDataTable.Store(retryTopic, sub)
-
-		dc.option.ChangeInstanceNameToPID()
 		dc.storage = NewRemoteOffsetStore(dc.consumerGroup, dc.client, dc.client.GetNameSrv())
 	} else {
 		dc.storage = NewLocalFileOffsetStore(dc.consumerGroup, dc.client.ClientID())
