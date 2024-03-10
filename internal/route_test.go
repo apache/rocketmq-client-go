@@ -19,9 +19,10 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"sync"
 	"testing"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
