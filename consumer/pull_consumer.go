@@ -92,6 +92,9 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "new Namesrv failed.")
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		srvs.SetCredentials(defaultOpts.Credentials)
+	}
 
 	defaultOpts.Namesrv = srvs
 	dc := &defaultConsumer{
