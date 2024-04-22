@@ -78,6 +78,7 @@ func UnCompress(data []byte) []byte {
 	if err != nil {
 		return data
 	}
+	defer r.Close()
 	retData, err := ioutil.ReadAll(r)
 	if err != nil {
 		return data

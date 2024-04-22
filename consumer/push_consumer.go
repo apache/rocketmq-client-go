@@ -518,11 +518,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdForTopic is changed", map[string]interface{}{
+			rlog.Info("The PullThresholdForQueue is changed", map[string]interface{}{
 				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForTopic,
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdForTopic = newVal
+			pc.option.PullThresholdForQueue.Store(int64(newVal))
 		}
 
 		if pc.option.PullThresholdSizeForTopic != -1 {
@@ -530,11 +530,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdSizeForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForTopic,
+			rlog.Info("The PullThresholdSizeForQueue is changed", map[string]interface{}{
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdSizeForTopic = newVal
+			pc.option.PullThresholdSizeForQueue.Store(int32(newVal))
 		}
 	}
 	pc.client.SendHeartbeatToAllBrokerWithLock()
@@ -564,9 +564,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdForQueue < 1 || pc.option.PullThresholdForQueue > 65535 {
-		if pc.option.PullThresholdForQueue == 0 {
-			pc.option.PullThresholdForQueue = 1024
+	if pc.option.PullThresholdForQueue.Load() < 1 || pc.option.PullThresholdForQueue.Load() > 65535 {
+		if pc.option.PullThresholdForQueue.Load() == 0 {
+			pc.option.PullThresholdForQueue.Store(1024)
 		} else {
 			return errors.New("option.PullThresholdForQueue out of range [1, 65535]")
 		}
@@ -580,9 +580,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdSizeForQueue < 1 || pc.option.PullThresholdSizeForQueue > 1024 {
-		if pc.option.PullThresholdSizeForQueue == 0 {
-			pc.option.PullThresholdSizeForQueue = 512
+	if pc.option.PullThresholdSizeForQueue.Load() < 1 || pc.option.PullThresholdSizeForQueue.Load() > 1024 {
+		if pc.option.PullThresholdSizeForQueue.Load() == 0 {
+			pc.option.PullThresholdSizeForQueue.Store(512)
 		} else {
 			return errors.New("option.PullThresholdSizeForQueue out of range [1, 1024]")
 		}
@@ -693,10 +693,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		cachedMessageSizeInMiB := int(pq.cachedMsgSize.Load() / Mb)
-		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue {
+		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue.Load() {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message count exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdForQueue": pc.option.PullThresholdForQueue,
+					"PullThresholdForQueue": pc.option.PullThresholdForQueue.Load(),
 					"minOffset":             pq.Min(),
 					"maxOffset":             pq.Max(),
 					"count":                 pq.cachedMsgCount,
@@ -710,10 +710,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if cachedMessageSizeInMiB > pc.option.PullThresholdSizeForQueue {
+		if cachedMessageSizeInMiB > int(pc.option.PullThresholdSizeForQueue.Load()) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message size exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue,
+					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue.Load(),
 					"minOffset":                 pq.Min(),
 					"maxOffset":                 pq.Max(),
 					"count":                     pq.cachedMsgCount,
