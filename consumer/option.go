@@ -45,15 +45,15 @@ type consumerOptions struct {
 	// Concurrently max span offset.it has no effect on sequential consumption
 	ConsumeConcurrentlyMaxSpan int
 
-	// Flow control threshold on queue level, each message queue will cache at most 1000 messages by default,
+	// Flow control threshold on queue level, each message queue will cache at most 1024 messages by default,
 	// Consider the {PullBatchSize}, the instantaneous value may exceed the limit
-	PullThresholdForQueue int64
+	PullThresholdForQueue atomic.Int64
 
-	// Limit the cached message size on queue level, each message queue will cache at most 100 MiB messages by default,
+	// Limit the cached message size on queue level, each message queue will cache at most 512 MiB messages by default,
 	// Consider the {@code pullBatchSize}, the instantaneous value may exceed the limit
 	//
 	// The size of a message only measured by message body, so it's not accurate
-	PullThresholdSizeForQueue int
+	PullThresholdSizeForQueue atomic.Int32
 
 	// Flow control threshold on topic level, default value is -1(Unlimited)
 	//
@@ -198,13 +198,13 @@ func WithConsumeConcurrentlyMaxSpan(consumeConcurrentlyMaxSpan int) Option {
 
 func WithPullThresholdForQueue(pullThresholdForQueue int64) Option {
 	return func(options *consumerOptions) {
-		options.PullThresholdForQueue = pullThresholdForQueue
+		options.PullThresholdForQueue.Store(pullThresholdForQueue)
 	}
 }
 
 func WithPullThresholdSizeForQueue(pullThresholdSizeForQueue int) Option {
 	return func(options *consumerOptions) {
-		options.PullThresholdSizeForQueue = pullThresholdSizeForQueue
+		options.PullThresholdSizeForQueue.Store(int32(pullThresholdSizeForQueue))
 	}
 }
 
