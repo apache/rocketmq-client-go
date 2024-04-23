@@ -519,7 +519,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 				newVal = 1
 			}
 			rlog.Info("The PullThresholdForQueue is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForTopic,
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
 			pc.option.PullThresholdForQueue.Store(int64(newVal))
