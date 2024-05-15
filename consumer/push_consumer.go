@@ -1376,7 +1376,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
 				rlog.Warning(fmt.Sprintf("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes), nil)
 				msg.WithProperty("RECONSUME_TIME", strconv.Itoa(int(msg.ReconsumeTimes)))
-				if !pc.sendMessageBack("", msg, -1) {
+				if !pc.sendMessageBack(msg.Queue.BrokerName, msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
 				}
