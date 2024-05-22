@@ -102,6 +102,9 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !defaultOpts.Credentials.IsEmpty() {
+		namesrv.SetCredentials(defaultOpts.Credentials)
+	}
 
 	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
 	if cli == nil {
