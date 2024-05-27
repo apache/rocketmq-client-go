@@ -49,4 +49,5 @@ var (
 	ErrPullConsumer      = errors.New("pull consumer has not supported")
 	ErrProducerCreated   = errors.New("producer group has been created")
 	ErrMultipleTopics    = errors.New("the topic of the messages in one batch should be the same")
+	ErrMessageIllegal    = errors.New("the message is illegal")
 )
