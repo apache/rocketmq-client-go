@@ -35,6 +35,7 @@ func defaultProducerOptions() producerOptions {
 		Resolver:                   primitive.NewHttpResolver("DEFAULT"),
 		CompressMsgBodyOverHowmuch: 4096,
 		CompressLevel:              5,
+		MaxMessageSize:             1024 * 1024 * 4, // 4M
 	}
 	opts.ClientOptions.GroupName = "DEFAULT_PRODUCER"
 	return opts
@@ -51,6 +52,7 @@ type producerOptions struct {
 	CompressMsgBodyOverHowmuch int
 	CompressLevel              int
 	TraceDispatcher            internal.TraceDispatcher
+	MaxMessageSize             int
 }
 
 type Option func(*producerOptions)
@@ -191,5 +193,11 @@ func WithRemotingTimeout(connectionTimeout, readTimeout, writeTimeout time.Durat
 func WithTls(useTls bool) Option {
 	return func(opts *producerOptions) {
 		opts.ClientOptions.RemotingClientConfig.UseTls = useTls
+	}
+}
+
+func WithMaxMessageSize(maxMessageSize int) Option {
+	return func(opts *producerOptions) {
+		opts.MaxMessageSize = maxMessageSize
 	}
 }
