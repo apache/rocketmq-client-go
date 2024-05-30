@@ -27,7 +27,7 @@ import (
 
 func main() {
 	topic := "newOne"
-	//clusterName := "DefaultCluster"
+	// clusterName := "DefaultCluster"
 	nameSrvAddr := []string{"127.0.0.1:9876"}
 	brokerAddr := "127.0.0.1:10911"
 
@@ -46,22 +46,44 @@ func main() {
 	}
 	fmt.Println(result.TopicList)
 
-	//create topic
+	// get broker cluster info
+	clusterInfo, err := testAdmin.GetBrokerClusterInfo(
+		context.Background(),
+	)
+	fmt.Printf("Broker Cluster Info:\n%v\n", clusterInfo)
+	if err != nil {
+		fmt.Println("GetBrokerClusterInfo error:", err.Error())
+	}
+
+	// create topic
 	err = testAdmin.CreateTopic(
 		context.Background(),
 		admin.WithTopicCreate(topic),
-		admin.WithBrokerAddrCreate(brokerAddr),
+		// admin will resolve broker name to broker address
+		admin.WithBrokerNameCreate("broker-abc"),
 	)
 	if err != nil {
 		fmt.Println("Create topic error:", err.Error())
 	}
 
-	//deletetopic
+	// try to create same-name topic again
+	err = testAdmin.CreateTopic(
+		context.Background(),
+		admin.WithTopicCreate(topic),
+		admin.WithBrokerAddrCreate(brokerAddr),
+		admin.WithOptNotOverrideCreate(true),
+	)
+	// it should raise `topic is exist` error if we have set the option `OptNotOverride`
+	if err != nil {
+		fmt.Println("Create topic error:", err.Error())
+	}
+
+	// delete topic
 	err = testAdmin.DeleteTopic(
 		context.Background(),
 		admin.WithTopicDelete(topic),
-		//admin.WithBrokerAddrDelete(brokerAddr),
-		//admin.WithNameSrvAddr(nameSrvAddr),
+		// admin.WithBrokerAddrDelete(brokerAddr),
+		// admin.WithNameSrvAddr(nameSrvAddr),
 	)
 	if err != nil {
 		fmt.Println("Delete topic error:", err.Error())
