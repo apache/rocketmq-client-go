@@ -153,7 +153,7 @@ func GetConcurrentlyCtx(ctx context.Context) (*ConsumeConcurrentlyContext, bool)
 
 type ProducerCtx struct {
 	ProducerGroup     string
-	Message           Message
+	Message           *Message
 	MQ                MessageQueue
 	BrokerAddr        string
 	BornHost          string
