@@ -726,6 +726,9 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 }
 
 func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error {
+	if cmd == nil {
+		return fmt.Errorf("connection fail: remoting command null")
+	}
 	var status primitive.SendStatus
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
