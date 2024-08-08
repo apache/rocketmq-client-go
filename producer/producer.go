@@ -408,7 +408,8 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg),
 		func(command *remote.RemotingCommand, err error) {
-			cancel()
+			defer cancel()
+
 			if err != nil {
 				h(ctx, nil, err)
 				return
