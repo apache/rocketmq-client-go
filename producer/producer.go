@@ -406,7 +406,8 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
-	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg),
+	err := p.client.InvokeAsync(
+		ctx, addr, p.buildSendRequest(mq, msg),
 		func(command *remote.RemotingCommand, err error) {
 			defer cancel()
 
@@ -423,7 +424,8 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 			}
 
 			h(ctx, resp, nil)
-		})
+		},
+	)
 
 	if err != nil {
 		cancel()
