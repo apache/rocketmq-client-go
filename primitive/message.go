@@ -69,6 +69,7 @@ const (
 )
 
 type Message struct {
+	List           []*Message
 	Topic          string
 	Body           []byte
 	CompressedBody []byte
