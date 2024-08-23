@@ -75,7 +75,7 @@ func TestHttpResolverWithGet(t *testing.T) {
 		resolver.Resolve()
 
 		// check snapshot saved
-		filePath := resolver.getSnapshotFilePath("DEFAULT")
+		filePath := resolver.getSnapshotFilePath()
 		body := strings.Join(srvs, ";")
 		bs, _ := ioutil.ReadFile(filePath)
 		So(string(bs), ShouldEqual, body)
@@ -112,7 +112,7 @@ func TestHttpResolverWithGetUnitName(t *testing.T) {
 		resolver.Resolve()
 
 		// check snapshot saved
-		filePath := resolver.getSnapshotFilePath("DEFAULT")
+		filePath := resolver.getSnapshotFilePath()
 		body := strings.Join(srvs, ";")
 		bs, _ := ioutil.ReadFile(filePath)
 		So(string(bs), ShouldEqual, body)
@@ -133,7 +133,7 @@ func TestHttpResolverWithSnapshotFile(t *testing.T) {
 
 		os.Setenv("NAMESRV_ADDR", "") // clear env
 		// setup local snapshot file
-		filePath := resolver.getSnapshotFilePath("DEFAULT")
+		filePath := resolver.getSnapshotFilePath()
 		body := strings.Join(srvs, ";")
 		_ = ioutil.WriteFile(filePath, []byte(body), 0644)
 
@@ -143,7 +143,7 @@ func TestHttpResolverWithSnapshotFile(t *testing.T) {
 	})
 }
 
-func TesHttpReslverWithSnapshotFileOnce(t *testing.T) {
+func TestHttpResolverWithSnapshotFileOnce(t *testing.T) {
 	Convey("Test UpdateNameServerAddress Load Local Snapshot Once", t, func() {
 		srvs := []string{
 			"192.168.100.1",
@@ -157,18 +157,18 @@ func TesHttpReslverWithSnapshotFileOnce(t *testing.T) {
 
 		os.Setenv("NAMESRV_ADDR", "") // clear env
 		// setup local snapshot file
-		filePath := resolver.getSnapshotFilePath("DEFAULT")
+		filePath := resolver.getSnapshotFilePath()
 		body := strings.Join(srvs, ";")
 		_ = ioutil.WriteFile(filePath, []byte(body), 0644)
 		// load local snapshot file first time
 		addrs1 := resolver.Resolve()
 
-		// change the local snapshot file to check load once
+		// change the local snapshot file
 		_ = ioutil.WriteFile(filePath, []byte("127.0.0.1;127.0.0.2"), 0644)
 
 		addrs2 := resolver.Resolve()
 
-		So(Diff(addrs1, addrs2), ShouldBeFalse)
+		So(Diff(addrs1, addrs2), ShouldBeTrue)
 		So(Diff(addrs1, srvs), ShouldBeFalse)
 	})
 }

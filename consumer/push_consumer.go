@@ -244,7 +244,7 @@ func (pc *pushConsumer) Start() error {
 	}
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
-	pc.client.RebalanceImmediately()
+	go pc.client.RebalanceImmediately()
 
 	return err
 }
@@ -502,7 +502,9 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 		rlog.LogKeyValueChangedFrom: data.SubVersion,
 		rlog.LogKeyValueChangedTo:   newVersion,
 	})
+	data.Lock()
 	data.SubVersion = newVersion
+	data.Unlock()
 
 	// TODO: optimize
 	count := 0
@@ -516,11 +518,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForTopic,
+			rlog.Info("The PullThresholdForQueue is changed", map[string]interface{}{
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdForTopic = newVal
+			pc.option.PullThresholdForQueue.Store(int64(newVal))
 		}
 
 		if pc.option.PullThresholdSizeForTopic != -1 {
@@ -528,11 +530,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdSizeForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForTopic,
+			rlog.Info("The PullThresholdSizeForQueue is changed", map[string]interface{}{
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdSizeForTopic = newVal
+			pc.option.PullThresholdSizeForQueue.Store(int32(newVal))
 		}
 	}
 	pc.client.SendHeartbeatToAllBrokerWithLock()
@@ -562,9 +564,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdForQueue < 1 || pc.option.PullThresholdForQueue > 65535 {
-		if pc.option.PullThresholdForQueue == 0 {
-			pc.option.PullThresholdForQueue = 1024
+	if pc.option.PullThresholdForQueue.Load() < 1 || pc.option.PullThresholdForQueue.Load() > 65535 {
+		if pc.option.PullThresholdForQueue.Load() == 0 {
+			pc.option.PullThresholdForQueue.Store(1024)
 		} else {
 			return errors.New("option.PullThresholdForQueue out of range [1, 65535]")
 		}
@@ -578,9 +580,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdSizeForQueue < 1 || pc.option.PullThresholdSizeForQueue > 1024 {
-		if pc.option.PullThresholdSizeForQueue == 0 {
-			pc.option.PullThresholdSizeForQueue = 512
+	if pc.option.PullThresholdSizeForQueue.Load() < 1 || pc.option.PullThresholdSizeForQueue.Load() > 1024 {
+		if pc.option.PullThresholdSizeForQueue.Load() == 0 {
+			pc.option.PullThresholdSizeForQueue.Store(512)
 		} else {
 			return errors.New("option.PullThresholdSizeForQueue out of range [1, 1024]")
 		}
@@ -594,7 +596,7 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535*time.Millisecond {
+	if interval := pc.option.PullInterval.Load(); interval < 0 || interval > 65535*time.Millisecond {
 		return errors.New("option.PullInterval out of range [0, 65535]")
 	}
 
@@ -606,9 +608,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
-		if pc.option.PullBatchSize == 0 {
-			pc.option.PullBatchSize = 32
+	if pullBatchSize := pc.option.PullBatchSize.Load(); pullBatchSize < 1 || pullBatchSize > 1024 {
+		if pullBatchSize == 0 {
+			pc.option.PullBatchSize.Store(32)
 		} else {
 			return errors.New("option.PullBatchSize out of range [1, 1024]")
 		}
@@ -672,7 +674,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(sleepTime)
 		}
 		// reset time
-		sleepTime = pc.option.PullInterval
+		sleepTime = pc.option.PullInterval.Load()
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
@@ -691,10 +693,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		cachedMessageSizeInMiB := int(pq.cachedMsgSize.Load() / Mb)
-		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue {
+		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue.Load() {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message count exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdForQueue": pc.option.PullThresholdForQueue,
+					"PullThresholdForQueue": pc.option.PullThresholdForQueue.Load(),
 					"minOffset":             pq.Min(),
 					"maxOffset":             pq.Max(),
 					"count":                 pq.cachedMsgCount,
@@ -708,10 +710,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if cachedMessageSizeInMiB > pc.option.PullThresholdSizeForQueue {
+		if cachedMessageSizeInMiB > int(pc.option.PullThresholdSizeForQueue.Load()) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message size exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue,
+					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue.Load(),
 					"minOffset":                 pq.Min(),
 					"maxOffset":                 pq.Max(),
 					"count":                     pq.cachedMsgCount,
@@ -811,7 +813,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
 			QueueOffset:          request.nextOffset,
-			MaxMsgNums:           pc.option.PullBatchSize,
+			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         commitOffsetValue,
 			SubExpression:        subExpression,
@@ -919,9 +921,10 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
+	resp, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	if err != nil || resp.Code != internal.ResSuccess {
+		// send back as a normal message
+		return pc.defaultConsumer.sendMessageBackAsNormal(msg, pc.getMaxReconsumeTimes())
 	}
 	return true
 }
