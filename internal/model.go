@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -60,9 +61,20 @@ type SubscriptionData struct {
 	Codes           utils.Set `json:"codeSet"`
 	SubVersion      int64     `json:"subVersion"`
 	ExpType         string    `json:"expressionType"`
+	mux             sync.RWMutex
+}
+
+func (sd *SubscriptionData) Lock() {
+	sd.mux.Lock()
+}
+
+func (sd *SubscriptionData) Unlock() {
+	sd.mux.Unlock()
 }
 
 func (sd *SubscriptionData) Clone() *SubscriptionData {
+	sd.mux.RLock()
+	defer sd.mux.RUnlock()
 	cloned := &SubscriptionData{
 		ClassFilterMode: sd.ClassFilterMode,
 		Topic:           sd.Topic,

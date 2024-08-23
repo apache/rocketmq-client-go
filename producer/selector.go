@@ -27,7 +27,7 @@ import (
 )
 
 type QueueSelector interface {
-	Select(*primitive.Message, []*primitive.MessageQueue) *primitive.MessageQueue
+	Select(msg *primitive.Message, mqs []*primitive.MessageQueue, lastBrokerName string) *primitive.MessageQueue
 }
 
 // manualQueueSelector use the queue manually set in the provided Message's QueueID  field as the queue to send.
@@ -37,7 +37,7 @@ func NewManualQueueSelector() QueueSelector {
 	return new(manualQueueSelector)
 }
 
-func (manualQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+func (manualQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue, lastBrokerName string) *primitive.MessageQueue {
 	return message.Queue
 }
 
@@ -53,7 +53,7 @@ func NewRandomQueueSelector() QueueSelector {
 	return s
 }
 
-func (r *randomQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+func (r *randomQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue, lastBrokerName string) *primitive.MessageQueue {
 	r.mux.Lock()
 	i := r.rander.Intn(len(queues))
 	r.mux.Unlock()
@@ -74,11 +74,32 @@ func NewRoundRobinQueueSelector() QueueSelector {
 	return s
 }
 
-func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue, lastBrokerName string) *primitive.MessageQueue {
 	t := message.Topic
-	var idx *uint32
 
 	r.Lock()
+	defer r.Unlock()
+	if lastBrokerName != "" {
+		for i := 0; i < len(queues); i++ {
+			idx, exist := r.indexer[t]
+			if !exist {
+				var v uint32 = 0
+				idx = &v
+				r.indexer[t] = idx
+			}
+			*idx++
+			qIndex := *idx % uint32(len(queues))
+			if queues[qIndex].BrokerName != lastBrokerName {
+				return queues[qIndex]
+			}
+		}
+	}
+	return r.selectOneMessageQueue(t, queues)
+}
+
+func (r *roundRobinQueueSelector) selectOneMessageQueue(t string, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+	var idx *uint32
+
 	idx, exist := r.indexer[t]
 	if !exist {
 		var v uint32 = 0
@@ -86,7 +107,6 @@ func (r *roundRobinQueueSelector) Select(message *primitive.Message, queues []*p
 		r.indexer[t] = idx
 	}
 	*idx++
-	r.Unlock()
 
 	qIndex := *idx % uint32(len(queues))
 	return queues[qIndex]
@@ -103,10 +123,10 @@ func NewHashQueueSelector() QueueSelector {
 }
 
 // hashQueueSelector choose the queue by hash if message having sharding key, otherwise choose queue by random instead.
-func (h *hashQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue) *primitive.MessageQueue {
+func (h *hashQueueSelector) Select(message *primitive.Message, queues []*primitive.MessageQueue, lastBrokerName string) *primitive.MessageQueue {
 	key := message.GetShardingKey()
 	if len(key) == 0 {
-		return h.random.Select(message, queues)
+		return h.random.Select(message, queues, lastBrokerName)
 	}
 
 	hasher := fnv.New32a()

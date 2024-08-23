@@ -199,7 +199,7 @@ func (pc *defaultPullConsumer) Start() error {
 	}
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
-	pc.client.RebalanceImmediately()
+	go pc.client.RebalanceImmediately()
 
 	return err
 }
@@ -628,8 +628,12 @@ func (pc *defaultPullConsumer) sendMessageBack(brokerName string, msg *primitive
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	return err == nil
+	resp, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	if err != nil || resp.Code != internal.ResSuccess {
+		// send back as a normal message
+		return pc.defaultConsumer.sendMessageBackAsNormal(msg, pc.getMaxReconsumeTimes())
+	}
+	return true
 }
 
 func (pc *defaultPullConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLevel int) *remote.RemotingCommand {
@@ -700,7 +704,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(sleepTime)
 		}
 		// reset time
-		sleepTime = pc.option.PullInterval
+		sleepTime = pc.option.PullInterval.Load()
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
@@ -736,7 +740,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
 			QueueOffset:          request.nextOffset,
-			MaxMsgNums:           pc.option.PullBatchSize,
+			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         0,
 			SubExpression:        sd.SubString,

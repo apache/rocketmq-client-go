@@ -26,14 +26,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
 )
 
 type defaultProducer struct {
@@ -153,6 +154,21 @@ func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
 		buffer.Write(data)
 	}
 	return buffer.Bytes()
+}
+
+func needRetryCode(code int16) bool {
+	switch code {
+	case internal.ResTopicNotExist:
+		return true
+	case internal.ResServiceNotAvailable:
+		return true
+	case internal.ResError:
+		return true
+	case internal.ResNoPermission:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Duration) (string, error) {
@@ -301,6 +317,7 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 
 	var (
 		err error
+		mq  *primitive.MessageQueue
 	)
 
 	var (
@@ -308,10 +325,21 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 		ok          bool
 	)
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg)
+		var lastBrokerName string
+		if mq != nil {
+			lastBrokerName = mq.BrokerName
+		}
+		mq = p.selectMessageQueue(msg, lastBrokerName)
 		if mq == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
+		}
+
+		if lastBrokerName != "" {
+			rlog.Warning("start retrying to send, ", map[string]interface{}{
+				"lastBroker": lastBrokerName,
+				"newBroker":  mq.BrokerName,
+			})
 		}
 
 		addr := p.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
@@ -328,9 +356,13 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 			producerCtx.MQ = *mq
 		}
 
-		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		res, _err := p.client.InvokeSync(ctx, addr, p.buildSendRequest(mq, msg), p.options.SendMsgTimeout)
 		if _err != nil {
 			err = _err
+			continue
+		}
+
+		if needRetryCode(res.Code) && retryCount < retryTime-1 {
 			continue
 		}
 		return p.client.ProcessSendResponse(mq.BrokerName, res, resp, msg)
@@ -359,7 +391,7 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 
 func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
 
-	mq := p.selectMessageQueue(msg)
+	mq := p.selectMessageQueue(msg, "")
 	if mq == nil {
 		return errors.Errorf("the topic=%s route info not found", msg.Topic)
 	}
@@ -369,11 +401,12 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 		return errors.Errorf("topic=%s route info not found", mq.Topic)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
 		cancel()
 		if err != nil {
 			h(ctx, nil, err)
+			return
 		}
 
 		resp := primitive.NewSendResult()
@@ -416,8 +449,13 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 	retryTime := 1 + p.options.RetryTimes
 
 	var err error
+	var mq *primitive.MessageQueue
 	for retryCount := 0; retryCount < retryTime; retryCount++ {
-		mq := p.selectMessageQueue(msg)
+		var lastBrokerName string
+		if mq != nil {
+			lastBrokerName = mq.BrokerName
+		}
+		mq = p.selectMessageQueue(msg, lastBrokerName)
 		if mq == nil {
 			err = fmt.Errorf("the topic=%s route info not found", msg.Topic)
 			continue
@@ -428,7 +466,7 @@ func (p *defaultProducer) sendOneWay(ctx context.Context, msg *primitive.Message
 			return fmt.Errorf("topic=%s route info not found", mq.Topic)
 		}
 
-		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), 3*time.Second)
+		_err := p.client.InvokeOneWay(ctx, addr, p.buildSendRequest(mq, msg), p.options.SendMsgTimeout)
 		if _err != nil {
 			err = _err
 			continue
@@ -554,13 +592,16 @@ func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.Topi
 	return result
 }
 
-func (p *defaultProducer) selectMessageQueue(msg *primitive.Message) *primitive.MessageQueue {
-	topic := msg.Topic
-	result := p.tryToFindTopicPublishInfo(topic)
-	if result == nil {
+func (p *defaultProducer) selectMessageQueue(msg *primitive.Message, lastBrokerName string) *primitive.MessageQueue {
+	result := p.tryToFindTopicPublishInfo(msg.Topic)
+	if result == nil || len(result.MqList) == 0 {
+		rlog.Warning("topic route info is nil or empty", map[string]interface{}{
+			rlog.LogKeyTopic: msg.Topic,
+			"result":         result,
+		})
 		return nil
 	}
-	return p.options.Selector.Select(msg, result.MqList)
+	return p.options.Selector.Select(msg, result.MqList, lastBrokerName)
 }
 
 func (p *defaultProducer) PublishTopicList() []string {
@@ -672,7 +713,7 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	if err != nil {
 		return nil, err
 	}
-	localTransactionState := primitive.UnknowState
+	localTransactionState := primitive.UnkonwnState
 	switch rsp.Status {
 	case primitive.SendOK:
 		if len(rsp.TransactionID) > 0 {
@@ -742,7 +783,7 @@ func (tp *transactionProducer) transactionState(state primitive.LocalTransaction
 		return primitive.TransactionCommitType
 	case primitive.RollbackMessageState:
 		return primitive.TransactionRollbackType
-	case primitive.UnknowState:
+	case primitive.UnkonwnState:
 		return primitive.TransactionNotType
 	default:
 		return primitive.TransactionNotType

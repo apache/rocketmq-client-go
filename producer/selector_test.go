@@ -26,7 +26,7 @@ import (
 )
 
 func TestRoundRobin(t *testing.T) {
-	queues := make([]*primitive.MessageQueue, 10)
+	queues := make([]*primitive.MessageQueue, 0)
 	for i := 0; i < 10; i++ {
 		queues = append(queues, &primitive.MessageQueue{
 			QueueId: i,
@@ -41,18 +41,43 @@ func TestRoundRobin(t *testing.T) {
 		Topic: "rr",
 	}
 	for i := 0; i < 100; i++ {
-		q := s.Select(m, queues)
+		q := s.Select(m, queues, "")
 		expected := (i + 1) % len(queues)
 		assert.Equal(t, queues[expected], q, "i: %d", i)
 
-		qrr := s.Select(mrr, queues)
+		qrr := s.Select(mrr, queues, "")
 		expected = (i + 1) % len(queues)
 		assert.Equal(t, queues[expected], qrr, "i: %d", i)
 	}
 }
 
+func TestRoundRobinRetry(t *testing.T) {
+	queues := make([]*primitive.MessageQueue, 0)
+	brokerA := "brokerA"
+	brokerB := "brokerB"
+	for i := 0; i < 5; i++ {
+		queues = append(queues, &primitive.MessageQueue{
+			QueueId:    i,
+			BrokerName: brokerA,
+		})
+		queues = append(queues, &primitive.MessageQueue{
+			QueueId:    i,
+			BrokerName: brokerB,
+		})
+	}
+	s := NewRoundRobinQueueSelector()
+
+	m := &primitive.Message{
+		Topic: "test",
+	}
+	for i := 0; i < 100; i++ {
+		q := s.Select(m, queues, brokerA)
+		assert.Equal(t, brokerB, q.BrokerName)
+	}
+}
+
 func TestHashQueueSelector(t *testing.T) {
-	queues := make([]*primitive.MessageQueue, 10)
+	queues := make([]*primitive.MessageQueue, 0)
 	for i := 0; i < 10; i++ {
 		queues = append(queues, &primitive.MessageQueue{
 			QueueId: i,
@@ -66,13 +91,13 @@ func TestHashQueueSelector(t *testing.T) {
 		Body:  []byte("one message"),
 	}
 	m1.WithShardingKey("same_key")
-	q1 := s.Select(m1, queues)
+	q1 := s.Select(m1, queues, "")
 
 	m2 := &primitive.Message{
 		Topic: "test",
 		Body:  []byte("another message"),
 	}
 	m2.WithShardingKey("same_key")
-	q2 := s.Select(m2, queues)
+	q2 := s.Select(m2, queues, "")
 	assert.Equal(t, *q1, *q2)
 }

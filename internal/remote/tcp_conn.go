@@ -18,6 +18,7 @@ package remote
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"sync"
 	"time"
@@ -34,11 +35,19 @@ type tcpConnWrapper struct {
 
 func initConn(ctx context.Context, addr string, config *RemotingClientConfig) (*tcpConnWrapper, error) {
 	var d net.Dialer
-
 	d.KeepAlive = config.KeepAliveDuration
 	d.Deadline = time.Now().Add(config.ConnectionTimeout)
 
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	var conn net.Conn
+	var err error
+	if config.UseTls {
+		conn, err = tls.DialWithDialer(&d, "tcp", addr, &tls.Config{
+			InsecureSkipVerify: true,
+		})
+	} else {
+		conn, err = d.DialContext(ctx, "tcp", addr)
+	}
+
 	if err != nil {
 		return nil, err
 	}
