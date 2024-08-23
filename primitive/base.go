@@ -18,9 +18,11 @@ limitations under the License.
 package primitive
 
 import (
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"regexp"
 	"strings"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
 
 var (
@@ -85,15 +87,23 @@ func verifyIP(ip string) error {
 	return nil
 }
 
-var PanicHandler func(interface{})
+var (
+	PanicHandler func(interface{})
+
+	defaultPanicHandler = func(e interface{}) {
+		rlog.Error("panic error: ", map[string]interface{}{
+			"PanicInfo": e,
+		})
+	}
+)
 
 func WithRecover(fn func()) {
 	defer func() {
-		handler := PanicHandler
-		if handler != nil {
-			if err := recover(); err != nil {
-				handler(err)
-			}
+		if PanicHandler == nil {
+			PanicHandler = defaultPanicHandler
+		}
+		if err := recover(); err != nil {
+			PanicHandler(err)
 		}
 	}()
 
