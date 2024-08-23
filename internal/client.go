@@ -143,12 +143,9 @@ type RMQClient interface {
 
 	RegisterProducer(group string, producer InnerProducer) error
 	UnregisterProducer(group string)
-	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
-		timeoutMillis time.Duration) (*remote.RemotingCommand, error)
-	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
-		f func(*remote.RemotingCommand, error)) error
-	InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
-		timeoutMillis time.Duration) error
+	InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand, timeoutMillis time.Duration) (*remote.RemotingCommand, error)
+	InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand, f func(*remote.RemotingCommand, error)) error
+	InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand, timeoutMillis time.Duration) error
 	CheckClientInBroker()
 	SendHeartbeatToAllBrokerWithLock()
 	UpdateTopicRouteInfo()
@@ -582,8 +579,7 @@ func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote
 	return c.remoteClient.InvokeSync(ctx, addr, request)
 }
 
-func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
-	f func(*remote.RemotingCommand, error)) error {
+func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand, f func(*remote.RemotingCommand, error)) error {
 	if c.close {
 		return ErrServiceState
 	}
@@ -726,6 +722,9 @@ func (c *rmqClient) UpdateTopicRouteInfo() {
 
 func (c *rmqClient) ProcessSendResponse(brokerName string, cmd *remote.RemotingCommand, resp *primitive.SendResult, msgs ...*primitive.Message) error {
 	var status primitive.SendStatus
+	if cmd == nil {
+		return fmt.Errorf("cmd is nil")
+	}
 	switch cmd.Code {
 	case ResFlushDiskTimeout:
 		status = primitive.SendFlushDiskTimeout

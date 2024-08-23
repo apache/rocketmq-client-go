@@ -138,7 +138,9 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 func (c *remotingClient) receiveAsync(f *ResponseFuture) {
 	_, err := f.waitResponse()
 	if err != nil {
-		f.executeInvokeCallback()
+		if f.ResponseCommand != nil {
+			f.executeInvokeCallback()
+		}
 	}
 }
 
