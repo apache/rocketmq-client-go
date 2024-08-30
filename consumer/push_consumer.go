@@ -807,7 +807,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		sysFlag := buildSysFlag(commitOffsetEnable, true, subExpression != "", classFilter)
-
+		rpcRequestHeader := &internal.RpcRequestHeader{
+			Bname: request.mq.BrokerName,
+		}
 		pullRequest := &internal.PullMessageRequestHeader{
 			ConsumerGroup:        pc.consumerGroup,
 			Topic:                request.mq.Topic,
@@ -819,6 +821,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SubExpression:        subExpression,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
+			RpcRequestHeader:     rpcRequestHeader,
 		}
 		//
 		//if data.ExpType == string(TAG) {

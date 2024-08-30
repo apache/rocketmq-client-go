@@ -875,7 +875,9 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		return nil, fmt.Errorf("the broker [%s, %v] does not upgrade to support for filter message by %v",
 			queue.BrokerName, brokerResult.BrokerVersion, data.ExpType)
 	}
-
+	rpcRequestHeader := &internal.RpcRequestHeader{
+		Bname: queue.BrokerName,
+	}
 	pullRequest := &internal.PullMessageRequestHeader{
 		ConsumerGroup: dc.consumerGroup,
 		Topic:         queue.Topic,
@@ -888,7 +890,8 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		SuspendTimeoutMillis: _BrokerSuspendMaxTime,
 		SubExpression:        data.SubString,
 		// TODO: add subversion
-		ExpressionType: string(data.ExpType),
+		ExpressionType:   string(data.ExpType),
+		RpcRequestHeader: rpcRequestHeader,
 	}
 
 	if data.ExpType == string(TAG) {

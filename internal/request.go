@@ -58,6 +58,11 @@ const (
 	ReqPushReplyMessageToClient      = int16(326)
 )
 
+type RpcRequestHeader struct {
+	//the abstract remote addr name, usually the physical broker name
+	Bname string
+}
+
 type SendMessageRequestHeader struct {
 	ProducerGroup         string
 	Topic                 string
@@ -72,6 +77,7 @@ type SendMessageRequestHeader struct {
 	Batch                 bool
 	DefaultTopic          string
 	DefaultTopicQueueNums int
+	*RpcRequestHeader
 }
 
 func (request *SendMessageRequestHeader) Encode() map[string]string {
@@ -89,7 +95,7 @@ func (request *SendMessageRequestHeader) Encode() map[string]string {
 	maps["defaultTopicQueueNums"] = "4"
 	maps["batch"] = strconv.FormatBool(request.Batch)
 	maps["properties"] = request.Properties
-
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -101,6 +107,7 @@ type EndTransactionRequestHeader struct {
 	FromTransactionCheck bool
 	MsgID                string
 	TransactionId        string
+	*RpcRequestHeader
 }
 
 type SendMessageRequestV2Header struct {
@@ -122,6 +129,7 @@ func (request *SendMessageRequestV2Header) Encode() map[string]string {
 	maps["k"] = strconv.FormatBool(request.UnitMode)
 	maps["l"] = strconv.Itoa(request.MaxReconsumeTimes)
 	maps["m"] = strconv.FormatBool(request.Batch)
+	maps["n"] = request.Bname
 	return maps
 }
 
@@ -134,6 +142,7 @@ func (request *EndTransactionRequestHeader) Encode() map[string]string {
 	maps["fromTransactionCheck"] = strconv.FormatBool(request.FromTransactionCheck)
 	maps["msgId"] = request.MsgID
 	maps["transactionId"] = request.TransactionId
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -143,6 +152,7 @@ type CheckTransactionStateRequestHeader struct {
 	MsgId                string
 	TransactionId        string
 	OffsetMsgId          string
+	*RpcRequestHeader
 }
 
 func (request *CheckTransactionStateRequestHeader) Encode() map[string]string {
@@ -152,7 +162,7 @@ func (request *CheckTransactionStateRequestHeader) Encode() map[string]string {
 	maps["msgId"] = request.MsgId
 	maps["transactionId"] = request.TransactionId
 	maps["offsetMsgId"] = request.OffsetMsgId
-
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -175,6 +185,9 @@ func (request *CheckTransactionStateRequestHeader) Decode(properties map[string]
 	if v, existed := properties["offsetMsgId"]; existed {
 		request.MsgId = v
 	}
+	if v, existed := properties["bname"]; existed {
+		request.Bname = v
+	}
 }
 
 type ConsumerSendMsgBackRequestHeader struct {
@@ -185,6 +198,7 @@ type ConsumerSendMsgBackRequestHeader struct {
 	OriginTopic       string
 	UnitMode          bool
 	MaxReconsumeTimes int32
+	*RpcRequestHeader
 }
 
 func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
@@ -196,7 +210,7 @@ func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
 	maps["originTopic"] = request.OriginTopic
 	maps["unitMode"] = strconv.FormatBool(request.UnitMode)
 	maps["maxReconsumeTimes"] = strconv.Itoa(int(request.MaxReconsumeTimes))
-
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -212,6 +226,7 @@ type PullMessageRequestHeader struct {
 	SubExpression        string
 	SubVersion           int64
 	ExpressionType       string
+	*RpcRequestHeader
 }
 
 func (request *PullMessageRequestHeader) Encode() map[string]string {
@@ -227,7 +242,7 @@ func (request *PullMessageRequestHeader) Encode() map[string]string {
 	maps["subscription"] = request.SubExpression
 	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
 	maps["expressionType"] = request.ExpressionType
-
+	maps["bname"] = request.Bname
 	return maps
 }
 

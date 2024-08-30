@@ -734,7 +734,9 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 		sd := v.(*internal.SubscriptionData)
 
 		sysFlag := buildSysFlag(false, true, true, false)
-
+		rpcRequestHeader := &internal.RpcRequestHeader{
+			Bname: request.mq.BrokerName,
+		}
 		pullRequest := &internal.PullMessageRequestHeader{
 			ConsumerGroup:        pc.consumerGroup,
 			Topic:                request.mq.Topic,
@@ -746,6 +748,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			SubExpression:        sd.SubString,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
+			RpcRequestHeader:     rpcRequestHeader,
 		}
 
 		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)

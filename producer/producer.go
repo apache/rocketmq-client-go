@@ -529,6 +529,9 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		}
 	}
 
+	rpcRequestHeader := &internal.RpcRequestHeader{
+		Bname: mq.BrokerName,
+	}
 	req := &internal.SendMessageRequestHeader{
 		ProducerGroup:         p.group,
 		Topic:                 mq.Topic,
@@ -542,6 +545,7 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		Batch:                 msg.Batch,
 		DefaultTopic:          p.options.CreateTopicKey,
 		DefaultTopicQueueNums: p.options.DefaultTopicQueueNums,
+		RpcRequestHeader:      rpcRequestHeader,
 	}
 
 	msgType := msg.GetProperty(primitive.PropertyMsgType)
@@ -677,6 +681,9 @@ func (tp *transactionProducer) checkTransactionState() {
 			if transactionId == "" {
 				transactionId = callback.Msg.TransactionId
 			}
+			rpcRequestHeader := &internal.RpcRequestHeader{
+				Bname: callback.Header.Bname,
+			}
 			header := &internal.EndTransactionRequestHeader{
 				CommitLogOffset:      callback.Header.CommitLogOffset,
 				ProducerGroup:        tp.producer.group,
@@ -685,6 +692,7 @@ func (tp *transactionProducer) checkTransactionState() {
 				MsgID:                uniqueKey,
 				TransactionId:        transactionId,
 				CommitOrRollback:     tp.transactionState(localTransactionState),
+				RpcRequestHeader:     rpcRequestHeader,
 			}
 
 			req := remote.NewRemotingCommand(internal.ReqENDTransaction, header, nil)
