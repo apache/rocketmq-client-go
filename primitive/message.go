@@ -38,6 +38,7 @@ const (
 	PropertyWaitStoreMsgOk                 = "WAIT"
 	PropertyDelayTimeLevel                 = "DELAY"
 	PropertyRetryTopic                     = "RETRY_TOPIC"
+	PropertyTimerDeliverMS                 = "TIMER_DELIVER_MS"
 	PropertyRealTopic                      = "REAL_TOPIC"
 	PropertyRealQueueId                    = "REAL_QID"
 	PropertyTransactionPrepared            = "TRAN_MSG"
@@ -176,6 +177,11 @@ func (m *Message) WithDelayTimeLevel(level int) *Message {
 	return m
 }
 
+func (m *Message) WithDelayTimestamp(deliveryTimestamp time.Time) *Message {
+	timeMs := deliveryTimestamp.Unix()*1000 + int64(deliveryTimestamp.Nanosecond()/1000000)
+	m.WithProperty(PropertyTimerDeliverMS, strconv.FormatInt(timeMs, 10))
+	return m
+}
 func (m *Message) WithTag(tags string) *Message {
 	m.WithProperty(PropertyTags, tags)
 	return m
