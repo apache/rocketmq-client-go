@@ -272,6 +272,7 @@ type QueryConsumerOffsetRequestHeader struct {
 	ConsumerGroup string
 	Topic         string
 	QueueId       int
+	*RpcRequestHeader
 }
 
 func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -279,6 +280,7 @@ func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -286,6 +288,7 @@ type SearchOffsetRequestHeader struct {
 	Topic     string
 	QueueId   int
 	Timestamp int64
+	*RpcRequestHeader
 }
 
 func (request *SearchOffsetRequestHeader) Encode() map[string]string {
@@ -293,6 +296,7 @@ func (request *SearchOffsetRequestHeader) Encode() map[string]string {
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["timestamp"] = strconv.FormatInt(request.Timestamp, 10)
+	maps["bname"] = request.Bname
 	return maps
 }
 
@@ -301,6 +305,7 @@ type UpdateConsumerOffsetRequestHeader struct {
 	Topic         string
 	QueueId       int
 	CommitOffset  int64
+	*RpcRequestHeader
 }
 
 func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -309,6 +314,7 @@ func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["commitOffset"] = strconv.FormatInt(request.CommitOffset, 10)
+	maps["bname"] = request.Bname
 	return maps
 }
 

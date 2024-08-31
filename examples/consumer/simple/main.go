@@ -30,9 +30,9 @@ func main() {
 	sig := make(chan os.Signal)
 	c, _ := rocketmq.NewPushConsumer(
 		consumer.WithGroupName("testGroup"),
-		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		consumer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:8080"})),
 	)
-	err := c.Subscribe("test", consumer.MessageSelector{}, func(ctx context.Context,
+	err := c.Subscribe("Topic2", consumer.MessageSelector{}, func(ctx context.Context,
 		msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		for i := range msgs {
 			fmt.Printf("subscribe callback: %v \n", msgs[i])

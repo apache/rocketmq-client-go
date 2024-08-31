@@ -1031,10 +1031,14 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 		return -1, fmt.Errorf("the broker [%s] does not exist", mq.BrokerName)
 	}
 
+	rpcRequestHeader := &internal.RpcRequestHeader{
+		Bname: mq.BrokerName,
+	}
 	request := &internal.SearchOffsetRequestHeader{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
+		Topic:            mq.Topic,
+		QueueId:          mq.QueueId,
+		Timestamp:        timestamp,
+		RpcRequestHeader: rpcRequestHeader,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)

@@ -386,10 +386,14 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 	if broker == "" {
 		return int64(-1), fmt.Errorf("broker: %s address not found", mq.BrokerName)
 	}
+	rpcRequestHeader := &internal.RpcRequestHeader{
+		Bname: mq.BrokerName,
+	}
 	queryOffsetRequest := &internal.QueryConsumerOffsetRequestHeader{
-		ConsumerGroup: group,
-		Topic:         mq.Topic,
-		QueueId:       mq.QueueId,
+		ConsumerGroup:    group,
+		Topic:            mq.Topic,
+		QueueId:          mq.QueueId,
+		RpcRequestHeader: rpcRequestHeader,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
 	res, err := r.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
@@ -424,11 +428,15 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group string, mq p
 		return fmt.Errorf("broker: %s address not found", mq.BrokerName)
 	}
 
+	rpcRequestHeader := &internal.RpcRequestHeader{
+		Bname: mq.BrokerName,
+	}
 	updateOffsetRequest := &internal.UpdateConsumerOffsetRequestHeader{
-		ConsumerGroup: group,
-		Topic:         mq.Topic,
-		QueueId:       mq.QueueId,
-		CommitOffset:  off,
+		ConsumerGroup:    group,
+		Topic:            mq.Topic,
+		QueueId:          mq.QueueId,
+		CommitOffset:     off,
+		RpcRequestHeader: rpcRequestHeader,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
 	return r.client.InvokeOneWay(context.Background(), broker, cmd, 5*time.Second)

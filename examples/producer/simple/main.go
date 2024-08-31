@@ -31,7 +31,7 @@ import (
 // Package main implements a simple producer to send message.
 func main() {
 	p, _ := rocketmq.NewProducer(
-		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		producer.WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:8080"})),
 		producer.WithRetry(2),
 	)
 	err := p.Start()
@@ -39,7 +39,7 @@ func main() {
 		fmt.Printf("start producer error: %s", err.Error())
 		os.Exit(1)
 	}
-	topic := "test"
+	topic := "Topic2"
 
 	for i := 0; i < 10; i++ {
 		msg := &primitive.Message{
