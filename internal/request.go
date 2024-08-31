@@ -72,6 +72,7 @@ type SendMessageRequestHeader struct {
 	Batch                 bool
 	DefaultTopic          string
 	DefaultTopicQueueNums int
+	BrokerName            string
 }
 
 func (request *SendMessageRequestHeader) Encode() map[string]string {
@@ -89,6 +90,7 @@ func (request *SendMessageRequestHeader) Encode() map[string]string {
 	maps["defaultTopicQueueNums"] = "4"
 	maps["batch"] = strconv.FormatBool(request.Batch)
 	maps["properties"] = request.Properties
+	maps["bname"] = request.BrokerName
 
 	return maps
 }
@@ -101,6 +103,7 @@ type EndTransactionRequestHeader struct {
 	FromTransactionCheck bool
 	MsgID                string
 	TransactionId        string
+	BrokerName           string
 }
 
 type SendMessageRequestV2Header struct {
@@ -122,6 +125,7 @@ func (request *SendMessageRequestV2Header) Encode() map[string]string {
 	maps["k"] = strconv.FormatBool(request.UnitMode)
 	maps["l"] = strconv.Itoa(request.MaxReconsumeTimes)
 	maps["m"] = strconv.FormatBool(request.Batch)
+	maps["n"] = request.BrokerName
 	return maps
 }
 
@@ -134,6 +138,7 @@ func (request *EndTransactionRequestHeader) Encode() map[string]string {
 	maps["fromTransactionCheck"] = strconv.FormatBool(request.FromTransactionCheck)
 	maps["msgId"] = request.MsgID
 	maps["transactionId"] = request.TransactionId
+	maps["bname"] = request.BrokerName
 	return maps
 }
 
@@ -185,6 +190,7 @@ type ConsumerSendMsgBackRequestHeader struct {
 	OriginTopic       string
 	UnitMode          bool
 	MaxReconsumeTimes int32
+	BrokerName        string
 }
 
 func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
@@ -196,6 +202,7 @@ func (request *ConsumerSendMsgBackRequestHeader) Encode() map[string]string {
 	maps["originTopic"] = request.OriginTopic
 	maps["unitMode"] = strconv.FormatBool(request.UnitMode)
 	maps["maxReconsumeTimes"] = strconv.Itoa(int(request.MaxReconsumeTimes))
+	maps["bname"] = request.BrokerName
 
 	return maps
 }
@@ -212,6 +219,7 @@ type PullMessageRequestHeader struct {
 	SubExpression        string
 	SubVersion           int64
 	ExpressionType       string
+	BrokerName           string
 }
 
 func (request *PullMessageRequestHeader) Encode() map[string]string {
@@ -227,6 +235,7 @@ func (request *PullMessageRequestHeader) Encode() map[string]string {
 	maps["subscription"] = request.SubExpression
 	maps["subVersion"] = fmt.Sprintf("%d", request.SubVersion)
 	maps["expressionType"] = request.ExpressionType
+	maps["bname"] = request.BrokerName
 
 	return maps
 }
@@ -242,14 +251,16 @@ func (request *GetConsumerListRequestHeader) Encode() map[string]string {
 }
 
 type GetMaxOffsetRequestHeader struct {
-	Topic   string
-	QueueId int
+	Topic      string
+	QueueId    int
+	BrokerName string
 }
 
 func (request *GetMaxOffsetRequestHeader) Encode() map[string]string {
 	maps := make(map[string]string)
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
+	maps["bname"] = request.BrokerName
 	return maps
 }
 
@@ -257,6 +268,7 @@ type QueryConsumerOffsetRequestHeader struct {
 	ConsumerGroup string
 	Topic         string
 	QueueId       int
+	BrokerName    string
 }
 
 func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -264,13 +276,15 @@ func (request *QueryConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps["consumerGroup"] = request.ConsumerGroup
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
+	maps["bname"] = request.BrokerName
 	return maps
 }
 
 type SearchOffsetRequestHeader struct {
-	Topic     string
-	QueueId   int
-	Timestamp int64
+	Topic      string
+	QueueId    int
+	Timestamp  int64
+	BrokerName string
 }
 
 func (request *SearchOffsetRequestHeader) Encode() map[string]string {
@@ -278,6 +292,7 @@ func (request *SearchOffsetRequestHeader) Encode() map[string]string {
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["timestamp"] = strconv.FormatInt(request.Timestamp, 10)
+	maps["bname"] = request.BrokerName
 	return maps
 }
 
@@ -286,6 +301,7 @@ type UpdateConsumerOffsetRequestHeader struct {
 	Topic         string
 	QueueId       int
 	CommitOffset  int64
+	BrokerName    string
 }
 
 func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
@@ -294,6 +310,7 @@ func (request *UpdateConsumerOffsetRequestHeader) Encode() map[string]string {
 	maps["topic"] = request.Topic
 	maps["queueId"] = strconv.Itoa(request.QueueId)
 	maps["commitOffset"] = strconv.FormatInt(request.CommitOffset, 10)
+	maps["bname"] = request.BrokerName
 	return maps
 }
 

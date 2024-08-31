@@ -527,6 +527,7 @@ func (td *traceDispatcher) buildSendRequest(mq *primitive.MessageQueue,
 		BornTimestamp: time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:          msg.Flag,
 		Properties:    msg.MarshallProperties(),
+		BrokerName:    mq.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(ReqSendMessage, req, msg.Body)

@@ -819,6 +819,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			SubExpression:        subExpression,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
+			BrokerName:           request.mq.BrokerName,
 		}
 		//
 		//if data.ExpType == string(TAG) {
@@ -937,6 +938,7 @@ func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLev
 		DelayLevel:        delayLevel,
 		OriginMsgId:       msg.MsgId,
 		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
+		BrokerName:        msg.Queue.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, nil)

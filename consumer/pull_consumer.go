@@ -644,6 +644,7 @@ func (pc *defaultPullConsumer) buildSendBackRequest(msg *primitive.MessageExt, d
 		DelayLevel:        delayLevel,
 		OriginMsgId:       msg.MsgId,
 		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
+		BrokerName:        msg.Queue.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, nil)
@@ -746,6 +747,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			SubExpression:        sd.SubString,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
+			BrokerName:           request.mq.BrokerName,
 		}
 
 		brokerResult := pc.defaultConsumer.tryFindBroker(request.mq)
