@@ -390,6 +390,7 @@ func (r *remoteBrokerOffsetStore) fetchConsumeOffsetFromBroker(group string, mq 
 		ConsumerGroup: group,
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
+		BrokerName:    mq.BrokerName,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqQueryConsumerOffset, queryOffsetRequest, nil)
 	res, err := r.client.InvokeSync(context.Background(), broker, cmd, 3*time.Second)
@@ -429,6 +430,7 @@ func (r *remoteBrokerOffsetStore) updateConsumeOffsetToBroker(group string, mq p
 		Topic:         mq.Topic,
 		QueueId:       mq.QueueId,
 		CommitOffset:  off,
+		BrokerName:    mq.BrokerName,
 	}
 	cmd := remote.NewRemotingCommand(internal.ReqUpdateConsumerOffset, updateOffsetRequest, nil)
 	return r.client.InvokeOneWay(context.Background(), broker, cmd, 5*time.Second)
