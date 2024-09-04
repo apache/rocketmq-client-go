@@ -119,7 +119,7 @@ func (mgr *StatsManager) getPullTPS(group, topic string) statsSnapshot {
 }
 
 func (mgr *StatsManager) getConsumeRT(group, topic string) statsSnapshot {
-	ss := mgr.topicAndGroupPullRT.getStatsDataInMinute(topic + "@" + group)
+	ss := mgr.topicAndGroupConsumeRT.getStatsDataInMinute(topic + "@" + group)
 	if ss.sum == 0 {
 		return mgr.topicAndGroupConsumeRT.getStatsDataInHour(topic + "@" + group)
 	}

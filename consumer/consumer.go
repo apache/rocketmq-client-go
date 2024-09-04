@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,6 +58,9 @@ const (
 
 	// Offset persistent interval for consumer
 	_PersistConsumerOffsetInterval = 5 * time.Second
+
+	// Timeout for sending message to retry topic
+	_SendMessageBackAsNormalTimeout = 3 * time.Second
 )
 
 type ConsumeType string
@@ -66,6 +70,8 @@ const (
 	_PushConsume = ConsumeType("CONSUME_PASSIVELY")
 
 	_SubAll = "*"
+
+	_ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
 )
 
 // Message model defines the way how messages are delivered to each consumer clients.
@@ -883,6 +889,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		SubExpression:        data.SubString,
 		// TODO: add subversion
 		ExpressionType: string(data.ExpType),
+		BrokerName:     queue.BrokerName,
 	}
 
 	if data.ExpType == string(TAG) {
@@ -993,8 +1000,9 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	request := &internal.GetMaxOffsetRequestHeader{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
@@ -1023,9 +1031,10 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	request := &internal.SearchOffsetRequestHeader{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		Timestamp:  timestamp,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
@@ -1035,6 +1044,97 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+}
+
+func (dc *defaultConsumer) sendMessageBackAsNormal(msg *primitive.MessageExt, maxReconsumeTimes int32) bool {
+	retryTopic := internal.GetRetryTopic(dc.consumerGroup)
+	normalMsg := &primitive.Message{
+		Topic: retryTopic,
+		Body:  msg.Body,
+		Flag:  msg.Flag,
+	}
+	normalMsg.WithProperties(msg.GetProperties())
+	originMsgId := msg.GetProperty(primitive.PropertyOriginMessageId)
+	if len(originMsgId) == 0 {
+		originMsgId = msg.MsgId
+	}
+	normalMsg.WithProperty(primitive.PropertyOriginMessageId, originMsgId)
+	normalMsg.WithProperty(primitive.PropertyRetryTopic, msg.Topic)
+	normalMsg.RemoveProperty(primitive.PropertyTransactionPrepared)
+	normalMsg.WithDelayTimeLevel(int(3 + msg.ReconsumeTimes))
+
+	mq, err := dc.findPublishMessageQueue(retryTopic)
+	if err != nil {
+		rlog.Warning("sendMessageBackAsNormal find publish message queue error", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+
+	brokerAddr := dc.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
+	if len(brokerAddr) == 0 {
+		rlog.Warning("sendMessageBackAsNormal cannot find broker address", map[string]interface{}{
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        mq.BrokerName,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+
+	request := buildSendToRetryRequest(mq, normalMsg, msg.ReconsumeTimes+1, maxReconsumeTimes)
+	resp, err := dc.client.InvokeSync(context.Background(), brokerAddr, request, _SendMessageBackAsNormalTimeout)
+	if err != nil {
+		rlog.Warning("sendMessageBackAsNormal failed to invoke", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        brokerAddr,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+	if resp.Code != internal.ResSuccess {
+		rlog.Warning("sendMessageBackAsNormal failed to send", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        brokerAddr,
+			rlog.LogKeyUnderlayError: fmt.Errorf("CODE: %d, DESC: %s", resp.Code, resp.Remark),
+		})
+		return false
+	}
+
+	return true
+}
+
+func (dc *defaultConsumer) findPublishMessageQueue(topic string) (*primitive.MessageQueue, error) {
+	mqs, err := dc.client.GetNameSrv().FetchPublishMessageQueues(topic)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(mqs) <= 0 {
+		return nil, fmt.Errorf("no writable queues")
+	}
+
+	return mqs[rand.Intn(len(mqs))], nil
+}
+
+func buildSendToRetryRequest(mq *primitive.MessageQueue, msg *primitive.Message, reconsumeTimes,
+	maxReconsumeTimes int32) *remote.RemotingCommand {
+	req := &internal.SendMessageRequestHeader{
+		ProducerGroup:     _ClientInnerProducerGroup,
+		Topic:             mq.Topic,
+		QueueId:           mq.QueueId,
+		BornTimestamp:     time.Now().UnixNano() / int64(time.Millisecond),
+		Flag:              msg.Flag,
+		Properties:        msg.MarshallProperties(),
+		ReconsumeTimes:    int(reconsumeTimes),
+		MaxReconsumeTimes: int(maxReconsumeTimes),
+		BrokerName:        mq.BrokerName,
+	}
+
+	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
 }
 
 func buildSubscriptionData(topic string, selector MessageSelector) *internal.SubscriptionData {
