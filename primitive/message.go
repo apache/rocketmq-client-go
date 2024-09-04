@@ -211,7 +211,7 @@ func (m *Message) GetShardingKey() string {
 
 func (m *Message) String() string {
 	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, properties=%v, TransactionId=%s]",
-		m.Topic, string(m.Body), m.Flag, m.properties, m.TransactionId)
+		m.Topic, string(m.Body), m.Flag, m.MarshallProperties(), m.TransactionId)
 }
 
 func (m *Message) Marshal() []byte {
