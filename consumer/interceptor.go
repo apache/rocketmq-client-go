@@ -31,11 +31,13 @@ import (
 func WithTrace(traceCfg *primitive.TraceConfig) Option {
 	return func(options *consumerOptions) {
 		dispatcher := internal.NewTraceDispatcher(traceCfg)
-		options.TraceDispatcher = dispatcher
-		ori := options.Interceptors
-		options.Interceptors = make([]primitive.Interceptor, 0)
-		options.Interceptors = append(options.Interceptors, newTraceInterceptor(dispatcher))
-		options.Interceptors = append(options.Interceptors, ori...)
+		if dispatcher != nil {
+			options.TraceDispatcher = dispatcher
+			ori := options.Interceptors
+			options.Interceptors = make([]primitive.Interceptor, 0)
+			options.Interceptors = append(options.Interceptors, newTraceInterceptor(dispatcher))
+			options.Interceptors = append(options.Interceptors, ori...)
+		}
 	}
 }
 
