@@ -87,7 +87,7 @@ func verifyIP(ip string) error {
 
 type PanicHandler func(interface{})
 
-func DefaultPanicHandler(any) {
+func DefaultPanicHandler(interface{}) {
 	return
 }
 
