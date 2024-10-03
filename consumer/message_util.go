@@ -42,7 +42,7 @@ func CreateReplyMessage(requestMessage *primitive.MessageExt, body []byte) (*pri
 
 	var replayMessage primitive.Message
 
-	replayMessage.UnmarshalProperties(body)
+	replayMessage.Body = body
 	replayMessage.Topic = internal.GetReplyTopic(cluster)
 	replayMessage.WithProperty(primitive.PropertyMsgType, internal.ReplyMessageFlag)
 	replayMessage.WithProperty(primitive.PropertyCorrelationID, correlationId)
