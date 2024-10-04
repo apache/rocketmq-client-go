@@ -419,7 +419,7 @@ func (td *traceDispatcher) batchCommit(ctxs []TraceContext) {
 type Keyset map[string]struct{}
 
 func (ks Keyset) slice() []string {
-	slice := make([]string, len(ks))
+	slice := make([]string, 0, len(ks))
 	for k, _ := range ks {
 		slice = append(slice, k)
 	}
