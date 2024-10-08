@@ -128,6 +128,14 @@ func (p *defaultProducer) checkMsg(msgs ...*primitive.Message) error {
 		if msg.Topic != topic {
 			return errors2.ErrMultipleTopics
 		}
+
+		if msg.Body == nil || len(msg.Body) == 0 {
+			return errors2.ErrMessageIllegal
+		}
+
+		if len(msg.Body) > p.options.MaxMessageSize {
+			return errors2.ErrMessageIllegal
+		}
 	}
 
 	return nil
