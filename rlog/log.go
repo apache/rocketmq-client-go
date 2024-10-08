@@ -44,6 +44,7 @@ const (
 	LogKeyQueueId              = "queueId"
 	LogKeyQueueOffset          = "queueOffset"
 	LogKeyMessages             = "messages"
+	LogKeyStack                = "stack"
 )
 
 type Logger interface {

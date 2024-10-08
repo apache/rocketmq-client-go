@@ -1113,6 +1113,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 				if err := recover(); err != nil {
 					rlog.Error("consumeMessageConcurrently panic", map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
+						rlog.LogKeyStack:         utils.GetStackAsString(false),
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}

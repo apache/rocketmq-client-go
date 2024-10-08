@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"io"
 	"net"
 	"sync"
@@ -286,7 +287,8 @@ func (c *remotingClient) createScanner(r io.Reader) *bufio.Scanner {
 		defer func() {
 			if err := recover(); err != nil {
 				rlog.Error("scanner split panic", map[string]interface{}{
-					"panic": err,
+					rlog.LogKeyUnderlayError: err,
+					rlog.LogKeyStack:         utils.GetStackAsString(false),
 				})
 			}
 		}()
