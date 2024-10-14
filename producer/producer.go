@@ -197,7 +197,8 @@ func (p *defaultProducer) prepareSendRequest(msg *primitive.Message, ttl time.Du
 }
 
 // Request Send messages to consumer
-func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, msg *primitive.Message) (*primitive.Message, error) {
+func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration,
+	msg *primitive.Message) (*primitive.Message, error) {
 	if err := p.checkMsg(msg); err != nil {
 		return nil, err
 	}
@@ -237,7 +238,8 @@ func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, ms
 }
 
 // RequestAsync  Async Send messages to consumer
-func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msg *primitive.Message) error {
+func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration,
+	callback internal.RequestCallback, msg *primitive.Message) error {
 	if err := p.checkMsg(msg); err != nil {
 		return err
 	}
@@ -370,7 +372,8 @@ func (p *defaultProducer) sendSync(ctx context.Context, msg *primitive.Message, 
 	return err
 }
 
-func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context, *primitive.SendResult, error), msgs ...*primitive.Message) error {
+func (p *defaultProducer) SendAsync(ctx context.Context,
+	f func(context.Context, *primitive.SendResult, error), msgs ...*primitive.Message) error {
 	if err := p.checkMsg(msgs...); err != nil {
 		return err
 	}
@@ -389,7 +392,8 @@ func (p *defaultProducer) SendAsync(ctx context.Context, f func(context.Context,
 	return p.sendAsync(ctx, msg, f)
 }
 
-func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message, h func(context.Context, *primitive.SendResult, error)) error {
+func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
+	h func(context.Context, *primitive.SendResult, error)) error {
 
 	mq := p.selectMessageQueue(msg, "")
 	if mq == nil {
@@ -402,22 +406,26 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
-	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
-		cancel()
-		if err != nil {
-			h(ctx, nil, err)
-			return
-		}
+	err := p.client.InvokeAsync(
+		ctx, addr, p.buildSendRequest(mq, msg),
+		func(command *remote.RemotingCommand, err error) {
+			defer cancel()
 
-		resp := primitive.NewSendResult()
-		err = p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
-		if err != nil {
-			h(ctx, nil, err)
-			return
-		}
+			if err != nil {
+				h(ctx, nil, err)
+				return
+			}
 
-		h(ctx, resp, nil)
-	})
+			resp := primitive.NewSendResult()
+			err = p.client.ProcessSendResponse(mq.BrokerName, command, resp, msg)
+			if err != nil {
+				h(ctx, nil, err)
+				return
+			}
+
+			h(ctx, resp, nil)
+		},
+	)
 
 	if err != nil {
 		cancel()
@@ -572,7 +580,8 @@ func (p *defaultProducer) tryToFindTopicPublishInfo(topic string) *internal.Topi
 	}
 
 	if !exist {
-		data, changed, _ := p.client.GetNameSrv().UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
+		data, changed, _ := p.client.GetNameSrv().
+			UpdateTopicRouteInfoWithDefault(topic, p.options.CreateTopicKey, p.options.DefaultTopicQueueNums)
 		p.client.UpdatePublishInfo(topic, data, changed)
 		v, exist = p.publishInfo.Load(topic)
 	}
@@ -639,8 +648,10 @@ type transactionProducer struct {
 	listener primitive.TransactionListener
 }
 
-// TODO: checkLocalTransaction
-func NewTransactionProducer(listener primitive.TransactionListener, opts ...Option) (*transactionProducer, error) {
+// NewTransactionProducer TODO: checkLocalTransaction
+func NewTransactionProducer(
+	listener primitive.TransactionListener, opts ...Option) (*transactionProducer, error) {
+
 	producer, err := NewDefaultProducer(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewDefaultProducer failed.")
@@ -706,7 +717,9 @@ func (tp *transactionProducer) checkTransactionState() {
 	}
 }
 
-func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg *primitive.Message) (*primitive.TransactionSendResult, error) {
+func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context,
+	msg *primitive.Message) (*primitive.TransactionSendResult, error) {
+
 	msg.WithProperty(primitive.PropertyTransactionPrepared, "true")
 	msg.WithProperty(primitive.PropertyProducerGroup, tp.producer.options.GroupName)
 
@@ -747,7 +760,9 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	return transactionSendResult, nil
 }
 
-func (tp *transactionProducer) endTransaction(result primitive.SendResult, err error, state primitive.LocalTransactionState) error {
+func (tp *transactionProducer) endTransaction(result primitive.SendResult, err error,
+	state primitive.LocalTransactionState) error {
+
 	var msgID *primitive.MessageID
 	if len(result.OffsetMsgID) > 0 {
 		msgID, _ = primitive.UnmarshalMsgID([]byte(result.OffsetMsgID))
