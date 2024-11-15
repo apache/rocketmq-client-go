@@ -43,7 +43,6 @@ const (
 	LogKeyStoreHost            = "storeHost"
 	LogKeyQueueId              = "queueId"
 	LogKeyQueueOffset          = "queueOffset"
-	LogKeyMessages             = "messages"
 )
 
 type Logger interface {
