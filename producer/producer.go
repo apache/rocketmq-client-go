@@ -237,7 +237,8 @@ func (p *defaultProducer) Request(ctx context.Context, timeout time.Duration, ms
 }
 
 // RequestAsync  Async Send messages to consumer
-func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration, callback internal.RequestCallback, msg *primitive.Message) error {
+func (p *defaultProducer) RequestAsync(ctx context.Context, timeout time.Duration,
+	callback func(ctx context.Context, msg *primitive.Message, err error), msg *primitive.Message) error {
 	if err := p.checkMsg(msg); err != nil {
 		return err
 	}
