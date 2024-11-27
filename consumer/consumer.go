@@ -316,6 +316,14 @@ func (dc *defaultConsumer) shutdown() error {
 	return nil
 }
 
+func (dc *defaultConsumer) isRunning() bool {
+	return atomic.LoadInt32(&dc.state) == int32(internal.StateRunning)
+}
+
+func (dc *defaultConsumer) isStopped() bool {
+	return atomic.LoadInt32(&dc.state) == int32(internal.StateShutdown)
+}
+
 func (dc *defaultConsumer) persistConsumerOffset() error {
 	err := dc.makeSureStateOK()
 	if err != nil {

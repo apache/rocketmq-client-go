@@ -217,9 +217,9 @@ func TestNewStatsManager(t *testing.T) {
 	stats := NewStatsManager()
 
 	st := time.Now()
-	for  {
+	for {
 		stats.increasePullTPS("rocketmq", "default", 1)
-		time.Sleep(500*time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if time.Now().Sub(st) > 5*time.Minute {
 			break
 		}
