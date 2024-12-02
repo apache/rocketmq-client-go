@@ -82,12 +82,17 @@ func NewPushConsumer(opts ...consumer.Option) (PushConsumer, error) {
 type PullConsumer interface {
 	// Start the PullConsumer for consuming message
 	Start() error
+	// GetTopicRouteInfo get topic route info
+	GetTopicRouteInfo(topic string) ([]*primitive.MessageQueue, error)
 
 	// Subscribe a topic for consuming
 	Subscribe(topic string, selector consumer.MessageSelector) error
 
 	// Unsubscribe a topic
 	Unsubscribe(topic string) error
+
+	// Assign assign message queue to consumer
+	Assign(topic string, mqs []*primitive.MessageQueue) error
 
 	// Shutdown the PullConsumer, all offset of MessageQueue will be commit to broker before process exit
 	Shutdown() error
@@ -103,6 +108,12 @@ type PullConsumer interface {
 
 	// PullFrom pull messages of queue from the offset to offset + numbers
 	PullFrom(ctx context.Context, queue *primitive.MessageQueue, offset int64, numbers int) (*primitive.PullResult, error)
+
+	// SeekOffset seek offset for specific queue
+	SeekOffset(queue *primitive.MessageQueue, offset int64)
+
+	// OffsetForTimestamp get offset of specific queue with timestamp
+	OffsetForTimestamp(queue *primitive.MessageQueue, timestamp int64) (int64, error)
 
 	// UpdateOffset updateOffset update offset of queue in mem
 	UpdateOffset(queue *primitive.MessageQueue, offset int64) error

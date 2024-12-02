@@ -64,6 +64,14 @@ func (cr *ConsumeRequest) GetPQ() *processQueue {
 	return cr.processQueue
 }
 
+type SubscriptionType int
+
+const (
+	None SubscriptionType = iota
+	Subscribe
+	Assign
+)
+
 type defaultPullConsumer struct {
 	*defaultConsumer
 
@@ -71,9 +79,11 @@ type defaultPullConsumer struct {
 	selector          MessageSelector
 	GroupName         string
 	Model             MessageModel
+	SubType           SubscriptionType
 	UnitMode          bool
 	nextQueueSequence int64
 	allocateQueues    []*primitive.MessageQueue
+	mq2seekOffset     sync.Map // key:primitive.MessageQueue,value:seekOffset
 
 	done                chan struct{}
 	closeOnce           sync.Once
@@ -116,6 +126,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		defaultConsumer:     dc,
 		done:                make(chan struct{}, 1),
 		consumeRequestCache: make(chan *ConsumeRequest, 4),
+		GroupName:           dc.option.GroupName,
 	}
 	dc.mqChanged = c.messageQueueChanged
 	c.submitToConsume = c.consumeMessageConcurrently
@@ -123,10 +134,31 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	return c, nil
 }
 
+func (pc *defaultPullConsumer) GetTopicRouteInfo(topic string) ([]*primitive.MessageQueue, error) {
+	topicWithNs := utils.WrapNamespace(pc.option.Namespace, topic)
+	value, exist := pc.defaultConsumer.topicSubscribeInfoTable.Load(topicWithNs)
+	if exist {
+		return value.([]*primitive.MessageQueue), nil
+	}
+	pc.client.UpdateTopicRouteInfo()
+	value, exist = pc.defaultConsumer.topicSubscribeInfoTable.Load(topicWithNs)
+	if !exist {
+		return nil, errors2.ErrRouteNotFound
+	}
+	return value.([]*primitive.MessageQueue), nil
+}
+
 func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector) error {
 	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
 		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
+	}
+	if pc.SubType == Assign {
+		return errors2.ErrSubscriptionType
+	}
+
+	if pc.SubType == None {
+		pc.SubType = Subscribe
 	}
 	topic = utils.WrapNamespace(pc.option.Namespace, topic)
 
@@ -139,9 +171,51 @@ func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector)
 }
 
 func (pc *defaultPullConsumer) Unsubscribe(topic string) error {
+	if pc.SubType == Assign {
+		return errors2.ErrSubscriptionType
+	}
 	topic = utils.WrapNamespace(pc.option.Namespace, topic)
 	pc.subscriptionDataTable.Delete(topic)
 	return nil
+}
+
+func (pc *defaultPullConsumer) Assign(topic string, mqs []*primitive.MessageQueue) error {
+	if pc.SubType == Subscribe {
+		return errors2.ErrSubscriptionType
+	}
+	if pc.SubType == None {
+		pc.SubType = Assign
+	}
+	topic = utils.WrapNamespace(pc.option.Namespace, topic)
+	data := buildSubscriptionData(topic, MessageSelector{TAG, _SubAll})
+	pc.topic = topic
+	pc.subscriptionDataTable.Store(topic, data)
+	oldQueues := pc.allocateQueues
+	pc.allocateQueues = mqs
+	rlog.Info("pull consumer assign new mqs", map[string]interface{}{
+		"topic":  topic,
+		"group":  pc.GroupName,
+		"oldMqs": oldQueues,
+		"newMqs": mqs,
+	})
+	if pc.isRunning() {
+		pc.Rebalance()
+	}
+	return nil
+}
+
+func (pc *defaultPullConsumer) nextPullOffset(mq *primitive.MessageQueue, originOffset int64) int64 {
+	if pc.SubType != Assign {
+		return originOffset
+	}
+	value, exist := pc.mq2seekOffset.LoadAndDelete(mq)
+	if !exist {
+		return originOffset
+	} else {
+		nextOffset := value.(int64)
+		_ = pc.updateOffset(mq, nextOffset)
+		return nextOffset
+	}
 }
 
 func (pc *defaultPullConsumer) Start() error {
@@ -546,11 +620,34 @@ func (pc *defaultPullConsumer) GetWhere() string {
 }
 
 func (pc *defaultPullConsumer) Rebalance() {
-	pc.defaultConsumer.doBalance()
+	switch pc.SubType {
+	case Assign:
+		pc.RebalanceViaTopic()
+		break
+	case Subscribe:
+		pc.defaultConsumer.doBalance()
+		break
+	}
 }
 
 func (pc *defaultPullConsumer) RebalanceIfNotPaused() {
-	pc.defaultConsumer.doBalanceIfNotPaused()
+	switch pc.SubType {
+	case Assign:
+		pc.RebalanceViaTopic()
+		break
+	case Subscribe:
+		pc.defaultConsumer.doBalanceIfNotPaused()
+		break
+	}
+}
+
+func (pc *defaultPullConsumer) RebalanceViaTopic() {
+	changed := pc.defaultConsumer.updateProcessQueueTable(pc.topic, pc.allocateQueues)
+	if changed {
+		rlog.Info("PullConsumer rebalance result changed ", map[string]interface{}{
+			rlog.LogKeyAllocateMessageQueue: pc.allocateQueues,
+		})
+	}
 }
 
 func (pc *defaultPullConsumer) GetConsumerRunningInfo(stack bool) *internal.ConsumerRunningInfo {
@@ -613,7 +710,23 @@ func (pc *defaultPullConsumer) ResetOffset(topic string, table map[primitive.Mes
 
 }
 
+func (pc *defaultPullConsumer) SeekOffset(mq *primitive.MessageQueue, offset int64) {
+	pc.mq2seekOffset.Store(mq, offset)
+	rlog.Info("pull consumer seek offset", map[string]interface{}{
+		"mq":     mq,
+		"offset": offset,
+	})
+}
+
+func (pc *defaultPullConsumer) OffsetForTimestamp(mq *primitive.MessageQueue, timestamp int64) (int64, error) {
+	return pc.searchOffsetByTimestamp(mq, timestamp)
+}
+
 func (pc *defaultPullConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*primitive.MessageQueue) {
+	if pc.SubType == Assign {
+		return
+	}
+
 	var allocateQueues []*primitive.MessageQueue
 	pc.defaultConsumer.processQueueTable.Range(func(key, value interface{}) bool {
 		mq := key.(primitive.MessageQueue)
@@ -734,6 +847,8 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			sleepTime = _PullDelayTimeWhenError
 			goto NEXT
 		}
+
+		nextOffset := pc.nextPullOffset(request.mq, request.nextOffset)
 		beginTime := time.Now()
 		sd := v.(*internal.SubscriptionData)
 
@@ -743,7 +858,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			ConsumerGroup:        pc.consumerGroup,
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
-			QueueOffset:          request.nextOffset,
+			QueueOffset:          nextOffset,
 			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         0,
@@ -878,6 +993,10 @@ func (pc *defaultPullConsumer) validate() error {
 
 	if pc.consumerGroup == internal.DefaultConsumerGroup {
 		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
+	}
+
+	if pc.SubType == None {
+		return errors2.ErrBlankSubType
 	}
 
 	return nil
