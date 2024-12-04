@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/consumer"
-	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/producer"
 )
@@ -35,7 +34,7 @@ type Producer interface {
 		msg ...*primitive.Message) error
 	SendOneWay(ctx context.Context, mq ...*primitive.Message) error
 	Request(ctx context.Context, ttl time.Duration, msg *primitive.Message) (*primitive.Message, error)
-	RequestAsync(ctx context.Context, ttl time.Duration, callback internal.RequestCallback, msg *primitive.Message) error
+	RequestAsync(ctx context.Context, ttl time.Duration, callback func(ctx context.Context, msg *primitive.Message, err error), msg *primitive.Message) error
 }
 
 func NewProducer(opts ...producer.Option) (Producer, error) {
