@@ -73,6 +73,7 @@ type pushConsumer struct {
 	done                         chan struct{}
 	closeOnce                    sync.Once
 	crCh                         map[string]chan struct{}
+	crChLock                     sync.Mutex
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -297,9 +298,12 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
+	pc.crChLock.Lock()
 	if _, ok := pc.crCh[topic]; !ok {
 		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 	}
+	pc.crChLock.Unlock()
+
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
 	pc.subscribedTopic[topic] = ""
@@ -1088,9 +1092,12 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 	limiter := pc.option.Limiter
 	limiterOn := limiter != nil
+	pc.crChLock.Lock()
 	if _, ok := pc.crCh[mq.Topic]; !ok {
 		pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
 	}
+	crCh := pc.crCh[mq.Topic]
+	pc.crChLock.Unlock()
 
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
@@ -1106,7 +1113,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		}
-		pc.crCh[mq.Topic] <- struct{}{}
+		crCh <- struct{}{}
 
 		go primitive.WithRecover(func() {
 			defer func() {
@@ -1117,7 +1124,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}
-				<-pc.crCh[mq.Topic]
+				<-crCh
 			}()
 		RETRY:
 			if pq.IsDroppd() {
