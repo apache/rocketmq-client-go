@@ -275,7 +275,7 @@ func (pq *processQueue) cleanExpiredMsg(pc *pushConsumer) {
 				rlog.LogKeyQueueOffset: msg.QueueOffset,
 			})
 			pq.mutex.RUnlock()
-			if !pc.sendMessageBack("", msg, int(3+msg.ReconsumeTimes)) {
+			if !pc.sendMessageBack(msg.Queue.BrokerName, msg, int(3+msg.ReconsumeTimes)) {
 				rlog.Error("send message back to broker error when clean expired messages", map[string]interface{}{
 					rlog.LogKeyConsumerGroup: pc.consumerGroup,
 				})

@@ -316,6 +316,14 @@ func (dc *defaultConsumer) shutdown() error {
 	return nil
 }
 
+func (dc *defaultConsumer) isRunning() bool {
+	return atomic.LoadInt32(&dc.state) == int32(internal.StateRunning)
+}
+
+func (dc *defaultConsumer) isStopped() bool {
+	return atomic.LoadInt32(&dc.state) == int32(internal.StateShutdown)
+}
+
 func (dc *defaultConsumer) persistConsumerOffset() error {
 	err := dc.makeSureStateOK()
 	if err != nil {
@@ -889,6 +897,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		SubExpression:        data.SubString,
 		// TODO: add subversion
 		ExpressionType: string(data.ExpType),
+		BrokerName:     queue.BrokerName,
 	}
 
 	if data.ExpType == string(TAG) {
@@ -999,8 +1008,9 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	request := &internal.GetMaxOffsetRequestHeader{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
@@ -1029,9 +1039,10 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	request := &internal.SearchOffsetRequestHeader{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		Timestamp:  timestamp,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
@@ -1128,6 +1139,7 @@ func buildSendToRetryRequest(mq *primitive.MessageQueue, msg *primitive.Message,
 		Properties:        msg.MarshallProperties(),
 		ReconsumeTimes:    int(reconsumeTimes),
 		MaxReconsumeTimes: int(maxReconsumeTimes),
+		BrokerName:        mq.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)

@@ -403,7 +403,7 @@ func (p *defaultProducer) sendAsync(ctx context.Context, msg *primitive.Message,
 
 	ctx, cancel := context.WithTimeout(ctx, p.options.SendMsgTimeout)
 	err := p.client.InvokeAsync(ctx, addr, p.buildSendRequest(mq, msg), func(command *remote.RemotingCommand, err error) {
-		cancel()
+		defer cancel()
 		if err != nil {
 			h(ctx, nil, err)
 			return
@@ -542,6 +542,7 @@ func (p *defaultProducer) buildSendRequest(mq *primitive.MessageQueue,
 		Batch:                 msg.Batch,
 		DefaultTopic:          p.options.CreateTopicKey,
 		DefaultTopicQueueNums: p.options.DefaultTopicQueueNums,
+		BrokerName:            mq.BrokerName,
 	}
 
 	msgType := msg.GetProperty(primitive.PropertyMsgType)
@@ -762,6 +763,7 @@ func (tp *transactionProducer) endTransaction(result primitive.SendResult, err e
 		TranStateTableOffset: result.QueueOffset,
 		MsgID:                result.MsgID,
 		CommitOrRollback:     tp.transactionState(state),
+		BrokerName:           result.MessageQueue.BrokerName,
 	}
 
 	req := remote.NewRemotingCommand(internal.ReqENDTransaction, requestHeader, nil)

@@ -19,6 +19,7 @@ package utils
 
 import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
+	"runtime"
 )
 
 func CheckError(action string, err error) {
@@ -27,4 +28,9 @@ func CheckError(action string, err error) {
 			rlog.LogKeyUnderlayError: err.Error(),
 		})
 	}
+}
+func GetStackAsString(all bool) string {
+	buf := make([]byte, 1<<10)
+	stackSize := runtime.Stack(buf, all)
+	return string(buf[:stackSize])
 }

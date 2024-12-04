@@ -419,7 +419,7 @@ func (td *traceDispatcher) batchCommit(ctxs []TraceContext) {
 type Keyset map[string]struct{}
 
 func (ks Keyset) slice() []string {
-	slice := make([]string, len(ks))
+	slice := make([]string, 0, len(ks))
 	for k, _ := range ks {
 		slice = append(slice, k)
 	}
@@ -527,6 +527,7 @@ func (td *traceDispatcher) buildSendRequest(mq *primitive.MessageQueue,
 		BornTimestamp: time.Now().UnixNano() / int64(time.Millisecond),
 		Flag:          msg.Flag,
 		Properties:    msg.MarshallProperties(),
+		BrokerName:    mq.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(ReqSendMessage, req, msg.Body)
