@@ -1111,6 +1111,9 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 		go primitive.WithRecover(func() {
 			defer func() {
 				if err := recover(); err != nil {
+					if primitive.DefaultPanicHandler != nil {
+						primitive.DefaultPanicHandler(err)
+					}
 					rlog.Error("consumeMessageConcurrently panic", map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
 						rlog.LogKeyStack:         utils.GetStackAsString(false),
