@@ -108,7 +108,7 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 
 	cli := internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil)
 	if cli == nil {
-		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+		return nil, fmt.Errorf("GetOrNewRocketMQClient failed")
 	}
 	defaultOpts.Namesrv = cli.GetNameSrv()
 	//log.Printf("Client: %#v", namesrv.srvs)

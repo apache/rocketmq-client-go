@@ -46,7 +46,7 @@ func newTraceInterceptor(dispatcher internal.TraceDispatcher) primitive.Intercep
 
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
 		if dispatcher == nil {
-			return fmt.Errorf("GetOrNewRocketMQClient faild")
+			return fmt.Errorf("GetOrNewRocketMQClient failed")
 		}
 		consumerCtx, exist := primitive.GetConsumerCtx(ctx)
 		if !exist || len(consumerCtx.Msgs) == 0 {

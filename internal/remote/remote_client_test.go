@@ -36,7 +36,7 @@ func TestNewResponseFuture(t *testing.T) {
 		t.Errorf("wrong ResponseFuture's opaque. want=%d, got=%d", 10, future.Opaque)
 	}
 	if future.Err != nil {
-		t.Errorf("wrong RespnseFuture's Err. want=<nil>, got=%v", future.Err)
+		t.Errorf("wrong ResponseFuture's Err. want=<nil>, got=%v", future.Err)
 	}
 	if future.callback != nil {
 		t.Errorf("wrong ResponseFuture's callback. want=<nil>, got!=<nil>")
@@ -104,7 +104,7 @@ func TestResponseFutureWaitResponse(t *testing.T) {
 		t.Errorf("wrong ResponseFuture waitResponse error: %v", err)
 	} else {
 		if r != responseRemotingCommand {
-			t.Errorf("wrong ResponseFuture waitResposne result. want=%v, got=%v",
+			t.Errorf("wrong ResponseFuture waitResponse result. want=%v, got=%v",
 				responseRemotingCommand, r)
 		}
 	}
@@ -190,7 +190,7 @@ func TestInvokeSync(t *testing.T) {
 		for scanner.Scan() {
 			receivedRemotingCommand, err := decode(scanner.Bytes())
 			if err != nil {
-				t.Errorf("failed to decode RemotingCommnad. %s", err)
+				t.Errorf("failed to decode RemotingCommand. %s", err)
 			}
 			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
@@ -202,7 +202,7 @@ func TestInvokeSync(t *testing.T) {
 			}
 			_, err = conn.Write(body)
 			if err != nil {
-				t.Fatalf("failed to write body to conneciton.")
+				t.Fatalf("failed to write body to connection.")
 			}
 			goto done
 		}
@@ -220,10 +220,10 @@ func TestInvokeAsync(t *testing.T) {
 	for i := 0; i < cnt; i++ {
 		go func(index int) {
 			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
-			t.Logf("[Send: %d] asychronous message", index)
+			t.Logf("[Send: %d] asynchronous message", index)
 			sendRemotingCommand := randomNewRemotingCommand()
 			err := client.InvokeAsync(context.Background(), addr, sendRemotingCommand, func(r *ResponseFuture) {
-				t.Logf("[Receive: %d] asychronous message response", index)
+				t.Logf("[Receive: %d] asynchronous message response", index)
 				if string(sendRemotingCommand.Body) != string(r.ResponseCommand.Body) {
 					t.Errorf("wrong response message. want=%s, got=%s", string(sendRemotingCommand.Body),
 						string(r.ResponseCommand.Body))
@@ -313,7 +313,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		for scanner.Scan() {
 			t.Logf("receive request.")
 			_, err := decode(scanner.Bytes())
-			assert.Nil(t, err, "failed to decode RemotingCommnad.")
+			assert.Nil(t, err, "failed to decode RemotingCommand.")
 
 			time.Sleep(5 * time.Second) // force client timeout
 			goto done
@@ -358,7 +358,7 @@ func TestInvokeOneWay(t *testing.T) {
 		for scanner.Scan() {
 			receivedRemotingCommand, err := decode(scanner.Bytes())
 			if err != nil {
-				t.Errorf("failed to decode RemotingCommnad. %s", err)
+				t.Errorf("failed to decode RemotingCommand. %s", err)
 			}
 			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
