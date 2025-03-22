@@ -145,9 +145,9 @@ func TestCreateScanner(t *testing.T) {
 func TestInvokeSync(t *testing.T) {
 	addr := ":3004"
 
-	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	clientSendRemotingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
-	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
+	serverSendRemotingCommand.Opaque = clientSendRemotingCommand.Opaque
 	serverSendRemotingCommand.Flag = ResponseType
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -159,7 +159,7 @@ func TestInvokeSync(t *testing.T) {
 	go func() {
 		clientSend.Wait()
 		receiveCommand, err := client.InvokeSync(context.Background(), addr,
-			clientSendRemtingCommand)
+			clientSendRemotingCommand)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		} else {
@@ -192,9 +192,9 @@ func TestInvokeSync(t *testing.T) {
 			if err != nil {
 				t.Errorf("failed to decode RemotingCommand. %s", err)
 			}
-			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
+			if clientSendRemotingCommand.Code != receivedRemotingCommand.Code {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
-					clientSendRemtingCommand.Code)
+					clientSendRemotingCommand.Code)
 			}
 			body, err := encode(serverSendRemotingCommand)
 			if err != nil {
@@ -275,9 +275,9 @@ done:
 func TestInvokeAsyncTimeout(t *testing.T) {
 	addr := ":3002"
 
-	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	clientSendRemotingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 	serverSendRemotingCommand := NewRemotingCommand(20, nil, []byte("Welcome native"))
-	serverSendRemotingCommand.Opaque = clientSendRemtingCommand.Opaque
+	serverSendRemotingCommand.Opaque = clientSendRemotingCommand.Opaque
 	serverSendRemotingCommand.Flag = ResponseType
 
 	var wg sync.WaitGroup
@@ -290,7 +290,7 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 		clientSend.Wait()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
 		defer cancel()
-		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
+		err := client.InvokeAsync(ctx, addr, clientSendRemotingCommand,
 			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)
 				assert.Equal(t, errors.ErrRequestTimeout, r.Err)
@@ -325,7 +325,7 @@ done:
 
 func TestInvokeOneWay(t *testing.T) {
 	addr := ":3008"
-	clientSendRemtingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
+	clientSendRemotingCommand := NewRemotingCommand(10, nil, []byte("Hello RocketMQ"))
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -335,7 +335,7 @@ func TestInvokeOneWay(t *testing.T) {
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()
-		err := client.InvokeOneWay(context.Background(), addr, clientSendRemtingCommand)
+		err := client.InvokeOneWay(context.Background(), addr, clientSendRemotingCommand)
 		if err != nil {
 			t.Fatalf("failed to invoke synchronous. %s", err)
 		}
@@ -360,9 +360,9 @@ func TestInvokeOneWay(t *testing.T) {
 			if err != nil {
 				t.Errorf("failed to decode RemotingCommand. %s", err)
 			}
-			if clientSendRemtingCommand.Code != receivedRemotingCommand.Code {
+			if clientSendRemotingCommand.Code != receivedRemotingCommand.Code {
 				t.Errorf("wrong code. want=%d, got=%d", receivedRemotingCommand.Code,
-					clientSendRemtingCommand.Code)
+					clientSendRemotingCommand.Code)
 			}
 			goto done
 		}
