@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -27,6 +26,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
@@ -542,6 +543,9 @@ func (routeData *TopicRouteData) decode(data string) error {
 	if err != nil {
 		return err
 	}
+
+	orderTopicConf := res.Get("orderTopicConf").String()
+	routeData.OrderTopicConf = orderTopicConf
 
 	bds := res.Get("brokerDatas").Array()
 	routeData.BrokerDataList = make([]*BrokerData, len(bds))
