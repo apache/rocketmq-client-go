@@ -504,6 +504,13 @@ func (td *traceDispatcher) findMq(regionID string) (*primitive.MessageQueue, str
 		})
 		return nil, ""
 	}
+	if len(mqs) == 0 {
+		rlog.Warning("could not fetch any publish message queue", map[string]interface{}{
+			"topic": traceTopic,
+		})
+		return nil, ""
+	}
+
 	i := atomic.AddInt32(&td.rrindex, 1)
 	if i < 0 {
 		i = 0
