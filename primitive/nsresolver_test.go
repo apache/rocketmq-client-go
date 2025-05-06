@@ -172,3 +172,15 @@ func TestHttpResolverWithSnapshotFileOnce(t *testing.T) {
 		So(Diff(addrs1, srvs), ShouldBeFalse)
 	})
 }
+
+func TestDNSResolver(t *testing.T) {
+	Convey("Test UpdateNameServerAddress Use DNS", t, func() {
+		srvs := []string{
+			"127.0.0.1:9876",
+		}
+
+		resolver := NewDNSResolver([]string{"localhost:9876"})
+		addrs := resolver.Resolve()
+		So(Diff(srvs, addrs), ShouldBeTrue)
+	})
+}
