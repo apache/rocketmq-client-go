@@ -36,7 +36,7 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
-	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
 }
@@ -275,7 +275,9 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
 	return a.cli.GetNameSrv().FetchPublishMessageQueues(utils.WrapNamespace(a.opts.Namespace, topic))
 }
-
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*internal.ClusterInfo, error) {
+	return a.cli.GetBrokerClusterInfo(ctx)
+}
 func (a *admin) Close() error {
 	a.closeOnce.Do(func() {
 		a.cli.Shutdown()
