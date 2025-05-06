@@ -21,16 +21,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/tidwall/gjson"
+
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
-	jsoniter "github.com/json-iterator/go"
 )
 
 type FindBrokerResult struct {
@@ -486,7 +488,8 @@ func parseFastJsonFormat(body []byte) map[primitive.MessageQueue]int64 {
 
 		if err != nil {
 			rlog.Error("parse reset offset table json get nothing in body", map[string]interface{}{
-				"origin json": jsonStr,
+				"origin json":            jsonStr,
+				rlog.LogKeyUnderlayError: err,
 			})
 		}
 
