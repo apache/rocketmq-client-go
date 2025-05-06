@@ -298,10 +298,10 @@ func TestCommandJsonEncodeDecode(t *testing.T) {
 		t.Errorf("wrong command version. want=%d, got=%d", cmd.Version, newCmd.Version)
 	}
 	if newCmd.Opaque != cmd.Opaque {
-		t.Errorf("wrong command version. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
+		t.Errorf("wrong command opaque. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
 	}
 	if newCmd.Flag != cmd.Flag {
-		t.Errorf("wrong commad flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
+		t.Errorf("wrong command flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
 	}
 	if newCmd.Remark != cmd.Remark {
 		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
@@ -335,10 +335,10 @@ func TestCommandRocketMQEncodeDecode(t *testing.T) {
 		t.Errorf("wrong command version. want=%d, got=%d", cmd.Version, newCmd.Version)
 	}
 	if newCmd.Opaque != cmd.Opaque {
-		t.Errorf("wrong command version. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
+		t.Errorf("wrong command opaque. want=%d, got=%d", cmd.Opaque, newCmd.Opaque)
 	}
 	if newCmd.Flag != cmd.Flag {
-		t.Errorf("wrong commad flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
+		t.Errorf("wrong command flag. want=%d, got=%d", cmd.Flag, newCmd.Flag)
 	}
 	if newCmd.Remark != cmd.Remark {
 		t.Errorf("wrong command remakr. want=%s, got=%s", cmd.Remark, newCmd.Remark)
