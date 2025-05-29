@@ -35,6 +35,7 @@ const (
 	ReqGetMinOffset                  = int16(31)
 	ReqViewMessageByID               = int16(33)
 	ReqHeartBeat                     = int16(34)
+	ReqUnRegisterClient              = int16(35)
 	ReqConsumerSendMsgBack           = int16(36)
 	ReqENDTransaction                = int16(37)
 	ReqGetConsumerListByGroup        = int16(38)
@@ -633,4 +634,18 @@ func (request *ReplyMessageRequestHeader) Decode(properties map[string]string) {
 	if v, existed := properties["storeTimestamp"]; existed {
 		request.storeTimestamp, _ = strconv.ParseInt(v, 10, 0)
 	}
+}
+
+type UnregisterClientRequestHeader struct {
+	clientID      string
+	producerGroup string
+	consumerGroup string
+}
+
+func (request *UnregisterClientRequestHeader) Encode() map[string]string {
+	maps := make(map[string]string)
+	maps["clientId"] = request.clientID
+	maps["producerGroup"] = request.producerGroup
+	maps["consumerGroup"] = request.consumerGroup
+	return maps
 }
