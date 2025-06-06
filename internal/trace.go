@@ -103,7 +103,7 @@ func (ctx *TraceContext) marshal2Bean() *TraceTransferBean {
 		} else {
 			buffer.WriteString(bean.Topic)
 		}
-		//buffer.WriteString(bean.Topic)
+		// buffer.WriteString(bean.Topic)
 		buffer.WriteRune(contentSplitter)
 		buffer.WriteString(bean.MsgId)
 		buffer.WriteRune(contentSplitter)
@@ -358,9 +358,9 @@ func (td *traceDispatcher) process(maxWaitTime int64) {
 		case <-td.ticker.C:
 			delta := time.Since(lastput).Nanoseconds()
 			if delta > maxWaitTime {
-				count++
 				lastput = time.Now()
 				if len(batch) > 0 {
+					count = 0
 					batchSend := batch
 					go primitive.WithRecover(func() {
 						td.batchCommit(batchSend)
