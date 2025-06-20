@@ -20,10 +20,11 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 )
 
 var (
@@ -66,5 +67,5 @@ func FakeIP() []byte {
 }
 
 func GetAddressByBytes(data []byte) string {
-	return net.IPv4(data[0], data[1], data[2], data[3]).String()
+	return net.IP(data).String()
 }

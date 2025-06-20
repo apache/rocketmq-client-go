@@ -37,6 +37,24 @@ func TestMessageID(t *testing.T) {
 	t.Log(msgID)
 }
 
+func TestIpv6MessageID(t *testing.T) {
+	id := []byte("FDBDDC4100010136C800000000000024000078BF0000000000004F45")
+	msgID, err := UnmarshalMsgID(id)
+	if err != nil {
+		t.Fatalf("unmarshal msg id error, ms is: %s", err.Error())
+	}
+	if msgID.Addr != "[fdbd:dc41:1:136:c800::24]" {
+		t.Fatalf("parse messageID %s error", id)
+	}
+	if msgID.Port != 30911 {
+		t.Fatalf("parse messageID %s error", id)
+	}
+	if msgID.Offset != 20293 {
+		t.Fatalf("parse messageID %s error", id)
+	}
+	t.Log(msgID)
+}
+
 func TestMessageKey(t *testing.T) {
 	msg := &Message{}
 	expected := "testKey"
