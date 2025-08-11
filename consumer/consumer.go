@@ -436,6 +436,14 @@ func (dc *defaultConsumer) doBalance() {
 				dc.option.PullInterval.Store(time.Duration(float64(time.Second) / pullTimesPerSecond))
 			}
 
+			oldMqSet := make([]primitive.MessageQueue, 0)
+			if dc.consumeOrderly {
+				dc.processQueueTable.Range(func(key, value interface{}) bool {
+					oldMqSet = append(oldMqSet, key.(primitive.MessageQueue))
+					return true
+				})
+			}
+
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
@@ -449,6 +457,21 @@ func (dc *defaultConsumer) doBalance() {
 					"rebalanceResultSet":     allocateResult,
 				})
 			}
+
+			if dc.consumeOrderly {
+				for _, mq := range oldMqSet {
+					match := false
+					for _, newMq := range allocateResult {
+						if mq.String() == newMq.String() {
+							match = true
+							break
+						}
+					}
+					if !match {
+						dc.unlock(&mq, true)
+					}
+				}
+			}			
 		}
 		return true
 	})
