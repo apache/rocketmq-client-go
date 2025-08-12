@@ -183,6 +183,11 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
+	if cfg.BrokerAddr == "" {
+		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.ClusterName)
+		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.ClusterName)
+	}
+
 	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
 	if err != nil {
 		rlog.Error("create topic error", map[string]interface{}{
