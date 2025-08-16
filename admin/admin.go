@@ -185,23 +185,40 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
 	if cfg.BrokerAddr == "" {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.ClusterName)
-		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.ClusterName)
-	}
-
-	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
-	if err != nil {
-		rlog.Error("create topic error", map[string]interface{}{
-			rlog.LogKeyTopic:         cfg.Topic,
-			rlog.LogKeyBroker:        cfg.BrokerAddr,
-			rlog.LogKeyUnderlayError: err,
-		})
+		brokerAddresses := a.cli.GetNameSrv().FindAllBrokerAddressByCluster(cfg.ClusterName)
+		for brokerAddr, _ := range brokerAddresses {
+			_, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+			if err != nil {
+				rlog.Error("create topic error", map[string]interface{}{
+					rlog.LogKeyTopic:         cfg.Topic,
+					rlog.LogKeyBroker:        brokerAddr,
+					rlog.LogKeyUnderlayError: err,
+				})
+				return err
+			} else {
+				rlog.Info("create topic success", map[string]interface{}{
+					rlog.LogKeyTopic:  cfg.Topic,
+					rlog.LogKeyBroker: brokerAddr,
+				})
+			}
+		}
 	} else {
-		rlog.Info("create topic success", map[string]interface{}{
-			rlog.LogKeyTopic:  cfg.Topic,
-			rlog.LogKeyBroker: cfg.BrokerAddr,
-		})
+		_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
+		if err != nil {
+			rlog.Error("create topic error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        cfg.BrokerAddr,
+				rlog.LogKeyUnderlayError: err,
+			})
+		} else {
+			rlog.Info("create topic success", map[string]interface{}{
+				rlog.LogKeyTopic:  cfg.Topic,
+				rlog.LogKeyBroker: cfg.BrokerAddr,
+			})
+		}
+		return err
 	}
-	return err
+	return nil
 }
 
 // DeleteTopicInBroker delete topic in broker.
@@ -233,16 +250,26 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	//delete topic in broker
 	if cfg.BrokerAddr == "" {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
-		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.Topic)
-	}
-
-	if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
-		rlog.Error("delete topic in broker error", map[string]interface{}{
-			rlog.LogKeyTopic:         cfg.Topic,
-			rlog.LogKeyBroker:        cfg.BrokerAddr,
-			rlog.LogKeyUnderlayError: err,
-		})
-		return err
+		brokerAddresses := a.cli.GetNameSrv().FindAllBrokerAddressByCluster(cfg.ClusterName)
+		for brokerAddr, _ := range brokerAddresses {
+			if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, brokerAddr); err != nil {
+				rlog.Error("delete topic in broker error", map[string]interface{}{
+					rlog.LogKeyTopic:         cfg.Topic,
+					rlog.LogKeyBroker:        brokerAddr,
+					rlog.LogKeyUnderlayError: err,
+				})
+				return err
+			}
+		}
+	} else {
+		if _, err := a.deleteTopicInBroker(ctx, cfg.Topic, cfg.BrokerAddr); err != nil {
+			rlog.Error("delete topic in broker error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        cfg.BrokerAddr,
+				rlog.LogKeyUnderlayError: err,
+			})
+			return err
+		}
 	}
 
 	//delete topic in nameserver
