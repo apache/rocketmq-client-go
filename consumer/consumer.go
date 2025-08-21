@@ -578,7 +578,7 @@ func (dc *defaultConsumer) lockAll() {
 			if exist {
 				pq := v.(*processQueue)
 				pq.WithLock(true)
-				pq.UpdateLastConsumeTime()
+				pq.UpdateLastLockTime()
 			}
 			set[_mq] = true
 		}
