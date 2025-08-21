@@ -20,6 +20,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"net"
 	"os"
 	"sort"
@@ -163,6 +164,8 @@ type RMQClient interface {
 
 	GetNameSrv() Namesrvs
 	RegisterACL()
+
+	GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error)
 }
 
 var _ RMQClient = new(rmqClient)
@@ -932,6 +935,24 @@ func (c *rmqClient) isNeedUpdateSubscribeInfo(topic string) bool {
 	return result
 }
 
+func (c *rmqClient) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) {
+	request := remote.NewRemotingCommand(ReqGetBrokerClusterInfo, nil, nil)
+	c.SendHeartbeatToAllBrokerWithLock()
+
+	responseCommand, _ := c.remoteClient.InvokeSync(ctx, c.GetNameSrv().AddrList()[0], request)
+
+	switch responseCommand.Code {
+	case ResSuccess:
+		if responseCommand.Body != nil {
+			var cluster, err = ParseClusterInfo(string(responseCommand.Body))
+			return cluster, err
+		}
+	default:
+		rlog.Warning("no any topic list", nil)
+	}
+	return nil, errors.New("no any response from broker")
+
+}
 func (c *rmqClient) resetOffset(topic string, group string, offsetTable map[primitive.MessageQueue]int64) {
 	consumer, exist := c.consumerMap.Load(group)
 	if !exist {
