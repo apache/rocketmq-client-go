@@ -67,7 +67,7 @@ type pushConsumer struct {
 	queueMaxSpanFlowControlTimes int
 	consumeFunc                  utils.Set
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
-	subscribedTopic              map[string]string
+	subscribedTopic              *Sets // 原本是一个 map[string]string，且没加锁，存在并发问题
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
 	done                         chan struct{}
@@ -112,7 +112,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
-		subscribedTopic: make(map[string]string, 0),
+		subscribedTopic: NewSets(),
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
@@ -235,13 +235,20 @@ func (pc *pushConsumer) Start() error {
 	}
 
 	pc.client.UpdateTopicRouteInfo()
-	for k := range pc.subscribedTopic {
-		_, exist := pc.topicSubscribeInfoTable.Load(k)
+	var notExistKey string
+	pc.subscribedTopic.Each(func(key interface{}) bool {
+		_, exist := pc.topicSubscribeInfoTable.Load(key)
 		if !exist {
-			pc.Shutdown()
-			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
+			notExistKey = key.(string)
+			return false
 		}
+		return true
+	})
+	if notExistKey != "" {
+		pc.shutdown()
+		return fmt.Errorf("the topic=%s route info not found, it may not exist", notExistKey)
 	}
+
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
 	go pc.client.RebalanceImmediately()
@@ -302,7 +309,7 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	}
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
-	pc.subscribedTopic[topic] = ""
+	pc.subscribedTopic.Set(topic)
 
 	pc.consumeFunc.Add(&PushConsumerCallback{
 		f:     f,
@@ -502,9 +509,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 		rlog.LogKeyValueChangedFrom: data.SubVersion,
 		rlog.LogKeyValueChangedTo:   newVersion,
 	})
-	data.Lock()
 	data.SubVersion = newVersion
-	data.Unlock()
 
 	// TODO: optimize
 	count := 0
@@ -550,7 +555,7 @@ func (pc *pushConsumer) validate() error {
 		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
 	}
 
-	if len(pc.subscribedTopic) == 0 {
+	if pc.subscribedTopic.Len() == 0 {
 		rlog.Warning("not subscribe any topic yet", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
 		})
