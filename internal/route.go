@@ -164,35 +164,6 @@ func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic st
 	}
 
 	if changed {
-		if s.bundleClient != nil {
-			s.bundleClient.producerMap.Range(func(key, value interface{}) bool {
-				p := value.(InnerProducer)
-				updated := changed
-				if !updated {
-					updated = p.IsPublishTopicNeedUpdate(topic)
-				}
-				if updated {
-					publishInfo := s.bundleClient.GetNameSrv().(*namesrvs).routeData2PublishInfo(topic, routeData)
-					publishInfo.HaveTopicRouterInfo = true
-					p.UpdateTopicPublishInfo(topic, publishInfo)
-				}
-				return true
-			})
-			s.bundleClient.consumerMap.Range(func(key, value interface{}) bool {
-				consumer := value.(InnerConsumer)
-				updated := changed
-				if !updated {
-					updated = consumer.IsSubscribeTopicNeedUpdate(topic)
-				}
-				if updated {
-					consumer.UpdateTopicSubscribeInfo(topic, routeData2SubscribeInfo(topic, routeData))
-				}
-
-				return true
-			})
-			rlog.Info("change the route for clients", nil)
-		}
-
 		s.routeDataMap.Store(topic, routeData)
 		rlog.Info("the topic route info changed", map[string]interface{}{
 			rlog.LogKeyTopic:            topic,
