@@ -36,6 +36,7 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
+	ExamineBrokerClusterAclConfig(ctx context.Context, brokerAddr string) (*AclConfig, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	Close() error
@@ -270,6 +271,29 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		rlog.LogKeyBroker: cfg.BrokerAddr,
 	})
 	return nil
+}
+
+func (a *admin) ExamineBrokerClusterAclConfig(ctx context.Context, brokerAddr string) (*AclConfig, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterAclConfig, nil, nil)
+	a.cli.RegisterACL()
+	response, err := a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+	if err != nil {
+		rlog.Error("Get broker acl config error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	} else {
+		rlog.Info("Get broker acl config success", map[string]interface{}{})
+	}
+	var aclConfig AclConfig
+	_, err = aclConfig.Decode(response.Body, &aclConfig)
+	if err != nil {
+		rlog.Error("Get broker acl config decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &aclConfig, nil
 }
 
 func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
