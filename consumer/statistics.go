@@ -172,39 +172,23 @@ func newStatsItemSet(statsName string) *statsItemSet {
 
 func (sis *statsItemSet) init() {
 	go primitive.WithRecover(func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
+		secticker := time.NewTicker(10 * time.Second)
+		minticker := time.NewTicker(10 * time.Minute)
+		hourticker := time.NewTicker(time.Hour)
+		defer func() {
+			secticker.Stop()
+			minticker.Stop()
+			hourticker.Stop()
+		}()
 		for {
 			select {
 			case <-sis.closed:
 				return
-			case <-ticker.C:
+			case <-secticker.C:
 				sis.samplingInSeconds()
-			}
-		}
-	})
-
-	go primitive.WithRecover(func() {
-		ticker := time.NewTicker(10 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-sis.closed:
-				return
-			case <-ticker.C:
+			case <-minticker.C:
 				sis.samplingInMinutes()
-			}
-		}
-	})
-
-	go primitive.WithRecover(func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-sis.closed:
-				return
-			case <-ticker.C:
+			case <-hourticker.C:
 				sis.samplingInHour()
 			}
 		}
@@ -213,6 +197,7 @@ func (sis *statsItemSet) init() {
 	go primitive.WithRecover(func() {
 		time.Sleep(nextMinutesTime().Sub(time.Now()))
 		ticker := time.NewTicker(time.Minute)
+
 		defer ticker.Stop()
 		for {
 			select {
