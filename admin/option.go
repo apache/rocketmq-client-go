@@ -33,6 +33,7 @@ func defaultTopicConfigCreate() TopicConfigCreate {
 type TopicConfigCreate struct {
 	Topic           string
 	BrokerAddr      string
+	ClusterName     string
 	DefaultTopic    string
 	ReadQueueNums   int
 	WriteQueueNums  int
@@ -53,6 +54,12 @@ func WithTopicCreate(Topic string) OptionCreate {
 func WithBrokerAddrCreate(BrokerAddr string) OptionCreate {
 	return func(opts *TopicConfigCreate) {
 		opts.BrokerAddr = BrokerAddr
+	}
+}
+
+func WithClusterNameCreate(ClusterName string) OptionCreate {
+	return func(opts *TopicConfigCreate) {
+		opts.ClusterName = ClusterName
 	}
 }
 

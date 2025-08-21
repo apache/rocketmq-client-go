@@ -238,6 +238,24 @@ func (s *namesrvs) FindBrokerAddrByTopic(topic string) string {
 	return addr
 }
 
+func (s *namesrvs) FindAllBrokerAddressByCluster(clusterName string) map[string]struct{} {
+	addrs := make(map[string]struct{})
+	v, exist := s.routeDataMap.Load(clusterName)
+	if !exist {
+		return addrs
+	}
+	routeData := v.(*TopicRouteData)
+
+	for _, bd := range routeData.BrokerDataList {
+		for _, addr := range bd.BrokerAddresses {
+			if addr != "" {
+				addrs[addr] = struct{}{}
+			}
+		}
+	}
+	return addrs
+}
+
 func (s *namesrvs) FindBrokerAddrByName(brokerName string) string {
 	bd, exist := s.brokerAddressesMap.Load(brokerName)
 

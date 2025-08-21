@@ -178,6 +178,20 @@ func (mr *MockNamesrvsMockRecorder) FetchSubscribeMessageQueues(topic interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchSubscribeMessageQueues", reflect.TypeOf((*MockNamesrvs)(nil).FetchSubscribeMessageQueues), topic)
 }
 
+// FindAllBrokerAddressByCluster mocks base method
+func (m *MockNamesrvs) FindAllBrokerAddressByCluster(clusterName string) map[string]struct{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllBrokerAddressByCluster", clusterName)
+	ret0, _ := ret[0].(map[string]struct{})
+	return ret0
+}
+
+// FindAllBrokerAddressByCluster indicates an expected call of FindAllBrokerAddressByCluster
+func (mr *MockNamesrvsMockRecorder) FindAllBrokerAddressByCluster(clusterName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllBrokerAddressByCluster", reflect.TypeOf((*MockNamesrvs)(nil).FindAllBrokerAddressByCluster), clusterName)
+}
+
 // AddrList mocks base method
 func (m *MockNamesrvs) AddrList() []string {
 	m.ctrl.T.Helper()
