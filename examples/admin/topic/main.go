@@ -56,6 +56,13 @@ func main() {
 		fmt.Println("Create topic error:", err.Error())
 	}
 
+	// fetch topic route info
+	topicRouteInfo, _, err := testAdmin.UpdateTopicRouteInfo(context.Background(), topic)
+	if err != nil {
+		fmt.Println("UpdateTopicRouteInfo error:", err.Error())
+	}
+	fmt.Println(topicRouteInfo.String())
+
 	//deletetopic
 	err = testAdmin.DeleteTopic(
 		context.Background(),
