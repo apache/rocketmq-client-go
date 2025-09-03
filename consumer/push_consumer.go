@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
+	"go.uber.org/atomic"
 
 	"github.com/pkg/errors"
 
@@ -97,7 +97,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
-		state:          int32(internal.StateCreateJust),
+		state:          atomic.NewInt32(int32(internal.StateCreateJust)),
 		prCh:           make(chan PullRequest, 4),
 		model:          defaultOpts.ConsumerModel,
 		consumeOrderly: defaultOpts.ConsumeOrderly,
@@ -138,7 +138,7 @@ func (pc *pushConsumer) Start() error {
 			"messageModel":           pc.model,
 			"unitMode":               pc.unitMode,
 		})
-		atomic.StoreInt32(&pc.state, int32(internal.StateStartFailed))
+		pc.state.Store(int32(internal.StateStartFailed))
 		err = pc.validate()
 		if err != nil {
 			rlog.Error("the consumer group option validate fail", map[string]interface{}{
@@ -289,8 +289,8 @@ func (pc *pushConsumer) Shutdown() error {
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
-	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
-		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
+	if pc.state.Load() == int32(internal.StateStartFailed) ||
+		pc.state.Load() == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
 
@@ -685,7 +685,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if pc.pause {
+		if pc.pause.Load() {
 			rlog.Debug(fmt.Sprintf("consumer [%s] of [%s] was paused, execute pull request [%s] later",
 				pc.option.InstanceName, pc.consumerGroup, request.String()), nil)
 			sleepTime = _PullDelayTimeWhenSuspend
@@ -945,12 +945,12 @@ func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLev
 }
 
 func (pc *pushConsumer) suspend() {
-	pc.pause = true
+	pc.pause.Store(true)
 	rlog.Info(fmt.Sprintf("suspend consumer: %s", pc.consumerGroup), nil)
 }
 
 func (pc *pushConsumer) resume() {
-	pc.pause = false
+	pc.pause.Store(false)
 	pc.doBalance()
 	rlog.Info(fmt.Sprintf("resume consumer: %s", pc.consumerGroup), nil)
 }
