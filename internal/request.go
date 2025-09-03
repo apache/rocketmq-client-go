@@ -40,6 +40,7 @@ const (
 	ReqGetConsumerListByGroup        = int16(38)
 	ReqLockBatchMQ                   = int16(41)
 	ReqUnlockBatchMQ                 = int16(42)
+	ReqGetBrokerClusterAclConfig     = int16(54)
 	ReqGetRouteInfoByTopic           = int16(105)
 	ReqGetBrokerClusterInfo          = int16(106)
 	ReqSendBatchMessage              = int16(320)
