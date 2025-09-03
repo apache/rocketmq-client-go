@@ -31,6 +31,7 @@ import (
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	atomic2 "go.uber.org/atomic"
 
 	"github.com/pkg/errors"
 
@@ -111,7 +112,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		client:        internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup: utils.WrapNamespace(defaultOpts.Namespace, defaultOpts.GroupName),
 		cType:         _PullConsume,
-		state:         int32(internal.StateCreateJust),
+		state:         atomic2.NewInt32(int32(internal.StateCreateJust)),
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
@@ -149,8 +150,8 @@ func (pc *defaultPullConsumer) GetTopicRouteInfo(topic string) ([]*primitive.Mes
 }
 
 func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector) error {
-	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
-		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
+	if pc.state.Load() == int32(internal.StateStartFailed) ||
+		pc.state.Load() == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
 	if pc.SubType == Assign {
@@ -247,7 +248,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			return
 		}
-		atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
+		pc.state.Store(int32(internal.StateRunning))
 		go func() {
 			for {
 				select {
@@ -837,7 +838,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if pc.pause {
+		if pc.pause.Load() {
 			rlog.Debug(fmt.Sprintf("defaultPullConsumer [%s] of [%s] was paused, execute pull request [%s] later",
 				pc.option.InstanceName, pc.consumerGroup, request.String()), nil)
 			sleepTime = _PullDelayTimeWhenSuspend
