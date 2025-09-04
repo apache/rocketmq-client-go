@@ -98,6 +98,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
 		state:          atomic.NewInt32(int32(internal.StateCreateJust)),
+		pause:          atomic.NewBool(false),
 		prCh:           make(chan PullRequest, 4),
 		model:          defaultOpts.ConsumerModel,
 		consumeOrderly: defaultOpts.ConsumeOrderly,
