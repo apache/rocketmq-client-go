@@ -436,14 +436,6 @@ func (dc *defaultConsumer) doBalance() {
 				dc.option.PullInterval.Store(time.Duration(float64(time.Second) / pullTimesPerSecond))
 			}
 
-			oldMqSet := make([]primitive.MessageQueue, 0)
-			if dc.consumeOrderly {
-				dc.processQueueTable.Range(func(key, value interface{}) bool {
-					oldMqSet = append(oldMqSet, key.(primitive.MessageQueue))
-					return true
-				})
-			}
-
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
@@ -456,21 +448,6 @@ func (dc *defaultConsumer) doBalance() {
 					"rebalanceResultSize":    len(allocateResult),
 					"rebalanceResultSet":     allocateResult,
 				})
-			}
-
-			if dc.consumeOrderly {
-				for _, mq := range oldMqSet {
-					match := false
-					for _, newMq := range allocateResult {
-						if mq.String() == newMq.String() {
-							match = true
-							break
-						}
-					}
-					if !match {
-						dc.unlock(&mq, true)
-					}
-				}
 			}			
 		}
 		return true
@@ -732,10 +709,12 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 		mq := key.(primitive.MessageQueue)
 		pq := value.(*processQueue)
 		if mq.Topic == topic {
+			unlockMqs := make([]*primitive.MessageQueue, 0, 1)
 			if !mqSet[mq] {
 				pq.WithDropped(true)
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
+					unlockMqs = append(unlockMqs, &mq)
 					changed = true
 					rlog.Info("remove unnecessary mq when updateProcessQueueTable", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
@@ -746,12 +725,29 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 				pq.WithDropped(true)
 				if dc.removeUnnecessaryMessageQueue(&mq, pq) {
 					dc.processQueueTable.Delete(key)
+					unlockMqs = append(unlockMqs, &mq)
 					changed = true
 					rlog.Warning("remove unnecessary mq because pull was expired, prepare to fix it", map[string]interface{}{
 						rlog.LogKeyConsumerGroup: dc.consumerGroup,
 						rlog.LogKeyMessageQueue:  mq.String(),
 					})
 				}
+			}
+
+			if dc.consumeOrderly && len(unlockMqs) > 0 {
+				// 释放掉不再订阅的mq的锁，不再订阅的mq已经在上面被删除了
+				go func() {
+					brokerResult := dc.client.GetNameSrv().FindBrokerAddressInSubscribe(mq.BrokerName, internal.MasterId, true)
+
+					if brokerResult != nil {
+						body := &lockBatchRequestBody{
+							ConsumerGroup: dc.consumerGroup,
+							ClientId:      dc.client.ClientID(),
+							MQs:           unlockMqs,
+						}
+						dc.doUnlock(brokerResult.BrokerAddr, body, false)
+					}
+				}()
 			}
 		}
 		return true
