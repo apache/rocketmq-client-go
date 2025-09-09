@@ -530,6 +530,22 @@ func (s *namesrvs) routeData2PublishInfo(topic string, data *TopicRouteData) *To
 	return publishInfo
 }
 
+func (s *namesrvs) FetchClusterList(topic string) ([]string, error) {
+	routeData, err := s.queryTopicRouteInfoFromServer(topic)
+	if err != nil {
+		return nil, err
+	}
+	clusterSet := make(map[string]struct{})
+	for _, bd := range routeData.BrokerDataList {
+		clusterSet[bd.Cluster] = struct{}{}
+	}
+	clusterList := make([]string, 0, len(clusterSet))
+	for cluster := range clusterSet {
+		clusterList = append(clusterList, cluster)
+	}
+	return clusterList, nil
+}
+
 // TopicRouteData TopicRouteData
 type TopicRouteData struct {
 	OrderTopicConf string

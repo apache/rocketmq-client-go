@@ -38,6 +38,7 @@ type Admin interface {
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
 	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
+	FetchClusterList(topic string) ([]string, error)
 	Close() error
 }
 
@@ -274,6 +275,10 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 
 func (a *admin) FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error) {
 	return a.cli.GetNameSrv().FetchPublishMessageQueues(utils.WrapNamespace(a.opts.Namespace, topic))
+}
+
+func (a *admin) FetchClusterList(topic string) ([]string, error) {
+	return a.cli.GetNameSrv().FetchClusterList(topic)
 }
 
 func (a *admin) Close() error {
