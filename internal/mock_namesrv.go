@@ -191,3 +191,18 @@ func (mr *MockNamesrvsMockRecorder) AddrList() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddrList", reflect.TypeOf((*MockNamesrvs)(nil).AddrList))
 }
+
+// FetchClusterList mocks base method
+func (m *MockNamesrvs) FetchClusterList(topic string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchClusterList", topic)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchClusterList indicates an expected call of FetchClusterList
+func (mr *MockNamesrvsMockRecorder) FetchClusterList(topic interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchClusterList", reflect.TypeOf((*MockNamesrvs)(nil).FetchClusterList), topic)
+}
