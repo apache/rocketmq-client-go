@@ -62,6 +62,8 @@ type Namesrvs interface {
 
 	FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
+	FindAllBrokerAddressByCluster(clusterName string) map[string]struct{}
+
 	AddrList() []string
 }
 
