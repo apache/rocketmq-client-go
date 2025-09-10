@@ -971,6 +971,7 @@ func (dc *defaultConsumer) findConsumerList(topic string) []string {
 		req := &internal.GetConsumerListRequestHeader{
 			ConsumerGroup: dc.consumerGroup,
 		}
+		brokerAddr = utils.AdaptIPv6(brokerAddr) // adapt IPv6 address to a format that can be used with net.DialContext
 		cmd := remote.NewRemotingCommand(internal.ReqGetConsumerListByGroup, req, nil)
 		res, err := dc.client.InvokeSync(context.Background(), brokerAddr, cmd, 3*time.Second) // TODO 超时机制有问题
 		if err != nil {
