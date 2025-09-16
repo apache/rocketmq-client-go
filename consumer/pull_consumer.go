@@ -31,6 +31,7 @@ import (
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
+	atomic2 "go.uber.org/atomic"
 
 	"github.com/pkg/errors"
 
@@ -111,7 +112,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		client:        internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup: utils.WrapNamespace(defaultOpts.Namespace, defaultOpts.GroupName),
 		cType:         _PullConsume,
-		state:         int32(internal.StateCreateJust),
+		state:         atomic2.NewInt32(int32(internal.StateCreateJust)),
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,
@@ -149,8 +150,8 @@ func (pc *defaultPullConsumer) GetTopicRouteInfo(topic string) ([]*primitive.Mes
 }
 
 func (pc *defaultPullConsumer) Subscribe(topic string, selector MessageSelector) error {
-	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
-		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
+	if pc.state.Load() == int32(internal.StateStartFailed) ||
+		pc.state.Load() == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
 	if pc.SubType == Assign {
@@ -208,12 +209,17 @@ func (pc *defaultPullConsumer) nextPullOffset(mq *primitive.MessageQueue, origin
 	if pc.SubType != Assign {
 		return originOffset
 	}
-	value, exist := pc.mq2seekOffset.LoadAndDelete(mq)
+	value, exist := pc.mq2seekOffset.LoadAndDelete(*mq)
 	if !exist {
 		return originOffset
 	} else {
 		nextOffset := value.(int64)
 		_ = pc.updateOffset(mq, nextOffset)
+		rlog.Info("pull consumer assign new offset", map[string]interface{}{
+			"group":  pc.GroupName,
+			"mq":     mq,
+			"offset": nextOffset,
+		})
 		return nextOffset
 	}
 }
@@ -242,7 +248,7 @@ func (pc *defaultPullConsumer) Start() error {
 		if err != nil {
 			return
 		}
-		atomic.StoreInt32(&pc.state, int32(internal.StateRunning))
+		pc.state.Store(int32(internal.StateRunning))
 		go func() {
 			for {
 				select {
@@ -711,7 +717,7 @@ func (pc *defaultPullConsumer) ResetOffset(topic string, table map[primitive.Mes
 }
 
 func (pc *defaultPullConsumer) SeekOffset(mq *primitive.MessageQueue, offset int64) {
-	pc.mq2seekOffset.Store(mq, offset)
+	pc.mq2seekOffset.Store(*mq, offset)
 	rlog.Info("pull consumer seek offset", map[string]interface{}{
 		"mq":     mq,
 		"offset": offset,
@@ -832,7 +838,7 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if pc.pause {
+		if pc.pause.Load() {
 			rlog.Debug(fmt.Sprintf("defaultPullConsumer [%s] of [%s] was paused, execute pull request [%s] later",
 				pc.option.InstanceName, pc.consumerGroup, request.String()), nil)
 			sleepTime = _PullDelayTimeWhenSuspend
@@ -880,6 +886,8 @@ func (pc *defaultPullConsumer) pullMessage(request *PullRequest) {
 		if brokerResult.Slave {
 			pullRequest.SysFlag = clearCommitOffsetFlag(pullRequest.SysFlag)
 		}
+
+		rlog.Debug(fmt.Sprintf("defaultPullConsumer pull message from broker: %s, request: %+v", brokerResult.BrokerAddr, pullRequest), nil)
 
 		result, err := pc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
 		if err != nil {

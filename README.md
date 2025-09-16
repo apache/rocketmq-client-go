@@ -14,7 +14,7 @@
 A product ready RocketMQ Client in pure go, which supports almost the full features of Apache RocketMQ, such as pub and sub messages, ACL, tracing and so on.
 
 ----------
-## [Due Diligence](https://github.com/apache/rocketmq-client-go/issues/423)
+## [Are you using RocketMQ Go SDK?](https://github.com/apache/rocketmq-client-go/issues/423)
 [Here](https://github.com/apache/rocketmq-client-go/issues/423), we sincerely invite you to take a minute to feedback on your usage scenario. 
 
 ----------

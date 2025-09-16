@@ -19,7 +19,6 @@ package internal
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -28,13 +27,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-	"github.com/tidwall/gjson"
-
+	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -393,7 +392,7 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 		err      error
 	)
 
-	//if s.Size() == 0, response will be nil, lead to panic below.
+	// if s.Size() == 0, response will be nil, lead to panic below.
 	if s.Size() == 0 {
 		rlog.Error("namesrv list empty. UpdateNameServerAddress should be called first.", map[string]interface{}{
 			"namesrv": s,
@@ -446,6 +445,9 @@ func (s *namesrvs) queryTopicRouteInfoFromServer(topic string) (*TopicRouteData,
 
 func (s *namesrvs) topicRouteDataIsChange(oldData *TopicRouteData, newData *TopicRouteData) bool {
 	if oldData == nil || newData == nil {
+		return true
+	}
+	if oldData.OrderTopicConf != newData.OrderTopicConf {
 		return true
 	}
 	oldDataCloned := oldData.clone()
@@ -528,6 +530,22 @@ func (s *namesrvs) routeData2PublishInfo(topic string, data *TopicRouteData) *To
 	return publishInfo
 }
 
+func (s *namesrvs) FetchClusterList(topic string) ([]string, error) {
+	routeData, err := s.queryTopicRouteInfoFromServer(topic)
+	if err != nil {
+		return nil, err
+	}
+	clusterSet := make(map[string]struct{})
+	for _, bd := range routeData.BrokerDataList {
+		clusterSet[bd.Cluster] = struct{}{}
+	}
+	clusterList := make([]string, 0, len(clusterSet))
+	for cluster := range clusterSet {
+		clusterList = append(clusterList, cluster)
+	}
+	return clusterList, nil
+}
+
 // TopicRouteData TopicRouteData
 type TopicRouteData struct {
 	OrderTopicConf string
@@ -542,7 +560,7 @@ func (routeData *TopicRouteData) decode(data string) error {
 	if err != nil {
 		return err
 	}
-
+	routeData.OrderTopicConf = res.Get("orderTopicConf").String()
 	bds := res.Get("brokerDatas").Array()
 	routeData.BrokerDataList = make([]*BrokerData, len(bds))
 	for idx, v := range bds {

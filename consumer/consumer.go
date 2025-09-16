@@ -25,11 +25,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
+	"go.uber.org/atomic"
 
 	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/hooks"
@@ -250,8 +250,8 @@ type defaultConsumer struct {
 	cType     ConsumeType
 	client    internal.RMQClient
 	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state     int32
-	pause     bool
+	state     *atomic.Int32
+	pause     *atomic.Bool
 	once      sync.Once
 	option    consumerOptions
 	// key: primitive.MessageQueue
@@ -289,14 +289,14 @@ func (dc *defaultConsumer) start() error {
 	}
 
 	dc.client.Start()
-	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
+	dc.state.Store(int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
 	dc.stat = NewStatsManager()
 	return nil
 }
 
 func (dc *defaultConsumer) shutdown() error {
-	atomic.StoreInt32(&dc.state, int32(internal.StateShutdown))
+	dc.state.Store(int32(internal.StateShutdown))
 
 	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
@@ -317,11 +317,11 @@ func (dc *defaultConsumer) shutdown() error {
 }
 
 func (dc *defaultConsumer) isRunning() bool {
-	return atomic.LoadInt32(&dc.state) == int32(internal.StateRunning)
+	return dc.state.Load() == int32(internal.StateRunning)
 }
 
 func (dc *defaultConsumer) isStopped() bool {
-	return atomic.LoadInt32(&dc.state) == int32(internal.StateShutdown)
+	return dc.state.Load() == int32(internal.StateShutdown)
 }
 
 func (dc *defaultConsumer) persistConsumerOffset() error {
@@ -371,7 +371,7 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 }
 
 func (dc *defaultConsumer) doBalanceIfNotPaused() {
-	if dc.pause {
+	if dc.pause.Load() {
 		rlog.Info("[BALANCE-SKIP] since consumer paused", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: dc.consumerGroup,
 		})
@@ -483,8 +483,8 @@ func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
-	if atomic.LoadInt32(&dc.state) != int32(internal.StateRunning) {
-		return fmt.Errorf("state not running, actually: %v", dc.state)
+	if dc.state.Load() != int32(internal.StateRunning) {
+		return fmt.Errorf("state not running, actually: %v", dc.state.Load())
 	}
 	return nil
 }
@@ -578,7 +578,7 @@ func (dc *defaultConsumer) lockAll() {
 			if exist {
 				pq := v.(*processQueue)
 				pq.WithLock(true)
-				pq.UpdateLastConsumeTime()
+				pq.UpdateLastLockTime()
 			}
 			set[_mq] = true
 		}
