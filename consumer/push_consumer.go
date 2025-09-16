@@ -554,7 +554,7 @@ func (pc *pushConsumer) validate() error {
 		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
 	}
 	noSubscribedTopic := true
-	pc.subscribedTopic.Range(func(key, value any) bool {
+	pc.subscribedTopic.Range(func(key, value interface{}) bool {
 		noSubscribedTopic = false
 		return false
 	})
