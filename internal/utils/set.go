@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+	"sync"
 )
 
 type UniqueItem interface {
@@ -34,6 +35,7 @@ func (str StringUnique) UniqueID() string {
 }
 
 type Set struct {
+	mux   sync.RWMutex
 	items map[string]UniqueItem
 }
 
@@ -44,29 +46,41 @@ func NewSet() Set {
 }
 
 func (s *Set) Items() map[string]UniqueItem {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.items
 }
 
 func (s *Set) Add(v UniqueItem) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	s.items[v.UniqueID()] = v
 }
 
 func (s *Set) AddKV(k, v string) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	s.items[k] = StringUnique(v)
 }
 
 func (s *Set) Contains(k string) (UniqueItem, bool) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	v, ok := s.items[k]
 	return v, ok
 }
 
 func (s *Set) Len() int {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return len(s.items)
 }
 
 var _ json.Marshaler = &Set{}
 
 func (s *Set) MarshalJSON() ([]byte, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	if len(s.items) == 0 {
 		return []byte("[]"), nil
 	}

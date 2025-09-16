@@ -67,12 +67,12 @@ type pushConsumer struct {
 	queueMaxSpanFlowControlTimes int
 	consumeFunc                  utils.Set
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
-	subscribedTopic              map[string]string
+	subscribedTopic              sync.Map
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
-	crCh                         map[string]chan struct{}
+	crCh                         sync.Map
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -113,11 +113,9 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
-		subscribedTopic: make(map[string]string, 0),
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
-		crCh:            make(map[string]chan struct{}),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -165,7 +163,7 @@ func (pc *pushConsumer) Start() error {
 		}
 
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+		pc.crCh.Store(retryTopic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 
 		go func() {
 			// todo start clean msg expired
@@ -236,13 +234,20 @@ func (pc *pushConsumer) Start() error {
 	}
 
 	pc.client.UpdateTopicRouteInfo()
-	for k := range pc.subscribedTopic {
+	pc.subscribedTopic.Range(func(k, v interface{}) bool {
 		_, exist := pc.topicSubscribeInfoTable.Load(k)
 		if !exist {
 			pc.Shutdown()
-			return fmt.Errorf("the topic=%s route info not found, it may not exist", k)
+			err = fmt.Errorf("the topic=%s route info not found, it may not exist", k)
+			return false
 		}
+		return true
+	})
+
+	if err != nil {
+		return err
 	}
+
 	pc.client.CheckClientInBroker()
 	pc.client.SendHeartbeatToAllBrokerWithLock()
 	go pc.client.RebalanceImmediately()
@@ -298,12 +303,10 @@ func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
-	if _, ok := pc.crCh[topic]; !ok {
-		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
+	pc.crCh.LoadOrStore(topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
-	pc.subscribedTopic[topic] = ""
+	pc.subscribedTopic.LoadOrStore(topic, "")
 
 	pc.consumeFunc.Add(&PushConsumerCallback{
 		f:     f,
@@ -550,8 +553,12 @@ func (pc *pushConsumer) validate() error {
 		// TODO FQA
 		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
 	}
-
-	if len(pc.subscribedTopic) == 0 {
+	noSubscribedTopic := true
+	pc.subscribedTopic.Range(func(key, value any) bool {
+		noSubscribedTopic = false
+		return false
+	})
+	if noSubscribedTopic {
 		rlog.Warning("not subscribe any topic yet", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
 		})
@@ -1089,9 +1096,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 	limiter := pc.option.Limiter
 	limiterOn := limiter != nil
-	if _, ok := pc.crCh[mq.Topic]; !ok {
-		pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
+	pc.crCh.LoadOrStore(mq.Topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
@@ -1107,8 +1112,10 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		}
-		pc.crCh[mq.Topic] <- struct{}{}
-
+		ch, _ := pc.crCh.Load(mq.Topic)
+		if channel, ok := ch.(chan struct{}); ok {
+			channel <- struct{}{}
+		}
 		go primitive.WithRecover(func() {
 			defer func() {
 				if err := recover(); err != nil {
@@ -1121,7 +1128,10 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}
-				<-pc.crCh[mq.Topic]
+				ch, _ := pc.crCh.Load(mq.Topic)
+				if channel, ok := ch.(chan struct{}); ok {
+					<-channel
+				}
 			}()
 		RETRY:
 			if pq.IsDroppd() {
