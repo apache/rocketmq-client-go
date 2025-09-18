@@ -21,7 +21,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"github.com/apache/rocketmq-client-go/v2/errors"
-	"io/ioutil"
+	"io"
 	"sync"
 )
 
@@ -79,9 +79,12 @@ func UnCompress(data []byte) []byte {
 		return data
 	}
 	defer r.Close()
-	retData, err := ioutil.ReadAll(r)
+
+	// Use a buffer with reasonable initial size to avoid frequent reallocations
+	buf := bytes.NewBuffer(make([]byte, 0, len(data)*2))
+	_, err = io.Copy(buf, r)
 	if err != nil {
 		return data
 	}
-	return retData
+	return buf.Bytes()
 }
