@@ -258,14 +258,6 @@ func WithVIPChannel(enable bool) Option {
 	}
 }
 
-// WithRetry return a Option that specifies the retry times when send failed.
-// TODO: use retry middleware instead
-func WithRetry(retries int) Option {
-	return func(opts *consumerOptions) {
-		opts.RetryTimes = retries
-	}
-}
-
 func WithCredentials(c primitive.Credentials) Option {
 	return func(options *consumerOptions) {
 		options.ClientOptions.Credentials = c
