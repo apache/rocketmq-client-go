@@ -655,7 +655,7 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 				continue
 			}
 			cmd := remote.NewRemotingCommand(ReqHeartBeat, nil, hbData.encode())
-
+			addr = utils.AdaptIPv6(addr) // adapt IPv6 address to a format that can be used with net.DialContext
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			response, err := c.remoteClient.InvokeSync(ctx, addr, cmd)
 			if err != nil {
