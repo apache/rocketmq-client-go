@@ -175,10 +175,10 @@ func (request *CheckTransactionStateRequestHeader) Decode(properties map[string]
 		request.MsgId = v
 	}
 	if v, existed := properties["transactionId"]; existed {
-		request.MsgId = v
+		request.TransactionId = v
 	}
 	if v, existed := properties["offsetMsgId"]; existed {
-		request.MsgId = v
+		request.OffsetMsgId = v
 	}
 }
 
