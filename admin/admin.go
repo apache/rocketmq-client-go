@@ -36,7 +36,7 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
-	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	GetBrokerClusterInfo(ctx context.Context) (*BrokerClusterInfo, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	FetchClusterList(topic string) ([]string, error)
 	Close() error
@@ -162,6 +162,26 @@ func (a *admin) FetchAllTopicList(ctx context.Context) (*TopicList, error) {
 		return nil, err
 	}
 	return &topicList, nil
+}
+
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*BrokerClusterInfo, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, a.cli.GetNameSrv().AddrList()[0], cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Get broker cluster info error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	var clusterInfo BrokerClusterInfo
+	_, err = clusterInfo.Decode(response.Body, &clusterInfo)
+	if err != nil {
+		rlog.Error("Get broker cluster info decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &clusterInfo, nil
 }
 
 // CreateTopic create topic.
