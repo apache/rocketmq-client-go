@@ -144,12 +144,14 @@ func (p *defaultProducer) encodeBatch(msgs ...*primitive.Message) *primitive.Mes
 	batch.Queue = msgs[0].Queue
 	batch.Body = MarshalMessageBatch(msgs...)
 	batch.Batch = true
+	batch.List = msgs
 	return batch
 }
 
 func MarshalMessageBatch(msgs ...*primitive.Message) []byte {
 	buffer := bytes.NewBufferString("")
 	for _, msg := range msgs {
+		msg.WithProperty(primitive.PropertyUniqueClientMessageIdKeyIndex, primitive.CreateUniqID())
 		data := msg.Marshal()
 		buffer.Write(data)
 	}
