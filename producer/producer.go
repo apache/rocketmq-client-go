@@ -724,7 +724,11 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 		if len(transactionId) > 0 {
 			msg.TransactionId = transactionId
 		}
-		localTransactionState = tp.listener.ExecuteLocalTransaction(msg)
+		if msg.TxHandler() == nil {
+			localTransactionState = tp.listener.ExecuteLocalTransaction(msg)
+		} else {
+			localTransactionState = msg.TxHandler()(ctx)
+		}
 		if localTransactionState != primitive.CommitMessageState {
 			rlog.Error("executeLocalTransaction but state unexpected", map[string]interface{}{
 				"localState": localTransactionState,

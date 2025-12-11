@@ -19,6 +19,7 @@ package primitive
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -83,6 +84,8 @@ type Message struct {
 
 	properties map[string]string
 	mutex      sync.RWMutex
+
+	txHandler TxHandler
 }
 
 func (m *Message) WithProperties(p map[string]string) {
@@ -456,7 +459,7 @@ const (
 
 type TransactionListener interface {
 	//  When send transactional prepare(half) message succeed, this method will be invoked to execute local transaction.
-	ExecuteLocalTransaction(*Message) LocalTransactionState
+	ExecuteLocalTransaction(msg *Message) LocalTransactionState
 
 	// When no response to prepare(half) message. broker will send check message to check the transaction status, and this
 	// method will be invoked to get local transaction status.
@@ -600,4 +603,14 @@ func updateTimestamp() {
 
 func Pid() int16 {
 	return int16(os.Getpid())
+}
+
+// TxHandler for Send Tx msg, don't init at beginning
+type TxHandler func(ctx context.Context) LocalTransactionState
+
+func (m *Message) WithTxHandler(txHandler TxHandler) {
+	m.txHandler = txHandler
+}
+func (m *Message) TxHandler() TxHandler {
+	return m.txHandler
 }
