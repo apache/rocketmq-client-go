@@ -19,8 +19,10 @@ package producer
 
 import (
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
 	"testing"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
+	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -363,4 +365,66 @@ func TestBatchSendDifferentTopics(t *testing.T) {
 	assert.Nil(t, resp)
 	assert.NotNil(t, err)
 	assert.Equal(t, err, errors.ErrMultipleTopics)
+}
+
+func TestCheckMessageIllgal(t *testing.T) {
+	p, _ := NewDefaultProducer(
+		WithNsResolver(primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"})),
+		WithRetry(2),
+		WithQueueSelector(NewManualQueueSelector()),
+		WithMaxMessageSize(100),
+	)
+	p.state = int32(internal.StateRunning)
+
+	// test msg body is null
+	msg := &primitive.Message{
+		Topic: topic,
+		Body:  nil,
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
+	}
+	err := p.checkMsg(msg)
+	assert.Equal(t, errors2.ErrMessageIllegal, err)
+
+	// test msg body length empty
+	msg = &primitive.Message{
+		Topic: topic,
+		Body:  []byte{},
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
+	}
+	err = p.checkMsg(msg)
+	assert.Equal(t, errors2.ErrMessageIllegal, err)
+
+	// test msg body length valid
+	msg = &primitive.Message{
+		Topic: topic,
+		Body:  make([]byte, 50),
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
+	}
+	err = p.checkMsg(msg)
+	assert.Nil(t, err)
+
+	// test msg body length invalid
+	msg = &primitive.Message{
+		Topic: topic,
+		Body:  make([]byte, 101),
+		Queue: &primitive.MessageQueue{
+			Topic:      topic,
+			BrokerName: "aa",
+			QueueId:    0,
+		},
+	}
+	err = p.checkMsg(msg)
+	assert.Equal(t, errors2.ErrMessageIllegal, err)
 }
