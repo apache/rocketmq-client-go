@@ -107,7 +107,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		option:         defaultOpts,
 	}
 	if dc.client == nil {
-		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+		return nil, fmt.Errorf("GetOrNewRocketMQClient failed")
 	}
 	defaultOpts.Namesrv = dc.client.GetNameSrv()
 

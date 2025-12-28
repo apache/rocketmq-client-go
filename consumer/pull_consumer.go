@@ -120,7 +120,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		allocate:      defaultOpts.Strategy,
 	}
 	if dc.client == nil {
-		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
+		return nil, fmt.Errorf("GetOrNewRocketMQClient failed")
 	}
 	defaultOpts.Namesrv = dc.client.GetNameSrv()
 
