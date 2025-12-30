@@ -411,8 +411,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 }
 
 func (c *rmqClient) Start() {
-	//ctx, cancel := context.WithCancel(context.Background())
-	//c.cancel = cancel
+	// ctx, cancel := context.WithCancel(context.Background())
+	// c.cancel = cancel
 	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
 		if !c.option.Credentials.IsEmpty() {
@@ -687,6 +687,43 @@ func (c *rmqClient) SendHeartbeatToAllBrokerWithLock() {
 	})
 }
 
+func (c *rmqClient) unRegisterClientWithLock(producerGroup string, consumerGroup string) {
+	c.hbMutex.Lock()
+	defer c.hbMutex.Unlock()
+	c.GetNameSrv().(*namesrvs).brokerAddressesMap.Range(func(key, value interface{}) bool {
+		brokerName := key.(string)
+		data := value.(*BrokerData)
+		header := &UnregisterClientRequestHeader{
+			clientID:      c.ClientID(),
+			producerGroup: producerGroup,
+			consumerGroup: consumerGroup,
+		}
+		for id, addr := range data.BrokerAddresses {
+			cmd := remote.NewRemotingCommand(ReqUnRegisterClient, header, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			response, err := c.remoteClient.InvokeSync(ctx, addr, cmd)
+			if err != nil {
+				cancel()
+				rlog.Warning("send unRegister client to broker error", map[string]interface{}{
+					rlog.LogKeyUnderlayError: err,
+				})
+				return true
+			}
+			cancel()
+			if response.Code != ResSuccess {
+				rlog.Warning("send unRegister client to broker failed", map[string]interface{}{
+					"brokerName":   brokerName,
+					"brokerId":     id,
+					"brokerAddr":   addr,
+					"responseCode": response.Code,
+					"remark":       response.Remark,
+				})
+			}
+		}
+		return true
+	})
+}
+
 func (c *rmqClient) UpdateTopicRouteInfo() {
 	allTopics := make(map[string]bool, 0)
 	publishTopicSet := make(map[string]bool, 0)
@@ -843,6 +880,7 @@ func (c *rmqClient) RegisterConsumer(group string, consumer InnerConsumer) error
 
 func (c *rmqClient) UnregisterConsumer(group string) {
 	c.consumerMap.Delete(group)
+	c.unRegisterClientWithLock("", group)
 }
 
 func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) error {
@@ -859,6 +897,7 @@ func (c *rmqClient) RegisterProducer(group string, producer InnerProducer) error
 
 func (c *rmqClient) UnregisterProducer(group string) {
 	c.producerMap.Delete(group)
+	c.unRegisterClientWithLock(group, "")
 }
 
 func (c *rmqClient) RebalanceImmediately() {
