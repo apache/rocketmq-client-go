@@ -243,7 +243,6 @@ type traceDispatcher struct {
 
 func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
 
 	t := traceCfg.TraceTopic
 	if len(t) == 0 {
@@ -285,6 +284,8 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 		return nil
 	}
 	cliOp.Namesrv = cli.GetNameSrv()
+
+	ctx, cancel := context.WithCancel(ctx)
 	return &traceDispatcher{
 		ctx:    ctx,
 		cancel: cancel,

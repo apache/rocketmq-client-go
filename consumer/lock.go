@@ -31,7 +31,7 @@ func newQueueLock() *QueueLock {
 	return &QueueLock{}
 }
 
-func (ql QueueLock) fetchLock(queue primitive.MessageQueue) sync.Locker {
+func (ql *QueueLock) fetchLock(queue primitive.MessageQueue) sync.Locker {
 	v, _ := ql.lockTable.LoadOrStore(queue, new(sync.Mutex))
 	return v.(*sync.Mutex)
 }
