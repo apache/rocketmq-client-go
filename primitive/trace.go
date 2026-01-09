@@ -21,6 +21,7 @@ package primitive
 type TraceConfig struct {
 	TraceTopic   string
 	GroupName    string
+	UnitName     string
 	Access       AccessChannel
 	NamesrvAddrs []string
 	Resolver     NsResolver
