@@ -178,7 +178,7 @@ type rmqClient struct {
 
 	remoteClient remote.RemotingClient
 	hbMutex      sync.Mutex
-	close        bool
+	close        atomic.Bool
 	rbMutex      sync.Mutex
 	done         chan struct{}
 	shutdownOnce sync.Once
@@ -552,7 +552,7 @@ func (c *rmqClient) Shutdown() {
 
 	c.shutdownOnce.Do(func() {
 		close(c.done)
-		c.close = true
+		c.close.Store(true)
 		c.remoteClient.ShutDown()
 		c.removeClient()
 	})
@@ -573,7 +573,7 @@ func (c *rmqClient) ClientID() string {
 
 func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
-	if c.close {
+	if c.close.Load() {
 		return nil, ErrServiceState
 	}
 	var cancel context.CancelFunc
@@ -584,7 +584,7 @@ func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote
 
 func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	f func(*remote.RemotingCommand, error)) error {
-	if c.close {
+	if c.close.Load() {
 		return ErrServiceState
 	}
 	return c.remoteClient.InvokeAsync(ctx, addr, request, func(future *remote.ResponseFuture) {
@@ -595,7 +595,7 @@ func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remot
 
 func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
-	if c.close {
+	if c.close.Load() {
 		return ErrServiceState
 	}
 	return c.remoteClient.InvokeOneWay(ctx, addr, request)
