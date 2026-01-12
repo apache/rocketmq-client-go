@@ -907,8 +907,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 	}
 
 	// TODO: add computPullFromWhichFilterServer
-
-	return dc.client.PullMessage(context.Background(), brokerResult.BrokerAddr, pullRequest)
+	return dc.client.PullMessage(ctx, brokerResult.BrokerAddr, pullRequest)
 }
 
 func (dc *defaultConsumer) processPullResult(mq *primitive.MessageQueue, result *primitive.PullResult, data *internal.SubscriptionData) {
