@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/errors"
@@ -68,4 +69,43 @@ func FakeIP() []byte {
 
 func GetAddressByBytes(data []byte) string {
 	return net.IP(data).String()
+}
+
+
+// AdaptIPv6 adapts an IPv6 address to a format that can be used with net.DialContext, it will return the original address if the address is not a valid IPv6 address
+// addr must contain a valid IPv6 address and a port number
+func AdaptIPv6(addr string) string {
+	var host, port string
+	var err error
+	host, port, err = net.SplitHostPort(addr)
+	if err != nil {
+		// if the address is not in the format of host:port, return the original address 
+		if addrErr, ok := err.(*net.AddrError); ok && addrErr.Err == "too many colons in address" {
+			if i := strings.LastIndex(addr, ":"); i > 0 {
+				host = addr[:i]
+				port = addr[i+1:]
+			}
+		} else {
+			return addr 
+		}
+	}
+
+	if _, err := strconv.Atoi(port); err != nil {
+		// if the port is not a valid port, return the original address
+		return addr 
+	}
+
+	if ip := net.ParseIP(host); ip == nil || ip.To4() != nil {
+		// if the host is not a valid IP address or is an IPv4 address, return the original address
+		return addr
+	} 
+
+	// if the host is in the format of [host]:port, return the original address 
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return net.JoinHostPort(host[1:len(host)-1], port)
+	}
+
+
+	return net.JoinHostPort(host, port)
+	
 }
