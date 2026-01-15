@@ -17,7 +17,12 @@ limitations under the License.
 
 package admin
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"regexp"
+
+	"github.com/tidwall/gjson"
+)
 
 type RemotingSerializable struct {
 }
@@ -85,4 +90,59 @@ type SubscriptionGroupConfig struct {
 	BrokerId                       int
 	WhichBrokerWhenConsumeSlowly   int
 	NotifyConsumerIdsChangedEnable bool
+}
+
+type BrokerClusterInfo struct {
+	BrokerAddrTable  map[string]ClusterBrokerData `json:"brokerAddrTable"`
+	ClusterAddrTable map[string][]string          `json:"clusterAddrTable"`
+}
+
+type ClusterBrokerData struct {
+	Cluster     string            `json:"cluster"`
+	BrokerName  string            `json:"brokerName"`
+	BrokerAddrs map[string]string `json:"brokerAddrs"`
+}
+
+// normalizeNumericObjectKeys {0:"ip"} -> {"0":"ip"}
+func normalizeNumericObjectKeys(raw string) string {
+	re := regexp.MustCompile(`([\{,]\s*)(\d+)(\s*:)`)
+	return re.ReplaceAllString(raw, `$1"$2"$3`)
+}
+
+func (info *BrokerClusterInfo) Decode(data []byte, classOfT interface{}) (interface{}, error) {
+	res := gjson.ParseBytes(data)
+
+	info.BrokerAddrTable = make(map[string]ClusterBrokerData)
+	info.ClusterAddrTable = make(map[string][]string)
+
+	res.Get("brokerAddrTable").ForEach(func(k, v gjson.Result) bool {
+		brokerName := k.String()
+		raw := v.Get("brokerAddrs").Raw
+		if raw == "" {
+			raw = v.Get("brokerAddrs").String()
+		}
+		fixed := normalizeNumericObjectKeys(raw)
+		addrs := make(map[string]string)
+		_ = json.Unmarshal([]byte(fixed), &addrs)
+
+		info.BrokerAddrTable[brokerName] = ClusterBrokerData{
+			Cluster:     v.Get("cluster").String(),
+			BrokerName:  v.Get("brokerName").String(),
+			BrokerAddrs: addrs,
+		}
+		return true
+	})
+
+	res.Get("clusterAddrTable").ForEach(func(k, v gjson.Result) bool {
+		cluster := k.String()
+		list := make([]string, 0, len(v.Array()))
+		v.ForEach(func(_, item gjson.Result) bool {
+			list = append(list, item.String())
+			return true
+		})
+		info.ClusterAddrTable[cluster] = list
+		return true
+	})
+
+	return info, nil
 }
