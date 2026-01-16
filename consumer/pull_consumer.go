@@ -109,7 +109,6 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 
 	defaultOpts.Namesrv = srvs
 	dc := &defaultConsumer{
-		client:        internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup: utils.WrapNamespace(defaultOpts.Namespace, defaultOpts.GroupName),
 		cType:         _PullConsume,
 		state:         atomic2.NewInt32(int32(internal.StateCreateJust)),
@@ -237,6 +236,11 @@ func (pc *defaultPullConsumer) Start() error {
 			err = errors.Wrap(err, "the consumer group option validate fail")
 			return
 		}
+		if pc.model == Clustering {
+			pc.option.ChangeInstanceNameToPID()
+		}
+
+		pc.client = internal.GetOrNewRocketMQClient(pc.option.ClientOptions, nil)
 		err = pc.defaultConsumer.client.RegisterConsumer(pc.consumerGroup, pc)
 		if err != nil {
 			rlog.Error("defaultPullConsumer the consumer group has been created, specify another one", map[string]interface{}{
