@@ -344,7 +344,7 @@ func (c *remotingClient) doRequest(ctx context.Context, conn *tcpConnWrapper, re
 		return err
 	}
 
-	err = request.WriteTo(conn)
+	_, err = request.WriteTo(conn)
 	if err != nil {
 		rlog.Error("conn error, close connection", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

@@ -292,7 +292,7 @@ func (p *defaultProducer) SendSync(ctx context.Context, msgs ...*primitive.Messa
 			ProducerGroup:     p.group,
 			CommunicationMode: primitive.SendSync,
 			BornHost:          utils.LocalIP,
-			Message:           *msg,
+			Message:           msg,
 			SendResult:        resp,
 		}
 		ctx = primitive.WithProducerCtx(ctx, producerCtx)

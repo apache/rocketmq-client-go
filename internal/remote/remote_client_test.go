@@ -19,13 +19,15 @@ package remote
 import (
 	"bytes"
 	"context"
-	"github.com/apache/rocketmq-client-go/v2/errors"
+	"log"
 	"math/rand"
 	"net"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/apache/rocketmq-client-go/v2/errors"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -161,7 +163,7 @@ func TestInvokeSync(t *testing.T) {
 		receiveCommand, err := client.InvokeSync(context.Background(), addr,
 			clientSendRemtingCommand)
 		if err != nil {
-			t.Fatalf("failed to invoke synchronous. %s", err)
+			log.Fatalf("failed to invoke synchronous. %v", err)
 		} else {
 			assert.Equal(t, len(receiveCommand.ExtFields), 0)
 			assert.Equal(t, len(serverSendRemotingCommand.ExtFields), 0)
@@ -337,7 +339,7 @@ func TestInvokeOneWay(t *testing.T) {
 		clientSend.Wait()
 		err := client.InvokeOneWay(context.Background(), addr, clientSendRemtingCommand)
 		if err != nil {
-			t.Fatalf("failed to invoke synchronous. %s", err)
+			log.Fatalf("failed to invoke synchronous. %v", err)
 		}
 		wg.Done()
 	}()
