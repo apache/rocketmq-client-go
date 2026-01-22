@@ -56,8 +56,8 @@ const (
 	PropertyUniqueClientMessageIdKeyIndex  = "UNIQ_KEY"
 	PropertyMaxReconsumeTimes              = "MAX_RECONSUME_TIMES"
 	PropertyConsumeStartTime               = "CONSUME_START_TIME"
-	PropertyTranscationPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
-	PropertyTranscationCheckTimes          = "TRANSACTION_CHECK_TIMES"
+	PropertyTransactionPreparedQueueOffset = "TRAN_PREPARED_QUEUE_OFFSET"
+	PropertyTransactionCheckTimes          = "TRANSACTION_CHECK_TIMES"
 	PropertyCheckImmunityTimeInSeconds     = "CHECK_IMMUNITY_TIME_IN_SECONDS"
 	PropertyShardingKey                    = "SHARDING_KEY"
 	PropertyTransactionID                  = "__transactionId__"
@@ -451,7 +451,7 @@ type LocalTransactionState int
 const (
 	CommitMessageState LocalTransactionState = iota + 1
 	RollbackMessageState
-	UnkonwnState
+	UnknownState
 )
 
 type TransactionListener interface {
