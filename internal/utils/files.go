@@ -73,7 +73,7 @@ func WriteToFile(path string, data []byte) error {
 	prevContent, err := FileReadAll(path)
 	if err == nil {
 		bakFile, err := os.Create(path + ".bak")
-		if err != nil {
+		if err == nil {
 			_, err = bakFile.Write(prevContent)
 		}
 		if err != nil {
