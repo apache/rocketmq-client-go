@@ -208,8 +208,9 @@ const (
 	maxMsgSize = 128000 - 10*1000
 	batchSize  = 100
 
-	TraceTopicPrefix = SystemTopicPrefix + "TRACE_DATA_"
-	TraceGroupName   = "_INNER_TRACE_PRODUCER"
+	TraceTopicPrefix  = SystemTopicPrefix + "TRACE_DATA_"
+	TraceGroupName    = "_INNER_TRACE_PRODUCER"
+	TraceInstanceName = "INNER_TRACE_CLIENT_DEFAULT"
 )
 
 type TraceDispatcher interface {
@@ -277,7 +278,7 @@ func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
 	cliOp.GroupName = traceCfg.GroupName
 	cliOp.UnitName = traceCfg.UnitName
 	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
-	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
+	cliOp.InstanceName = TraceInstanceName
 	cliOp.RetryTimes = 0
 	cliOp.Namesrv = srvs
 	cliOp.Credentials = traceCfg.Credentials

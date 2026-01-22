@@ -411,8 +411,8 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 }
 
 func (c *rmqClient) Start() {
-	//ctx, cancel := context.WithCancel(context.Background())
-	//c.cancel = cancel
+	// ctx, cancel := context.WithCancel(context.Background())
+	// c.cancel = cancel
 	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
 		if !c.option.Credentials.IsEmpty() {
@@ -467,9 +467,10 @@ func (c *rmqClient) Start() {
 		go primitive.WithRecover(func() {
 			op := func() {
 				c.GetNameSrv().cleanOfflineBroker()
-				c.SendHeartbeatToAllBrokerWithLock()
+				if c.option.InstanceName != TraceInstanceName {
+					c.SendHeartbeatToAllBrokerWithLock()
+				}
 			}
-
 			time.Sleep(time.Second)
 			op()
 
