@@ -21,11 +21,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/tidwall/gjson"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -287,6 +288,9 @@ func (info ConsumerRunningInfo) Encode() ([]byte, error) {
 			return nil, err
 		}
 		dataV, err := json.Marshal(info.MQTable[keys[idx]])
+		if err != nil {
+			return nil, err
+		}
 		tableJson = fmt.Sprintf("%s,%s:%s", tableJson, string(dataK), string(dataV))
 	}
 	tableJson = strings.TrimLeft(tableJson, ",")
@@ -341,6 +345,9 @@ func (status ConsumerStatus) Encode() ([]byte, error) {
 			return nil, err
 		}
 		dataV, err := json.Marshal(status.MQOffsetMap[keys[idx]])
+		if err != nil {
+			return nil, err
+		}
 		mapJson = fmt.Sprintf("%s,%s:%s", mapJson, string(dataK), string(dataV))
 	}
 	mapJson = strings.TrimLeft(mapJson, ",")
