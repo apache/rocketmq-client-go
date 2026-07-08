@@ -20,15 +20,16 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tidwall/gjson"
+	"go.uber.org/atomic"
 
 	"github.com/apache/rocketmq-client-go/v2/errors"
 	"github.com/apache/rocketmq-client-go/v2/hooks"
@@ -57,6 +58,9 @@ const (
 
 	// Offset persistent interval for consumer
 	_PersistConsumerOffsetInterval = 5 * time.Second
+
+	// Timeout for sending message to retry topic
+	_SendMessageBackAsNormalTimeout = 3 * time.Second
 )
 
 type ConsumeType string
@@ -66,6 +70,8 @@ const (
 	_PushConsume = ConsumeType("CONSUME_PASSIVELY")
 
 	_SubAll = "*"
+
+	_ClientInnerProducerGroup = "CLIENT_INNER_PRODUCER"
 )
 
 // Message model defines the way how messages are delivered to each consumer clients.
@@ -244,8 +250,8 @@ type defaultConsumer struct {
 	cType     ConsumeType
 	client    internal.RMQClient
 	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state     int32
-	pause     bool
+	state     *atomic.Int32
+	pause     *atomic.Bool
 	once      sync.Once
 	option    consumerOptions
 	// key: primitive.MessageQueue
@@ -283,14 +289,14 @@ func (dc *defaultConsumer) start() error {
 	}
 
 	dc.client.Start()
-	atomic.StoreInt32(&dc.state, int32(internal.StateRunning))
+	dc.state.Store(int32(internal.StateRunning))
 	dc.consumerStartTimestamp = time.Now().UnixNano() / int64(time.Millisecond)
 	dc.stat = NewStatsManager()
 	return nil
 }
 
 func (dc *defaultConsumer) shutdown() error {
-	atomic.StoreInt32(&dc.state, int32(internal.StateShutdown))
+	dc.state.Store(int32(internal.StateShutdown))
 
 	mqs := make([]*primitive.MessageQueue, 0)
 	dc.processQueueTable.Range(func(key, value interface{}) bool {
@@ -308,6 +314,14 @@ func (dc *defaultConsumer) shutdown() error {
 	dc.storage.persist(mqs)
 	dc.client.Shutdown()
 	return nil
+}
+
+func (dc *defaultConsumer) isRunning() bool {
+	return dc.state.Load() == int32(internal.StateRunning)
+}
+
+func (dc *defaultConsumer) isStopped() bool {
+	return dc.state.Load() == int32(internal.StateShutdown)
 }
 
 func (dc *defaultConsumer) persistConsumerOffset() error {
@@ -357,7 +371,7 @@ func (dc *defaultConsumer) isSubscribeTopicNeedUpdate(topic string) bool {
 }
 
 func (dc *defaultConsumer) doBalanceIfNotPaused() {
-	if dc.pause {
+	if dc.pause.Load() {
 		rlog.Info("[BALANCE-SKIP] since consumer paused", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: dc.consumerGroup,
 		})
@@ -414,6 +428,14 @@ func (dc *defaultConsumer) doBalance() {
 				return (mqAll[i].QueueId - mqAll[j].QueueId) < 0
 			})
 			allocateResult := dc.allocate(dc.consumerGroup, dc.client.ClientID(), mqAll, cidAll)
+
+			// Principle of flow control: pull TPS = 1000ms/PullInterval * BatchSize * len(allocateResult)
+			if consumeTPS := dc.option.ConsumeTPS.Load(); consumeTPS > 0 && len(allocateResult) > 0 {
+				pullBatchSize := dc.option.PullBatchSize.Load()
+				pullTimesPerSecond := float64(consumeTPS) / float64(pullBatchSize*int32(len(allocateResult)))
+				dc.option.PullInterval.Store(time.Duration(float64(time.Second) / pullTimesPerSecond))
+			}
+
 			changed := dc.updateProcessQueueTable(topic, allocateResult)
 			if changed {
 				dc.mqChanged(topic, mqAll, allocateResult)
@@ -461,8 +483,8 @@ func (dc *defaultConsumer) SubscriptionDataList() []*internal.SubscriptionData {
 }
 
 func (dc *defaultConsumer) makeSureStateOK() error {
-	if atomic.LoadInt32(&dc.state) != int32(internal.StateRunning) {
-		return fmt.Errorf("state not running, actually: %v", dc.state)
+	if dc.state.Load() != int32(internal.StateRunning) {
+		return fmt.Errorf("state not running, actually: %v", dc.state.Load())
 	}
 	return nil
 }
@@ -556,7 +578,7 @@ func (dc *defaultConsumer) lockAll() {
 			if exist {
 				pq := v.(*processQueue)
 				pq.WithLock(true)
-				pq.UpdateLastConsumeTime()
+				pq.UpdateLastLockTime()
 			}
 			set[_mq] = true
 		}
@@ -875,6 +897,7 @@ func (dc *defaultConsumer) pullInner(ctx context.Context, queue *primitive.Messa
 		SubExpression:        data.SubString,
 		// TODO: add subversion
 		ExpressionType: string(data.ExpType),
+		BrokerName:     queue.BrokerName,
 	}
 
 	if data.ExpType == string(TAG) {
@@ -985,8 +1008,9 @@ func (dc *defaultConsumer) queryMaxOffset(mq *primitive.MessageQueue) (int64, er
 	}
 
 	request := &internal.GetMaxOffsetRequestHeader{
-		Topic:   mq.Topic,
-		QueueId: mq.QueueId,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqGetMaxOffset, request, nil)
@@ -1015,9 +1039,10 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	request := &internal.SearchOffsetRequestHeader{
-		Topic:     mq.Topic,
-		QueueId:   mq.QueueId,
-		Timestamp: timestamp,
+		Topic:      mq.Topic,
+		QueueId:    mq.QueueId,
+		Timestamp:  timestamp,
+		BrokerName: mq.BrokerName,
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqSearchOffsetByTimestamp, request, nil)
@@ -1027,6 +1052,97 @@ func (dc *defaultConsumer) searchOffsetByTimestamp(mq *primitive.MessageQueue, t
 	}
 
 	return strconv.ParseInt(response.ExtFields["offset"], 10, 64)
+}
+
+func (dc *defaultConsumer) sendMessageBackAsNormal(msg *primitive.MessageExt, maxReconsumeTimes int32) bool {
+	retryTopic := internal.GetRetryTopic(dc.consumerGroup)
+	normalMsg := &primitive.Message{
+		Topic: retryTopic,
+		Body:  msg.Body,
+		Flag:  msg.Flag,
+	}
+	normalMsg.WithProperties(msg.GetProperties())
+	originMsgId := msg.GetProperty(primitive.PropertyOriginMessageId)
+	if len(originMsgId) == 0 {
+		originMsgId = msg.MsgId
+	}
+	normalMsg.WithProperty(primitive.PropertyOriginMessageId, originMsgId)
+	normalMsg.WithProperty(primitive.PropertyRetryTopic, msg.Topic)
+	normalMsg.RemoveProperty(primitive.PropertyTransactionPrepared)
+	normalMsg.WithDelayTimeLevel(int(3 + msg.ReconsumeTimes))
+
+	mq, err := dc.findPublishMessageQueue(retryTopic)
+	if err != nil {
+		rlog.Warning("sendMessageBackAsNormal find publish message queue error", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+
+	brokerAddr := dc.client.GetNameSrv().FindBrokerAddrByName(mq.BrokerName)
+	if len(brokerAddr) == 0 {
+		rlog.Warning("sendMessageBackAsNormal cannot find broker address", map[string]interface{}{
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        mq.BrokerName,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+
+	request := buildSendToRetryRequest(mq, normalMsg, msg.ReconsumeTimes+1, maxReconsumeTimes)
+	resp, err := dc.client.InvokeSync(context.Background(), brokerAddr, request, _SendMessageBackAsNormalTimeout)
+	if err != nil {
+		rlog.Warning("sendMessageBackAsNormal failed to invoke", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        brokerAddr,
+			rlog.LogKeyUnderlayError: err.Error(),
+		})
+		return false
+	}
+	if resp.Code != internal.ResSuccess {
+		rlog.Warning("sendMessageBackAsNormal failed to send", map[string]interface{}{
+			rlog.LogKeyTopic:         retryTopic,
+			rlog.LogKeyMessageId:     msg.MsgId,
+			rlog.LogKeyBroker:        brokerAddr,
+			rlog.LogKeyUnderlayError: fmt.Errorf("CODE: %d, DESC: %s", resp.Code, resp.Remark),
+		})
+		return false
+	}
+
+	return true
+}
+
+func (dc *defaultConsumer) findPublishMessageQueue(topic string) (*primitive.MessageQueue, error) {
+	mqs, err := dc.client.GetNameSrv().FetchPublishMessageQueues(topic)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(mqs) <= 0 {
+		return nil, fmt.Errorf("no writable queues")
+	}
+
+	return mqs[rand.Intn(len(mqs))], nil
+}
+
+func buildSendToRetryRequest(mq *primitive.MessageQueue, msg *primitive.Message, reconsumeTimes,
+	maxReconsumeTimes int32) *remote.RemotingCommand {
+	req := &internal.SendMessageRequestHeader{
+		ProducerGroup:     _ClientInnerProducerGroup,
+		Topic:             mq.Topic,
+		QueueId:           mq.QueueId,
+		BornTimestamp:     time.Now().UnixNano() / int64(time.Millisecond),
+		Flag:              msg.Flag,
+		Properties:        msg.MarshallProperties(),
+		ReconsumeTimes:    int(reconsumeTimes),
+		MaxReconsumeTimes: int(maxReconsumeTimes),
+		BrokerName:        mq.BrokerName,
+	}
+
+	return remote.NewRemotingCommand(internal.ReqSendMessage, req, msg.Body)
 }
 
 func buildSubscriptionData(topic string, selector MessageSelector) *internal.SubscriptionData {

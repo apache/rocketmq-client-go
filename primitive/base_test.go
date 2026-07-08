@@ -18,6 +18,7 @@ limitations under the License.
 package primitive
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,4 +74,24 @@ func TestBase(t *testing.T) {
 	a = []string{"b", "a"}
 	b = []string{"a", "c"}
 	assert.True(t, Diff(a, b))
+}
+
+func TestWithRecover(t *testing.T) {
+	ass := assert.New(t)
+
+	DefaultPanicHandler = nil
+	ass.NotPanics(func() {
+		WithRecover(func() {
+			panic("test")
+		})
+	})
+
+	DefaultPanicHandler = func(i interface{}) {
+		fmt.Println("panic test")
+	}
+	ass.NotPanics(func() {
+		WithRecover(func() {
+			panic("test")
+		})
+	})
 }

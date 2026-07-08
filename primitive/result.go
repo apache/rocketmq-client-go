@@ -58,8 +58,12 @@ func NewSendResult() *SendResult {
 
 // SendResult send message result to string(detail result)
 func (result *SendResult) String() string {
+	mq := "nil"
+	if result.MessageQueue != nil {
+		mq = result.MessageQueue.String()
+	}
 	return fmt.Sprintf("SendResult [sendStatus=%d, msgIds=%s, offsetMsgId=%s, queueOffset=%d, messageQueue=%s]",
-		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, result.MessageQueue.String())
+		result.Status, result.MsgID, result.OffsetMsgID, result.QueueOffset, mq)
 }
 
 // TransactionSendResult RocketMQ send result

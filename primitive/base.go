@@ -85,14 +85,27 @@ func verifyIP(ip string) error {
 	return nil
 }
 
-var PanicHandler func(interface{})
+type PanicHandler func(interface{})
 
-func WithRecover(fn func()) {
+//	primitive.DefaultPanicHandler = func(i interface{}) {
+//		sentry.CaptureMessage(fmt.Sprintf("%+v", i), nil)
+//	}
+var DefaultPanicHandler PanicHandler
+
+func WithRecover(fn func(), handlers ...PanicHandler) {
 	defer func() {
-		handler := PanicHandler
-		if handler != nil {
-			if err := recover(); err != nil {
-				handler(err)
+		if len(handlers) == 0 {
+			if DefaultPanicHandler != nil {
+				handlers = append(handlers, DefaultPanicHandler)
+			} else {
+				handlers = append(handlers, func(interface{}) {})
+			}
+		}
+		for _, handler := range handlers {
+			if handler != nil {
+				if err := recover(); err != nil {
+					handler(err)
+				}
 			}
 		}
 	}()

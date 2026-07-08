@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
+	"go.uber.org/atomic"
 
 	"github.com/pkg/errors"
 
@@ -67,12 +67,12 @@ type pushConsumer struct {
 	queueMaxSpanFlowControlTimes int
 	consumeFunc                  utils.Set
 	submitToConsume              func(*processQueue, *primitive.MessageQueue)
-	subscribedTopic              *Sets // 原本是一个 map[string]string，且没加锁，存在并发问题
+	subscribedTopic              sync.Map
 	interceptor                  primitive.Interceptor
 	queueLock                    *QueueLock
 	done                         chan struct{}
 	closeOnce                    sync.Once
-	crCh                         map[string]chan struct{}
+	crCh                         sync.Map
 }
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
@@ -97,7 +97,8 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		client:         internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, nil),
 		consumerGroup:  defaultOpts.GroupName,
 		cType:          _PushConsume,
-		state:          int32(internal.StateCreateJust),
+		state:          atomic.NewInt32(int32(internal.StateCreateJust)),
+		pause:          atomic.NewBool(false),
 		prCh:           make(chan PullRequest, 4),
 		model:          defaultOpts.ConsumerModel,
 		consumeOrderly: defaultOpts.ConsumeOrderly,
@@ -112,11 +113,9 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p := &pushConsumer{
 		defaultConsumer: dc,
-		subscribedTopic: NewSets(),
 		queueLock:       newQueueLock(),
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
-		crCh:            make(map[string]chan struct{}),
 	}
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
@@ -138,7 +137,7 @@ func (pc *pushConsumer) Start() error {
 			"messageModel":           pc.model,
 			"unitMode":               pc.unitMode,
 		})
-		atomic.StoreInt32(&pc.state, int32(internal.StateStartFailed))
+		pc.state.Store(int32(internal.StateStartFailed))
 		err = pc.validate()
 		if err != nil {
 			rlog.Error("the consumer group option validate fail", map[string]interface{}{
@@ -164,7 +163,7 @@ func (pc *pushConsumer) Start() error {
 		}
 
 		retryTopic := internal.GetRetryTopic(pc.consumerGroup)
-		pc.crCh[retryTopic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
+		pc.crCh.Store(retryTopic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 
 		go func() {
 			// todo start clean msg expired
@@ -235,18 +234,18 @@ func (pc *pushConsumer) Start() error {
 	}
 
 	pc.client.UpdateTopicRouteInfo()
-	var notExistKey string
-	pc.subscribedTopic.Each(func(key interface{}) bool {
-		_, exist := pc.topicSubscribeInfoTable.Load(key)
+	pc.subscribedTopic.Range(func(k, v interface{}) bool {
+		_, exist := pc.topicSubscribeInfoTable.Load(k)
 		if !exist {
-			notExistKey = key.(string)
+			pc.Shutdown()
+			err = fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 			return false
 		}
 		return true
 	})
-	if notExistKey != "" {
-		pc.shutdown()
-		return fmt.Errorf("the topic=%s route info not found, it may not exist", notExistKey)
+
+	if err != nil {
+		return err
 	}
 
 	pc.client.CheckClientInBroker()
@@ -296,20 +295,18 @@ func (pc *pushConsumer) Shutdown() error {
 
 func (pc *pushConsumer) Subscribe(topic string, selector MessageSelector,
 	f func(context.Context, ...*primitive.MessageExt) (ConsumeResult, error)) error {
-	if atomic.LoadInt32(&pc.state) == int32(internal.StateStartFailed) ||
-		atomic.LoadInt32(&pc.state) == int32(internal.StateShutdown) {
+	if pc.state.Load() == int32(internal.StateStartFailed) ||
+		pc.state.Load() == int32(internal.StateShutdown) {
 		return errors2.ErrStartTopic
 	}
 
 	if pc.option.Namespace != "" {
 		topic = pc.option.Namespace + "%" + topic
 	}
-	if _, ok := pc.crCh[topic]; !ok {
-		pc.crCh[topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
+	pc.crCh.LoadOrStore(topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 	data := buildSubscriptionData(topic, selector)
 	pc.subscriptionDataTable.Store(topic, data)
-	pc.subscribedTopic.Set(topic)
+	pc.subscribedTopic.LoadOrStore(topic, "")
 
 	pc.consumeFunc.Add(&PushConsumerCallback{
 		f:     f,
@@ -523,11 +520,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForTopic,
+			rlog.Info("The PullThresholdForQueue is changed", map[string]interface{}{
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdForTopic = newVal
+			pc.option.PullThresholdForQueue.Store(int64(newVal))
 		}
 
 		if pc.option.PullThresholdSizeForTopic != -1 {
@@ -535,11 +532,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			if newVal == 0 {
 				newVal = 1
 			}
-			rlog.Info("The PullThresholdSizeForTopic is changed", map[string]interface{}{
-				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForTopic,
+			rlog.Info("The PullThresholdSizeForQueue is changed", map[string]interface{}{
+				rlog.LogKeyValueChangedFrom: pc.option.PullThresholdSizeForQueue.Load(),
 				rlog.LogKeyValueChangedTo:   newVal,
 			})
-			pc.option.PullThresholdSizeForTopic = newVal
+			pc.option.PullThresholdSizeForQueue.Store(int32(newVal))
 		}
 	}
 	pc.client.SendHeartbeatToAllBrokerWithLock()
@@ -554,8 +551,12 @@ func (pc *pushConsumer) validate() error {
 		// TODO FQA
 		return fmt.Errorf("consumerGroup can't equal [%s], please specify another one", internal.DefaultConsumerGroup)
 	}
-
-	if pc.subscribedTopic.Len() == 0 {
+	noSubscribedTopic := true
+	pc.subscribedTopic.Range(func(key, value interface{}) bool {
+		noSubscribedTopic = false
+		return false
+	})
+	if noSubscribedTopic {
 		rlog.Warning("not subscribe any topic yet", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
 		})
@@ -569,9 +570,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdForQueue < 1 || pc.option.PullThresholdForQueue > 65535 {
-		if pc.option.PullThresholdForQueue == 0 {
-			pc.option.PullThresholdForQueue = 1024
+	if pc.option.PullThresholdForQueue.Load() < 1 || pc.option.PullThresholdForQueue.Load() > 65535 {
+		if pc.option.PullThresholdForQueue.Load() == 0 {
+			pc.option.PullThresholdForQueue.Store(1024)
 		} else {
 			return errors.New("option.PullThresholdForQueue out of range [1, 65535]")
 		}
@@ -585,9 +586,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullThresholdSizeForQueue < 1 || pc.option.PullThresholdSizeForQueue > 1024 {
-		if pc.option.PullThresholdSizeForQueue == 0 {
-			pc.option.PullThresholdSizeForQueue = 512
+	if pc.option.PullThresholdSizeForQueue.Load() < 1 || pc.option.PullThresholdSizeForQueue.Load() > 1024 {
+		if pc.option.PullThresholdSizeForQueue.Load() == 0 {
+			pc.option.PullThresholdSizeForQueue.Store(512)
 		} else {
 			return errors.New("option.PullThresholdSizeForQueue out of range [1, 1024]")
 		}
@@ -601,7 +602,7 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullInterval < 0 || pc.option.PullInterval > 65535*time.Millisecond {
+	if interval := pc.option.PullInterval.Load(); interval < 0 || interval > 65535*time.Millisecond {
 		return errors.New("option.PullInterval out of range [0, 65535]")
 	}
 
@@ -613,9 +614,9 @@ func (pc *pushConsumer) validate() error {
 		}
 	}
 
-	if pc.option.PullBatchSize < 1 || pc.option.PullBatchSize > 1024 {
-		if pc.option.PullBatchSize == 0 {
-			pc.option.PullBatchSize = 32
+	if pullBatchSize := pc.option.PullBatchSize.Load(); pullBatchSize < 1 || pullBatchSize > 1024 {
+		if pullBatchSize == 0 {
+			pc.option.PullBatchSize.Store(32)
 		} else {
 			return errors.New("option.PullBatchSize out of range [1, 1024]")
 		}
@@ -679,7 +680,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			time.Sleep(sleepTime)
 		}
 		// reset time
-		sleepTime = pc.option.PullInterval
+		sleepTime = pc.option.PullInterval.Load()
 		pq.lastPullTime.Store(time.Now())
 		err := pc.makeSureStateOK()
 		if err != nil {
@@ -690,7 +691,7 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if pc.pause {
+		if pc.pause.Load() {
 			rlog.Debug(fmt.Sprintf("consumer [%s] of [%s] was paused, execute pull request [%s] later",
 				pc.option.InstanceName, pc.consumerGroup, request.String()), nil)
 			sleepTime = _PullDelayTimeWhenSuspend
@@ -698,10 +699,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 
 		cachedMessageSizeInMiB := int(pq.cachedMsgSize.Load() / Mb)
-		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue {
+		if pq.cachedMsgCount.Load() > pc.option.PullThresholdForQueue.Load() {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message count exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdForQueue": pc.option.PullThresholdForQueue,
+					"PullThresholdForQueue": pc.option.PullThresholdForQueue.Load(),
 					"minOffset":             pq.Min(),
 					"maxOffset":             pq.Max(),
 					"count":                 pq.cachedMsgCount,
@@ -715,10 +716,10 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			goto NEXT
 		}
 
-		if cachedMessageSizeInMiB > pc.option.PullThresholdSizeForQueue {
+		if cachedMessageSizeInMiB > int(pc.option.PullThresholdSizeForQueue.Load()) {
 			if pc.queueFlowControlTimes%1000 == 0 {
 				rlog.Warning("the cached message size exceeds the threshold, so do flow control", map[string]interface{}{
-					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue,
+					"PullThresholdSizeForQueue": pc.option.PullThresholdSizeForQueue.Load(),
 					"minOffset":                 pq.Min(),
 					"maxOffset":                 pq.Max(),
 					"count":                     pq.cachedMsgCount,
@@ -818,12 +819,13 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			Topic:                request.mq.Topic,
 			QueueId:              int32(request.mq.QueueId),
 			QueueOffset:          request.nextOffset,
-			MaxMsgNums:           pc.option.PullBatchSize,
+			MaxMsgNums:           pc.option.PullBatchSize.Load(),
 			SysFlag:              sysFlag,
 			CommitOffset:         commitOffsetValue,
 			SubExpression:        subExpression,
 			ExpressionType:       string(TAG),
 			SuspendTimeoutMillis: 20 * time.Second,
+			BrokerName:           request.mq.BrokerName,
 		}
 		//
 		//if data.ExpType == string(TAG) {
@@ -926,9 +928,10 @@ func (pc *pushConsumer) sendMessageBack(brokerName string, msg *primitive.Messag
 	} else {
 		brokerAddr = msg.StoreHost
 	}
-	_, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
-	if err != nil {
-		return false
+	resp, err := pc.client.InvokeSync(context.Background(), brokerAddr, pc.buildSendBackRequest(msg, delayLevel), 3*time.Second)
+	if err != nil || resp.Code != internal.ResSuccess {
+		// send back as a normal message
+		return pc.defaultConsumer.sendMessageBackAsNormal(msg, pc.getMaxReconsumeTimes())
 	}
 	return true
 }
@@ -941,18 +944,19 @@ func (pc *pushConsumer) buildSendBackRequest(msg *primitive.MessageExt, delayLev
 		DelayLevel:        delayLevel,
 		OriginMsgId:       msg.MsgId,
 		MaxReconsumeTimes: pc.getMaxReconsumeTimes(),
+		BrokerName:        msg.Queue.BrokerName,
 	}
 
 	return remote.NewRemotingCommand(internal.ReqConsumerSendMsgBack, req, nil)
 }
 
 func (pc *pushConsumer) suspend() {
-	pc.pause = true
+	pc.pause.Store(true)
 	rlog.Info(fmt.Sprintf("suspend consumer: %s", pc.consumerGroup), nil)
 }
 
 func (pc *pushConsumer) resume() {
-	pc.pause = false
+	pc.pause.Store(false)
 	pc.doBalance()
 	rlog.Info(fmt.Sprintf("resume consumer: %s", pc.consumerGroup), nil)
 }
@@ -1090,9 +1094,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 
 	limiter := pc.option.Limiter
 	limiterOn := limiter != nil
-	if _, ok := pc.crCh[mq.Topic]; !ok {
-		pc.crCh[mq.Topic] = make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums)
-	}
+	pc.crCh.LoadOrStore(mq.Topic, make(chan struct{}, pc.defaultConsumer.option.ConsumeGoroutineNums))
 
 	for count := 0; count < len(msgs); count++ {
 		var subMsgs []*primitive.MessageExt
@@ -1108,17 +1110,26 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 		if limiterOn {
 			limiter(utils.WithoutNamespace(mq.Topic))
 		}
-		pc.crCh[mq.Topic] <- struct{}{}
-
+		ch, _ := pc.crCh.Load(mq.Topic)
+		if channel, ok := ch.(chan struct{}); ok {
+			channel <- struct{}{}
+		}
 		go primitive.WithRecover(func() {
 			defer func() {
 				if err := recover(); err != nil {
+					if primitive.DefaultPanicHandler != nil {
+						primitive.DefaultPanicHandler(err)
+					}
 					rlog.Error("consumeMessageConcurrently panic", map[string]interface{}{
 						rlog.LogKeyUnderlayError: err,
+						rlog.LogKeyStack:         utils.GetStackAsString(false),
 						rlog.LogKeyConsumerGroup: pc.consumerGroup,
 					})
 				}
-				<-pc.crCh[mq.Topic]
+				ch, _ := pc.crCh.Load(mq.Topic)
+				if channel, ok := ch.(chan struct{}); ok {
+					<-channel
+				}
 			}()
 		RETRY:
 			if pq.IsDroppd() {
@@ -1380,7 +1391,7 @@ func (pc *pushConsumer) checkReconsumeTimes(msgs []*primitive.MessageExt) bool {
 			if msg.ReconsumeTimes > maxReconsumeTimes {
 				rlog.Warning(fmt.Sprintf("msg will be send to retry topic due to ReconsumeTimes > %d, \n", maxReconsumeTimes), nil)
 				msg.WithProperty("RECONSUME_TIME", strconv.Itoa(int(msg.ReconsumeTimes)))
-				if !pc.sendMessageBack("", msg, -1) {
+				if !pc.sendMessageBack(msg.Queue.BrokerName, msg, -1) {
 					suspend = true
 					msg.ReconsumeTimes += 1
 				}

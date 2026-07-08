@@ -38,6 +38,7 @@ const (
 	PropertyWaitStoreMsgOk                 = "WAIT"
 	PropertyDelayTimeLevel                 = "DELAY"
 	PropertyRetryTopic                     = "RETRY_TOPIC"
+	PropertyTimerDeliverMS                 = "TIMER_DELIVER_MS"
 	PropertyRealTopic                      = "REAL_TOPIC"
 	PropertyRealQueueId                    = "REAL_QID"
 	PropertyTransactionPrepared            = "TRAN_MSG"
@@ -176,6 +177,11 @@ func (m *Message) WithDelayTimeLevel(level int) *Message {
 	return m
 }
 
+func (m *Message) WithDelayTimestamp(deliveryTimestamp time.Time) *Message {
+	timeMs := deliveryTimestamp.Unix()*1000 + int64(deliveryTimestamp.Nanosecond()/1000000)
+	m.WithProperty(PropertyTimerDeliverMS, strconv.FormatInt(timeMs, 10))
+	return m
+}
 func (m *Message) WithTag(tags string) *Message {
 	m.WithProperty(PropertyTags, tags)
 	return m
@@ -205,7 +211,7 @@ func (m *Message) GetShardingKey() string {
 
 func (m *Message) String() string {
 	return fmt.Sprintf("[topic=%s, body=%s, Flag=%d, properties=%v, TransactionId=%s]",
-		m.Topic, string(m.Body), m.Flag, m.properties, m.TransactionId)
+		m.Topic, string(m.Body), m.Flag, m.MarshallProperties(), m.TransactionId)
 }
 
 func (m *Message) Marshal() []byte {
@@ -445,7 +451,7 @@ type LocalTransactionState int
 const (
 	CommitMessageState LocalTransactionState = iota + 1
 	RollbackMessageState
-	UnknowState
+	UnkonwnState
 )
 
 type TransactionListener interface {
@@ -476,19 +482,46 @@ func UnmarshalMsgID(id []byte) (*MessageID, error) {
 	if len(id) < 32 {
 		return nil, fmt.Errorf("%s len < 32", string(id))
 	}
+
 	var (
 		ipBytes     = make([]byte, 4)
 		portBytes   = make([]byte, 4)
 		offsetBytes = make([]byte, 8)
 	)
-	hex.Decode(ipBytes, id[0:8])
-	hex.Decode(portBytes, id[8:16])
-	hex.Decode(offsetBytes, id[16:32])
+	if len(id) == 32 {
+		hex.Decode(ipBytes, id[0:8])
+		hex.Decode(portBytes, id[8:16])
+		hex.Decode(offsetBytes, id[16:32])
+	} else {
+		ipBytes = make([]byte, 16)
+		portBytes = make([]byte, 4)
+		offsetBytes = make([]byte, 8)
+		hex.Decode(ipBytes, id[0:32])
+		hex.Decode(portBytes, id[32:40])
+		hex.Decode(offsetBytes, id[40:56])
+	}
+
+	addr := utils.GetAddressByBytes(ipBytes)
+	port := int(binary.BigEndian.Uint32(portBytes))
+	offset := int64(binary.BigEndian.Uint64(offsetBytes))
+
+	if addr == "" {
+		return nil, fmt.Errorf("addr is empty")
+	}
+
+	if port < 0 || port > 65535 {
+		return nil, fmt.Errorf("port > 65535, acutal port is %d", port)
+	}
+
+	if len(id) != 32 {
+		// DialContext require ipv6 format: [ipv6]:port
+		addr = fmt.Sprintf("[%s]", addr)
+	}
 
 	return &MessageID{
-		Addr:   utils.GetAddressByBytes(ipBytes),
-		Port:   int(binary.BigEndian.Uint32(portBytes)),
-		Offset: int64(binary.BigEndian.Uint64(offsetBytes)),
+		Addr:   addr,
+		Port:   port,
+		Offset: offset,
 	}, nil
 }
 

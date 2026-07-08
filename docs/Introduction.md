@@ -66,10 +66,10 @@ now only support `PushConsumer`
 #### Interface
 ```
 PushConsumer interface {
-	// Start the PullConsumer for consuming message
+	// Start the PushConsumer for consuming message
 	Start() error
 
-	// Shutdown the PullConsumer, all offset of MessageQueue will be sync to broker before process exit
+	// Shutdown the PushConsumer, all offset of MessageQueue will be sync to broker before process exit
 	Shutdown() error
 	// Subscribe a topic for consuming
 	Subscribe(topic string, selector consumer.MessageSelector,

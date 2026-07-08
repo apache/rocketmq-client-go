@@ -62,6 +62,8 @@ type Namesrvs interface {
 
 	FetchSubscribeMessageQueues(topic string) ([]*primitive.MessageQueue, error)
 
+	FetchClusterList(topic string) ([]string, error)
+
 	AddrList() []string
 }
 
