@@ -506,9 +506,7 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 		rlog.LogKeyValueChangedFrom: data.SubVersion,
 		rlog.LogKeyValueChangedTo:   newVersion,
 	})
-	data.Lock()
 	data.SubVersion = newVersion
-	data.Unlock()
 
 	// TODO: optimize
 	count := 0
