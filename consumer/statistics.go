@@ -416,7 +416,7 @@ func (si *statsItem) samplingInHour() {
 		value:     atomic.LoadInt64(&si.value),
 	})
 	if si.csListDay.Len() > 25 {
-		si.csListHour.Remove(si.csListDay.Front())
+		si.csListDay.Remove(si.csListDay.Front())
 	}
 }
 
