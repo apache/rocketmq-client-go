@@ -226,3 +226,19 @@ func TestNewStatsManager(t *testing.T) {
 	}
 	stats.ShutDownStat()
 }
+
+// TestSamplingInHourTrimsDayList verifies that samplingInHour keeps the day
+// snapshot list bounded. samplingInHour appends to csListDay, so it must also
+// trim csListDay once it grows beyond 25 entries. A copy-paste slip that trimmed
+// csListHour instead is a no-op (the removed element does not belong to
+// csListHour), which lets csListDay grow without bound and corrupts the
+// day-window statistics.
+func TestSamplingInHourTrimsDayList(t *testing.T) {
+	si := newStatsItem("test", "key")
+	for i := 0; i < 30; i++ {
+		si.samplingInHour()
+	}
+	if got := si.csListDay.Len(); got != 25 {
+		t.Errorf("csListDay should be capped at 25 after 30 samples, got=%d", got)
+	}
+}
