@@ -77,6 +77,12 @@ type pushConsumer struct {
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	defaultOpts := defaultPushConsumerOptions()
+	constructed := false
+	defer func() {
+		if !constructed && !internal.IsNilTraceDispatcher(defaultOpts.TraceDispatcher) {
+			defaultOpts.TraceDispatcher.Close()
+		}
+	}()
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
@@ -126,11 +132,17 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
+	constructed = true
 	return p, nil
 }
 
 func (pc *pushConsumer) Start() error {
 	var err error
+	defer func() {
+		if err != nil && !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
+			pc.option.TraceDispatcher.Close()
+		}
+	}()
 	pc.once.Do(func() {
 		rlog.Info("the consumer start beginning", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,

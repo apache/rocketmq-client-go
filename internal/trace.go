@@ -21,13 +21,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
@@ -221,169 +219,172 @@ type TraceDispatcher interface {
 }
 
 type traceDispatcher struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	running bool
+	// Keep 64-bit atomic data first for alignment on 32-bit platforms.
+	discardCount    int64
+	mu              sync.Mutex
+	started, closed bool
+	closeOnce       sync.Once
+	ctx             context.Context
+	cancel          context.CancelFunc
+	sendCtx         context.Context
+	cancelSend      context.CancelFunc
+	processDone     chan struct{}
+	closeDone       chan struct{}
+	pending         sync.WaitGroup
 
 	traceTopic string
 	access     primitive.AccessChannel
-
-	ticker  *time.Ticker
-	input   chan TraceContext
-	batchCh chan []*TraceContext
-
-	discardCount int64
-
-	// support deliver trace message to other cluster.
-	namesrvs *namesrvs
-	// round robin index
-	rrindex int32
-	cli     RMQClient
+	ticker     *time.Ticker
+	input      chan TraceContext
+	namesrvs   *namesrvs
+	rrindex    int32
+	cli        RMQClient
+	resource   *traceClient
 }
 
 func NewTraceDispatcher(traceCfg *primitive.TraceConfig) *traceDispatcher {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	return newTraceDispatcher(traceCfg, nil)
+}
 
-	t := traceCfg.TraceTopic
-	if len(t) == 0 {
-		t = RmqSysTraceTopic
-	}
+func NewSharedTraceDispatcher(traceCfg *primitive.TraceConfig, shared primitive.SharedTraceClientConfig) *traceDispatcher {
+	return newTraceDispatcher(traceCfg, &shared)
+}
 
-	if traceCfg.Access == primitive.Cloud {
-		t = TraceTopicPrefix + traceCfg.TraceTopic
-	}
-
-	if len(traceCfg.NamesrvAddrs) == 0 && traceCfg.Resolver == nil {
-		panic("no NamesrvAddrs or Resolver configured")
-	}
-
-	var srvs *namesrvs
-	var err error
-	if len(traceCfg.NamesrvAddrs) > 0 {
-		srvs, err = NewNamesrv(primitive.NewPassthroughResolver(traceCfg.NamesrvAddrs), nil)
-	} else {
-		srvs, err = NewNamesrv(traceCfg.Resolver, nil)
-	}
-
+func newTraceDispatcher(traceCfg *primitive.TraceConfig, shared *primitive.SharedTraceClientConfig) *traceDispatcher {
+	resource, err := acquireTraceClient(traceCfg, shared)
 	if err != nil {
-		panic(errors.Wrap(err, "new Namesrv failed."))
-	}
-	if !traceCfg.Credentials.IsEmpty() {
-		srvs.SetCredentials(traceCfg.Credentials)
-	}
-
-	cliOp := DefaultClientOptions()
-	cliOp.GroupName = traceCfg.GroupName
-	cliOp.UnitName = traceCfg.UnitName
-	cliOp.NameServerAddrs = traceCfg.NamesrvAddrs
-	cliOp.InstanceName = "INNER_TRACE_CLIENT_DEFAULT"
-	cliOp.RetryTimes = 0
-	cliOp.Namesrv = srvs
-	cliOp.Credentials = traceCfg.Credentials
-	cli := GetOrNewRocketMQClient(cliOp, nil)
-	if cli == nil {
+		rlog.Error("trace initialization failed; tracing is disabled", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
 		return nil
 	}
-	cliOp.Namesrv = cli.GetNameSrv()
+	topic := traceCfg.TraceTopic
+	if topic == "" {
+		topic = RmqSysTraceTopic
+	}
+	if traceCfg.Access == primitive.Cloud {
+		topic = TraceTopicPrefix + traceCfg.TraceTopic
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	sendCtx, cancelSend := context.WithCancel(context.Background())
 	return &traceDispatcher{
-		ctx:    ctx,
-		cancel: cancel,
-
-		traceTopic: t,
-		access:     traceCfg.Access,
-		input:      make(chan TraceContext, 1024),
-		batchCh:    make(chan []*TraceContext, 2048),
-		cli:        cli,
-		namesrvs:   srvs,
+		ctx: ctx, cancel: cancel, sendCtx: sendCtx, cancelSend: cancelSend,
+		processDone: make(chan struct{}), closeDone: make(chan struct{}),
+		traceTopic: topic, access: traceCfg.Access, input: make(chan TraceContext, 1024),
+		cli: resource.cli, namesrvs: resource.namesrvs, resource: resource,
 	}
 }
 
-func (td *traceDispatcher) GetTraceTopicName() string {
-	return td.traceTopic
-}
+func (td *traceDispatcher) GetTraceTopicName() string { return td.traceTopic }
 
 func (td *traceDispatcher) Start() {
-	td.running = true
-	td.cli.Start()
-	maxWaitDuration := 5 * time.Millisecond
-	td.ticker = time.NewTicker(maxWaitDuration)
-	maxWaitTime := maxWaitDuration.Nanoseconds()
+	if td == nil {
+		return
+	}
+	td.mu.Lock()
+	defer td.mu.Unlock()
+	if td.started || td.closed {
+		return
+	}
+	td.started = true
+	td.ticker = time.NewTicker(5 * time.Millisecond)
 	go primitive.WithRecover(func() {
-		td.process(maxWaitTime)
+		defer close(td.processDone)
+		td.process()
 	})
 }
 
 func (td *traceDispatcher) Close() {
-	td.running = false
-	td.ticker.Stop()
-	td.cancel()
+	if td == nil {
+		return
+	}
+	td.closeOnce.Do(func() {
+		td.mu.Lock()
+		td.closed = true
+		if td.started {
+			td.ticker.Stop()
+		} else {
+			close(td.processDone)
+		}
+		td.cancel()
+		td.mu.Unlock()
+		// Drain accepted records, then wait for all asynchronous callbacks before
+		// releasing a transport. If the deadline expires, cancel I/O and finish
+		// cleanup in the background; never let a late send reopen a closed pool.
+		go func() {
+			<-td.processDone
+			td.pending.Wait()
+			td.cancelSend()
+			td.resource.release()
+			close(td.closeDone)
+		}()
+	})
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-td.closeDone:
+	case <-timer.C:
+		td.cancelSend()
+	}
 }
 
 func (td *traceDispatcher) Append(ctx TraceContext) bool {
-	if !td.running {
-		rlog.Error("traceDispatcher is closed.", nil)
+	if td == nil {
+		return false
+	}
+	td.mu.Lock()
+	defer td.mu.Unlock()
+	if !td.started || td.closed {
 		return false
 	}
 	select {
 	case td.input <- ctx:
 		return true
 	default:
-		rlog.Warning("buffer full", map[string]interface{}{
+		rlog.Warning("trace buffer full", map[string]interface{}{
 			"discardCount": atomic.AddInt64(&td.discardCount, 1),
-			"TraceContext": ctx,
 		})
 		return false
 	}
 }
 
-// process
-func (td *traceDispatcher) process(maxWaitTime int64) {
-	var count int
+func (td *traceDispatcher) submitBatch(batch []TraceContext) {
+	if len(batch) == 0 {
+		return
+	}
+	td.pending.Add(1)
+	go primitive.WithRecover(func() {
+		defer td.pending.Done()
+		td.batchCommit(batch)
+	})
+}
+
+func (td *traceDispatcher) process() {
 	var batch []TraceContext
-	lastput := time.Now()
+	flush := func() { td.submitBatch(batch); batch = nil }
 	for {
 		select {
 		case ctx := <-td.input:
-			count++
-			lastput = time.Now()
 			batch = append(batch, ctx)
-			if count == batchSize {
-				count = 0
-				batchSend := batch
-				go primitive.WithRecover(func() {
-					td.batchCommit(batchSend)
-				})
-				batch = make([]TraceContext, 0)
+			if len(batch) == batchSize {
+				flush()
 			}
 		case <-td.ticker.C:
-			delta := time.Since(lastput).Nanoseconds()
-			if delta > maxWaitTime {
-				lastput = time.Now()
-				if len(batch) > 0 {
-					count = 0
-					batchSend := batch
-					go primitive.WithRecover(func() {
-						td.batchCommit(batchSend)
-					})
-					batch = make([]TraceContext, 0)
+			flush()
+		case <-td.ctx.Done():
+			// Append and Close share a lock, so no more records can enter.
+			for {
+				select {
+				case ctx := <-td.input:
+					batch = append(batch, ctx)
+					if len(batch) == batchSize {
+						flush()
+					}
+				default:
+					flush()
+					return
 				}
 			}
-		case <-td.ctx.Done():
-			batchSend := batch
-			go primitive.WithRecover(func() {
-				td.batchCommit(batchSend)
-			})
-			batch = make([]TraceContext, 0)
-
-			now := time.Now().UnixNano() / int64(time.Millisecond)
-			end := now + 500
-			for now < end {
-				now = time.Now().UnixNano() / int64(time.Millisecond)
-				runtime.Gosched()
-			}
-			rlog.Info(fmt.Sprintf("------end trace send %v %v", td.input, td.batchCh), nil)
-			return
 		}
 	}
 }
@@ -394,7 +395,7 @@ func (td *traceDispatcher) batchCommit(ctxs []TraceContext) {
 	keyedCtxs := make(map[string][]TraceTransferBean)
 	for _, ctx := range ctxs {
 		if len(ctx.TraceBeans) == 0 {
-			return
+			continue
 		}
 		topic := ctx.TraceBeans[0].Topic
 		regionID := ctx.RegionId
@@ -469,9 +470,12 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 	}
 
 	var req = td.buildSendRequest(mq, msg)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(td.sendCtx, 5*time.Second)
+	td.pending.Add(1)
+	var finishOnce sync.Once
+	finish := func() { finishOnce.Do(func() { cancel(); td.pending.Done() }) }
 	err := td.cli.InvokeAsync(ctx, addr, req, func(command *remote.RemotingCommand, e error) {
-		cancel()
+		defer finish()
 		resp := primitive.NewSendResult()
 		if e != nil {
 			rlog.Info("send trace data error.", map[string]interface{}{
@@ -486,7 +490,7 @@ func (td *traceDispatcher) sendTraceDataByMQ(keySet Keyset, regionID string, dat
 		}
 	})
 	if err != nil {
-		cancel()
+		finish()
 		rlog.Info("send trace data error when invoke", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,
 		})
@@ -498,7 +502,13 @@ func (td *traceDispatcher) findMq(regionID string) (*primitive.MessageQueue, str
 	if td.access == primitive.Cloud {
 		traceTopic = td.traceTopic + regionID
 	}
-	mqs, err := td.namesrvs.FetchPublishMessageQueues(traceTopic)
+	if td.sendCtx.Err() != nil {
+		return nil, ""
+	}
+	td.resource.topics.Store(traceTopic, struct{}{})
+	ctx, cancel := context.WithTimeout(td.sendCtx, 5*time.Second)
+	defer cancel()
+	mqs, err := td.namesrvs.fetchPublishMessageQueuesWithContext(ctx, traceTopic)
 	if err != nil {
 		rlog.Error("fetch publish message queues failed", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

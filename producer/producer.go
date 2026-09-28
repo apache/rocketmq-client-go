@@ -53,6 +53,12 @@ type defaultProducer struct {
 
 func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	defaultOpts := defaultProducerOptions()
+	constructed := false
+	defer func() {
+		if !constructed && !internal.IsNilTraceDispatcher(defaultOpts.TraceDispatcher) {
+			defaultOpts.TraceDispatcher.Close()
+		}
+	}()
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
@@ -78,11 +84,17 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 
 	producer.interceptor = primitive.ChainInterceptors(producer.options.Interceptors...)
 
+	constructed = true
 	return producer, nil
 }
 
 func (p *defaultProducer) Start() error {
 	var err error
+	defer func() {
+		if err != nil && !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
+			p.options.TraceDispatcher.Close()
+		}
+	}()
 	p.startOnce.Do(func() {
 		err = p.client.RegisterProducer(p.group, p)
 		if err != nil {

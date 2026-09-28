@@ -121,7 +121,7 @@ func NewNamesrv(resolver primitive.NsResolver, config *remote.RemotingClientConf
 	}
 	nameSrvClient := remote.NewRemotingClient(config)
 	return &namesrvs{
-		srvs:             addr,
+		srvs:             append([]string(nil), addr...),
 		lock:             new(sync.Mutex),
 		nameSrvClient:    nameSrvClient,
 		brokerVersionMap: make(map[string]map[string]int32, 0),
@@ -149,18 +149,22 @@ func (s *namesrvs) getNameServerAddress() string {
 }
 
 func (s *namesrvs) Size() int {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return len(s.srvs)
 }
 
 func (s *namesrvs) String() string {
-	return strings.Join(s.srvs, ";")
+	return strings.Join(s.AddrList(), ";")
 }
 func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
 	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
 }
 
 func (s *namesrvs) AddrList() []string {
-	return s.srvs
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return append([]string(nil), s.srvs...)
 }
 
 // UpdateNameServerAddress will update srvs.
@@ -179,5 +183,5 @@ func (s *namesrvs) UpdateNameServerAddress() {
 		return
 	}
 
-	s.srvs = srvs
+	s.srvs = append([]string(nil), srvs...)
 }

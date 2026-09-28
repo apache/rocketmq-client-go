@@ -95,6 +95,12 @@ type defaultPullConsumer struct {
 
 func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	defaultOpts := defaultPullConsumerOptions()
+	constructed := false
+	defer func() {
+		if !constructed && !internal.IsNilTraceDispatcher(defaultOpts.TraceDispatcher) {
+			defaultOpts.TraceDispatcher.Close()
+		}
+	}()
 	for _, apply := range options {
 		apply(&defaultOpts)
 	}
@@ -133,6 +139,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	dc.mqChanged = c.messageQueueChanged
 	c.submitToConsume = c.consumeMessageConcurrently
 	c.interceptor = primitive.ChainInterceptors(c.option.Interceptors...)
+	constructed = true
 	return c, nil
 }
 
@@ -227,6 +234,11 @@ func (pc *defaultPullConsumer) nextPullOffset(mq *primitive.MessageQueue, origin
 
 func (pc *defaultPullConsumer) Start() error {
 	var err error
+	defer func() {
+		if err != nil && !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
+			pc.option.TraceDispatcher.Close()
+		}
+	}()
 	pc.once.Do(func() {
 		err = pc.validate()
 		if err != nil {
