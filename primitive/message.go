@@ -482,19 +482,46 @@ func UnmarshalMsgID(id []byte) (*MessageID, error) {
 	if len(id) < 32 {
 		return nil, fmt.Errorf("%s len < 32", string(id))
 	}
+
 	var (
 		ipBytes     = make([]byte, 4)
 		portBytes   = make([]byte, 4)
 		offsetBytes = make([]byte, 8)
 	)
-	hex.Decode(ipBytes, id[0:8])
-	hex.Decode(portBytes, id[8:16])
-	hex.Decode(offsetBytes, id[16:32])
+	if len(id) == 32 {
+		hex.Decode(ipBytes, id[0:8])
+		hex.Decode(portBytes, id[8:16])
+		hex.Decode(offsetBytes, id[16:32])
+	} else {
+		ipBytes = make([]byte, 16)
+		portBytes = make([]byte, 4)
+		offsetBytes = make([]byte, 8)
+		hex.Decode(ipBytes, id[0:32])
+		hex.Decode(portBytes, id[32:40])
+		hex.Decode(offsetBytes, id[40:56])
+	}
+
+	addr := utils.GetAddressByBytes(ipBytes)
+	port := int(binary.BigEndian.Uint32(portBytes))
+	offset := int64(binary.BigEndian.Uint64(offsetBytes))
+
+	if addr == "" {
+		return nil, fmt.Errorf("addr is empty")
+	}
+
+	if port < 0 || port > 65535 {
+		return nil, fmt.Errorf("port > 65535, acutal port is %d", port)
+	}
+
+	if len(id) != 32 {
+		// DialContext require ipv6 format: [ipv6]:port
+		addr = fmt.Sprintf("[%s]", addr)
+	}
 
 	return &MessageID{
-		Addr:   utils.GetAddressByBytes(ipBytes),
-		Port:   int(binary.BigEndian.Uint32(portBytes)),
-		Offset: int64(binary.BigEndian.Uint64(offsetBytes)),
+		Addr:   addr,
+		Port:   port,
+		Offset: offset,
 	}, nil
 }
 

@@ -113,6 +113,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		consumerGroup: utils.WrapNamespace(defaultOpts.Namespace, defaultOpts.GroupName),
 		cType:         _PullConsume,
 		state:         atomic2.NewInt32(int32(internal.StateCreateJust)),
+		pause:         atomic2.NewBool(false),
 		prCh:          make(chan PullRequest, 4),
 		model:         defaultOpts.ConsumerModel,
 		option:        defaultOpts,

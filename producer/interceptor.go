@@ -23,6 +23,7 @@ package producer
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -43,7 +44,7 @@ func WithTrace(traceCfg *primitive.TraceConfig) Option {
 }
 
 func newTraceInterceptor(dispatcher internal.TraceDispatcher) primitive.Interceptor {
-	if dispatcher != nil {
+	if dispatcher != nil && !reflect.ValueOf(dispatcher).IsNil() {
 		dispatcher.Start()
 	}
 
