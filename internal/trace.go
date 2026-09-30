@@ -287,10 +287,11 @@ func (td *traceDispatcher) Start() {
 		return
 	}
 	td.started = true
-	td.ticker = time.NewTicker(5 * time.Millisecond)
+	maxWaitDuration := 5 * time.Millisecond
+	td.ticker = time.NewTicker(maxWaitDuration)
 	go primitive.WithRecover(func() {
 		defer close(td.processDone)
-		td.process()
+		td.process(maxWaitDuration)
 	})
 }
 
@@ -359,18 +360,23 @@ func (td *traceDispatcher) submitBatch(batch []TraceContext) {
 	})
 }
 
-func (td *traceDispatcher) process() {
+func (td *traceDispatcher) process(maxWaitDuration time.Duration) {
 	var batch []TraceContext
+	lastPut := time.Now()
 	flush := func() { td.submitBatch(batch); batch = nil }
 	for {
 		select {
 		case ctx := <-td.input:
+			lastPut = time.Now()
 			batch = append(batch, ctx)
 			if len(batch) == batchSize {
 				flush()
 			}
 		case <-td.ticker.C:
-			flush()
+			if time.Since(lastPut) > maxWaitDuration {
+				lastPut = time.Now()
+				flush()
+			}
 		case <-td.ctx.Done():
 			// Append and Close share a lock, so no more records can enter.
 			for {
@@ -506,9 +512,9 @@ func (td *traceDispatcher) findMq(regionID string) (*primitive.MessageQueue, str
 		return nil, ""
 	}
 	td.resource.topics.Store(traceTopic, struct{}{})
-	ctx, cancel := context.WithTimeout(td.sendCtx, 5*time.Second)
-	defer cancel()
-	mqs, err := td.namesrvs.fetchPublishMessageQueuesWithContext(ctx, traceTopic)
+	// Each NameServer attempt has its own timeout; shutdown can still cancel
+	// the whole lookup through sendCtx without cutting off healthy fallbacks.
+	mqs, err := td.namesrvs.fetchPublishMessageQueuesWithContext(td.sendCtx, traceTopic)
 	if err != nil {
 		rlog.Error("fetch publish message queues failed", map[string]interface{}{
 			rlog.LogKeyUnderlayError: err,

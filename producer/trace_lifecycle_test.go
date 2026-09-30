@@ -20,6 +20,7 @@ package producer
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -105,4 +106,58 @@ func TestTraceReleasedOnStartFailure(t *testing.T) {
 	p := &defaultProducer{client: client, options: opts}
 	require.Error(t, p.Start())
 	require.Equal(t, int32(1), atomic.LoadInt32(&closed))
+}
+
+func TestTraceShutdownBeforeStartOrAfterDuplicateGroup(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		ctrl := gomock.NewController(t)
+		client := internal.NewMockRMQClient(ctrl)
+		client.EXPECT().Shutdown()
+		opts := defaultProducerOptions()
+		var closed int32
+		WithSharedTrace(&primitive.TraceConfig{}, primitive.SharedTraceClientConfig{Key: t.Name(), ResolverFactory: func() (primitive.NsResolver, func(), error) {
+			return primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"}), func() { atomic.AddInt32(&closed, 1) }, nil
+		}})(&opts)
+		p := &defaultProducer{client: client, options: opts}
+		if failed {
+			client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).Return(errors.New("duplicate group"))
+			require.Error(t, p.Start())
+		}
+		require.NoError(t, p.Shutdown())
+		require.NoError(t, p.Shutdown())
+		require.Error(t, p.Start())
+		require.Equal(t, int32(1), atomic.LoadInt32(&closed))
+		ctrl.Finish()
+	}
+}
+
+func TestTraceConcurrentStartShutdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := internal.NewMockRMQClient(ctrl)
+	registered, release := make(chan struct{}), make(chan struct{})
+	client.EXPECT().RegisterProducer(gomock.Any(), gomock.Any()).DoAndReturn(func(string, internal.InnerProducer) error { close(registered); <-release; return nil })
+	client.EXPECT().Start()
+	client.EXPECT().UnregisterProducer(gomock.Any())
+	client.EXPECT().Shutdown()
+	p := &defaultProducer{client: client, options: defaultProducerOptions()}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if err := p.Start(); err != nil {
+			t.Error(err)
+		}
+	}()
+	<-registered
+	go func() {
+		defer wg.Done()
+		if err := p.Shutdown(); err != nil {
+			t.Error(err)
+		}
+	}()
+	close(release)
+	wg.Wait()
+	require.NoError(t, p.Shutdown())
+	require.Error(t, p.Start())
 }

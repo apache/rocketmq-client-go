@@ -33,6 +33,10 @@ defer c.Shutdown()
 // Subscribe, then Start as usual.
 ```
 
+The example uses fixed addresses. To handle NameServer replacement, the factory
+must return a resolver that discovers current addresses on each `Resolve` call.
+The factory itself is not called again when the addresses change.
+
 The key must identify the discovery source and destination, including any tenant
 or namespace that affects routing. Do not use a consumer group, a resolved IP
 list, or a changing address-list hash. `TraceConfig.UnitName`, `Access`, and the
@@ -57,15 +61,24 @@ disabled for that dispatcher; recreating the consumer/producer retries setup.
 
 Each consumer/producer has its own trace dispatcher and buffer. Dispatchers in the
 same partition share one NameServer connection pool, one Broker connection pool,
-one resolver, and one discovery worker. Adding consumers therefore does not add
-independent trace connection pools for that partition. Connections are opened
-lazily; this is not a promise of exactly one TCP connection per cluster.
+one resolver, and shared address and route refresh workers. Adding consumers
+therefore does not add independent trace connection pools for that partition.
+Connections are opened lazily; this is not a promise of exactly one TCP
+connection per cluster.
 
 NameServer addresses refresh after 10 seconds and then every 2 minutes. Trace
 topic routes refresh every 30 seconds, including region-specific cloud trace
 topics. NameServer discovery and Broker route discovery are separate operations;
-updates are periodic, not immediate. All dispatchers read the same route and
-address state. Closing one dispatcher leaves other users active.
+updates are periodic, not immediate. Address discovery runs independently so a
+slow route query cannot delay discovering replacement NameServers. Concurrent
+cache misses reuse the first successful route lookup; scheduled refreshes still
+query the servers even when a cached route exists. All dispatchers read the same
+route and address state. Closing one dispatcher leaves other users active.
+
+Route queries retain the existing 6-second timeout per NameServer and try the
+next address after a failed attempt. Shutdown can cancel the whole query.
+Trace records are sent in batches of 100, or after more than 5 milliseconds
+without a new record, preserving the legacy batching policy.
 
 Shutdown rejects new records, drains accepted records, and waits for in-flight
 sends. Close waits at most 5 seconds, then cancels outstanding I/O; cleanup finishes
@@ -80,5 +93,7 @@ addresses before reuse. Its resolver is borrowed and must remain usable for the
 whole shared lifetime. It also benefits from reference-counted cleanup, a common
 NameServer object, route refresh, and nil-safe interceptors. Use `WithSharedTrace`
 when separate resolvers can return different address snapshots for the same
-logical cluster. The general producer/consumer client registry and its
-NameServer conflict checks are unchanged.
+logical cluster. The general producer/consumer client registry retains its
+NameServer conflict checks. Each successful client acquisition holds a reference
+until shutdown, even if the producer or consumer has not started. Closing the
+last owner removes the registry entry so that the instance can be created again.

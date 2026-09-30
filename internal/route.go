@@ -126,7 +126,12 @@ func (s *namesrvs) UpdateTopicRouteInfoWithDefault(topic string, defaultTopic st
 func (s *namesrvs) updateTopicRouteInfoWithContext(ctx context.Context, topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error) {
 	s.lockNamesrv.Lock()
 	defer s.lockNamesrv.Unlock()
+	return s.updateTopicRouteInfoLocked(ctx, topic, defaultTopic, defaultQueueNum)
+}
 
+// The caller holds lockNamesrv. Explicit refreshes always query the server;
+// cache-miss lookups recheck the cache under the same lock before calling here.
+func (s *namesrvs) updateTopicRouteInfoLocked(ctx context.Context, topic string, defaultTopic string, defaultQueueNum int) (*TopicRouteData, bool, error) {
 	var (
 		routeData *TopicRouteData
 		err       error
@@ -197,15 +202,17 @@ func (s *namesrvs) updateTopicRouteInfoWithContext(ctx context.Context, topic st
 			rlog.Info("change the route for clients", nil)
 		}
 
+		// Cache readers may immediately select a queue from the new route.
+		// Publish its broker addresses before making those queues visible.
+		for _, brokerData := range routeData.BrokerDataList {
+			s.brokerAddressesMap.Store(brokerData.BrokerName, brokerData)
+		}
 		s.routeDataMap.Store(topic, routeData)
 		rlog.Info("the topic route info changed", map[string]interface{}{
 			rlog.LogKeyTopic:            topic,
 			rlog.LogKeyValueChangedFrom: oldRouteData,
 			rlog.LogKeyValueChangedTo:   routeData.String(),
 		})
-		for _, brokerData := range routeData.BrokerDataList {
-			s.brokerAddressesMap.Store(brokerData.BrokerName, brokerData)
-		}
 	}
 
 	return routeData.clone(), changed, nil
@@ -369,7 +376,7 @@ func (s *namesrvs) fetchPublishMessageQueuesWithContext(ctx context.Context, top
 
 	v, exist := s.routeDataMap.Load(topic)
 	if !exist {
-		routeData, _, err = s.updateTopicRouteInfoWithContext(ctx, topic, "", 0)
+		routeData, err = s.loadTopicRouteWithContext(ctx, topic)
 		if err != nil {
 			rlog.Error("queryTopicRouteInfoFromServer failed", map[string]interface{}{
 				rlog.LogKeyTopic: topic,
@@ -384,6 +391,19 @@ func (s *namesrvs) fetchPublishMessageQueuesWithContext(ctx context.Context, top
 	publishInfo := s.routeData2PublishInfo(topic, routeData)
 
 	return publishInfo.MqList, nil
+}
+
+func (s *namesrvs) loadTopicRouteWithContext(ctx context.Context, topic string) (*TopicRouteData, error) {
+	s.lockNamesrv.Lock()
+	defer s.lockNamesrv.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if cached, ok := s.routeDataMap.Load(topic); ok {
+		return cached.(*TopicRouteData).clone(), nil
+	}
+	route, _, err := s.updateTopicRouteInfoLocked(ctx, topic, "", 0)
+	return route, err
 }
 
 func (s *namesrvs) AddBrokerVersion(brokerName, brokerAddr string, version int32) {

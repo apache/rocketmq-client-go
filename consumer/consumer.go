@@ -247,13 +247,14 @@ type defaultConsumer struct {
 	fromWhere              ConsumeFromWhere
 	consumerStartTimestamp int64
 
-	cType     ConsumeType
-	client    internal.RMQClient
-	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state     *atomic.Int32
-	pause     *atomic.Bool
-	once      sync.Once
-	option    consumerOptions
+	cType       ConsumeType
+	client      internal.RMQClient
+	mqChanged   func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
+	state       *atomic.Int32
+	pause       *atomic.Bool
+	lifecycleMu sync.Mutex
+	once        sync.Once
+	option      consumerOptions
 	// key: primitive.MessageQueue
 	// value: *processQueue
 	processQueueTable sync.Map

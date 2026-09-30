@@ -47,6 +47,7 @@ type defaultProducer struct {
 
 	interceptor primitive.Interceptor
 
+	lifecycleMu  sync.Mutex
 	startOnce    sync.Once
 	ShutdownOnce sync.Once
 }
@@ -89,6 +90,11 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 }
 
 func (p *defaultProducer) Start() error {
+	p.lifecycleMu.Lock()
+	defer p.lifecycleMu.Unlock()
+	if atomic.LoadInt32(&p.state) == int32(internal.StateShutdown) {
+		return internal.ErrServiceState
+	}
 	var err error
 	defer func() {
 		if err != nil && !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
@@ -111,12 +117,16 @@ func (p *defaultProducer) Start() error {
 }
 
 func (p *defaultProducer) Shutdown() error {
+	p.lifecycleMu.Lock()
+	defer p.lifecycleMu.Unlock()
 	p.ShutdownOnce.Do(func() {
-		if p.options.TraceDispatcher != nil {
+		if !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
 			p.options.TraceDispatcher.Close()
 		}
-		atomic.StoreInt32(&p.state, int32(internal.StateShutdown))
-		p.client.UnregisterProducer(p.group)
+		previous := atomic.SwapInt32(&p.state, int32(internal.StateShutdown))
+		if previous == int32(internal.StateRunning) {
+			p.client.UnregisterProducer(p.group)
+		}
 		p.client.Shutdown()
 	})
 	return nil

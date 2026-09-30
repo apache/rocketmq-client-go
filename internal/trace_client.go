@@ -200,18 +200,38 @@ func createTraceClient(key traceClientKey, cfg *primitive.TraceConfig, shared *p
 }
 
 func (client *traceClient) refresh(ctx context.Context) {
-	defer close(client.done)
-	names := time.NewTimer(10 * time.Second)
-	routes := time.NewTicker(_PullNameServerInterval)
-	defer names.Stop()
+	client.runRefresh(ctx, 10*time.Second, 2*time.Minute, _PullNameServerInterval)
+}
+
+func (client *traceClient) runRefresh(ctx context.Context, initialNamesDelay, namesInterval, routesInterval time.Duration) {
+	ctx, cancel := context.WithCancel(ctx)
+	namesDone := make(chan struct{})
+	go primitive.WithRecover(func() {
+		defer close(namesDone)
+		names := time.NewTimer(initialNamesDelay)
+		defer names.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-names.C:
+				client.namesrvs.UpdateNameServerAddress()
+				names.Reset(namesInterval)
+			}
+		}
+	})
+	// Wait for both loops before the owner disposes the resolver or transports.
+	defer func() {
+		cancel()
+		<-namesDone
+		close(client.done)
+	}()
+	routes := time.NewTicker(routesInterval)
 	defer routes.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-names.C:
-			client.namesrvs.UpdateNameServerAddress()
-			names.Reset(2 * time.Minute)
 		case <-routes.C:
 			client.refreshRoutes(ctx)
 		}
@@ -223,9 +243,9 @@ func (client *traceClient) refreshRoutes(ctx context.Context) {
 		if ctx.Err() != nil {
 			return false
 		}
-		requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		client.namesrvs.updateTopicRouteInfoWithContext(requestCtx, key.(string), "", 0)
-		cancel()
+		// Preserve the per-NameServer timeout and fallback attempts. The worker
+		// context cancels outstanding discovery when the resource is released.
+		client.namesrvs.updateTopicRouteInfoWithContext(ctx, key.(string), "", 0)
 		return true
 	})
 }

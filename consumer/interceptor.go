@@ -48,6 +48,9 @@ func installTraceInterceptor(options *consumerOptions, dispatcher internal.Trace
 	}
 	if !internal.IsNilTraceDispatcher(options.TraceDispatcher) {
 		options.TraceDispatcher.Close()
+		// Trace is always prepended; WithInterceptor appends user interceptors.
+		// Remove the old wrapper before installing its replacement.
+		options.Interceptors = options.Interceptors[1:]
 	}
 	options.TraceDispatcher = dispatcher
 	options.Interceptors = append([]primitive.Interceptor{newTraceInterceptor(dispatcher)}, options.Interceptors...)

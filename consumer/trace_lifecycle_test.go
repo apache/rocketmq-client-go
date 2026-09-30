@@ -25,6 +25,7 @@ import (
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	atomic2 "go.uber.org/atomic"
 )
@@ -127,5 +128,40 @@ func TestTraceReleasedOnStartFailure(t *testing.T) {
 		}
 		require.Error(t, err)
 		require.Equal(t, int32(1), atomic.LoadInt32(&closed))
+	}
+}
+
+// An unsuccessful Start releases its client reference without unregistering a group.
+func TestTraceShutdownBeforeStartOrAfterDuplicateGroup(t *testing.T) {
+	for _, pull := range []bool{false, true} {
+		for _, failed := range []bool{false, true} {
+			ctrl := gomock.NewController(t)
+			client := internal.NewMockRMQClient(ctrl)
+			client.EXPECT().Shutdown()
+			opts := defaultPushConsumerOptions()
+			var closed int32
+			WithSharedTrace(&primitive.TraceConfig{}, primitive.SharedTraceClientConfig{Key: t.Name(), ResolverFactory: func() (primitive.NsResolver, func(), error) {
+				return primitive.NewPassthroughResolver([]string{"127.0.0.1:9876"}), func() { atomic.AddInt32(&closed, 1) }, nil
+			}})(&opts)
+			dc := &defaultConsumer{consumerGroup: "trace-test", option: opts, client: client, state: atomic2.NewInt32(int32(internal.StateCreateJust))}
+			var c interface {
+				Start() error
+				Shutdown() error
+			}
+			if pull {
+				c = &defaultPullConsumer{defaultConsumer: dc, done: make(chan struct{}), SubType: Assign}
+			} else {
+				c = &pushConsumer{defaultConsumer: dc, done: make(chan struct{})}
+			}
+			if failed {
+				client.EXPECT().RegisterConsumer(gomock.Any(), gomock.Any()).Return(errors.New("duplicate group"))
+				require.Error(t, c.Start())
+			}
+			require.NoError(t, c.Shutdown())
+			require.NoError(t, c.Shutdown())
+			require.Error(t, c.Start())
+			require.Equal(t, int32(1), atomic.LoadInt32(&closed))
+			ctrl.Finish()
+		}
 	}
 }
