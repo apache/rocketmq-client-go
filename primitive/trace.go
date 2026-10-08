@@ -27,3 +27,17 @@ type TraceConfig struct {
 	Resolver     NsResolver
 	Credentials  // acl config for trace. omit if acl is closed on broker.
 }
+
+// SharedTraceClientConfig identifies a trace transport independently of the
+// current NameServer addresses. Use a stable key for the logical cluster (for
+// example its discovery endpoint and tenant), never a consumer group or an IP
+// list. UnitName, Access and Credentials from TraceConfig also partition clients.
+type SharedTraceClientConfig struct {
+	Key string
+	// ResolverFactory is called once per shared client's lifetime. It must return
+	// an independently owned resolver, not a consumer's resolver. The optional
+	// cleanup function is called once after the last dispatcher closes (also on
+	// initialization failure). Resolve must return promptly and be safe for
+	// concurrent use. NamesrvAddrs and Resolver in TraceConfig are ignored.
+	ResolverFactory func() (NsResolver, func(), error)
+}

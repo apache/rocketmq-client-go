@@ -77,6 +77,12 @@ type pushConsumer struct {
 
 func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	defaultOpts := defaultPushConsumerOptions()
+	constructed := false
+	defer func() {
+		if !constructed && !internal.IsNilTraceDispatcher(defaultOpts.TraceDispatcher) {
+			defaultOpts.TraceDispatcher.Close()
+		}
+	}()
 	for _, apply := range opts {
 		apply(&defaultOpts)
 	}
@@ -126,11 +132,22 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 
 	p.interceptor = primitive.ChainInterceptors(p.option.Interceptors...)
 
+	constructed = true
 	return p, nil
 }
 
 func (pc *pushConsumer) Start() error {
+	pc.lifecycleMu.Lock()
+	defer pc.lifecycleMu.Unlock()
+	if pc.state.Load() == int32(internal.StateShutdown) {
+		return internal.ErrServiceState
+	}
 	var err error
+	defer func() {
+		if err != nil && !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
+			pc.option.TraceDispatcher.Close()
+		}
+	}()
 	pc.once.Do(func() {
 		rlog.Info("the consumer start beginning", map[string]interface{}{
 			rlog.LogKeyConsumerGroup: pc.consumerGroup,
@@ -237,7 +254,7 @@ func (pc *pushConsumer) Start() error {
 	pc.subscribedTopic.Range(func(k, v interface{}) bool {
 		_, exist := pc.topicSubscribeInfoTable.Load(k)
 		if !exist {
-			pc.Shutdown()
+			pc.shutdownLocked()
 			err = fmt.Errorf("the topic=%s route info not found, it may not exist", k)
 			return false
 		}
@@ -277,12 +294,25 @@ func (pc *pushConsumer) GetOffsetDiffMap() map[string]int64 {
 }
 
 func (pc *pushConsumer) Shutdown() error {
+	pc.lifecycleMu.Lock()
+	defer pc.lifecycleMu.Unlock()
+	return pc.shutdownLocked()
+}
+
+func (pc *pushConsumer) shutdownLocked() error {
 	var err error
 	pc.closeOnce.Do(func() {
-		if pc.option.TraceDispatcher != nil {
+		if !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
 			pc.option.TraceDispatcher.Close()
 		}
 		close(pc.done)
+		// Release the construction reference without unregistering another
+		// owner's group when this consumer never started successfully.
+		if pc.state.Load() != int32(internal.StateRunning) {
+			pc.state.Store(int32(internal.StateShutdown))
+			pc.client.Shutdown()
+			return
+		}
 		if pc.consumeOrderly && pc.model == Clustering {
 			pc.unlockAll(false)
 		}

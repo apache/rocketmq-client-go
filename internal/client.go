@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	errors2 "github.com/apache/rocketmq-client-go/v2/errors"
@@ -183,7 +182,10 @@ type rmqClient struct {
 	done         chan struct{}
 	shutdownOnce sync.Once
 
-	instanceCount int32
+	// Each successful GetOrNewRocketMQClient owns one reference, including
+	// clients that have not started yet. refs is protected by clientMapMu.
+	refs  int
+	ready chan struct{}
 }
 
 func (c *rmqClient) GetNameSrv() Namesrvs {
@@ -191,25 +193,37 @@ func (c *rmqClient) GetNameSrv() Namesrvs {
 }
 
 var clientMap sync.Map
+var clientMapMu sync.Mutex
 
+// GetOrNewRocketMQClient acquires a reference that must be released by Shutdown,
+// whether or not the caller starts the client.
 func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) RMQClient {
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(option.RemotingClientConfig),
 		done:         make(chan struct{}),
+		ready:        make(chan struct{}),
 	}
+	clientMapMu.Lock()
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
+	client = actual.(*rmqClient)
+	client.refs++
+	clientMapMu.Unlock()
 
 	if loaded {
+		// Do not expose a shared client before its request handlers are ready.
+		<-client.ready
 		// compare namesrv address
-		client = actual.(*rmqClient)
-		now := option.Namesrv.(*namesrvs).resolver.Resolve()
-		old := client.GetNameSrv().(*namesrvs).resolver.Resolve()
+		// Resolvers may return their own shared slices. Compare private copies
+		// so sorting cannot mutate discovery state or race with another owner.
+		now := append([]string(nil), option.Namesrv.(*namesrvs).resolver.Resolve()...)
+		old := append([]string(nil), client.GetNameSrv().(*namesrvs).resolver.Resolve()...)
 		if len(now) != len(old) {
 			rlog.Error("different namesrv option in the same instance", map[string]interface{}{
 				"NewNameSrv":    now,
 				"BeforeNameSrv": old,
 			})
+			client.Shutdown()
 			return nil
 		}
 		sort.Strings(now)
@@ -220,6 +234,7 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 					"NewNameSrv":    now,
 					"BeforeNameSrv": old,
 				})
+				client.Shutdown()
 				return nil
 			}
 		}
@@ -404,16 +419,14 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 			}
 			return res
 		})
+		// Only the creator binds the NameServer; reuse must not race with readers.
+		client.GetNameSrv().(*namesrvs).bundleClient = client
+		close(client.ready)
 	}
-	// bundle this client to namesrv
-	client.GetNameSrv().(*namesrvs).bundleClient = client
 	return client
 }
 
 func (c *rmqClient) Start() {
-	//ctx, cancel := context.WithCancel(context.Background())
-	//c.cancel = cancel
-	atomic.AddInt32(&c.instanceCount, 1)
 	c.once.Do(func() {
 		if !c.option.Credentials.IsEmpty() {
 			c.remoteClient.RegisterInterceptor(remote.ACLInterceptor(c.option.Credentials))
@@ -538,23 +551,29 @@ func (c *rmqClient) Start() {
 	})
 }
 
-func (c *rmqClient) removeClient() {
-	rlog.Info("will remove client from clientMap", map[string]interface{}{
-		"clientID": c.ClientID(),
-	})
-	clientMap.Delete(c.ClientID())
-}
-
 func (c *rmqClient) Shutdown() {
-	if atomic.AddInt32(&c.instanceCount, -1) > 0 {
+	clientMapMu.Lock()
+	if c.refs == 0 {
+		clientMapMu.Unlock()
 		return
 	}
+	c.refs--
+	if c.refs != 0 {
+		clientMapMu.Unlock()
+		return
+	}
+	// Removal and acquisition must be atomic. A new generation may be created
+	// after this point; disposing this client's transports cannot remove it.
+	clientMap.Delete(c.ClientID())
+	clientMapMu.Unlock()
 
 	c.shutdownOnce.Do(func() {
+		rlog.Info("will remove client from clientMap", map[string]interface{}{
+			"clientID": c.ClientID(),
+		})
 		close(c.done)
 		c.close = true
 		c.remoteClient.ShutDown()
-		c.removeClient()
 	})
 }
 

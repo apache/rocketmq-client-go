@@ -95,6 +95,12 @@ type defaultPullConsumer struct {
 
 func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	defaultOpts := defaultPullConsumerOptions()
+	constructed := false
+	defer func() {
+		if !constructed && !internal.IsNilTraceDispatcher(defaultOpts.TraceDispatcher) {
+			defaultOpts.TraceDispatcher.Close()
+		}
+	}()
 	for _, apply := range options {
 		apply(&defaultOpts)
 	}
@@ -133,6 +139,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 	dc.mqChanged = c.messageQueueChanged
 	c.submitToConsume = c.consumeMessageConcurrently
 	c.interceptor = primitive.ChainInterceptors(c.option.Interceptors...)
+	constructed = true
 	return c, nil
 }
 
@@ -226,7 +233,17 @@ func (pc *defaultPullConsumer) nextPullOffset(mq *primitive.MessageQueue, origin
 }
 
 func (pc *defaultPullConsumer) Start() error {
+	pc.lifecycleMu.Lock()
+	defer pc.lifecycleMu.Unlock()
+	if pc.state.Load() == int32(internal.StateShutdown) {
+		return internal.ErrServiceState
+	}
 	var err error
+	defer func() {
+		if err != nil && !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
+			pc.option.TraceDispatcher.Close()
+		}
+	}()
 	pc.once.Do(func() {
 		err = pc.validate()
 		if err != nil {
@@ -272,7 +289,7 @@ func (pc *defaultPullConsumer) Start() error {
 	pc.client.UpdateTopicRouteInfo()
 	_, exist := pc.topicSubscribeInfoTable.Load(pc.topic)
 	if !exist {
-		err = pc.Shutdown()
+		err = pc.shutdownLocked()
 		if err != nil {
 			rlog.Error("defaultPullConsumer.Shutdown . route info not found, it may not exist", map[string]interface{}{
 				rlog.LogKeyTopic:         pc.topic,
@@ -570,12 +587,25 @@ func (pc *defaultPullConsumer) CurrentOffset(queue *primitive.MessageQueue) (int
 
 // Shutdown close defaultConsumer, refuse new request.
 func (pc *defaultPullConsumer) Shutdown() error {
+	pc.lifecycleMu.Lock()
+	defer pc.lifecycleMu.Unlock()
+	return pc.shutdownLocked()
+}
+
+func (pc *defaultPullConsumer) shutdownLocked() error {
 	var err error
 	pc.closeOnce.Do(func() {
-		if pc.option.TraceDispatcher != nil {
+		if !internal.IsNilTraceDispatcher(pc.option.TraceDispatcher) {
 			pc.option.TraceDispatcher.Close()
 		}
 		close(pc.done)
+		// Release the construction reference without unregistering another
+		// owner's group when this consumer never started successfully.
+		if pc.state.Load() != int32(internal.StateRunning) {
+			pc.state.Store(int32(internal.StateShutdown))
+			pc.client.Shutdown()
+			return
+		}
 
 		pc.client.UnregisterConsumer(pc.consumerGroup)
 		err = pc.defaultConsumer.shutdown()
