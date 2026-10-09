@@ -283,13 +283,14 @@ func TestInvokeAsyncTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	client := NewRemotingClient(nil)
+	defer client.ShutDown()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	var clientSend sync.WaitGroup // blocking client send message until the server listen success.
 	clientSend.Add(1)
 	go func() {
 		clientSend.Wait()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
-		defer cancel()
 		err := client.InvokeAsync(ctx, addr, clientSendRemtingCommand,
 			func(r *ResponseFuture) {
 				assert.NotNil(t, r.Err)

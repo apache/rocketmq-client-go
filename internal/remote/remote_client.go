@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"io"
 	"net"
@@ -54,12 +55,17 @@ type RemotingClient interface {
 
 var _ RemotingClient = &remotingClient{}
 
+var errClientClosed = errors.New("remoting client is shut down")
+
 type remotingClient struct {
 	responseTable    sync.Map
 	connectionTable  sync.Map
 	config           *RemotingClientConfig
 	processors       map[int16]ClientRequestFunc
 	connectionLocker sync.Mutex
+	lifecycleMu      sync.Mutex
+	closed           bool // protected by lifecycleMu
+	done             chan struct{}
 	interceptor      primitive.Interceptor
 }
 
@@ -84,6 +90,7 @@ func NewRemotingClient(config *RemotingClientConfig) *remotingClient {
 	return &remotingClient{
 		processors: make(map[int16]ClientRequestFunc),
 		config:     config,
+		done:       make(chan struct{}),
 	}
 }
 
@@ -100,7 +107,9 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 
 	resp := NewResponseFuture(ctx, request.Opaque, nil)
 
-	c.responseTable.Store(resp.Opaque, resp)
+	if err := c.registerResponse(resp); err != nil {
+		return nil, err
+	}
 	defer c.responseTable.Delete(request.Opaque)
 
 	err = c.sendRequest(ctx, conn, request)
@@ -114,7 +123,9 @@ func (c *remotingClient) InvokeSync(ctx context.Context, addr string, request *R
 // InvokeAsync send request without blocking, just return immediately.
 func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *RemotingCommand, callback func(*ResponseFuture)) error {
 	resp := NewResponseFuture(ctx, request.Opaque, callback)
-	c.responseTable.Store(resp.Opaque, resp)
+	if err := c.registerResponse(resp); err != nil {
+		return err
+	}
 
 	go primitive.WithRecover(func() {
 		defer resp.executeInvokeCallback()
@@ -122,12 +133,12 @@ func (c *remotingClient) InvokeAsync(ctx context.Context, addr string, request *
 
 		conn, err := c.connect(ctx, addr)
 		if err != nil {
-			resp.Err = err
+			resp.complete(nil, err)
 			return
 		}
 		err = c.sendRequest(ctx, conn, request)
 		if err != nil {
-			resp.Err = err
+			resp.complete(nil, err)
 			return
 		}
 		c.receiveAsync(resp)
@@ -151,17 +162,49 @@ func (c *remotingClient) InvokeOneWay(ctx context.Context, addr string, request 
 	return c.sendRequest(ctx, conn, request)
 }
 
+func (c *remotingClient) registerResponse(resp *ResponseFuture) error {
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	if c.closed {
+		return errClientClosed
+	}
+	c.responseTable.Store(resp.Opaque, resp)
+	return nil
+}
+
 func (c *remotingClient) connect(ctx context.Context, addr string) (*tcpConnWrapper, error) {
-	// it needs additional locker.
 	c.connectionLocker.Lock()
 	defer c.connectionLocker.Unlock()
+	c.lifecycleMu.Lock()
+	if c.closed {
+		c.lifecycleMu.Unlock()
+		return nil, errClientClosed
+	}
 	conn, ok := c.connectionTable.Load(addr)
+	c.lifecycleMu.Unlock()
 	if ok {
 		return conn.(*tcpConnWrapper), nil
 	}
-	tcpConn, err := initConn(ctx, addr, c.config)
+
+	// Cancel a pending TCP dial or TLS handshake when the transport stops.
+	dialCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-c.done:
+			cancel()
+		case <-dialCtx.Done():
+		}
+	}()
+	tcpConn, err := initConn(dialCtx, addr, c.config)
 	if err != nil {
 		return nil, err
+	}
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	if c.closed {
+		tcpConn.destroy()
+		return nil, errClientClosed
 	}
 	c.connectionTable.Store(addr, tcpConn)
 	go primitive.WithRecover(func() {
@@ -243,13 +286,7 @@ func (c *remotingClient) processCMD(cmd *RemotingCommand, r *tcpConnWrapper) {
 		if exist {
 			c.responseTable.Delete(cmd.Opaque)
 			responseFuture := resp.(*ResponseFuture)
-			go primitive.WithRecover(func() {
-				responseFuture.ResponseCommand = cmd
-				if responseFuture.Done != nil {
-					close(responseFuture.Done)
-				}
-				responseFuture.executeInvokeCallback()
-			})
+			responseFuture.complete(cmd, nil)
 		}
 	} else {
 		f := c.processors[cmd.Code]
@@ -370,11 +407,20 @@ func (c *remotingClient) closeConnection(toCloseConn *tcpConnWrapper) {
 }
 
 func (c *remotingClient) ShutDown() {
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	if c.closed {
+		return
+	}
+	c.closed = true
+	close(c.done)
 	c.responseTable.Range(func(key, value interface{}) bool {
+		value.(*ResponseFuture).complete(nil, errClientClosed)
 		c.responseTable.Delete(key)
 		return true
 	})
 	c.connectionTable.Range(func(key, value interface{}) bool {
+		c.connectionTable.Delete(key)
 		conn := value.(*tcpConnWrapper)
 		err := conn.destroy()
 		if err != nil {

@@ -38,19 +38,47 @@ func initConn(ctx context.Context, addr string, config *RemotingClientConfig) (*
 	d.KeepAlive = config.KeepAliveDuration
 	d.Deadline = time.Now().Add(config.ConnectionTimeout)
 
-	var conn net.Conn
-	var err error
-	if config.UseTls {
-		conn, err = tls.DialWithDialer(&d, "tcp", addr, &tls.Config{
-			InsecureSkipVerify: true,
-		})
-	} else {
-		conn, err = d.DialContext(ctx, "tcp", addr)
-	}
-
+	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
 	}
+	if config.UseTls {
+		host, _, _ := net.SplitHostPort(addr)
+		tlsConn := tls.Client(conn, &tls.Config{ServerName: host, InsecureSkipVerify: true})
+		deadline := d.Deadline
+		if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+			deadline = ctxDeadline
+		}
+		if err := conn.SetDeadline(deadline); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		handshakeDone := make(chan struct{})
+		watcherDone := make(chan struct{})
+		go func() {
+			defer close(watcherDone)
+			select {
+			case <-ctx.Done():
+				conn.Close()
+			case <-handshakeDone:
+			}
+		}()
+		err = tlsConn.Handshake()
+		close(handshakeDone)
+		<-watcherDone
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err == nil {
+			err = conn.SetDeadline(time.Time{})
+		}
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+		conn = tlsConn
+	}
+
 	return &tcpConnWrapper{
 		Conn: conn,
 	}, nil

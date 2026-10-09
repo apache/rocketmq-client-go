@@ -177,7 +177,6 @@ type rmqClient struct {
 
 	remoteClient remote.RemotingClient
 	hbMutex      sync.Mutex
-	close        bool
 	rbMutex      sync.Mutex
 	done         chan struct{}
 	shutdownOnce sync.Once
@@ -197,7 +196,13 @@ var clientMapMu sync.Mutex
 
 // GetOrNewRocketMQClient acquires a reference that must be released by Shutdown,
 // whether or not the caller starts the client.
-func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) RMQClient {
+// callbackStops optionally cancels callback delivery when its producer stops,
+// even if other owners keep the shared client alive.
+func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}, callbackStops ...<-chan struct{}) RMQClient {
+	var callbackStop <-chan struct{}
+	if len(callbackStops) > 0 {
+		callbackStop = callbackStops[0]
+	}
 	client := &rmqClient{
 		option:       option,
 		remoteClient: remote.NewRemotingClient(option.RemotingClientConfig),
@@ -274,7 +279,11 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}) R
 				Msg:    msgExt,
 				Header: *header,
 			}
-			callbackCh <- callback
+			select {
+			case callbackCh <- callback:
+			case <-callbackStop:
+			case <-client.done:
+			}
 			return nil
 		})
 
@@ -435,7 +444,9 @@ func (c *rmqClient) Start() {
 			op := func() {
 				c.GetNameSrv().UpdateNameServerAddress()
 			}
-			time.Sleep(10 * time.Second)
+			if !utils.WaitFor(c.done, 10*time.Second) {
+				return
+			}
 			op()
 
 			ticker := time.NewTicker(2 * time.Minute)
@@ -459,7 +470,9 @@ func (c *rmqClient) Start() {
 			op := func() {
 				c.UpdateTopicRouteInfo()
 			}
-			time.Sleep(10 * time.Millisecond)
+			if !utils.WaitFor(c.done, 10*time.Millisecond) {
+				return
+			}
 			op()
 
 			ticker := time.NewTicker(_PullNameServerInterval)
@@ -483,7 +496,9 @@ func (c *rmqClient) Start() {
 				c.SendHeartbeatToAllBrokerWithLock()
 			}
 
-			time.Sleep(time.Second)
+			if !utils.WaitFor(c.done, time.Second) {
+				return
+			}
 			op()
 
 			ticker := time.NewTicker(_HeartbeatBrokerInterval)
@@ -515,7 +530,9 @@ func (c *rmqClient) Start() {
 					return true
 				})
 			}
-			time.Sleep(10 * time.Second)
+			if !utils.WaitFor(c.done, 10*time.Second) {
+				return
+			}
 			op()
 
 			ticker := time.NewTicker(_PersistOffsetInterval)
@@ -572,9 +589,20 @@ func (c *rmqClient) Shutdown() {
 			"clientID": c.ClientID(),
 		})
 		close(c.done)
-		c.close = true
 		c.remoteClient.ShutDown()
+		if srvs, ok := c.GetNameSrv().(*namesrvs); ok && srvs != nil {
+			srvs.nameSrvClient.ShutDown()
+		}
 	})
+}
+
+func (c *rmqClient) isClosed() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *rmqClient) ClientID() string {
@@ -592,7 +620,7 @@ func (c *rmqClient) ClientID() string {
 
 func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) (*remote.RemotingCommand, error) {
-	if c.close {
+	if c.isClosed() {
 		return nil, ErrServiceState
 	}
 	var cancel context.CancelFunc
@@ -603,7 +631,7 @@ func (c *rmqClient) InvokeSync(ctx context.Context, addr string, request *remote
 
 func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remote.RemotingCommand,
 	f func(*remote.RemotingCommand, error)) error {
-	if c.close {
+	if c.isClosed() {
 		return ErrServiceState
 	}
 	return c.remoteClient.InvokeAsync(ctx, addr, request, func(future *remote.ResponseFuture) {
@@ -614,7 +642,7 @@ func (c *rmqClient) InvokeAsync(ctx context.Context, addr string, request *remot
 
 func (c *rmqClient) InvokeOneWay(ctx context.Context, addr string, request *remote.RemotingCommand,
 	timeoutMillis time.Duration) error {
-	if c.close {
+	if c.isClosed() {
 		return ErrServiceState
 	}
 	return c.remoteClient.InvokeOneWay(ctx, addr, request)
