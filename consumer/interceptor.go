@@ -19,8 +19,6 @@ package consumer
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal"
@@ -31,24 +29,42 @@ import (
 // WithTrace support rocketmq trace: https://github.com/apache/rocketmq/wiki/RIP-6-Message-Trace.
 func WithTrace(traceCfg *primitive.TraceConfig) Option {
 	return func(options *consumerOptions) {
-		dispatcher := internal.NewTraceDispatcher(traceCfg)
-		options.TraceDispatcher = dispatcher
-		ori := options.Interceptors
-		options.Interceptors = make([]primitive.Interceptor, 0)
-		options.Interceptors = append(options.Interceptors, newTraceInterceptor(dispatcher))
-		options.Interceptors = append(options.Interceptors, ori...)
+		installTraceInterceptor(options, internal.NewTraceDispatcher(traceCfg))
 	}
 }
 
-func newTraceInterceptor(dispatcher internal.TraceDispatcher) primitive.Interceptor {
-	if dispatcher != nil && !reflect.ValueOf(dispatcher).IsNil() {
-		dispatcher.Start()
+// WithSharedTrace shares trace connections by logical cluster identity. Discovery
+// addresses may change without recreating the client. See SharedTraceClientConfig
+// for resolver ownership and key requirements.
+func WithSharedTrace(traceCfg *primitive.TraceConfig, shared primitive.SharedTraceClientConfig) Option {
+	return func(options *consumerOptions) {
+		installTraceInterceptor(options, internal.NewSharedTraceDispatcher(traceCfg, shared))
 	}
+}
+
+func installTraceInterceptor(options *consumerOptions, dispatcher internal.TraceDispatcher) {
+	if internal.IsNilTraceDispatcher(dispatcher) {
+		return
+	}
+	if !internal.IsNilTraceDispatcher(options.TraceDispatcher) {
+		options.TraceDispatcher.Close()
+		// Trace is always prepended; WithInterceptor appends user interceptors.
+		// Remove the old wrapper before installing its replacement.
+		options.Interceptors = options.Interceptors[1:]
+	}
+	options.TraceDispatcher = dispatcher
+	options.Interceptors = append([]primitive.Interceptor{newTraceInterceptor(dispatcher)}, options.Interceptors...)
+}
+
+func newTraceInterceptor(dispatcher internal.TraceDispatcher) primitive.Interceptor {
+	if internal.IsNilTraceDispatcher(dispatcher) {
+		return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
+			return next(ctx, req, reply)
+		}
+	}
+	dispatcher.Start()
 
 	return func(ctx context.Context, req, reply interface{}, next primitive.Invoker) error {
-		if dispatcher == nil {
-			return fmt.Errorf("GetOrNewRocketMQClient faild")
-		}
 		consumerCtx, exist := primitive.GetConsumerCtx(ctx)
 		if !exist || len(consumerCtx.Msgs) == 0 {
 			return next(ctx, req, reply)
