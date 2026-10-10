@@ -1230,6 +1230,7 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 								"message": subMsgs[i],
 							})
 						}
+						msgBackSucceed = subMsgs
 					} else {
 						for i := 0; i < len(subMsgs); i++ {
 							msg := subMsgs[i]
