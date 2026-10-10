@@ -93,7 +93,9 @@ type namesrvs struct {
 
 	lockNamesrv sync.Mutex
 
-	nameSrvClient remote.RemotingClient
+	nameSrvClient  remote.RemotingClient
+	remotingConfig *remote.RemotingClientConfig
+	credentials    *primitive.Credentials // protected by lock
 
 	resolver primitive.NsResolver
 }
@@ -119,15 +121,32 @@ func NewNamesrv(resolver primitive.NsResolver, config *remote.RemotingClientConf
 	if err := primitive.NamesrvAddr(addr).Check(); err != nil {
 		return nil, err
 	}
-	nameSrvClient := remote.NewRemotingClient(config)
+	return newNamesrvWithAddresses(addr, resolver, config), nil
+}
+
+func newNamesrvWithAddresses(addr []string, resolver primitive.NsResolver, config *remote.RemotingClientConfig) *namesrvs {
 	return &namesrvs{
 		srvs:             append([]string(nil), addr...),
 		lock:             new(sync.Mutex),
-		nameSrvClient:    nameSrvClient,
+		nameSrvClient:    remote.NewRemotingClient(config),
+		remotingConfig:   config,
 		brokerVersionMap: make(map[string]map[string]int32, 0),
 		brokerLock:       new(sync.RWMutex),
 		resolver:         resolver,
-	}, nil
+	}
+}
+
+// cloneForClient retains discovery configuration but gives a new client its own
+// transport and route caches. Do not resolve again: discovery can temporarily be
+// unavailable, while the last known address snapshot is still usable.
+func (s *namesrvs) cloneForClient() *namesrvs {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	cloned := newNamesrvWithAddresses(s.srvs, s.resolver, s.remotingConfig)
+	if s.credentials != nil {
+		cloned.SetCredentials(*s.credentials)
+	}
+	return cloned
 }
 
 // getNameServerAddress return namesrv using round-robin strategy.
@@ -158,6 +177,9 @@ func (s *namesrvs) String() string {
 	return strings.Join(s.AddrList(), ";")
 }
 func (s *namesrvs) SetCredentials(credentials primitive.Credentials) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.credentials = &credentials
 	s.nameSrvClient.RegisterInterceptor(remote.ACLInterceptor(credentials))
 }
 

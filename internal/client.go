@@ -212,6 +212,18 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}, c
 	clientMapMu.Lock()
 	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
 	client = actual.(*rmqClient)
+	if !loaded {
+		srvs := option.Namesrv.(*namesrvs)
+		if srvs.bundleClient != nil {
+			// Options can outlive their client. A new generation must not inherit
+			// its transport or caches, even while the old shutdown is in flight.
+			srvs = srvs.cloneForClient()
+		}
+		// Bind once under clientMapMu so concurrent clients cannot claim the
+		// same NameServer transport. Reused clients keep their existing binding.
+		srvs.bundleClient = client
+		client.option.Namesrv = srvs
+	}
 	client.refs++
 	clientMapMu.Unlock()
 
@@ -428,8 +440,6 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}, c
 			}
 			return res
 		})
-		// Only the creator binds the NameServer; reuse must not race with readers.
-		client.GetNameSrv().(*namesrvs).bundleClient = client
 		close(client.ready)
 	}
 	return client
