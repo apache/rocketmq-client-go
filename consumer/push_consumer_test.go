@@ -20,6 +20,7 @@ package consumer
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 
@@ -41,11 +42,15 @@ func TestStart(t *testing.T) {
 			WithConsumerModel(BroadCasting),
 		)
 
+		defer c.client.Shutdown() // Release the real construction reference replaced below.
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		client := internal.NewMockRMQClient(ctrl)
 		c.client = client
+		defer c.Shutdown()
+		client.EXPECT().Shutdown().Return()
+		client.EXPECT().UnregisterConsumer(gomock.Any()).Return()
 
 		err := c.Subscribe("TopicTest", MessageSelector{}, func(ctx context.Context,
 			msgs ...*primitive.MessageExt) (ConsumeResult, error) {
@@ -80,19 +85,23 @@ func TestStart(t *testing.T) {
 		client.EXPECT().UpdateTopicRouteInfo().AnyTimes().Return()
 
 		Convey("test topic route info not found", func() {
-			client.EXPECT().Shutdown().Return()
-			client.EXPECT().UnregisterConsumer(gomock.Any()).Return()
 			err = c.Start()
 			So(err.Error(), ShouldContainSubstring, "route info not found")
 		})
 
 		Convey("test topic route info found", func() {
-			client.EXPECT().RebalanceImmediately().Return()
+			rebalanced := make(chan struct{})
+			client.EXPECT().RebalanceImmediately().Do(func() { close(rebalanced) })
 			client.EXPECT().CheckClientInBroker().Return()
 			client.EXPECT().SendHeartbeatToAllBrokerWithLock().Return()
 			mockB4Start(c)
 			err = c.Start()
 			So(err, ShouldBeNil)
+			select {
+			case <-rebalanced:
+			case <-time.After(time.Second):
+				t.Fatal("startup rebalance did not complete")
+			}
 		})
 	})
 }

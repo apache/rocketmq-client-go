@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/apache/rocketmq-client-go/v2/internal/utils"
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 )
@@ -211,7 +212,9 @@ func (sis *statsItemSet) init() {
 	})
 
 	go primitive.WithRecover(func() {
-		time.Sleep(nextMinutesTime().Sub(time.Now()))
+		if !utils.WaitFor(sis.closed, nextMinutesTime().Sub(time.Now())) {
+			return
+		}
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for {
@@ -225,7 +228,9 @@ func (sis *statsItemSet) init() {
 	})
 
 	go primitive.WithRecover(func() {
-		time.Sleep(nextHourTime().Sub(time.Now()))
+		if !utils.WaitFor(sis.closed, nextHourTime().Sub(time.Now())) {
+			return
+		}
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
@@ -239,7 +244,9 @@ func (sis *statsItemSet) init() {
 	})
 
 	go primitive.WithRecover(func() {
-		time.Sleep(nextMonthTime().Sub(time.Now()))
+		if !utils.WaitFor(sis.closed, nextMonthTime().Sub(time.Now())) {
+			return
+		}
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for {

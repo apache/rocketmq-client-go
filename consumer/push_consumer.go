@@ -123,6 +123,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 		done:            make(chan struct{}, 1),
 		consumeFunc:     utils.NewSet(),
 	}
+	dc.done = p.done
 	dc.mqChanged = p.messageQueueChanged
 	if p.consumeOrderly {
 		p.submitToConsume = p.consumeMessageOrderly
@@ -203,7 +204,9 @@ func (pc *pushConsumer) Start() error {
 			if pc.consumeOrderly {
 				return
 			}
-			time.Sleep(pc.option.ConsumeTimeout)
+			if !utils.WaitFor(pc.done, pc.option.ConsumeTimeout) {
+				return
+			}
 			pc.cleanExpiredMsg()
 
 			ticker := time.NewTicker(pc.option.ConsumeTimeout)
@@ -227,7 +230,9 @@ func (pc *pushConsumer) Start() error {
 				return
 			}
 
-			time.Sleep(1000 * time.Millisecond)
+			if !utils.WaitFor(pc.done, 1000*time.Millisecond) {
+				return
+			}
 			pc.lockAll()
 
 			lockTicker := time.NewTicker(pc.option.RebalanceLockInterval)
@@ -709,7 +714,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 		}
 		if sleepTime > 0 {
 			rlog.Debug(fmt.Sprintf("pull MessageQueue: %d sleep %d ms for mq: %v", request.mq.QueueId, sleepTime/time.Millisecond, request.mq), nil)
-			time.Sleep(sleepTime)
+			if !utils.WaitFor(pc.done, sleepTime) {
+				return
+			}
 		}
 		// reset time
 		sleepTime = pc.option.PullInterval.Load()
@@ -935,7 +942,9 @@ func (pc *pushConsumer) pullMessage(request *PullRequest) {
 			})
 			request.nextOffset = result.NextBeginOffset
 			pq.WithDropped(true)
-			time.Sleep(10 * time.Second)
+			if !utils.WaitFor(pc.done, 10*time.Second) {
+				return
+			}
 			pc.storage.update(request.mq, request.nextOffset, false)
 			pc.storage.persist([]*primitive.MessageQueue{request.mq})
 			pc.processQueueTable.Delete(*request.mq)
@@ -1035,7 +1044,9 @@ func (pc *pushConsumer) ResetOffset(topic string, table map[primitive.MessageQue
 		copyPc.Store(&mq, pq)
 		return true
 	})
-	time.Sleep(10 * time.Second)
+	if !utils.WaitFor(pc.done, 10*time.Second) {
+		return
+	}
 	for _, mq := range mqs {
 		if _, ok := table[*mq]; ok {
 			pc.storage.update(mq, table[*mq], false)
@@ -1144,7 +1155,13 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 		}
 		ch, _ := pc.crCh.Load(mq.Topic)
 		if channel, ok := ch.(chan struct{}); ok {
-			channel <- struct{}{}
+			select {
+			case <-pc.done:
+				return
+			case <-pq.closeChan:
+				return
+			case channel <- struct{}{}:
+			}
 		}
 		go primitive.WithRecover(func() {
 			defer func() {
@@ -1164,6 +1181,11 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 				}
 			}()
 		RETRY:
+			select {
+			case <-pc.done:
+				return
+			default:
+			}
 			if pq.IsDroppd() {
 				rlog.Info("the message queue not be able to consume, because it was dropped", map[string]interface{}{
 					rlog.LogKeyMessageQueue:  mq.String(),
@@ -1250,7 +1272,9 @@ func (pc *pushConsumer) consumeMessageConcurrently(pq *processQueue, mq *primiti
 				}
 				if len(msgBackFailed) > 0 {
 					subMsgs = msgBackFailed
-					time.Sleep(5 * time.Second)
+					if !utils.WaitFor(pc.done, 5*time.Second) {
+						return
+					}
 					goto RETRY
 				}
 			} else {
@@ -1303,7 +1327,7 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 			}
 			interval := time.Now().Sub(beginTime)
 			if interval > pc.option.MaxTimeConsumeContinuously {
-				time.Sleep(10 * time.Millisecond)
+				utils.WaitFor(pc.done, 10*time.Millisecond)
 				return
 			}
 			batchSize := pc.option.ConsumeMessageBatchMaxSize
@@ -1377,7 +1401,9 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 				case SuspendCurrentQueueAMoment:
 					if pc.checkReconsumeTimes(msgs) {
 						pq.makeMessageToCosumeAgain(msgs...)
-						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+						if !utils.WaitFor(pc.done, time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis)*time.Millisecond) {
+							return
+						}
 						continueConsume = false
 					} else {
 						commitOffset = pq.commit()
@@ -1391,11 +1417,15 @@ func (pc *pushConsumer) consumeMessageOrderly(pq *processQueue, mq *primitive.Me
 					commitOffset = pq.commit()
 				case Rollback:
 					// pq.rollback
-					time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+					if !utils.WaitFor(pc.done, time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis)*time.Millisecond) {
+						return
+					}
 					continueConsume = false
 				case SuspendCurrentQueueAMoment:
 					if pc.checkReconsumeTimes(msgs) {
-						time.Sleep(time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis) * time.Millisecond)
+						if !utils.WaitFor(pc.done, time.Duration(orderlyCtx.SuspendCurrentQueueTimeMillis)*time.Millisecond) {
+							return
+						}
 						continueConsume = false
 					}
 				default:
@@ -1453,7 +1483,9 @@ func (pc *pushConsumer) getMaxReconsumeTimes() int32 {
 }
 
 func (pc *pushConsumer) tryLockLaterAndReconsume(mq *primitive.MessageQueue, delay int64) {
-	time.Sleep(time.Duration(delay) * time.Millisecond)
+	if !utils.WaitFor(pc.done, time.Duration(delay)*time.Millisecond) {
+		return
+	}
 	if pc.lock(mq) == true {
 		pc.submitConsumeRequestLater(10)
 	} else {
@@ -1470,7 +1502,7 @@ func (pc *pushConsumer) submitConsumeRequestLater(suspendTimeMillis int64) {
 	} else if suspendTimeMillis > 30000 {
 		suspendTimeMillis = 30000
 	}
-	time.Sleep(time.Duration(suspendTimeMillis) * time.Millisecond)
+	utils.WaitFor(pc.done, time.Duration(suspendTimeMillis)*time.Millisecond)
 }
 
 func (pc *pushConsumer) cleanExpiredMsg() {

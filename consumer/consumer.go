@@ -269,6 +269,8 @@ type defaultConsumer struct {
 	storage               OffsetStore
 	// chan for push consumer
 	prCh chan PullRequest
+	// Shares the shutdown signal owned by the push or pull consumer.
+	done <-chan struct{}
 
 	pullFromWhichNodeTable sync.Map
 
@@ -702,6 +704,11 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
+	select {
+	case <-dc.done:
+		return false
+	default:
+	}
 	mqSet := make(map[primitive.MessageQueue]bool)
 	for idx := range mqs {
 		mqSet[*mqs[idx]] = true
@@ -736,6 +743,11 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 	})
 
 	for item := range mqSet {
+		select {
+		case <-dc.done:
+			return changed
+		default:
+		}
 		// BUG: the mq will send to channel, if not copy once, the next iter will modify the mq in the channel.
 		mq := item
 		_, exist := dc.processQueueTable.Load(mq)
@@ -772,7 +784,13 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 					pq:            pq,
 					nextOffset:    nextOffset,
 				}
-				dc.prCh <- pr
+				if !dc.dispatchPullRequest(pr) {
+					// Shutdown may have finished scanning the table while offset lookup
+					// was still in flight. Dispose the newly published queue ourselves.
+					pq.WithDropped(true)
+					dc.processQueueTable.Delete(mq)
+					return changed
+				}
 				changed = true
 			}
 		} else {
@@ -784,6 +802,27 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 	}
 
 	return changed
+}
+
+// dispatchPullRequest does not retain a rebalance worker after its receiver stops.
+func (dc *defaultConsumer) dispatchPullRequest(pr PullRequest) bool {
+	select {
+	case <-dc.done:
+		return false
+	default:
+	}
+	select {
+	case <-dc.done:
+		return false
+	case dc.prCh <- pr:
+	}
+	// A buffered send can win a select at the same time as shutdown.
+	select {
+	case <-dc.done:
+		return false
+	default:
+		return true
+	}
 }
 
 func (dc *defaultConsumer) removeUnnecessaryMessageQueue(mq *primitive.MessageQueue, pq *processQueue) bool {

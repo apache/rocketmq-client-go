@@ -44,11 +44,13 @@ type defaultProducer struct {
 	options     producerOptions
 	publishInfo sync.Map
 	callbackCh  chan interface{}
+	done        chan struct{}
 
 	interceptor primitive.Interceptor
 
 	lifecycleMu  sync.Mutex
 	startOnce    sync.Once
+	startErr     error
 	ShutdownOnce sync.Once
 }
 
@@ -75,9 +77,10 @@ func NewDefaultProducer(opts ...Option) (*defaultProducer, error) {
 	producer := &defaultProducer{
 		group:      defaultOpts.GroupName,
 		callbackCh: make(chan interface{}),
+		done:       make(chan struct{}),
 		options:    defaultOpts,
 	}
-	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh)
+	producer.client = internal.GetOrNewRocketMQClient(defaultOpts.ClientOptions, producer.callbackCh, producer.done)
 	if producer.client == nil {
 		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
 	}
@@ -95,31 +98,33 @@ func (p *defaultProducer) Start() error {
 	if atomic.LoadInt32(&p.state) == int32(internal.StateShutdown) {
 		return internal.ErrServiceState
 	}
-	var err error
 	defer func() {
-		if err != nil && !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
+		if p.startErr != nil && !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
 			p.options.TraceDispatcher.Close()
 		}
 	}()
 	p.startOnce.Do(func() {
-		err = p.client.RegisterProducer(p.group, p)
-		if err != nil {
+		p.startErr = p.client.RegisterProducer(p.group, p)
+		if p.startErr != nil {
 			rlog.Error("the producer group has been created, specify another one", map[string]interface{}{
 				rlog.LogKeyProducerGroup: p.group,
 			})
-			err = errors2.ErrProducerCreated
+			p.startErr = errors2.ErrProducerCreated
 			return
 		}
 		p.client.Start()
 		atomic.StoreInt32(&p.state, int32(internal.StateRunning))
 	})
-	return err
+	return p.startErr
 }
 
 func (p *defaultProducer) Shutdown() error {
 	p.lifecycleMu.Lock()
 	defer p.lifecycleMu.Unlock()
 	p.ShutdownOnce.Do(func() {
+		if p.done != nil {
+			close(p.done)
+		}
 		if !internal.IsNilTraceDispatcher(p.options.TraceDispatcher) {
 			p.options.TraceDispatcher.Close()
 		}
@@ -657,8 +662,9 @@ func (p *defaultProducer) IsUnitMode() bool {
 }
 
 type transactionProducer struct {
-	producer *defaultProducer
-	listener primitive.TransactionListener
+	producer  *defaultProducer
+	listener  primitive.TransactionListener
+	checkOnce sync.Once
 }
 
 // TODO: checkLocalTransaction
@@ -674,10 +680,15 @@ func NewTransactionProducer(listener primitive.TransactionListener, opts ...Opti
 }
 
 func (tp *transactionProducer) Start() error {
-	go primitive.WithRecover(func() {
-		tp.checkTransactionState()
+	if err := tp.producer.Start(); err != nil {
+		return err
+	}
+	tp.checkOnce.Do(func() {
+		go primitive.WithRecover(func() {
+			tp.checkTransactionState()
+		})
 	})
-	return tp.producer.Start()
+	return nil
 }
 func (tp *transactionProducer) Shutdown() error {
 	return tp.producer.Shutdown()
@@ -685,7 +696,20 @@ func (tp *transactionProducer) Shutdown() error {
 
 // TODO: check addr
 func (tp *transactionProducer) checkTransactionState() {
-	for ch := range tp.producer.callbackCh {
+	for {
+		var ch interface{}
+		select {
+		case <-tp.producer.done:
+			return
+		case ch = <-tp.producer.callbackCh:
+		}
+		// A callback can arrive at the same time as shutdown. Do not begin new
+		// application work once the producer has stopped.
+		select {
+		case <-tp.producer.done:
+			return
+		default:
+		}
 		switch callback := ch.(type) {
 		case *internal.CheckTransactionStateCallback:
 			localTransactionState := tp.listener.CheckLocalTransaction(callback.Msg)

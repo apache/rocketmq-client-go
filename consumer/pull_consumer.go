@@ -136,6 +136,7 @@ func NewPullConsumer(options ...Option) (*defaultPullConsumer, error) {
 		consumeRequestCache: make(chan *ConsumeRequest, 4),
 		GroupName:           dc.option.GroupName,
 	}
+	dc.done = c.done
 	dc.mqChanged = c.messageQueueChanged
 	c.submitToConsume = c.consumeMessageConcurrently
 	c.interceptor = primitive.ChainInterceptors(c.option.Interceptors...)
@@ -305,13 +306,26 @@ func (pc *defaultPullConsumer) Start() error {
 	return err
 }
 
+// Poll returns ErrService from the errors package when the consumer is shut down.
 func (pc *defaultPullConsumer) Poll(ctx context.Context, timeout time.Duration) (*ConsumeRequest, error) {
+	select {
+	case <-pc.done:
+		return nil, errors2.ErrService
+	default:
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	select {
 	case <-ctx.Done():
 		return nil, ErrNoNewMsg
+	case <-pc.done:
+		return nil, errors2.ErrService
 	case cr := <-pc.consumeRequestCache:
+		select {
+		case <-pc.done:
+			return nil, errors2.ErrService
+		default:
+		}
 		if cr.processQueue.IsDroppd() {
 			rlog.Info("defaultPullConsumer poll the message queue not be able to consume, because it was dropped", map[string]interface{}{
 				rlog.LogKeyMessageQueue:  cr.messageQueue.String(),

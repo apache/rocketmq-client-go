@@ -31,6 +31,7 @@ type ResponseFuture struct {
 	callback        func(*ResponseFuture)
 	Done            chan bool
 	callbackOnce    sync.Once
+	completeOnce    sync.Once
 	ctx             context.Context
 }
 
@@ -52,17 +53,22 @@ func (r *ResponseFuture) executeInvokeCallback() {
 	})
 }
 
+// complete publishes exactly one result before waking waiters. Callbacks run
+// outside transport locks, in the goroutine owning the asynchronous request.
+func (r *ResponseFuture) complete(cmd *RemotingCommand, err error) {
+	r.completeOnce.Do(func() {
+		r.ResponseCommand, r.Err = cmd, err
+		if r.Done != nil {
+			close(r.Done)
+		}
+	})
+}
+
 func (r *ResponseFuture) waitResponse() (*RemotingCommand, error) {
-	var (
-		cmd *RemotingCommand
-		err error
-	)
 	select {
 	case <-r.Done:
-		cmd, err = r.ResponseCommand, r.Err
 	case <-r.ctx.Done():
-		err = errors.ErrRequestTimeout
-		r.Err = err
+		r.complete(nil, errors.ErrRequestTimeout)
 	}
-	return cmd, err
+	return r.ResponseCommand, r.Err
 }
