@@ -760,7 +760,7 @@ func (tp *transactionProducer) SendMessageInTransaction(ctx context.Context, msg
 	if err != nil {
 		return nil, err
 	}
-	localTransactionState := primitive.UnkonwnState
+	localTransactionState := primitive.UnknownState
 	switch rsp.Status {
 	case primitive.SendOK:
 		if len(rsp.TransactionID) > 0 {
@@ -831,7 +831,7 @@ func (tp *transactionProducer) transactionState(state primitive.LocalTransaction
 		return primitive.TransactionCommitType
 	case primitive.RollbackMessageState:
 		return primitive.TransactionRollbackType
-	case primitive.UnkonwnState:
+	case primitive.UnknownState:
 		return primitive.TransactionNotType
 	default:
 		return primitive.TransactionNotType

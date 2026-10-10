@@ -49,7 +49,7 @@ func (dl *DemoListener) ExecuteLocalTransaction(msg *primitive.Message) primitiv
 	dl.localTrans.Store(msg.TransactionId, primitive.LocalTransactionState(status+1))
 
 	fmt.Printf("dl")
-	return primitive.UnkonwnState
+	return primitive.UnknownState
 }
 
 func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primitive.LocalTransactionState {
@@ -69,7 +69,7 @@ func (dl *DemoListener) CheckLocalTransaction(msg *primitive.MessageExt) primiti
 		return primitive.RollbackMessageState
 	case 3:
 		fmt.Printf("checkLocalTransaction unknown: %v\n", msg)
-		return primitive.UnkonwnState
+		return primitive.UnknownState
 	default:
 		fmt.Printf("checkLocalTransaction default COMMIT_MESSAGE: %v\n", msg)
 		return primitive.CommitMessageState
