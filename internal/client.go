@@ -297,7 +297,9 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}, c
 				rlog.Warning("checkTransactionState, pick producer group failed", nil)
 				return nil
 			}
-			if option.GroupName != group {
+			// Capture only the current client. The input options may reference a
+			// retired NameServer and keep every previous generation reachable.
+			if client.option.GroupName != group {
 				rlog.Warning("producer group is not equal", nil)
 				return nil
 			}

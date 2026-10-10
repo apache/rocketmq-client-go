@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -345,4 +346,31 @@ func TestClientOwnershipSlowSnapshotDoesNotBlockOtherClients(t *testing.T) {
 	}
 	require.NotSame(t, ns, replacement.GetNameSrv())
 	require.Same(t, old, ns.bundleClient, "the old NameServer binding must remain unchanged")
+}
+
+func TestClientOwnershipRebuildDoesNotRetainRetiredClients(t *testing.T) {
+	client, collected := rebuiltClientWithRetiredCaches(t)
+	defer client.Shutdown()
+	require.Eventually(t, func() bool {
+		runtime.GC()
+		return len(collected) == 3
+	}, 3*time.Second, 10*time.Millisecond, "the live replacement must not retain retired clients through its request handlers")
+	runtime.KeepAlive(client)
+}
+
+func rebuiltClientWithRetiredCaches(t *testing.T) (*rmqClient, <-chan struct{}) {
+	t.Helper()
+	collected := make(chan struct{}, 3)
+	client := GetOrNewRocketMQClient(ownershipTestOptions(t), nil).(*rmqClient)
+	for generation := 0; generation < 3; generation++ {
+		// Use a separately allocated leaf object: finalizers on the client itself
+		// would interact with its intentional internal reference cycles.
+		marker := new([1024]byte)
+		runtime.SetFinalizer(marker, func(*[1024]byte) { collected <- struct{}{} })
+		client.GetNameSrv().(*namesrvs).routeDataMap.Store("retired-cache", marker)
+		options := client.option
+		client.Shutdown()
+		client = GetOrNewRocketMQClient(options, nil).(*rmqClient)
+	}
+	return client, collected
 }
