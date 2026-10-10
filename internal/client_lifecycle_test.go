@@ -24,11 +24,11 @@ import (
 	"io"
 	"net"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/apache/rocketmq-client-go/v2/internal/remote"
 	"github.com/golang/mock/gomock"
-	"testing"
 
 	"github.com/apache/rocketmq-client-go/v2/primitive"
 	"github.com/stretchr/testify/require"
@@ -230,4 +230,119 @@ func namesrvRebuildTestOptions(t *testing.T) (ClientOptions, func()) {
 	ns.SetCredentials(primitive.Credentials{AccessKey: "test-key", SecretKey: "test-secret", SecurityToken: "test-token"})
 	options.Namesrv = ns
 	return options, stop
+}
+
+// Observe entry to Lock without relying on sleeps to schedule the clone attempt.
+type snapshotAttemptLocker struct {
+	sync.Locker
+	attempts chan struct{}
+}
+
+func (l *snapshotAttemptLocker) Lock() {
+	select {
+	case l.attempts <- struct{}{}:
+	default:
+	}
+	l.Locker.Lock()
+}
+
+type blockedDiscoveryResolver struct {
+	primitive.NsResolver
+	entered chan struct{}
+	resume  chan struct{}
+	once    sync.Once
+}
+
+func (r *blockedDiscoveryResolver) Resolve() []string {
+	r.once.Do(func() { close(r.entered) })
+	<-r.resume
+	return r.NsResolver.Resolve()
+}
+
+func TestClientOwnershipSlowSnapshotDoesNotBlockOtherClients(t *testing.T) {
+	options := ownershipTestOptions(t)
+	old := GetOrNewRocketMQClient(options, nil).(*rmqClient)
+	old.Shutdown()
+	ns := options.Namesrv.(*namesrvs)
+	resolver := &blockedDiscoveryResolver{
+		NsResolver: ns.resolver, entered: make(chan struct{}), resume: make(chan struct{}),
+	}
+	ns.resolver = resolver
+	lock := &snapshotAttemptLocker{Locker: ns.lock, attempts: make(chan struct{}, 4)}
+	ns.lock = lock
+
+	closingOptions := ownershipTestOptions(t)
+	closingOptions.InstanceName += "-closing"
+	closing := GetOrNewRocketMQClient(closingOptions, nil)
+	defer closing.Shutdown()
+	creatingOptions := ownershipTestOptions(t)
+	creatingOptions.InstanceName += "-creating"
+	// A competing creator uses fresh discovery state for the same client ID.
+	winnerOptions := ownershipTestOptions(t)
+	var workers sync.WaitGroup
+	var resumeOnce sync.Once
+	resume := func() { resumeOnce.Do(func() { close(resolver.resume) }) }
+	defer func() { resume(); workers.Wait() }()
+	workers.Add(1)
+	go func() { defer workers.Done(); ns.UpdateNameServerAddress() }()
+	select {
+	case <-resolver.entered:
+	case <-time.After(time.Second):
+		t.Fatal("discovery did not start")
+	}
+	<-lock.attempts // The refresh has acquired the NameServer lock.
+
+	rebuilt := make(chan *rmqClient, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		client := GetOrNewRocketMQClient(options, nil).(*rmqClient)
+		defer client.Shutdown()
+		rebuilt <- client
+	}()
+	select {
+	case <-lock.attempts: // The rebuilding client is now trying to copy the snapshot.
+	case <-time.After(time.Second):
+		t.Fatal("rebuild did not attempt to acquire the NameServer lock")
+	}
+
+	closed, created := make(chan struct{}), make(chan struct{})
+	winnerReady, releaseWinner := make(chan *rmqClient, 1), make(chan struct{})
+	defer close(releaseWinner)
+	workers.Add(3)
+	go func() { defer workers.Done(); closing.Shutdown(); close(closed) }()
+	go func() {
+		defer workers.Done()
+		client := GetOrNewRocketMQClient(creatingOptions, nil)
+		client.Shutdown()
+		close(created)
+	}()
+	go func() {
+		defer workers.Done()
+		client := GetOrNewRocketMQClient(winnerOptions, nil).(*rmqClient)
+		defer client.Shutdown()
+		winnerReady <- client
+		<-releaseWinner
+	}()
+	for name, done := range map[string]<-chan struct{}{"shutdown": closed, "creation": created} {
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Errorf("unrelated client %s blocked on slow discovery", name)
+		}
+	}
+	var winner *rmqClient
+	select {
+	case winner = <-winnerReady:
+	case <-time.After(time.Second):
+		t.Error("same-ID creator with fresh discovery state was blocked")
+	}
+	resume()
+	replacement := <-rebuilt
+	if winner != nil {
+		require.Same(t, winner, replacement, "recheck the client table after copying the snapshot")
+		require.Same(t, winner, winner.GetNameSrv().(*namesrvs).bundleClient)
+	}
+	require.NotSame(t, ns, replacement.GetNameSrv())
+	require.Same(t, old, ns.bundleClient, "the old NameServer binding must remain unchanged")
 }

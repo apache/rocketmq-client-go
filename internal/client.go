@@ -209,25 +209,40 @@ func GetOrNewRocketMQClient(option ClientOptions, callbackCh chan interface{}, c
 		done:         make(chan struct{}),
 		ready:        make(chan struct{}),
 	}
+	clientID := client.ClientID()
+	var cloned *namesrvs
 	clientMapMu.Lock()
-	actual, loaded := clientMap.LoadOrStore(client.ClientID(), client)
-	client = actual.(*rmqClient)
-	if !loaded {
+	actual, loaded := clientMap.Load(clientID)
+	if !loaded && option.Namesrv.(*namesrvs).bundleClient != nil {
+		// Snapshot copying can wait for discovery to release the NameServer
+		// lock. Never hold the global client registry lock while waiting.
+		clientMapMu.Unlock()
+		cloned = option.Namesrv.(*namesrvs).cloneForClient()
+		clientMapMu.Lock()
+		// Another caller may have published this client ID in the meantime.
+		actual, loaded = clientMap.Load(clientID)
+	}
+	if loaded {
+		client = actual.(*rmqClient)
+	} else {
 		srvs := option.Namesrv.(*namesrvs)
-		if srvs.bundleClient != nil {
-			// Options can outlive their client. A new generation must not inherit
-			// its transport or caches, even while the old shutdown is in flight.
-			srvs = srvs.cloneForClient()
+		if cloned != nil {
+			srvs = cloned
 		}
-		// Bind once under clientMapMu so concurrent clients cannot claim the
-		// same NameServer transport. Reused clients keep their existing binding.
+		// Ownership and publication stay atomic. Never rebind an old instance's
+		// NameServer, including while its shutdown is still in flight.
 		srvs.bundleClient = client
 		client.option.Namesrv = srvs
+		clientMap.Store(clientID, client)
 	}
 	client.refs++
 	clientMapMu.Unlock()
 
 	if loaded {
+		if cloned != nil {
+			// A concurrent creator won; dispose the unused private transport.
+			cloned.nameSrvClient.ShutDown()
+		}
 		// Do not expose a shared client before its request handlers are ready.
 		<-client.ready
 		// compare namesrv address
