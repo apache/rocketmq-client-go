@@ -19,7 +19,9 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,7 +38,8 @@ type Admin interface {
 
 	GetAllSubscriptionGroup(ctx context.Context, brokerAddr string, timeoutMillis time.Duration) (*SubscriptionGroupWrapper, error)
 	FetchAllTopicList(ctx context.Context) (*TopicList, error)
-	//GetBrokerClusterInfo(ctx context.Context) (*remote.RemotingCommand, error)
+	FindBrokerAddrByName(ctx context.Context, BrokerName string) ([]string, error)
+	GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error)
 	FetchPublishMessageQueues(ctx context.Context, topic string) ([]*primitive.MessageQueue, error)
 	FetchClusterList(topic string) ([]string, error)
 	Close() error
@@ -112,7 +115,7 @@ func NewAdmin(opts ...AdminOption) (*admin, error) {
 		return nil, fmt.Errorf("GetOrNewRocketMQClient faild")
 	}
 	defaultOpts.Namesrv = cli.GetNameSrv()
-	//log.Printf("Client: %#v", namesrv.srvs)
+	// log.Printf("Client: %#v", namesrv.srvs)
 	return &admin{
 		cli:  cli,
 		opts: defaultOpts,
@@ -164,12 +167,109 @@ func (a *admin) FetchAllTopicList(ctx context.Context) (*TopicList, error) {
 	return &topicList, nil
 }
 
+// Decode overrides decode method avoid the problem of server-side returned JSON **not** conforming to
+// the JSON specification(JSON key should always is string, don't use int as key).
+// Related Issue: https://github.com/apache/rocketmq/issues/3369
+func (a *ClusterInfo) Decode(data []byte, classOfT interface{}) (interface{}, error) {
+	jsonStr := utils.RectifyJsonIntKeysByChar(string(data))
+	return a.FromJson(jsonStr, classOfT)
+}
+
+// GetBrokerClusterInfo Get Broker's Cluster Info, Address Table, and so on
+func (a *admin) GetBrokerClusterInfo(ctx context.Context) (*ClusterInfo, error) {
+	cmd := remote.NewRemotingCommand(internal.ReqGetBrokerClusterInfo, nil, nil)
+	response, err := a.cli.InvokeSync(ctx, a.cli.GetNameSrv().AddrList()[0], cmd, 3*time.Second)
+	if err != nil {
+		rlog.Error("Fetch cluster info error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	rlog.Info("Fetch cluster info success", map[string]interface{}{})
+
+	var clusterInfo ClusterInfo
+	_, err = clusterInfo.Decode(response.Body, &clusterInfo)
+	if err != nil {
+		rlog.Error("Fetch cluster info decode error", map[string]interface{}{
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	return &clusterInfo, nil
+}
+
+func (a *admin) checkIsTopicDuplicated(ctx context.Context, topic string) (bool, error) {
+	topicList, err := a.FetchAllTopicList(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, t := range topicList.TopicList {
+		if t == topic {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (a *admin) FindBrokerAddrByName(ctx context.Context, brokerName string) ([]string, error) {
+	var brokersAddrList []string
+	clusterInfo, err := a.GetBrokerClusterInfo(ctx)
+	if err != nil {
+		rlog.Error("call GetBrokerClusterInfo error", map[string]interface{}{
+			rlog.LogKeyBroker:        brokerName,
+			rlog.LogKeyUnderlayError: err,
+		})
+		return nil, err
+	}
+	// fetch broker addr via broker name
+	if brokerName != "" {
+		if val, exist := clusterInfo.BrokerAddrTable[brokerName]; exist {
+			// only add master broker address
+			brokersAddrList = append(brokersAddrList, val.BrokerAddresses[internal.MasterId])
+		} else {
+			rlog.Error("create topic error", map[string]interface{}{
+				rlog.LogKeyBroker:        brokerName,
+				rlog.LogKeyUnderlayError: "Broker Name not found",
+			})
+			return nil, errors.New("create topic error due to broker name not found")
+		}
+	} else {
+		// not given broker addr and name, then create topic on all broker of default cluster
+		for _, nestedBrokerAddrData := range clusterInfo.BrokerAddrTable {
+			// only add master broker address
+			brokersAddrList = append(brokersAddrList, nestedBrokerAddrData.BrokerAddresses[internal.MasterId])
+		}
+	}
+	return brokersAddrList, nil
+}
+
 // CreateTopic create topic.
-// TODO: another implementation like sarama, without brokerAddr as input
+// Done: another implementation like sarama, without brokerAddr as input
 func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	cfg := defaultTopicConfigCreate()
 	for _, apply := range opts {
 		apply(&cfg)
+	}
+	if cfg.Topic == "" {
+		rlog.Error("empty topic", map[string]interface{}{})
+		return errors.New("topic is empty string")
+	}
+
+	if cfg.OptNotOverride {
+		isExist, err := a.checkIsTopicDuplicated(ctx, cfg.Topic)
+		if err != nil {
+			rlog.Error("failed to FetchAllTopicList", map[string]interface{}{
+				rlog.LogKeyUnderlayError: err,
+			})
+			return errors.New("failed to FetchAllTopicList")
+		}
+		if isExist {
+			rlog.Error("same name topic is exist", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyUnderlayError: "topic is duplicated",
+			})
+			return errors.New("topic is duplicated")
+		}
 	}
 
 	request := &internal.CreateTopicRequestHeader{
@@ -184,20 +284,39 @@ func (a *admin) CreateTopic(ctx context.Context, opts ...OptionCreate) error {
 	}
 
 	cmd := remote.NewRemotingCommand(internal.ReqCreateTopic, request, nil)
-	_, err := a.cli.InvokeSync(ctx, cfg.BrokerAddr, cmd, 5*time.Second)
-	if err != nil {
-		rlog.Error("create topic error", map[string]interface{}{
-			rlog.LogKeyTopic:         cfg.Topic,
-			rlog.LogKeyBroker:        cfg.BrokerAddr,
-			rlog.LogKeyUnderlayError: err,
-		})
+	var brokersAddrList []string
+	if cfg.BrokerAddr == "" {
+		// we need get broker addr table from RocketMQ server
+		foundBrokers, err := a.FindBrokerAddrByName(ctx, cfg.BrokerName)
+		if err != nil {
+			return err
+		}
+		if foundBrokers == nil || len(foundBrokers) == 0 {
+			return errors.New("broker name not found")
+		}
+		brokersAddrList = append(brokersAddrList, foundBrokers...)
 	} else {
-		rlog.Info("create topic success", map[string]interface{}{
-			rlog.LogKeyTopic:  cfg.Topic,
-			rlog.LogKeyBroker: cfg.BrokerAddr,
-		})
+		brokersAddrList = append(brokersAddrList, cfg.BrokerAddr)
 	}
-	return err
+	var invokeErrorStrings []string
+	for _, brokerAddr := range brokersAddrList {
+		_, invokeErr := a.cli.InvokeSync(ctx, brokerAddr, cmd, 5*time.Second)
+		if invokeErr != nil {
+			invokeErrorStrings = append(invokeErrorStrings, invokeErr.Error())
+			rlog.Error("create topic error", map[string]interface{}{
+				rlog.LogKeyTopic:         cfg.Topic,
+				rlog.LogKeyBroker:        brokerAddr,
+				rlog.LogKeyUnderlayError: invokeErr,
+			})
+		} else {
+			rlog.Info("create topic success", map[string]interface{}{
+				rlog.LogKeyTopic:  cfg.Topic,
+				rlog.LogKeyBroker: brokerAddr,
+			})
+		}
+	}
+	// go 1.13 not support errors.Join(err, nil, err2, err3), so we join with string repr of error
+	return fmt.Errorf(strings.Join(invokeErrorStrings, "\n"))
 }
 
 // DeleteTopicInBroker delete topic in broker.
@@ -226,7 +345,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 	for _, apply := range opts {
 		apply(&cfg)
 	}
-	//delete topic in broker
+	// delete topic in broker
 	if cfg.BrokerAddr == "" {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
 		cfg.BrokerAddr = a.cli.GetNameSrv().FindBrokerAddrByTopic(cfg.Topic)
@@ -241,7 +360,7 @@ func (a *admin) DeleteTopic(ctx context.Context, opts ...OptionDelete) error {
 		return err
 	}
 
-	//delete topic in nameserver
+	// delete topic in nameserver
 	if len(cfg.NameSrvAddr) == 0 {
 		a.cli.GetNameSrv().UpdateTopicRouteInfo(cfg.Topic)
 		cfg.NameSrvAddr = a.cli.GetNameSrv().AddrList()

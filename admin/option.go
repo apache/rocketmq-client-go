@@ -26,12 +26,14 @@ func defaultTopicConfigCreate() TopicConfigCreate {
 		TopicFilterType: "SINGLE_TAG",
 		TopicSysFlag:    0,
 		Order:           false,
+		OptNotOverride:  false,
 	}
 	return opts
 }
 
 type TopicConfigCreate struct {
 	Topic           string
+	BrokerName      string
 	BrokerAddr      string
 	DefaultTopic    string
 	ReadQueueNums   int
@@ -40,6 +42,7 @@ type TopicConfigCreate struct {
 	TopicFilterType string
 	TopicSysFlag    int
 	Order           bool
+	OptNotOverride  bool // optional flag for avoid override same name topic
 }
 
 type OptionCreate func(*TopicConfigCreate)
@@ -47,6 +50,18 @@ type OptionCreate func(*TopicConfigCreate)
 func WithTopicCreate(Topic string) OptionCreate {
 	return func(opts *TopicConfigCreate) {
 		opts.Topic = Topic
+	}
+}
+
+func WithOptNotOverrideCreate(NotOverride bool) OptionCreate {
+	return func(opts *TopicConfigCreate) {
+		opts.OptNotOverride = NotOverride
+	}
+}
+
+func WithBrokerNameCreate(BrokerName string) OptionCreate {
+	return func(opts *TopicConfigCreate) {
+		opts.BrokerName = BrokerName
 	}
 }
 

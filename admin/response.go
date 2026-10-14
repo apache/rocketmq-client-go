@@ -64,6 +64,19 @@ type TopicList struct {
 	RemotingSerializable
 }
 
+type NestedBrokerAddrData struct {
+	BrokerAddresses    map[int64]string `json:"brokerAddrs"` // may have multi addresses, master index is 0
+	Cluster            string           `json:"cluster"`
+	BrokerName         string           `json:"brokerName"`
+	EnableActingMaster bool             `json:"enableActingMaster"`
+}
+
+type ClusterInfo struct {
+	BrokerAddrTable  map[string]NestedBrokerAddrData `json:"brokerAddrTable"`  // k: broker name
+	ClusterAddrTable map[string][]string             `json:"clusterAddrTable"` // k: cluster name, v: multi broker names
+	RemotingSerializable
+}
+
 type SubscriptionGroupWrapper struct {
 	SubscriptionGroupTable map[string]SubscriptionGroupConfig
 	DataVersion            DataVersion
