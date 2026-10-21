@@ -247,14 +247,16 @@ type defaultConsumer struct {
 	fromWhere              ConsumeFromWhere
 	consumerStartTimestamp int64
 
-	cType       ConsumeType
-	client      internal.RMQClient
-	mqChanged   func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
-	state       *atomic.Int32
-	pause       *atomic.Bool
-	lifecycleMu sync.Mutex
-	once        sync.Once
-	option      consumerOptions
+	cType     ConsumeType
+	client    internal.RMQClient
+	mqChanged func(topic string, mqAll, mqDivided []*primitive.MessageQueue)
+	// updateQueueFlowControl runs after queue initialization, before new pulls.
+	updateQueueFlowControl func()
+	state                  *atomic.Int32
+	pause                  *atomic.Bool
+	lifecycleMu            sync.Mutex
+	once                   sync.Once
+	option                 consumerOptions
 	// key: primitive.MessageQueue
 	// value: *processQueue
 	processQueueTable sync.Map
@@ -704,6 +706,17 @@ func (dc *defaultConsumer) buildProcessQueueTableByBrokerName() map[string][]*pr
 
 func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitive.MessageQueue) bool {
 	var changed bool
+	var pending []PullRequest
+	// Any early return must dispose queues that have not been dispatched, including
+	// queues registered after shutdown's table scan completed.
+	defer func() {
+		for _, pr := range pending {
+			pr.pq.WithDropped(true)
+			if current, ok := dc.processQueueTable.Load(*pr.mq); ok && current == pr.pq {
+				dc.processQueueTable.Delete(*pr.mq)
+			}
+		}
+	}()
 	select {
 	case <-dc.done:
 		return false
@@ -763,6 +776,11 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 		}
 		dc.storage.remove(&mq)
 		nextOffset, err := dc.computePullFromWhereWithException(&mq)
+		select {
+		case <-dc.done:
+			return changed
+		default:
+		}
 
 		if nextOffset >= 0 && err == nil {
 			_, exist := dc.processQueueTable.Load(mq)
@@ -784,13 +802,7 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 					pq:            pq,
 					nextOffset:    nextOffset,
 				}
-				if !dc.dispatchPullRequest(pr) {
-					// Shutdown may have finished scanning the table while offset lookup
-					// was still in flight. Dispose the newly published queue ourselves.
-					pq.WithDropped(true)
-					dc.processQueueTable.Delete(mq)
-					return changed
-				}
+				pending = append(pending, pr)
 				changed = true
 			}
 		} else {
@@ -801,6 +813,22 @@ func (dc *defaultConsumer) updateProcessQueueTable(topic string, mqs []*primitiv
 		}
 	}
 
+	select {
+	case <-dc.done:
+		return changed
+	default:
+	}
+	if changed && dc.updateQueueFlowControl != nil {
+		dc.updateQueueFlowControl()
+	}
+	// Offset lookups may be slow. Do not let earlier queues pull using the
+	// default per-queue limits while the remaining queues are being initialized.
+	for len(pending) > 0 {
+		if !dc.dispatchPullRequest(pending[0]) {
+			return changed
+		}
+		pending = pending[1:]
+	}
 	return changed
 }
 
