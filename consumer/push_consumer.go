@@ -125,6 +125,7 @@ func NewPushConsumer(opts ...Option) (*pushConsumer, error) {
 	}
 	dc.done = p.done
 	dc.mqChanged = p.messageQueueChanged
+	dc.updateQueueFlowControl = p.updateQueueFlowControl
 	if p.consumeOrderly {
 		p.submitToConsume = p.consumeMessageOrderly
 	} else {
@@ -545,7 +546,11 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 	data.SubVersion = newVersion
 	data.Unlock()
 
-	// TODO: optimize
+	pc.client.SendHeartbeatToAllBrokerWithLock()
+}
+
+// updateQueueFlowControl applies the topic budgets before new queues start pulling.
+func (pc *pushConsumer) updateQueueFlowControl() {
 	count := 0
 	pc.processQueueTable.Range(func(key, value interface{}) bool {
 		count++
@@ -576,7 +581,6 @@ func (pc *pushConsumer) messageQueueChanged(topic string, mqAll, mqDivided []*pr
 			pc.option.PullThresholdSizeForQueue.Store(int32(newVal))
 		}
 	}
-	pc.client.SendHeartbeatToAllBrokerWithLock()
 }
 
 func (pc *pushConsumer) validate() error {
